@@ -6,6 +6,7 @@ import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import { useState, useMemo, useRef, useEffect, useCallback, memo } from 'react';
 import { StepsAccordion } from './AIResponseSteps';
 import MarkdownRenderer from './MarkdownRenderer';
+import { useCharacterPacing } from '../hooks/useCharacterPacing';
 
 // ============================================================================
 // CONSTANTS & ANIMATIONS
@@ -21,119 +22,6 @@ const spin = keyframes`
 // ============================================================================
 // HOOKS
 // ============================================================================
-
-/**
- * Lightweight character pacing hook for fast LLM responses (Cerebras).
- * CRITICAL: Skips over THINKING/TOOL markers atomically to prevent partial markers
- * appearing in the UI during the reveal animation.
- */
-function useCharacterPacing(content, isStreaming, charsPerSecond = 80) {
-  const [revealedLength, setRevealedLength] = useState(0);
-  const progressRef = useRef(0);
-  
-  // Track if this is a historical message (instant render) or fresh (animate)
-  const isHistoryRef = useRef(!isStreaming && content.length > 0);
-
-  /**
-   * Find a safe reveal point that doesn't cut mid-marker.
-   * Returns the adjusted index that either stops before a marker or skips past it.
-   */
-  const findSafeRevealPoint = useCallback((targetIdx, text) => {
-    // Check for TOOL or THINKING markers that we might be cutting into
-    const markerPrefixes = ['[[TOOL:', '[[THINKING:'];
-    
-    for (const prefix of markerPrefixes) {
-      // Look for marker that starts before targetIdx
-      let searchStart = Math.max(0, targetIdx - 100);
-      let markerStart = text.indexOf(prefix, searchStart);
-      
-      while (markerStart !== -1 && markerStart < targetIdx) {
-        // Find the end of this marker
-        const markerEnd = text.indexOf(']]', markerStart);
-        
-        if (markerEnd === -1) {
-          // Marker not complete yet - stop before it
-          return Math.min(targetIdx, markerStart);
-        }
-        
-        if (targetIdx <= markerEnd + 2) {
-          // Target is inside the marker - skip to end of marker
-          return markerEnd + 2;
-        }
-        
-        // Check for next marker
-        markerStart = text.indexOf(prefix, markerStart + 1);
-      }
-      
-      // Check if we're about to enter a new marker
-      const nextMarker = text.indexOf(prefix, targetIdx);
-      if (nextMarker !== -1 && nextMarker < targetIdx + 10) {
-        // Very close to marker start - check if complete
-        const markerEnd = text.indexOf(']]', nextMarker);
-        if (markerEnd === -1) {
-          // Incomplete marker ahead - stop before it
-          return nextMarker;
-        }
-      }
-    }
-    
-    return targetIdx;
-  }, []);
-
-  useEffect(() => {
-    // 1. History mode: Show everything immediately
-    if (isHistoryRef.current) {
-      progressRef.current = content.length;
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: immediate reveal for history
-      setRevealedLength(content.length);
-      return;
-    }
-
-    // 2. Animation complete: Stop
-    if (progressRef.current >= content.length) {
-      return;
-    }
-
-    // 3. Animation Loop
-    const charsPerTick = 4;
-    const intervalMs = (charsPerTick / charsPerSecond) * 1000;
-
-    const timer = setInterval(() => {
-      if (progressRef.current >= content.length) {
-        clearInterval(timer);
-        return;
-      }
-
-      // Calculate raw next position
-      let nextIdx = progressRef.current + charsPerTick;
-      
-      // Adjust to safe point (avoid cutting mid-marker)
-      nextIdx = findSafeRevealPoint(nextIdx, content);
-      
-      // Clamp to content length
-      if (nextIdx >= content.length) {
-        nextIdx = content.length;
-        clearInterval(timer);
-      }
-
-      progressRef.current = nextIdx;
-      setRevealedLength(nextIdx);
-    }, intervalMs);
-
-    return () => clearInterval(timer);
-  }, [content, charsPerSecond, findSafeRevealPoint]);
-
-  // Reset state if content is cleared/swapped entirely
-  useEffect(() => {
-    if (content.length === 0) {
-      progressRef.current = 0;
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: reset on content clear
-      setRevealedLength(0);
-    }
-  }, [content.length]);
-
-  return content.slice(0, revealedLength);
-}
 
 function useCopyToClipboard() {
   const [copied, setCopied] = useState(false);
@@ -234,8 +122,8 @@ const AIMessage = memo(function AIMessage({ message, thinking, tools, onRunQuery
   const openedToolsRef = useRef(new Set());
   const wasStreamingRef = useRef(false);
 
-  // Apply character pacing (200 chars/sec for fast typing)
-  const pacedMessage = useCharacterPacing(message, isStreaming, 200);
+  // Apply character pacing (120 chars/sec)
+  const pacedMessage = useCharacterPacing(message, isStreaming, 120);
 
   useEffect(() => {
     return () => {

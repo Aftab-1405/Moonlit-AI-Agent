@@ -240,8 +240,16 @@ const StepRow = memo(({ step, isStreaming }) => {
     };
   }, [isTool, step]);
 
-  // Thinking active state
-  const isThinkingActive = isThinking && step && !step.isComplete && isStreaming;
+  // Thinking active state - use step.isComplete instead of parent isStreaming
+  // (parent isStreaming may be false by the time steps are rendered)
+  const isThinkingActive = isThinking && step && !step.isComplete;
+
+  // Auto-expand thinking steps that are not yet complete
+  useEffect(() => {
+    if (isThinking && !step?.isComplete && step?.content) {
+      setExpanded(true);
+    }
+  }, [isThinking, step?.isComplete, step?.content]);
 
   // Has expandable details?
   const hasDetails = useMemo(() => {
@@ -259,8 +267,8 @@ const StepRow = memo(({ step, isStreaming }) => {
   const statusIcon = useMemo(() => {
     if (isThinking) {
       const isThinkingActive = !step.isComplete;
-      return <BubbleChartRoundedIcon sx={{ 
-        fontSize: 15, 
+      return <BubbleChartRoundedIcon sx={{
+        fontSize: 15,
         color: isDark ? alpha('#fff', 0.4) : alpha('#000', 0.35),
         ...(isThinkingActive && { animation: `${gentlePulse} 1.5s ease-in-out infinite` }),
       }} />;
@@ -312,9 +320,9 @@ const StepRow = memo(({ step, isStreaming }) => {
   if (!isValid) return null;
 
   return (
-    <Box 
-      sx={{ 
-        borderBottom: `1px solid ${isDark ? alpha('#fff', 0.05) : alpha('#000', 0.04)}`, 
+    <Box
+      sx={{
+        borderBottom: `1px solid ${isDark ? alpha('#fff', 0.05) : alpha('#000', 0.04)}`,
         '&:last-child': { borderBottom: 'none' },
         // Entry animation for smooth appearance
         animation: `${fadeSlideIn} 0.2s ease-out`,
@@ -437,7 +445,7 @@ const StepRow = memo(({ step, isStreaming }) => {
                     {parsedArgs.rationale}
                   </Typography>
                 )}
-                
+
                 {/* Query */}
                 {parsedArgs?.query && (
                   <Box>
@@ -515,9 +523,9 @@ export const StepsAccordion = memo(({ steps, isStreaming }) => {
   const isDark = theme.palette.mode === 'dark';
 
   // Defensive: ensure steps is valid array (memoized)
-  const validSteps = useMemo(() => 
+  const validSteps = useMemo(() =>
     Array.isArray(steps) ? steps.filter(s => s && s.type) : []
-  , [steps]);
+    , [steps]);
 
   // Auto-collapse when streaming ends (after a delay)
   useEffect(() => {
