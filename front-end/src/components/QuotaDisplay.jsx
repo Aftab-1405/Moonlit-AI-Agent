@@ -6,7 +6,7 @@
  * Uses theme semantic colors (success/warning/error) for consistency.
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
 import { Box, Tooltip, Typography, Chip } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import BoltIcon from '@mui/icons-material/Bolt';
@@ -15,14 +15,21 @@ import { getQuotaStatus } from '../api';
 // Poll interval in milliseconds
 const POLL_INTERVAL = 10000;
 
+// Format reset time helper (static, no deps)
+const formatResetTime = (seconds) => {
+  if (!seconds || seconds <= 0) return 'now';
+  if (seconds < 60) return `${seconds}s`;
+  return `${Math.floor(seconds / 60)}m`;
+};
+
 function QuotaDisplay() {
   const theme = useTheme();
-  
+
   const [quota, setQuota] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [enabled, setEnabled] = useState(true);
-  
+
   const intervalRef = useRef(null);
 
   const fetchQuota = useCallback(async () => {
@@ -71,59 +78,73 @@ function QuotaDisplay() {
     }
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    
+
     return () => {
       stopPolling();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [fetchQuota]);
 
+  // Memoize derived values
+  const { remaining, limit, statusColor } = useMemo(() => {
+    if (!quota?.minute) return { remaining: 0, limit: 1, statusColor: 'success' };
+    
+    const used = quota.minute.used || 0;
+    const lim = quota.minute.limit || 1;
+    const rem = Math.max(lim - used, 0);
+    const percentUsed = Math.min((used / lim) * 100, 100);
+    
+    let color = 'success';
+    if (percentUsed >= 80) color = 'error';
+    else if (percentUsed >= 50) color = 'warning';
+    
+    return { remaining: rem, limit: lim, statusColor: color };
+  }, [quota]);
+
+  // Memoize tooltip content
+  const tooltipContent = useMemo(() => {
+    if (!quota) return null;
+    return (
+      <Box sx={{ p: 0.5 }}>
+        <Typography variant="caption" sx={{ fontWeight: 600, color: 'inherit' }}>
+          Rate Limits
+        </Typography>
+        <Box sx={{ mt: 0.5, display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+          <Typography variant="caption" sx={{ color: 'inherit' }}>
+            Minute: {quota.minute?.used || 0}/{quota.minute?.limit || 0} (resets in {formatResetTime(quota.minute?.resets_in)})
+          </Typography>
+          <Typography variant="caption" sx={{ color: 'inherit' }}>
+            Hour: {quota.hour?.used || 0}/{quota.hour?.limit || 0}
+          </Typography>
+          <Typography variant="caption" sx={{ color: 'inherit' }}>
+            Day: {quota.day?.used || 0}/{quota.day?.limit || 0}
+          </Typography>
+        </Box>
+      </Box>
+    );
+  }, [quota]);
+
+  // Memoize chip styles
+  const chipStyles = useMemo(() => ({
+    height: 24,
+    fontWeight: 600,
+    borderRadius: '12px',
+    cursor: 'default',
+    backgroundColor: alpha(theme.palette[statusColor].main, 0.08),
+    '& .MuiChip-icon': {
+      color: theme.palette[statusColor].main,
+      marginLeft: '6px',
+    },
+    '& .MuiChip-label': {
+      paddingLeft: '4px',
+      paddingRight: '8px',
+    },
+  }), [theme, statusColor]);
+
   // Don't render if loading, error, disabled, or no quota data
   if (isLoading || error || !enabled || !quota) {
     return null;
   }
-
-  // Calculate usage from minute quota
-  const minuteQuota = quota.minute || {};
-  const used = minuteQuota.used || 0;
-  const limit = minuteQuota.limit || 1;
-  const remaining = Math.max(limit - used, 0);
-  const percentUsed = Math.min((used / limit) * 100, 100);
-  
-  // Use theme semantic colors for status indication
-  const getStatusColor = () => {
-    if (percentUsed >= 80) return 'error';
-    if (percentUsed >= 50) return 'warning';
-    return 'success';
-  };
-
-  const statusColor = getStatusColor();
-
-  // Format reset time
-  const formatResetTime = (seconds) => {
-    if (!seconds || seconds <= 0) return 'now';
-    if (seconds < 60) return `${seconds}s`;
-    return `${Math.floor(seconds / 60)}m`;
-  };
-
-  const tooltipContent = (
-    <Box sx={{ p: 0.5 }}>
-      <Typography variant="caption" sx={{ fontWeight: 600, color: 'inherit' }}>
-        Rate Limits
-      </Typography>
-      <Box sx={{ mt: 0.5, display: 'flex', flexDirection: 'column', gap: 0.25 }}>
-        <Typography variant="caption" sx={{ color: 'inherit' }}>
-          Minute: {quota.minute?.used || 0}/{quota.minute?.limit || 0} (resets in {formatResetTime(quota.minute?.resets_in)})
-        </Typography>
-        <Typography variant="caption" sx={{ color: 'inherit' }}>
-          Hour: {quota.hour?.used || 0}/{quota.hour?.limit || 0}
-        </Typography>
-        <Typography variant="caption" sx={{ color: 'inherit' }}>
-          Day: {quota.day?.used || 0}/{quota.day?.limit || 0}
-        </Typography>
-      </Box>
-    </Box>
-  );
 
   return (
     <Tooltip title={tooltipContent} placement="bottom-start" arrow>
@@ -132,26 +153,10 @@ function QuotaDisplay() {
         label={`${remaining}/${limit}`}
         size="small"
         color={statusColor}
-        
-        sx={{
-          height: 24,
-          fontSize: '0.7rem',
-          fontWeight: 600,
-          borderWidth: 1.5,
-          cursor: 'default',
-          backgroundColor: alpha(theme.palette[statusColor].main, 0.08),
-          '& .MuiChip-icon': {
-            color: theme.palette[statusColor].main,
-            marginLeft: '6px',
-          },
-          '& .MuiChip-label': {
-            paddingLeft: '4px',
-            paddingRight: '8px',
-          },
-        }}
+        sx={chipStyles}
       />
     </Tooltip>
   );
 }
 
-export default QuotaDisplay;
+export default memo(QuotaDisplay);

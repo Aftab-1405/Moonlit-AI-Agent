@@ -19,6 +19,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Snackbar,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useTheme, alpha } from '@mui/material/styles';
@@ -85,7 +86,10 @@ function Auth() {
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [snackbarSeverity, setSnackbarSeverity] = useState('error');
+
   // Forgot password dialog
   const [forgotDialogOpen, setForgotDialogOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
@@ -115,11 +119,27 @@ function Auth() {
     clearAuthError?.();
   }, [tabValue, clearAuthError, resetErrors]);
 
+  // Watch for auth context errors and display them in snackbar
+  useEffect(() => {
+    if (error) {
+      setSnackbarMessage(error);
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    }
+  }, [error]);
+
+  // Handle snackbar close
+  const handleSnackbarClose = (event, reason) => {
+    if (reason === 'clickaway') return;
+    setSnackbarOpen(false);
+    clearAuthError?.();
+  };
+
   // Handle Email Sign In
   const handleEmailSignIn = async (e) => {
     e.preventDefault();
     setFormError('');
-    
+
     // Validate form
     if (!validateForm(signInSchema, { email, password })) {
       return;
@@ -129,8 +149,9 @@ function Auth() {
     try {
       await signInWithEmail(email, password);
       navigate('/chat');
-    } catch {
-      // Error is handled in AuthContext
+    } catch (error) {
+      // Error from Firebase is already handled and displayed via AuthContext
+      console.error('Sign in failed:', error);
     } finally {
       setFormLoading(false);
     }
@@ -151,8 +172,9 @@ function Auth() {
       await signUpWithEmail(email, password, displayName);
       setSuccessMessage('Account created successfully!');
       navigate('/chat');
-    } catch {
-      // Error is handled in AuthContext
+    } catch (error) {
+      // Error from Firebase is already handled and displayed via AuthContext
+      console.error('Sign up failed:', error);
     } finally {
       setFormLoading(false);
     }
@@ -191,8 +213,9 @@ function Auth() {
       setForgotDialogOpen(false);
       setResetEmail('');
       setSuccessMessage('Password reset email sent! Check your inbox.');
-    } catch {
-      // Error is handled in AuthContext
+    } catch (error) {
+      // Error from Firebase is already handled and displayed via AuthContext
+      console.error('Password reset failed:', error);
     } finally {
       setResetLoading(false);
     }
@@ -239,7 +262,7 @@ function Auth() {
           left: '-20%',
           width: '60%',
           height: '60%',
-          background: `radial-gradient(circle, ${alpha(theme.palette.info.main, 0.12)} 0%, transparent 70%)`,
+          background: `radial-gradient(circle, ${alpha(theme.palette.primary.main, 0.12)} 0%, transparent 70%)`,
           filter: 'blur(80px)',
           pointerEvents: 'none',
           zIndex: 0,
@@ -252,7 +275,7 @@ function Auth() {
           right: '-20%',
           width: '60%',
           height: '60%',
-          background: `radial-gradient(circle, ${alpha(theme.palette.info.main, 0.15)} 0%, transparent 70%)`,
+          background: `radial-gradient(circle, ${alpha(theme.palette.primary.main, 0.15)} 0%, transparent 70%)`,
           filter: 'blur(80px)',
           pointerEvents: 'none',
           zIndex: 0,
@@ -272,9 +295,9 @@ function Auth() {
           zIndex: 1,
         }}
       >
-        <Container 
-          maxWidth="xs" 
-          sx={{ 
+        <Container
+          maxWidth="xs"
+          sx={{
             width: '100%',
           }}
         >
@@ -301,7 +324,7 @@ function Auth() {
                   backgroundClip: 'text',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
-                  textShadow: `0 0 40px ${alpha(theme.palette.info.main, 0.4)}`,
+                  textShadow: `0 0 40px ${alpha(theme.palette.primary.main, 0.4)}`,
                 }}
               >
                 Moonlit
@@ -309,18 +332,18 @@ function Auth() {
 
               {/* Title */}
               <Box textAlign="center">
-                <Typography 
-                  variant="h5" 
+                <Typography
+                  variant="h5"
                   sx={{ mb: 0.25 }}
                 >
                   {tabValue === 0 ? 'Welcome Back' : 'Create Account'}
                 </Typography>
-                <Typography 
-                  variant="body2" 
+                <Typography
+                  variant="body2"
                   color="text.secondary"
                 >
-                  {tabValue === 0 
-                    ? 'Sign in to start querying with AI' 
+                  {tabValue === 0
+                    ? 'Sign in to start querying with AI'
                     : 'Join Moonlit and unlock your data'}
                 </Typography>
               </Box>
@@ -348,38 +371,6 @@ function Auth() {
                 <Tab label="Sign In" />
                 <Tab label="Sign Up" />
               </Tabs>
-
-              {/* Error/Success Messages */}
-              {(error || formError) && (
-                <Alert 
-                  severity="error" 
-                  sx={{ 
-                    width: '100%',
-                    backgroundColor: alpha(theme.palette.error.main, 0.1),
-                    border: `1px solid ${alpha(theme.palette.error.main, 0.3)}`,
-                    py: 0.5,
-                    '& .MuiAlert-icon': { fontSize: 18 },
-                    '& .MuiAlert-message': { fontSize: 'inherit' },
-                  }}
-                >
-                  {error || formError}
-                </Alert>
-              )}
-              {successMessage && (
-                <Alert 
-                  severity="success" 
-                  sx={{ 
-                    width: '100%',
-                    backgroundColor: alpha(theme.palette.success.main, 0.1),
-                    border: `1px solid ${alpha(theme.palette.success.main, 0.3)}`,
-                    py: 0.5,
-                    '& .MuiAlert-icon': { fontSize: 18 },
-                    '& .MuiAlert-message': { fontSize: 'inherit' },
-                  }}
-                >
-                  {successMessage}
-                </Alert>
-              )}
 
               {/* Sign In Panel */}
               <TabPanel value={tabValue} index={0}>
@@ -456,13 +447,15 @@ function Auth() {
                   <Button
                     fullWidth
                     type="submit"
-                    
+
                     disabled={formLoading}
                     sx={{
                       py: 1,
-                      background: `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${theme.palette.success.dark} 100%)`,
+                      background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.light} 100%)`,
+                      color: theme.palette.mode === 'dark' ? '#000000' : '#FFFFFF',
+                      fontWeight: 600,
                       '&:hover': {
-                        background: `linear-gradient(135deg, ${theme.palette.success.light} 0%, ${theme.palette.success.main} 100%)`,
+                        background: `linear-gradient(135deg, ${theme.palette.primary.light} 0%, ${theme.palette.primary.main} 100%)`,
                       },
                     }}
                   >
@@ -560,13 +553,15 @@ function Auth() {
                   <Button
                     fullWidth
                     type="submit"
-                    
+
                     disabled={formLoading}
                     sx={{
                       py: 1,
-                      background: `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${theme.palette.success.dark} 100%)`,
+                      background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.light} 100%)`,
+                      color: theme.palette.mode === 'dark' ? '#000000' : '#FFFFFF',
+                      fontWeight: 600,
                       '&:hover': {
-                        background: `linear-gradient(135deg, ${theme.palette.success.light} 0%, ${theme.palette.success.main} 100%)`,
+                        background: `linear-gradient(135deg, ${theme.palette.primary.light} 0%, ${theme.palette.primary.main} 100%)`,
                       },
                     }}
                   >
@@ -577,8 +572,8 @@ function Auth() {
 
               {/* Divider */}
               <Divider sx={{ width: '100%' }}>
-                <Typography 
-                  variant="caption" 
+                <Typography
+                  variant="caption"
                   color="text.secondary"
                 >
                   or continue with
@@ -586,14 +581,14 @@ function Auth() {
               </Divider>
 
               {/* OAuth Buttons */}
-              <Stack 
-                direction="row" 
-                spacing={1.5} 
+              <Stack
+                direction="row"
+                spacing={1.5}
                 sx={{ width: '100%' }}
               >
                 <Button
                   fullWidth
-                  
+
                   startIcon={<GoogleIcon sx={{ fontSize: 18 }} />}
                   onClick={handleGoogleSignIn}
                   sx={{
@@ -602,7 +597,7 @@ function Auth() {
                     backgroundColor: alpha(theme.palette.common.white, 0.02),
                     '&:hover': {
                       borderColor: 'primary.main',
-                      backgroundColor: alpha(theme.palette.info.main, 0.1),
+                      backgroundColor: alpha(theme.palette.primary.main, 0.1),
                     },
                   }}
                 >
@@ -610,7 +605,7 @@ function Auth() {
                 </Button>
                 <Button
                   fullWidth
-                  
+
                   startIcon={<GitHubIcon sx={{ fontSize: 18 }} />}
                   onClick={handleGitHubSignIn}
                   sx={{
@@ -618,7 +613,7 @@ function Auth() {
                     borderColor: alpha(theme.palette.common.white, 0.15),
                     backgroundColor: alpha(theme.palette.common.white, 0.02),
                     '&:hover': {
-                      borderColor: '#f0f6fc',
+                      borderColor: alpha(theme.palette.common.white, 0.25),
                       backgroundColor: alpha(theme.palette.common.white, 0.08),
                     },
                   }}
@@ -629,7 +624,7 @@ function Auth() {
 
               {/* Back to Home */}
               <Button
-                
+
                 startIcon={<ArrowBackRoundedIcon sx={{ fontSize: 16 }} />}
                 onClick={() => navigate('/')}
                 sx={{
@@ -647,9 +642,9 @@ function Auth() {
           <Typography
             variant="caption"
             color="text.secondary"
-            sx={{ 
-              display: 'block', 
-              textAlign: 'center', 
+            sx={{
+              display: 'block',
+              textAlign: 'center',
               mt: 2,
             }}
           >
@@ -661,7 +656,10 @@ function Auth() {
       {/* Forgot Password Dialog */}
       <Dialog
         open={forgotDialogOpen}
-        onClose={() => setForgotDialogOpen(false)}
+        onClose={() => {
+          setForgotDialogOpen(false);
+          clearAuthError?.();
+        }}
         maxWidth="xs"
         fullWidth
         PaperProps={{
@@ -676,9 +674,9 @@ function Auth() {
           Reset Password
         </DialogTitle>
         <DialogContent>
-          <Typography 
-            variant="body2" 
-            color="text.secondary" 
+          <Typography
+            variant="body2"
+            color="text.secondary"
             sx={{ mb: 2 }}
           >
             Enter your email address and we'll send you a link to reset your password.
@@ -696,7 +694,7 @@ function Auth() {
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button size="small" onClick={() => setForgotDialogOpen(false)}>Cancel</Button>
           <Button
-            
+
             size="small"
             onClick={handlePasswordReset}
             disabled={resetLoading}
@@ -705,6 +703,22 @@ function Auth() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Error/Success Snackbar */}
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={6000}
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={handleSnackbarClose}
+          severity={snackbarSeverity}
+          sx={{ width: '100%' }}
+        >
+          {snackbarMessage}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

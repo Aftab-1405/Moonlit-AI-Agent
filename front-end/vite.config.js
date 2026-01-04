@@ -8,13 +8,12 @@ export default defineConfig({
     host: true, // Expose on all network interfaces (0.0.0.0)
     proxy: {
       // Auth endpoints (no prefix - auth_bp has no url_prefix)
-      '/firebase-config': 'http://192.168.1.8:5000',
-      '/set_session': 'http://192.168.1.8:5000',
-      '/check_session': 'http://192.168.1.8:5000',
-      '/logout': 'http://192.168.1.8:5000',
-      
+      '/firebase-config': 'http://localhost:5000',
+      '/set_session': 'http://localhost:5000',
+      '/check_session': 'http://localhost:5000',
+      '/logout': 'http://localhost:5000',
       // All api_bp routes use /api prefix
-      '/api': 'http://192.168.1.8:5000',
+      '/api': 'http://localhost:5000',
     },
   },
 })

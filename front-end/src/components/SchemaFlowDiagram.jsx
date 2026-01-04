@@ -428,9 +428,8 @@ function SchemaFlowDiagram({ database, tables, columns }) {
     <Box
       sx={{
         width: '100%',
-        // Mobile-first: responsive height
-        height: { xs: 'calc(100vh - 140px)', sm: 400, md: 500 },
-        minHeight: { xs: 300, sm: 350 },
+        height: '100%', // Fill parent flex container
+        minHeight: 300,
         borderRadius: { xs: 0, sm: 2 },
         overflow: 'hidden',
         border: { xs: 'none', sm: `1px solid ${theme.palette.divider}` },

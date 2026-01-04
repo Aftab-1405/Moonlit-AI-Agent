@@ -15,7 +15,7 @@
  * @module ThemeContext
  */
 
-import { createContext, useContext, useMemo } from 'react';
+import { createContext, useContext, useMemo, useCallback } from 'react';
 import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
 import { createDarkTheme, createLightTheme } from '../theme';
 import { useSettings, SettingsProvider } from './SettingsContext';
@@ -58,19 +58,23 @@ function ThemeProviderInner({ children }) {
   const { settings, isDarkMode, updateSetting, resetSettings } = settingsContext;
   
   // Create MUI theme based on the theme setting
-  // Memoized to prevent unnecessary recalculations
   const theme = useMemo(() => {
     return settings.theme === 'light' ? createLightTheme() : createDarkTheme();
   }, [settings.theme]);
   
-  // Backwards-compatible value for useTheme consumers
-  const value = {
+  // Memoized toggle function
+  const toggleTheme = useCallback(() => {
+    updateSetting('theme', settings.theme === 'dark' ? 'light' : 'dark');
+  }, [updateSetting, settings.theme]);
+  
+  // Memoized context value
+  const value = useMemo(() => ({
     settings,
     updateSetting,
     resetSettings,
     isDarkMode,
-    toggleTheme: () => updateSetting('theme', settings.theme === 'dark' ? 'light' : 'dark'),
-  };
+    toggleTheme,
+  }), [settings, updateSetting, resetSettings, isDarkMode, toggleTheme]);
   
   return (
     <ThemeContext.Provider value={value}>

@@ -1,15 +1,15 @@
-import { useState, memo, useRef } from 'react';
-import { 
-  Box, 
-  Typography, 
-  IconButton, 
-  Tooltip, 
-  Divider, 
-  Popover, 
-  List, 
-  ListItemButton, 
-  ListItemText, 
-  ListItemIcon, 
+import { useState, memo, useRef, useCallback, useMemo } from 'react';
+import {
+  Box,
+  Typography,
+  IconButton,
+  Tooltip,
+  Divider,
+  Popover,
+  List,
+  ListItemButton,
+  ListItemText,
+  ListItemIcon,
   Avatar,
   Drawer as MuiDrawer,
   SwipeableDrawer,
@@ -40,21 +40,28 @@ import SchemaFlowDiagram from './SchemaFlowDiagram';
 // Centralized API layer
 import { getUserContext } from '../api';
 
-// Sidebar widths
+// ============================================================================
+// CONSTANTS - Moved outside component to prevent recreation
+// ============================================================================
 const EXPANDED_WIDTH = 260;
 const COLLAPSED_WIDTH = 56;
+
+// Static styles that don't depend on theme
+const CONTENT_CONTAINER_STYLES = {
+  position: 'relative',
+  height: '100%',
+  minHeight: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+};
 
 // ============================================================================
 // MUI Mini Variant Drawer Pattern - Industry Standard
 // ============================================================================
-// Uses styled component with openedMixin/closedMixin for smooth transitions
-// Reference: https://mui.com/material-ui/react-drawer/#mini-variant-drawer
-
-// Shared glassmorphism styles for drawer
 const getGlassmorphismStyles = (theme, isDarkMode) => ({
-  background: isDarkMode 
+  background: isDarkMode
     ? alpha(theme.palette.background.paper, 0.05)
-    : theme.palette.background.default, // Use same background as Chat.jsx
+    : theme.palette.background.default,
   backdropFilter: 'blur(12px)',
   WebkitBackdropFilter: 'blur(12px)',
   borderRight: '1px solid',
@@ -65,7 +72,7 @@ const openedMixin = (theme, isDarkMode) => ({
   width: EXPANDED_WIDTH,
   transition: theme.transitions.create('width', {
     easing: theme.transitions.easing.sharp,
-    duration: theme.transitions.duration.enteringScreen, // 225ms
+    duration: theme.transitions.duration.enteringScreen,
   }),
   overflowX: 'hidden',
   ...getGlassmorphismStyles(theme, isDarkMode),
@@ -74,19 +81,18 @@ const openedMixin = (theme, isDarkMode) => ({
 const closedMixin = (theme, isDarkMode) => ({
   transition: theme.transitions.create('width', {
     easing: theme.transitions.easing.sharp,
-    duration: theme.transitions.duration.leavingScreen, // 195ms
+    duration: theme.transitions.duration.leavingScreen,
   }),
   overflowX: 'hidden',
   width: COLLAPSED_WIDTH,
   ...getGlassmorphismStyles(theme, isDarkMode),
 });
 
-// Styled Drawer component following MUI Mini Variant pattern
 const StyledDrawer = styled(MuiDrawer, {
   shouldForwardProp: (prop) => prop !== 'open' && prop !== 'isDarkMode',
 })(({ theme, open, isDarkMode }) => ({
   width: EXPANDED_WIDTH,
-  height: '100%', // Fill container height (critical for mobile drawer)
+  height: '100%',
   flexShrink: 0,
   whiteSpace: 'nowrap',
   boxSizing: 'border-box',
@@ -98,98 +104,268 @@ const StyledDrawer = styled(MuiDrawer, {
     ...closedMixin(theme, isDarkMode),
     '& .MuiDrawer-paper': closedMixin(theme, isDarkMode),
   }),
-}))
+}));
 
-function Sidebar({ 
-  conversations = [], 
-  currentConversationId, 
-  onNewChat, 
-  onSelectConversation, 
+// ============================================================================
+// MEMOIZED SUB-COMPONENTS - Extracted for performance
+// ============================================================================
+
+/**
+ * Memoized conversation list item - prevents re-render when other conversations change
+ */
+const ConversationItem = memo(function ConversationItem({
+  conv,
+  isActive,
+  isCollapsed,
+  onSelect,
+  onDelete,
+  theme,
+  getCollapseTransition,
+}) {
+  const handleClick = useCallback(() => {
+    onSelect(conv.id);
+  }, [onSelect, conv.id]);
+
+  const handleDelete = useCallback((e) => {
+    e.stopPropagation();
+    onDelete(conv.id);
+  }, [onDelete, conv.id]);
+
+  return (
+    <Tooltip title={isCollapsed ? (conv.title || 'Conversation') : ''} placement="right" arrow>
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          width: '100%',
+          p: isCollapsed ? 1 : 1.25,
+          mb: 0.25,
+          borderRadius: 1.5,
+          cursor: 'pointer',
+          justifyContent: isCollapsed ? 'center' : 'flex-start',
+          backgroundColor: isActive ? theme.palette.action.selected : 'transparent',
+          transition: 'all 0.2s ease',
+          '&:hover .delete-btn': { opacity: 1 },
+        }}
+        onClick={handleClick}
+      >
+        <QuestionAnswerOutlinedIcon
+          sx={{
+            fontSize: 16,
+            color: isActive ? theme.palette.text.primary : theme.palette.text.secondary,
+            mr: isCollapsed ? 0 : 1.5,
+            flexShrink: 0,
+            transition: theme.transitions.create('margin', {
+              easing: theme.transitions.easing.sharp,
+              duration: theme.transitions.duration.enteringScreen,
+            }),
+          }}
+        />
+        <Box
+          sx={{
+            flex: 1,
+            minWidth: 0,
+            opacity: isCollapsed ? 0 : 1,
+            width: isCollapsed ? 0 : 'auto',
+            overflow: 'hidden',
+            ...getCollapseTransition(['opacity', 'width']),
+          }}
+        >
+          <Typography
+            variant="body2"
+            noWrap
+            sx={{
+              color: isActive ? theme.palette.text.primary : theme.palette.text.secondary,
+              fontWeight: isActive ? 500 : 400,
+            }}
+          >
+            {conv.title || 'New Conversation'}
+          </Typography>
+        </Box>
+        <IconButton
+          className="delete-btn"
+          size="small"
+          onClick={handleDelete}
+          sx={{
+            opacity: 0,
+            ml: 0.5,
+            padding: 0.5,
+            color: theme.palette.text.secondary,
+            transition: 'all 0.15s ease',
+            '&:hover': {
+              color: theme.palette.error.main,
+              backgroundColor: alpha(theme.palette.error.main, 0.1),
+            },
+          }}
+        >
+          <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
+        </IconButton>
+      </Box>
+    </Tooltip>
+  );
+});
+
+/**
+ * Memoized history popover item
+ */
+const HistoryPopoverItem = memo(function HistoryPopoverItem({
+  conv,
+  isActive,
+  onSelect,
+  onDelete,
+  onClosePopover,
+  theme,
+}) {
+  const handleClick = useCallback(() => {
+    onClosePopover();
+    onSelect(conv.id);
+  }, [onClosePopover, onSelect, conv.id]);
+
+  const handleDelete = useCallback((e) => {
+    e.stopPropagation();
+    onDelete(conv.id);
+  }, [onDelete, conv.id]);
+
+  return (
+    <ListItemButton
+      selected={isActive}
+      onClick={handleClick}
+      sx={{ borderRadius: 1, py: 0.75 }}
+    >
+      <ListItemIcon sx={{ minWidth: 28 }}>
+        {isActive ? (
+          <CheckCircleOutlineRoundedIcon sx={{ fontSize: 16, color: theme.palette.primary.main }} />
+        ) : (
+          <QuestionAnswerOutlinedIcon sx={{ fontSize: 14, color: theme.palette.text.secondary }} />
+        )}
+      </ListItemIcon>
+      <ListItemText
+        primary={conv.title || 'New Conversation'}
+        primaryTypographyProps={{
+          variant: 'body2',
+          noWrap: true,
+          sx: { fontWeight: isActive ? 500 : 400 },
+        }}
+      />
+      <IconButton
+        size="small"
+        onClick={handleDelete}
+        sx={{
+          opacity: 0.5,
+          '&:hover': { opacity: 1 },
+          padding: 0.5,
+          color: theme.palette.text.secondary,
+          transition: 'all 0.15s ease',
+        }}
+      >
+        <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
+      </IconButton>
+    </ListItemButton>
+  );
+});
+
+// ============================================================================
+// MAIN SIDEBAR COMPONENT
+// ============================================================================
+function Sidebar({
+  conversations = [],
+  currentConversationId,
+  onNewChat,
+  onSelectConversation,
   onDeleteConversation,
   isConnected,
   currentDatabase,
   availableDatabases = [],
   onOpenDbModal,
   onDatabaseSwitch,
-  // Collapse control (desktop only)
   isCollapsed = false,
   onToggleCollapse,
-  // Profile
   user = null,
   onMenuOpen,
-  // Mobile drawer control
   mobileOpen = false,
   onMobileClose,
 }) {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  
+  // Local state
   const [dbPopoverAnchor, setDbPopoverAnchor] = useState(null);
   const [historyPopoverAnchor, setHistoryPopoverAnchor] = useState(null);
+  const [mindmapOpen, setMindmapOpen] = useState(false);
+  const [schemaData, setSchemaData] = useState(null);
+  const [schemaLoading, setSchemaLoading] = useState(false);
+  
+  // Refs
   const profileButtonRef = useRef(null);
   const historyButtonRef = useRef(null);
+  
+  // Derived state
   const isPopoverOpen = Boolean(dbPopoverAnchor);
   const isHistoryPopoverOpen = Boolean(historyPopoverAnchor);
 
-  // Reusable collapse transition helper
-  const getCollapseTransition = (properties) => ({
+  // ============================================================================
+  // MEMOIZED STYLE HELPERS
+  // ============================================================================
+  const getCollapseTransition = useCallback((properties) => ({
     transition: theme.transitions.create(properties, {
       easing: theme.transitions.easing.sharp,
       duration: isCollapsed
         ? theme.transitions.duration.leavingScreen
         : theme.transitions.duration.enteringScreen,
     }),
-  });
+  }), [theme, isCollapsed]);
 
-  // Common styles for elements that hide when collapsed
-  const collapsedHiddenStyles = {
+  const collapsedHiddenStyles = useMemo(() => ({
     opacity: isCollapsed ? 0 : 1,
     visibility: isCollapsed ? 'hidden' : 'visible',
     width: isCollapsed ? 0 : 'auto',
     overflow: 'hidden',
-    ...getCollapseTransition(['opacity', 'visibility', 'width']),
-  };
+    transition: theme.transitions.create(['opacity', 'visibility', 'width'], {
+      easing: theme.transitions.easing.sharp,
+      duration: isCollapsed
+        ? theme.transitions.duration.leavingScreen
+        : theme.transitions.duration.enteringScreen,
+    }),
+  }), [isCollapsed, theme]);
 
-  // Delete button styles (DRY - used in main list and popover)
-  const deleteButtonStyles = {
-    padding: 0.5,
-    color: theme.palette.text.secondary,
-    transition: 'all 0.15s ease',
-    '&:hover': { 
-      color: theme.palette.error.main, 
-      backgroundColor: alpha(theme.palette.error.main, 0.1), 
-    }
-  };
+  const scrollbarStyles = useMemo(() => ({
+    '&::-webkit-scrollbar': { width: 4 },
+    '&::-webkit-scrollbar-track': { background: 'transparent' },
+    '&::-webkit-scrollbar-thumb': {
+      backgroundColor: alpha(theme.palette.text.secondary, 0.15),
+      borderRadius: 2,
+      '&:hover': {
+        backgroundColor: alpha(theme.palette.text.secondary, 0.25),
+      },
+    },
+  }), [theme]);
 
-  const handleDatabaseSelect = (dbName) => {
+  // ============================================================================
+  // MEMOIZED EVENT HANDLERS
+  // ============================================================================
+  const handleDatabaseSelect = useCallback((dbName) => {
     setDbPopoverAnchor(null);
     if (dbName !== currentDatabase) {
       onDatabaseSwitch?.(dbName);
     }
-  };
+  }, [currentDatabase, onDatabaseSwitch]);
 
-  const handleHistoryClick = () => {
+  const handleHistoryClick = useCallback(() => {
     if (isCollapsed && conversations.length > 0 && historyButtonRef.current) {
       setHistoryPopoverAnchor(historyButtonRef.current);
     }
-  };
+  }, [isCollapsed, conversations.length]);
 
-  // Schema mindmap state
-  const [mindmapOpen, setMindmapOpen] = useState(false);
-  const [schemaData, setSchemaData] = useState(null);
-  const [schemaLoading, setSchemaLoading] = useState(false);
-
-  // Fetch schema when opening mindmap
-  const handleOpenMindmap = async () => {
+  const handleOpenMindmap = useCallback(async () => {
     if (!isConnected || !currentDatabase) return;
-    
+
     setMindmapOpen(true);
     setSchemaLoading(true);
-    
+
     try {
       const data = await getUserContext();
       if (data.status === 'success') {
-        // Find schema for current database
         const currentSchema = data.schemas?.find(s => s.database === currentDatabase);
         setSchemaData(currentSchema || null);
       }
@@ -198,37 +374,73 @@ function Sidebar({
     } finally {
       setSchemaLoading(false);
     }
-  };
+  }, [isConnected, currentDatabase]);
 
-  // Navigation items for Grok-style nav - Using distinct outlined icons
-  const navItems = [
-    { icon: <ChatBubbleOutlineRoundedIcon sx={{ fontSize: 20 }} />, label: 'New Chat', tooltip: 'New Chat', action: onNewChat },
-    { icon: <StorageOutlinedIcon sx={{ fontSize: 20 }} />, label: 'Database', tooltip: isConnected ? currentDatabase : 'Connect Database', action: onOpenDbModal },
-    // Schema mindmap - only show when connected
-    ...(isConnected ? [{ 
-      icon: <AccountTreeOutlinedIcon sx={{ fontSize: 20 }} />, 
-      label: 'Mindmap', 
-      tooltip: 'View Database Mindmap', 
-      action: handleOpenMindmap 
+  const handleCloseMindmap = useCallback(() => setMindmapOpen(false), []);
+  const handleCloseDbPopover = useCallback(() => setDbPopoverAnchor(null), []);
+  const handleCloseHistoryPopover = useCallback(() => setHistoryPopoverAnchor(null), []);
+
+  const handleProfileClick = useCallback(() => {
+    onMenuOpen({ currentTarget: profileButtonRef.current });
+  }, [onMenuOpen]);
+
+  const handleOpenNewConnection = useCallback(() => {
+    setDbPopoverAnchor(null);
+    onOpenDbModal?.();
+  }, [onOpenDbModal]);
+
+  // ============================================================================
+  // MEMOIZED NAV ITEMS - Only recreate when dependencies change
+  // ============================================================================
+  const navItems = useMemo(() => [
+    {
+      icon: <ChatBubbleOutlineRoundedIcon sx={{ fontSize: 20 }} />,
+      label: 'New Chat',
+      tooltip: 'New Chat',
+      action: onNewChat,
+    },
+    {
+      icon: <StorageOutlinedIcon sx={{ fontSize: 20 }} />,
+      label: 'Database',
+      tooltip: isConnected ? currentDatabase : 'Connect Database',
+      action: onOpenDbModal,
+    },
+    ...(isConnected ? [{
+      icon: <AccountTreeOutlinedIcon sx={{ fontSize: 20 }} />,
+      label: 'Mindmap',
+      tooltip: 'View Database Mindmap',
+      action: handleOpenMindmap,
     }] : []),
-    { icon: <HistoryOutlinedIcon sx={{ fontSize: 20 }} />, label: 'History', tooltip: 'History', isSection: !isCollapsed, action: isCollapsed ? handleHistoryClick : undefined },
-  ];
+    {
+      icon: <HistoryOutlinedIcon sx={{ fontSize: 20 }} />,
+      label: 'History',
+      tooltip: 'History',
+      isSection: !isCollapsed,
+      action: isCollapsed ? handleHistoryClick : undefined,
+    },
+  ], [onNewChat, onOpenDbModal, isConnected, currentDatabase, isCollapsed, handleOpenMindmap, handleHistoryClick]);
 
-  // Shared content styles for both wrapper modes
-  const contentContainerStyles = {
-    position: 'relative',
-    height: '100%',
-    minHeight: '100%',
-    display: 'flex',
-    flexDirection: 'column',
-  };
+  // ============================================================================
+  // MEMOIZED GLASSMORPHISM STYLES FOR MOBILE
+  // ============================================================================
+  const mobileDrawerStyles = useMemo(() => ({
+    '& .MuiDrawer-paper': {
+      width: EXPANDED_WIDTH,
+      height: '100%',
+      ...getGlassmorphismStyles(theme, isDarkMode),
+      borderRight: '1px solid',
+      borderColor: theme.palette.divider,
+    },
+  }), [theme, isDarkMode]);
 
-  // Content that goes inside the wrapper (shared by both modes)
-  const sidebarContent = (
+  // ============================================================================
+  // SIDEBAR CONTENT - Memoized to prevent unnecessary re-renders
+  // ============================================================================
+  const sidebarContent = useMemo(() => (
     <>
-      {/* ===== TOP: Logo Area (No toggle on click) ===== */}
-      <Box 
-        sx={{ 
+      {/* ===== TOP: Logo Area ===== */}
+      <Box
+        sx={{
           p: isCollapsed ? 0 : 2,
           py: isCollapsed ? 1.5 : 2,
           display: 'flex',
@@ -243,18 +455,14 @@ function Sidebar({
         }}
       >
         <Box
-          component="img" 
-          src="/product-logo.png" 
-          alt="Moonlit" 
-          sx={{ 
-            height: 24,
-            width: 24,
-            opacity: 0.95,
-          }} 
+          component="img"
+          src="/product-logo.png"
+          alt="Moonlit"
+          sx={{ height: 24, width: 24, opacity: 0.95 }}
         />
-        <Typography 
-          variant="subtitle1" 
-          sx={{ 
+        <Typography
+          variant="subtitle1"
+          sx={{
             fontWeight: 600,
             color: theme.palette.text.primary,
             letterSpacing: '-0.01em',
@@ -267,32 +475,27 @@ function Sidebar({
       </Box>
 
       {/* ===== NAVIGATION ITEMS ===== */}
-      <Box sx={{ 
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: isCollapsed ? 'center' : 'stretch',
-        px: isCollapsed ? 0 : 1.5, 
-        py: 1, 
-        transition: theme.transitions.create('padding', {
-          easing: theme.transitions.easing.sharp,
-          duration: theme.transitions.duration.enteringScreen,
-        }),
-      }}>
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: isCollapsed ? 'center' : 'stretch',
+          px: isCollapsed ? 0 : 1.5,
+          py: 1,
+          transition: theme.transitions.create('padding', {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.enteringScreen,
+          }),
+        }}
+      >
         {navItems.map((item, index) => (
           item.isSection ? (
-            // Section header
             !isCollapsed && (
-              <Typography 
+              <Typography
                 key={index}
-                variant="overline" 
-                color={theme.palette.text.secondary} 
-                sx={{ 
-                  display: 'block',
-                  px: 1,
-                  pt: 2,
-                  pb: 0.5,
-                  fontSize: '0.65rem',
-                }}
+                variant="caption"
+                color={theme.palette.text.secondary}
+                sx={{ display: 'block', px: 1, pt: 2, pb: 0.5 }}
               >
                 {item.label}
               </Typography>
@@ -300,7 +503,6 @@ function Sidebar({
           ) : (
             <Tooltip key={index} title={isCollapsed ? item.tooltip : ''} placement="right" arrow>
               {isCollapsed ? (
-                // Collapsed: Use IconButton for proper theme styling
                 <IconButton
                   ref={item.label === 'History' ? historyButtonRef : undefined}
                   onClick={item.action}
@@ -325,7 +527,6 @@ function Sidebar({
                   {item.icon}
                 </IconButton>
               ) : (
-                // Expanded: Use Box for full row with label
                 <Box
                   ref={item.label === 'History' ? historyButtonRef : undefined}
                   onClick={item.action}
@@ -362,13 +563,7 @@ function Sidebar({
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20 }}>
                     {item.icon}
                   </Box>
-                  <Typography 
-                    variant="body2" 
-                    sx={{ 
-                      fontWeight: 450,
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
+                  <Typography variant="body2" sx={{ fontWeight: 450, whiteSpace: 'nowrap' }}>
                     {item.label}
                   </Typography>
                 </Box>
@@ -378,20 +573,11 @@ function Sidebar({
         ))}
       </Box>
 
-      {/* ===== CONVERSATIONS LIST (Scrollable - Always present for spacing) ===== */}
-      <Box 
-        sx={{ 
-          flex: 1, 
-          display: 'flex', 
-          flexDirection: 'column',
-          overflow: 'hidden',
-          minHeight: 0,
-        }}
-      >
-        {/* Conversations Container */}
-        <Box 
-          sx={{ 
-            flex: 1, 
+      {/* ===== CONVERSATIONS LIST ===== */}
+      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+        <Box
+          sx={{
+            flex: 1,
             overflowY: 'auto',
             overflowX: 'hidden',
             px: isCollapsed ? 0 : 1,
@@ -400,19 +586,7 @@ function Sidebar({
               easing: theme.transitions.easing.sharp,
               duration: theme.transitions.duration.enteringScreen,
             }),
-            '&::-webkit-scrollbar': {
-              width: 4,
-            },
-            '&::-webkit-scrollbar-track': {
-              background: 'transparent',
-            },
-            '&::-webkit-scrollbar-thumb': {
-              backgroundColor: alpha(theme.palette.text.secondary, 0.15),
-              borderRadius: 2,
-              '&:hover': {
-                backgroundColor: alpha(theme.palette.text.secondary, 0.25),
-              }
-            },
+            ...scrollbarStyles,
           }}
         >
           <Box
@@ -423,106 +597,89 @@ function Sidebar({
             }}
           >
             {conversations.length === 0 ? (
-              <Box 
-                sx={{ 
-                  p: 2, 
-                  textAlign: 'center',
-                  opacity: 0.4,
-                }}
-              >
+              <Box sx={{ p: 2, textAlign: 'center', opacity: 0.4 }}>
                 <Typography variant="caption" color={theme.palette.text.secondary}>
                   No conversations yet
                 </Typography>
               </Box>
             ) : (
-            conversations.map((conv) => (
-              <Tooltip key={conv.id} title={isCollapsed ? (conv.title || 'Conversation') : ''} placement="right" arrow>
-                <Box
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    width: '100%',
-                    p: isCollapsed ? 1 : 1.25,
-                    mb: 0.25,
-                    borderRadius: 1.5,
-                    cursor: 'pointer',
-                    justifyContent: isCollapsed ? 'center' : 'flex-start',
-                    backgroundColor: conv.id === currentConversationId 
-                      ? theme.palette.action.selected
-                      : 'transparent',
-                    transition: 'all 0.2s ease',
-                    '&:hover .delete-btn': { opacity: 1 },
-                  }}
-                  onClick={() => onSelectConversation(conv.id)}
-                >
-                  <QuestionAnswerOutlinedIcon 
-                    sx={{ 
-                      fontSize: 16, 
-                      color: conv.id === currentConversationId ? theme.palette.text.primary : theme.palette.text.secondary, 
-                      mr: isCollapsed ? 0 : 1.5,
-                      flexShrink: 0,
-                      transition: theme.transitions.create('margin', {
-                        easing: theme.transitions.easing.sharp,
-                        duration: theme.transitions.duration.enteringScreen,
-                      }),
-                    }} 
-                  />
-                  <Box 
-                    sx={{ 
-                      flex: 1, 
-                      minWidth: 0,
-                      opacity: isCollapsed ? 0 : 1,
-                      width: isCollapsed ? 0 : 'auto',
-                      overflow: 'hidden',
-                      ...getCollapseTransition(['opacity', 'width']),
-                    }}
-                  >
-                    <Typography 
-                      variant="body2" 
-                      noWrap 
-                      sx={{ 
-                        color: conv.id === currentConversationId ? theme.palette.text.primary : theme.palette.text.secondary,
-                        fontWeight: conv.id === currentConversationId ? 500 : 400,
-                        fontSize: '0.85rem',
-                      }}
-                    >
-                      {conv.title || 'New Conversation'}
-                    </Typography>
-                  </Box>
-                  <IconButton
-                    className="delete-btn"
-                    size="small"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeleteConversation(conv.id);
-                    }}
-                    sx={{ opacity: 0, ml: 0.5, ...deleteButtonStyles }}
-                  >
-                    <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
-                  </IconButton>
-                </Box>
-              </Tooltip>
-            ))
-          )}
+              conversations.map((conv) => (
+                <ConversationItem
+                  key={conv.id}
+                  conv={conv}
+                  isActive={conv.id === currentConversationId}
+                  isCollapsed={isCollapsed}
+                  onSelect={onSelectConversation}
+                  onDelete={onDeleteConversation}
+                  theme={theme}
+                  getCollapseTransition={getCollapseTransition}
+                />
+              ))
+            )}
           </Box>
         </Box>
       </Box>
 
+      {/* ===== BOTTOM: Profile + Collapse Toggle ===== */}
+      <Box
+        sx={{
+          borderTop: '1px solid',
+          borderColor: 'divider',
+          p: isCollapsed ? 0.75 : 1,
+          display: 'flex',
+          flexDirection: isCollapsed ? 'column' : 'row',
+          alignItems: 'center',
+          justifyContent: isCollapsed ? 'center' : 'space-between',
+          gap: isCollapsed ? 1 : 0,
+          transition: theme.transitions.create(['padding', 'flex-direction', 'gap', 'justify-content'], {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.enteringScreen,
+          }),
+        }}
+      >
+        <Tooltip title={isCollapsed ? (user?.displayName || 'Profile') : ''} placement="right" arrow>
+          <IconButton ref={profileButtonRef} onClick={handleProfileClick} size="small">
+            {user?.photoURL ? (
+              <Avatar src={user.photoURL} sx={{ width: 24, height: 24 }} />
+            ) : (
+              <AccountCircleOutlinedIcon sx={{ fontSize: 24 }} />
+            )}
+          </IconButton>
+        </Tooltip>
+
+        <Tooltip title={isMobile ? 'Close sidebar' : (isCollapsed ? 'Expand sidebar' : '')} placement="right" arrow>
+          <IconButton onClick={isMobile ? onMobileClose : onToggleCollapse} size="small">
+            {isMobile ? (
+              <KeyboardDoubleArrowLeftRoundedIcon sx={{ fontSize: 20 }} />
+            ) : isCollapsed ? (
+              <KeyboardDoubleArrowRightRoundedIcon sx={{ fontSize: 20 }} />
+            ) : (
+              <KeyboardDoubleArrowLeftRoundedIcon sx={{ fontSize: 20 }} />
+            )}
+          </IconButton>
+        </Tooltip>
+      </Box>
+    </>
+  ), [
+    isCollapsed, theme, collapsedHiddenStyles, navItems, isConnected,
+    scrollbarStyles, getCollapseTransition, conversations, currentConversationId,
+    onSelectConversation, onDeleteConversation, user, handleProfileClick,
+    isMobile, onMobileClose, onToggleCollapse,
+  ]);
+
+  // ============================================================================
+  // POPOVERS - Rendered outside sidebarContent to avoid memoization issues
+  // ============================================================================
+  const popovers = (
+    <>
       {/* Database Switcher Popover */}
       <Popover
         open={isPopoverOpen}
         anchorEl={dbPopoverAnchor}
-        onClose={() => setDbPopoverAnchor(null)}
+        onClose={handleCloseDbPopover}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         transformOrigin={{ vertical: 'top', horizontal: 'left' }}
-        PaperProps={{
-          sx: {
-            mt: 1,
-            minWidth: 200,
-            maxHeight: 300,
-            overflow: 'auto',
-          }
-        }}
+        PaperProps={{ sx: { mt: 1, minWidth: 200, maxHeight: 300, overflow: 'auto' } }}
       >
         <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
           <Typography variant="overline" color={theme.palette.text.secondary}>
@@ -544,44 +701,30 @@ function Sidebar({
                   <StorageOutlinedIcon sx={{ fontSize: 14, color: theme.palette.text.secondary }} />
                 )}
               </ListItemIcon>
-              <ListItemText 
-                primary={db} 
-                primaryTypographyProps={{ variant: 'body2' }}
-              />
+              <ListItemText primary={db} primaryTypographyProps={{ variant: 'body2' }} />
             </ListItemButton>
           ))}
           <Divider sx={{ my: 0.5 }} />
-          <ListItemButton
-            onClick={() => { setDbPopoverAnchor(null); onOpenDbModal?.(); }}
-            sx={{ borderRadius: 1, py: 0.75 }}
-          >
+          <ListItemButton onClick={handleOpenNewConnection} sx={{ borderRadius: 1, py: 0.75 }}>
             <ListItemIcon sx={{ minWidth: 28 }}>
               <AddCircleOutlineRoundedIcon sx={{ fontSize: 16, color: theme.palette.primary.main }} />
             </ListItemIcon>
-            <ListItemText 
-              primary="New Connection" 
+            <ListItemText
+              primary="New Connection"
               primaryTypographyProps={{ variant: 'body2', color: theme.palette.primary.main }}
             />
           </ListItemButton>
         </List>
       </Popover>
 
-      {/* History Popover (for collapsed sidebar) */}
+      {/* History Popover */}
       <Popover
         open={isHistoryPopoverOpen}
         anchorEl={historyPopoverAnchor}
-        onClose={() => setHistoryPopoverAnchor(null)}
+        onClose={handleCloseHistoryPopover}
         anchorOrigin={{ vertical: 'center', horizontal: 'right' }}
         transformOrigin={{ vertical: 'center', horizontal: 'left' }}
-        PaperProps={{
-          sx: {
-            ml: 1,
-            minWidth: 240,
-            maxWidth: 320,
-            maxHeight: 400,
-            overflow: 'auto',
-          }
-        }}
+        PaperProps={{ sx: { ml: 1, minWidth: 240, maxWidth: 320, maxHeight: 400, overflow: 'auto' } }}
       >
         <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
           <Typography variant="overline" color="text.secondary">
@@ -597,101 +740,27 @@ function Sidebar({
             </Box>
           ) : (
             conversations.map((conv) => (
-              <ListItemButton
+              <HistoryPopoverItem
                 key={conv.id}
-                selected={conv.id === currentConversationId}
-                onClick={() => {
-                  setHistoryPopoverAnchor(null);
-                  onSelectConversation(conv.id);
-                }}
-                sx={{ borderRadius: 1, py: 0.75 }}
-              >
-                <ListItemIcon sx={{ minWidth: 28 }}>
-                  {conv.id === currentConversationId ? (
-                    <CheckCircleOutlineRoundedIcon sx={{ fontSize: 16, color: theme.palette.primary.main }} />
-                  ) : (
-                    <QuestionAnswerOutlinedIcon sx={{ fontSize: 14, color: theme.palette.text.secondary }} />
-                  )}
-                </ListItemIcon>
-                <ListItemText 
-                  primary={conv.title || 'New Conversation'} 
-                  primaryTypographyProps={{ 
-                    variant: 'body2',
-                    noWrap: true,
-                    sx: { fontWeight: conv.id === currentConversationId ? 500 : 400 }
-                  }}
-                />
-                <IconButton
-                  size="small"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDeleteConversation(conv.id);
-                  }}
-                  sx={{ opacity: 0.5, '&:hover': { opacity: 1 }, ...deleteButtonStyles }}
-                >
-                  <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
-                </IconButton>
-              </ListItemButton>
+                conv={conv}
+                isActive={conv.id === currentConversationId}
+                onSelect={onSelectConversation}
+                onDelete={onDeleteConversation}
+                onClosePopover={handleCloseHistoryPopover}
+                theme={theme}
+              />
             ))
           )}
         </List>
       </Popover>
 
-      {/* ===== BOTTOM: Profile + Settings + Collapse Toggle ===== */}
-      <Box 
-        sx={{ 
-          borderTop: '1px solid',
-          borderColor: 'divider',
-          p: isCollapsed ? 0.75 : 1,
-          display: 'flex',
-          flexDirection: isCollapsed ? 'column' : 'row',
-          alignItems: 'center',
-          justifyContent: isCollapsed ? 'center' : 'space-between',
-          gap: isCollapsed ? 1 : 0,
-          transition: theme.transitions.create(['padding', 'flex-direction', 'gap', 'justify-content'], {
-            easing: theme.transitions.easing.sharp,
-            duration: theme.transitions.duration.enteringScreen,
-          }),
-        }}
-      >
-        {/* Profile button */}
-        <Tooltip title={isCollapsed ? (user?.displayName || 'Profile') : ''} placement="right" arrow>
-          <IconButton 
-            ref={profileButtonRef}
-            onClick={() => onMenuOpen({ currentTarget: profileButtonRef.current })} 
-            size="small" 
-           
-          >
-            {user?.photoURL ? (
-              <Avatar src={user.photoURL} sx={{ width: 24, height: 24 }} />
-            ) : (
-              <AccountCircleOutlinedIcon sx={{ fontSize: 24 }} />
-            )}
-          </IconButton>
-        </Tooltip>
-
-        {/* Collapse/Expand toggle - On mobile: close drawer, On desktop: collapse/expand */}
-        <Tooltip title={isMobile ? 'Close sidebar' : (isCollapsed ? 'Expand sidebar' : '')} placement="right" arrow>
-          <IconButton onClick={isMobile ? onMobileClose : onToggleCollapse} size="small">
-            {isMobile ? (
-              <KeyboardDoubleArrowLeftRoundedIcon sx={{ fontSize: 20 }} />
-            ) : isCollapsed ? (
-              <KeyboardDoubleArrowRightRoundedIcon sx={{ fontSize: 20 }} />
-            ) : (
-              <KeyboardDoubleArrowLeftRoundedIcon sx={{ fontSize: 20 }} />
-            )}
-          </IconButton>
-        </Tooltip>
-      </Box>
-
       {/* Schema Mindmap Dialog */}
       <Dialog
         open={mindmapOpen}
-        onClose={() => setMindmapOpen(false)}
+        onClose={handleCloseMindmap}
         maxWidth="lg"
         fullWidth
         sx={{
-          // Fullscreen on mobile only
           '& .MuiDialog-paper': {
             margin: { xs: 0, sm: 2 },
             width: { xs: '100%', sm: 'calc(100% - 32px)' },
@@ -700,12 +769,7 @@ function Sidebar({
             borderRadius: { xs: 0, sm: 2 },
           },
         }}
-        PaperProps={{
-          sx: {
-            bgcolor: 'background.paper',
-            backgroundImage: 'none',
-          },
-        }}
+        PaperProps={{ sx: { bgcolor: 'background.paper', backgroundImage: 'none' } }}
       >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -722,32 +786,39 @@ function Sidebar({
               />
             )}
           </Box>
-          <IconButton
-            size="small"
-            onClick={() => setMindmapOpen(false)}
-            sx={{ color: theme.palette.text.secondary }}
-          >
+          <IconButton size="small" onClick={handleCloseMindmap} sx={{ color: theme.palette.text.secondary }}>
             <CloseIcon fontSize="small" />
           </IconButton>
         </DialogTitle>
-        <DialogContent sx={{ p: { xs: 1, sm: 2 } }}>
+        <DialogContent
+          sx={{
+            p: { xs: 1, sm: 2 },
+            display: 'flex',
+            flexDirection: 'column',
+            flex: 1,
+            overflow: 'hidden',
+            minHeight: 0, // Critical for flex children to shrink
+          }}
+        >
           {schemaLoading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: { xs: 300, sm: 400 } }}>
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
               <CircularProgress />
             </Box>
           ) : schemaData ? (
-            <>
-              <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' }, mb: 1.5 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' }, mb: 1.5, flexShrink: 0 }}>
                 Click on table nodes to expand/collapse columns. Use mouse to pan and scroll to zoom.
               </Typography>
-              <SchemaFlowDiagram
-                database={schemaData.database}
-                tables={schemaData.tables || []}
-                columns={schemaData.columns || {}}
-              />
-            </>
+              <Box sx={{ flex: 1, minHeight: 0 }}>
+                <SchemaFlowDiagram
+                  database={schemaData.database}
+                  tables={schemaData.tables || []}
+                  columns={schemaData.columns || {}}
+                />
+              </Box>
+            </Box>
           ) : (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: { xs: 300, sm: 400 } }}>
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
               <Typography color={theme.palette.text.secondary}>
                 No schema data available. Connect to a database first.
               </Typography>
@@ -758,46 +829,80 @@ function Sidebar({
     </>
   );
 
-  // Mobile: SwipeableDrawer (temporary)
+  // ============================================================================
+  // RENDER
+  // ============================================================================
   if (isMobile) {
     return (
-      <SwipeableDrawer
-        variant="temporary"
-        open={mobileOpen}
-        onClose={onMobileClose}
-        onOpen={() => {}} // Required for SwipeableDrawer but controlled externally
-        disableSwipeToOpen
-        ModalProps={{ keepMounted: true }}
-        sx={{
-          '& .MuiDrawer-paper': {
-            width: EXPANDED_WIDTH,
-            height: '100%',
-            ...getGlassmorphismStyles(theme, isDarkMode),
-            borderRight: '1px solid',
-            borderColor: theme.palette.divider,
-          },
-        }}
-      >
-        <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-          {sidebarContent}
-        </Box>
-      </SwipeableDrawer>
+      <>
+        <SwipeableDrawer
+          variant="temporary"
+          open={mobileOpen}
+          onClose={onMobileClose}
+          onOpen={() => {}}
+          disableSwipeToOpen
+          ModalProps={{ keepMounted: true }}
+          sx={mobileDrawerStyles}
+        >
+          <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            {sidebarContent}
+          </Box>
+        </SwipeableDrawer>
+        {popovers}
+      </>
     );
   }
 
-  // Desktop: StyledDrawer (permanent)
   return (
-    <StyledDrawer 
-      variant="permanent"
-      open={!isCollapsed}
-      isDarkMode={isDarkMode}
-      PaperProps={{
-        sx: contentContainerStyles
-      }}
-    >
-      {sidebarContent}
-    </StyledDrawer>
+    <>
+      <StyledDrawer
+        variant="permanent"
+        open={!isCollapsed}
+        isDarkMode={isDarkMode}
+        PaperProps={{ sx: CONTENT_CONTAINER_STYLES }}
+      >
+        {sidebarContent}
+      </StyledDrawer>
+      {popovers}
+    </>
   );
 }
 
-export default memo(Sidebar);
+// ============================================================================
+// CUSTOM MEMO COMPARISON - Prevents unnecessary re-renders
+// ============================================================================
+function arePropsEqual(prevProps, nextProps) {
+  // Fast path: check primitives first
+  if (prevProps.currentConversationId !== nextProps.currentConversationId) return false;
+  if (prevProps.isConnected !== nextProps.isConnected) return false;
+  if (prevProps.currentDatabase !== nextProps.currentDatabase) return false;
+  if (prevProps.isCollapsed !== nextProps.isCollapsed) return false;
+  if (prevProps.mobileOpen !== nextProps.mobileOpen) return false;
+
+  // Check array lengths (shallow comparison for performance)
+  if (prevProps.conversations?.length !== nextProps.conversations?.length) return false;
+  if (prevProps.availableDatabases?.length !== nextProps.availableDatabases?.length) return false;
+
+  // Check user object (only care about display-relevant fields)
+  if (prevProps.user?.photoURL !== nextProps.user?.photoURL) return false;
+  if (prevProps.user?.displayName !== nextProps.user?.displayName) return false;
+
+  // Check conversation IDs changed (detect reordering or ID changes)
+  const prevIds = prevProps.conversations?.map(c => c.id).join(',') ?? '';
+  const nextIds = nextProps.conversations?.map(c => c.id).join(',') ?? '';
+  if (prevIds !== nextIds) return false;
+
+  // Check conversation titles changed
+  const prevTitles = prevProps.conversations?.map(c => c.title).join(',') ?? '';
+  const nextTitles = nextProps.conversations?.map(c => c.title).join(',') ?? '';
+  if (prevTitles !== nextTitles) return false;
+
+  // Check database list changed
+  const prevDbs = prevProps.availableDatabases?.join(',') ?? '';
+  const nextDbs = nextProps.availableDatabases?.join(',') ?? '';
+  if (prevDbs !== nextDbs) return false;
+
+  return true;
+}
+
+export default memo(Sidebar, arePropsEqual);

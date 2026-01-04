@@ -21,10 +21,15 @@ class ConversationRepository:
     @staticmethod
     def _strip_markers(text: str) -> tuple[str, str]:
         """
-        Strip streaming markers from message before storing and extract thinking content.
-
-        THINKING markers are stripped (content extracted separately).
-        TOOL markers are PRESERVED in content for proper inline rendering on page load.
+        Strip ALL streaming markers from message content before storing.
+        
+        - THINKING markers: stripped (content extracted to separate field)
+        - TOOL markers: ALL stripped (data stored in tools array instead)
+        
+        This follows industry best practice (Claude.ai/ChatGPT pattern):
+        - content: clean text only
+        - thinking: separate field  
+        - tools: structured array (source of truth)
         
         Returns:
             tuple: (cleaned_text, thinking_content)
@@ -34,37 +39,100 @@ class ConversationRepository:
 
         thinking_content = ''
 
-        # Extract thinking content from chunks (handles complete markers)
+        # Extract thinking content from chunks
         thinking_chunks = re.findall(r'\[\[THINKING:chunk:(.*?)\]\]', text, re.DOTALL)
         if thinking_chunks:
             thinking_content = ''.join(thinking_chunks)
 
-        # Strip thinking markers (handles both complete and incomplete markers)
+        # Strip ALL thinking markers
         text = re.sub(r'\[\[THINKING:start\]\]', '', text)
-        text = re.sub(r'\[\[THINKING:chunk:.*?\]\]', '', text, flags=re.DOTALL)  # Complete markers
+        text = re.sub(r'\[\[THINKING:chunk:.*?\]\]', '', text, flags=re.DOTALL)
         text = re.sub(r'\[\[THINKING:end\]\]', '', text)
-        # Clean up any remaining incomplete THINKING markers (without proper closing ]])
-        text = re.sub(r'\[\[THINKING:[^\]]*\]?$', '', text)  # Incomplete at end
-        text = re.sub(r'\[\[THINKING:[^\]]*\](?!\])', '', text)  # Single ] instead of ]]
+        text = re.sub(r'\[\[THINKING:[^\]]*\]?$', '', text)
+        text = re.sub(r'\[\[THINKING:[^\]]*\](?!\])', '', text)
 
-        # NOTE: Tool markers [[TOOL:...]] are intentionally KEPT in content
-        # This ensures tools render inline with text in correct order after page refresh,
-        # matching the streaming behavior. The frontend parseMessageSegments() handles them.
+        # Strip ALL tool markers (data is in tools array, not needed in content)
+        text = ConversationRepository._strip_all_tool_markers(text)
 
-        # Strip raw JSON objects that LLM might echo (tool arguments/results)
-        # Pattern: { ... } with proper bracket matching
+        # Strip raw JSON objects that LLM might echo
         text = ConversationRepository._strip_json_objects(text)
 
         return text.strip(), thinking_content
 
     @staticmethod
+    def _strip_all_tool_markers(text: str) -> str:
+        """
+        Strip ALL [[TOOL:...]] markers from content.
+        Tool data is stored in 'tools' array, so markers not needed in content.
+        Uses bracket matching to handle nested JSON properly.
+        """
+        if '[[TOOL:' not in text:
+            return text
+
+        result = []
+        i = 0
+
+        while i < len(text):
+            # Check for tool marker start
+            if text[i:i+7] == '[[TOOL:':
+                # Find the end of this marker using bracket matching
+                marker_end = ConversationRepository._find_tool_marker_end(text, i)
+                if marker_end != -1:
+                    # Skip this tool marker (and trailing whitespace)
+                    i = marker_end + 1
+                    while i < len(text) and text[i] in ' \n\r\t':
+                        i += 1
+                    continue
+            result.append(text[i])
+            i += 1
+
+        return ''.join(result)
+
+    @staticmethod
+    def _find_tool_marker_end(text: str, start: int) -> int:
+        """
+        Find the end index of a [[TOOL:...]] marker starting at 'start'.
+        Marker format: [[TOOL:name:status:args:result]]
+        Returns index of second ']' or -1 if not found.
+        """
+        # The marker starts with [[ which gives depth 2
+        depth = 0
+        in_string = False
+        escape_next = False
+
+        for i in range(start, len(text)):
+            if escape_next:
+                escape_next = False
+                continue
+
+            char = text[i]
+
+            if char == '\\' and in_string:
+                escape_next = True
+                continue
+
+            if char == '"':
+                in_string = not in_string
+                continue
+
+            if not in_string:
+                if char == '[':
+                    depth += 1
+                elif char == ']':
+                    depth -= 1
+                    # Need depth to reach 0 (both ]] consumed)
+                    if depth == 0:
+                        return i
+
+        return -1
+
+    @staticmethod
     def _strip_json_objects(text: str) -> str:
         """
-        Remove JSON objects that the LLM might echo in its response.
+        Remove standalone JSON objects that the LLM might echo in its response.
         These are typically tool arguments or error responses that leak through.
-
-        Uses bracket matching to properly identify complete JSON objects.
-        PRESERVES JSON inside [[TOOL:...]] markers - those are needed for parsing.
+        
+        Note: Called AFTER tool markers are stripped, so no need to preserve anything.
         """
         if not text or '{' not in text:
             return text
@@ -73,13 +141,7 @@ class ConversationRepository:
         i = 0
 
         while i < len(text):
-            # Check if we're inside a [[TOOL: marker - if so, preserve JSON
-            # Look backwards to see if we're inside a tool marker
-            preceding = text[max(0, i-100):i]  # Check up to 100 chars before
-            in_tool_marker = '[[TOOL:' in preceding and ']]' not in preceding[preceding.rfind('[[TOOL:'):]
-            
-            # Check if we're at the start of a potential JSON object
-            if text[i] == '{' and not in_tool_marker:
+            if text[i] == '{':
                 # Try to find the matching closing brace
                 depth = 1
                 j = i + 1
@@ -112,7 +174,7 @@ class ConversationRepository:
                     try:
                         import json
                         json.loads(json_candidate)
-                        # Valid JSON - skip it (don't add to result)
+                        # Valid JSON - skip it
                         i = j
                         continue
                     except (json.JSONDecodeError, ValueError):

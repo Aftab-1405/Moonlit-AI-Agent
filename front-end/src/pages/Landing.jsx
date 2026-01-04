@@ -30,9 +30,9 @@ const glassCard = (theme) => ({
   '&:hover': {
     transform: 'translateY(-8px)',
     boxShadow: theme.palette.mode === 'dark'
-      ? `0 8px 32px ${alpha(theme.palette.common.black, 0.3)}, 0 0 0 1px ${alpha(theme.palette.info.main, 0.1)}`
+      ? `0 8px 32px ${alpha(theme.palette.common.black, 0.3)}, 0 0 0 1px ${alpha(theme.palette.primary.main, 0.1)}`
       : `0 8px 32px ${alpha(theme.palette.common.black, 0.12)}`,
-    border: `1px solid ${alpha(theme.palette.info.main, theme.palette.mode === 'dark' ? 0.2 : 0.3)}`,
+    border: `1px solid ${alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.2 : 0.3)}`,
   },
 });
 
@@ -63,7 +63,7 @@ function Hero({ onGetStarted }) {
   const theme = useTheme();
   return (
     <Section>
-      <Box sx={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse 80% 50% at 50% -20%, ${alpha(theme.palette.info.main, 0.15)}, transparent)`, pointerEvents: 'none' }} />
+      <Box sx={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse 80% 50% at 50% -20%, ${alpha(theme.palette.primary.main, 0.15)}, transparent)`, pointerEvents: 'none' }} />
       <Container maxWidth="md" sx={{ zIndex: 2, textAlign: 'center' }}>
         <Stack spacing={3} alignItems="center">
           {/* Moonlit Title */}
@@ -76,7 +76,7 @@ function Hero({ onGetStarted }) {
               backgroundClip: 'text',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
-              filter: `drop-shadow(0 0 24px ${alpha(theme.palette.info.main, 0.3)})`,
+              filter: `drop-shadow(0 0 24px ${alpha(theme.palette.primary.main, 0.3)})`,
             }}
           >
             Moonlit
@@ -86,7 +86,7 @@ function Hero({ onGetStarted }) {
           <Typography component="h1" variant="h1" sx={{ fontWeight: 800, fontSize: { xs: '1.75rem', md: '3rem' }, lineHeight: 1.2 }}>
             Talk to Your Database
             <br />
-            <Box component="span" sx={{ background: `linear-gradient(135deg, ${theme.palette.info.light}, ${theme.palette.info.main})`, backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            <Box component="span" sx={{ background: `linear-gradient(135deg, ${theme.palette.primary.light}, ${theme.palette.primary.main})`, backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
               Like Never Before
             </Box>
           </Typography>
@@ -98,39 +98,41 @@ function Hero({ onGetStarted }) {
 
           {/* CTAs */}
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <Button 
-              aria-label="Get started" 
-              color="success" 
-              size="large" 
-              onClick={onGetStarted} 
-              endIcon={<ArrowForwardRoundedIcon />} 
-              sx={{ 
-                px: 5, 
+            <Button
+              aria-label="Get started"
+              size="large"
+              onClick={onGetStarted}
+              endIcon={<ArrowForwardRoundedIcon />}
+              sx={{
+                px: 5,
                 py: 1.5,
                 borderRadius: 8,
-                background: `linear-gradient(135deg, ${theme.palette.success.main}, ${theme.palette.success.dark})`,
+                background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.primary.light})`,
+                color: theme.palette.mode === 'dark' ? '#000000' : '#FFFFFF',
+                fontWeight: 600,
                 '&:hover': {
-                  background: `linear-gradient(135deg, ${theme.palette.success.light}, ${theme.palette.success.main})`,
+                  background: `linear-gradient(135deg, ${theme.palette.primary.light}, ${theme.palette.primary.main})`,
                   transform: 'translateY(-2px)',
+                  boxShadow: `0 8px 16px ${alpha(theme.palette.primary.main, 0.3)}`,
                 },
               }}
             >
               Get Started Free
             </Button>
-            <Button 
-              aria-label="Watch demo" 
-              size="large" 
-              startIcon={<PlayCircleOutlinedIcon />} 
+            <Button
+              aria-label="Watch demo"
+              size="large"
+              startIcon={<PlayCircleOutlinedIcon />}
               onClick={() => document.getElementById('demo-section')?.scrollIntoView({ behavior: 'smooth' })}
-              sx={{ 
-                px: 5, 
+              sx={{
+                px: 5,
                 py: 1.5,
                 borderRadius: 8,
-                borderColor: alpha(theme.palette.info.main, 0.5),
-                color: theme.palette.info.main,
+                borderColor: alpha(theme.palette.primary.main, 0.5),
+                color: theme.palette.primary.main,
                 '&:hover': {
-                  borderColor: theme.palette.info.main,
-                  backgroundColor: alpha(theme.palette.info.main, 0.08),
+                  borderColor: theme.palette.primary.main,
+                  backgroundColor: alpha(theme.palette.primary.main, 0.08),
                 },
               }}
             >
@@ -146,7 +148,7 @@ function Hero({ onGetStarted }) {
               { value: 'Read-Only', label: 'Safe Mode' },
             ].map((s) => (
               <Box key={s.label} textAlign="center">
-                <Typography variant="h5" color="info.main" fontWeight="bold">{s.value}</Typography>
+                <Typography variant="h5" color="primary.main" fontWeight="bold">{s.value}</Typography>
                 <Typography variant="labelMedium" color="text.secondary">{s.label}</Typography>
               </Box>
             ))}
@@ -167,12 +169,12 @@ function ValueGrid() {
   ], []);
 
   return (
-    <Section sx={{ background: `linear-gradient(180deg, transparent, ${alpha(theme.palette.info.main, 0.03)} 50%, transparent)`, py: { xs: 4, md: 6 } }}>
+    <Section sx={{ background: `linear-gradient(180deg, transparent, ${alpha(theme.palette.primary.main, 0.03)} 50%, transparent)`, py: { xs: 4, md: 6 } }}>
       <Container maxWidth="lg">
         <Box textAlign="center" mb={3}>
-          <Typography variant="labelMedium" color="info.main" fontWeight="bold" sx={{ textTransform: 'uppercase', letterSpacing: '0.1em' }}>Why Moonlit</Typography>
+          <Typography variant="labelMedium" fontWeight="bold" sx={{ textTransform: 'uppercase', letterSpacing: '0.1em', color: 'text.secondary' }}>Why Moonlit</Typography>
           <Typography variant="h3" fontWeight="bold" sx={{ fontSize: { xs: '1.5rem', md: '2rem' }, mt: 0.5 }}>
-            Built for <span style={{ color: theme.palette.info.main }}>Everyone.</span>
+            Built for <span style={{ color: theme.palette.primary.main }}>Everyone.</span>
           </Typography>
         </Box>
         <Grid container spacing={2} justifyContent="center">
@@ -184,8 +186,8 @@ function ValueGrid() {
                     width: 40,
                     height: 40,
                     borderRadius: '50%',
-                    background: `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.25)}, ${alpha(theme.palette.info.main, 0.15)})`,
-                    border: `2px solid ${alpha(theme.palette.info.main, 0.3)}`,
+                    background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.25)}, ${alpha(theme.palette.primary.main, 0.15)})`,
+                    border: `2px solid ${alpha(theme.palette.primary.main, 0.3)}`,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -197,7 +199,7 @@ function ValueGrid() {
                     },
                   }}
                 >
-                  <v.Icon sx={{ fontSize: 20, color: theme.palette.info.main }} />
+                  <v.Icon sx={{ fontSize: 20, color: theme.palette.primary.main }} />
                 </Box>
                 <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>
                   {v.title}
@@ -218,20 +220,20 @@ function ValueGrid() {
 function DemoSection() {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
-  
+
   return (
-    <Section id="demo-section" sx={{ background: `linear-gradient(180deg, transparent, ${alpha(theme.palette.info.main, 0.02)} 50%, transparent)`, py: { xs: 4, md: 6 } }}>
+    <Section id="demo-section" sx={{ background: `linear-gradient(180deg, transparent, ${alpha(theme.palette.primary.main, 0.02)} 50%, transparent)`, py: { xs: 4, md: 6 } }}>
       <Container maxWidth="lg">
         <Box textAlign="center" mb={2.5}>
-          <Typography variant="labelMedium" color="info.main" fontWeight="bold" sx={{ textTransform: 'uppercase', letterSpacing: '0.1em' }}>See It In Action</Typography>
+          <Typography variant="labelMedium" fontWeight="bold" sx={{ textTransform: 'uppercase', letterSpacing: '0.1em', color: 'text.secondary' }}>See It In Action</Typography>
           <Typography variant="h4" fontWeight="bold" sx={{ fontSize: { xs: '1.35rem', md: '1.75rem' }, mt: 0.5 }}>
-            From Question to <span style={{ color: theme.palette.info.main }}>Answer</span>
+            From Question to <span style={{ color: theme.palette.primary.main }}>Answer</span>
           </Typography>
           <Typography variant="bodyMedium" color="text.secondary" sx={{ mt: 0.5, maxWidth: 450, mx: 'auto' }}>
             See how anyone can query databases without writing a single line of SQL.
           </Typography>
         </Box>
-        
+
         <Box
           sx={{
             position: 'relative',
@@ -266,14 +268,13 @@ function DemoSection() {
                 py: 0.5,
                 borderRadius: 1,
                 backgroundColor: isDark ? alpha(theme.palette.common.white, 0.05) : alpha(theme.palette.common.black, 0.05),
-                fontSize: '0.7rem',
                 color: 'text.secondary',
               }}
             >
               moonlit.app/chat
             </Box>
           </Box>
-          
+
           {/* Video */}
           <Box
             component="video"
@@ -293,13 +294,13 @@ function DemoSection() {
             <source src="/moonlit-demo.mp4" type="video/mp4" />
             Your browser does not support the video tag.
           </Box>
-          
+
           {/* Glow */}
           <Box
             sx={{
               position: 'absolute',
               inset: -30,
-              background: `radial-gradient(ellipse at center, ${alpha(theme.palette.info.main, 0.15)}, transparent 70%)`,
+              background: `radial-gradient(ellipse at center, ${alpha(theme.palette.primary.main, 0.15)}, transparent 70%)`,
               pointerEvents: 'none',
               zIndex: -1,
               filter: 'blur(30px)',
@@ -324,9 +325,9 @@ function StepsGrid() {
     <Section>
       <Container maxWidth="lg">
         <Box textAlign="center" mb={5}>
-          <Typography variant="overline" color="info.main" fontWeight="bold">How It Works</Typography>
+          <Typography variant="overline" fontWeight="bold" sx={{ color: 'text.secondary' }}>How It Works</Typography>
           <Typography variant="h3" fontWeight="bold" sx={{ fontSize: { xs: '1.75rem', md: '2.5rem' } }}>
-            Three Steps. <span style={{ color: theme.palette.info.main }}>Zero Learning Curve.</span>
+            Three Steps. <span style={{ color: theme.palette.primary.main }}>Zero Learning Curve.</span>
           </Typography>
         </Box>
         <Grid container spacing={3} justifyContent="center">
@@ -342,7 +343,7 @@ function StepsGrid() {
                     fontSize: '3rem',
                     fontWeight: 900,
                     lineHeight: 1,
-                    color: 'info.main',
+                    color: 'primary.main',
                     pointerEvents: 'none',
                   }}
                 >
@@ -368,7 +369,7 @@ function StepsGrid() {
 // ---------- Databases ----------
 function SupportedDatabases() {
   const theme = useTheme();
-  
+
   const databases = useMemo(() => [
     { name: 'MySQL', color: '#00758F', providers: ['Local', 'PlanetScale', 'TiDB Cloud', 'Aiven', 'AWS RDS', 'Google Cloud SQL'] },
     { name: 'PostgreSQL', color: '#336791', providers: ['Local', 'Neon', 'Supabase', 'Railway', 'Render', 'AWS RDS', 'Azure'] },
@@ -378,18 +379,18 @@ function SupportedDatabases() {
   ], []);
 
   return (
-    <Section sx={{ background: `linear-gradient(180deg, transparent, ${alpha(theme.palette.info.main, 0.02)} 50%, transparent)` }}>
+    <Section sx={{ background: `linear-gradient(180deg, transparent, ${alpha(theme.palette.primary.main, 0.02)} 50%, transparent)` }}>
       <Container maxWidth="lg">
         <Box textAlign="center" mb={4}>
-          <Typography variant="overline" color="info.main" fontWeight="bold">Works Everywhere</Typography>
+          <Typography variant="overline" fontWeight="bold" sx={{ color: 'text.secondary' }}>Works Everywhere</Typography>
           <Typography variant="h3" fontWeight="bold" sx={{ fontSize: { xs: '1.75rem', md: '2.5rem' } }}>
-            Your Database, <span style={{ color: theme.palette.info.main }}>Your Way</span>
+            Your Database, <span style={{ color: theme.palette.primary.main }}>Your Way</span>
           </Typography>
           <Typography variant="bodyLarge" color="text.secondary" sx={{ mt: 2, maxWidth: 600, mx: 'auto' }}>
             From local development to production cloud — connect to any major relational database with one unified interface.
           </Typography>
         </Box>
-        
+
         {/* Carousel */}
         <Box
           sx={{
@@ -482,7 +483,7 @@ function SupportedDatabases() {
             ))}
           </Box>
         </Box>
-        
+
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mt: 3 }}>
           * Oracle Cloud Autonomous DB requires wallet authentication
         </Typography>
@@ -505,18 +506,20 @@ function FinalCTA({ onGetStarted }) {
           <Typography variant="bodyLarge" color="text.secondary" sx={{ maxWidth: 520 }}>
             Whether you're debugging a query or exploring data for the first time — Moonlit meets you where you are.
           </Typography>
-          <Button 
-            color="success" 
-            size="large" 
-            onClick={onGetStarted} 
-            sx={{ 
-              px: 6, 
-              py: 1.75, 
+          <Button
+            size="large"
+            onClick={onGetStarted}
+            sx={{
+              px: 6,
+              py: 1.75,
               borderRadius: 8,
-              background: `linear-gradient(135deg, ${theme.palette.success.main}, ${theme.palette.success.dark})`,
+              background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.primary.light})`,
+              color: theme.palette.mode === 'dark' ? '#000000' : '#FFFFFF',
+              fontWeight: 600,
               '&:hover': {
-                background: `linear-gradient(135deg, ${theme.palette.success.light}, ${theme.palette.success.main})`,
+                background: `linear-gradient(135deg, ${theme.palette.primary.light}, ${theme.palette.primary.main})`,
                 transform: 'translateY(-2px)',
+                boxShadow: `0 8px 16px ${alpha(theme.palette.primary.main, 0.3)}`,
               },
             }}
           >

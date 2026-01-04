@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { 
-  Dialog, 
-  DialogTitle, 
-  DialogContent, 
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
   DialogActions,
-  Box, 
-  Typography, 
-  IconButton, 
+  Box,
+  Typography,
+  IconButton,
   Button,
   ToggleButtonGroup,
   ToggleButton,
@@ -51,10 +51,10 @@ function TabPanel({ children, value, index, ...props }) {
 // Setting Row Component for consistent styling
 function SettingRow({ label, description, children, quickAccess = false }) {
   return (
-    <Box 
-      sx={{ 
-        display: 'flex', 
-        alignItems: 'center', 
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
         justifyContent: 'space-between',
         py: 2,
         gap: 2,
@@ -69,15 +69,14 @@ function SettingRow({ label, description, children, quickAccess = false }) {
             {label}
           </Typography>
           {quickAccess && (
-            <Chip 
-              label="Quick Access" 
-              size="small" 
-              sx={{ 
-                height: 18, 
-                fontSize: '0.65rem',
+            <Chip
+              label="Quick Access"
+              size="small"
+              sx={{
+                height: 18,
                 bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
                 color: 'primary.main',
-              }} 
+              }}
             />
           )}
         </Box>
@@ -105,7 +104,6 @@ function SettingsModal({ open, onClose }) {
     '& .MuiToggleButton-root': {
       px: 1.5,
       py: 0.5,
-      fontSize: '0.75rem',
     },
   };
 
@@ -139,7 +137,7 @@ function SettingsModal({ open, onClose }) {
           pb: 0,
         }}
       >
-        <Typography variant="h6" fontWeight={600}>
+        <Typography variant="h6" component="span" fontWeight={600}>
           Settings
         </Typography>
         <IconButton onClick={onClose} size="small">
@@ -149,8 +147,8 @@ function SettingsModal({ open, onClose }) {
 
       {/* Tabs - Scrollable on mobile for 4 tabs */}
       <Box sx={{ px: { xs: 1, sm: 3 }, borderBottom: 1, borderColor: 'divider' }}>
-        <Tabs 
-          value={activeTab} 
+        <Tabs
+          value={activeTab}
           onChange={handleTabChange}
           variant="scrollable"
           scrollButtons="auto"
@@ -163,29 +161,28 @@ function SettingsModal({ open, onClose }) {
               px: { xs: 1.5, sm: 2 },
               textTransform: 'none',
               fontWeight: 500,
-              fontSize: { xs: '0.75rem', sm: '0.875rem' },
             },
           }}
         >
-          <Tab 
-            icon={<PaletteOutlinedIcon sx={{ fontSize: 18 }} />} 
-            iconPosition="start" 
-            label="Appearance" 
+          <Tab
+            icon={<PaletteOutlinedIcon sx={{ fontSize: 18 }} />}
+            iconPosition="start"
+            label="Appearance"
           />
-          <Tab 
-            icon={<PsychologyOutlinedIcon sx={{ fontSize: 18 }} />} 
-            iconPosition="start" 
-            label="AI" 
+          <Tab
+            icon={<PsychologyOutlinedIcon sx={{ fontSize: 18 }} />}
+            iconPosition="start"
+            label="AI"
           />
-          <Tab 
-            icon={<StorageOutlinedIcon sx={{ fontSize: 18 }} />} 
-            iconPosition="start" 
-            label="Database" 
+          <Tab
+            icon={<StorageOutlinedIcon sx={{ fontSize: 18 }} />}
+            iconPosition="start"
+            label="Database"
           />
-          <Tab 
-            icon={<DataObjectOutlinedIcon sx={{ fontSize: 18 }} />} 
-            iconPosition="start" 
-            label="AI Context" 
+          <Tab
+            icon={<DataObjectOutlinedIcon sx={{ fontSize: 18 }} />}
+            iconPosition="start"
+            label="AI Context"
           />
         </Tabs>
       </Box>
@@ -411,7 +408,7 @@ function SettingsModal({ open, onClose }) {
         >
           Reset
         </Button>
-        <Button  color="primary" onClick={onClose}>
+        <Button color="primary" onClick={onClose}>
           Done
         </Button>
       </DialogActions>

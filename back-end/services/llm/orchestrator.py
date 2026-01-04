@@ -132,13 +132,11 @@ class ChatOrchestrator:
                         yield f'[[TOOL:{function_name}:done:{{}}:{error_msg}]]\n\n'
                         continue
                     
-                    # Extract conversational rationale if present
-                    rationale = function_args.get('rationale')
-                    if rationale:
-                        yield f"{rationale}\n\n"
+                    # NOTE: Rationale is NOT yielded as separate text to prevent visual jumping
+                    # during streaming. It's preserved in tool args for the accordion details.
                     
-                    # Prepare arguments for display (exclude rationale from UI)
-                    display_args = {k: v for k, v in function_args.items() if k != 'rationale'}
+                    # Prepare arguments for display (rationale included for tool details)
+                    display_args = dict(function_args)
                     
                     # For execute_query, show the ACTUAL max_rows being used (user setting)
                     if function_name == "execute_query":

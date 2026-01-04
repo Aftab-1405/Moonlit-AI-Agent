@@ -1,11 +1,11 @@
-import { useState } from 'react';
-import { 
-  Dialog, 
-  DialogTitle, 
-  DialogContent, 
-  DialogActions, 
-  Button, 
-  Typography, 
+import { useState, useCallback, memo } from 'react';
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Typography,
   Box,
   CircularProgress,
   useTheme,
@@ -18,23 +18,23 @@ import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
  * Custom confirmation dialog that matches the app's theme.
  * Use instead of window.confirm() for better UX.
  */
-function ConfirmDialog({ 
-  open, 
-  onClose, 
-  onConfirm, 
+function ConfirmDialog({
+  open,
+  onClose,
+  onConfirm,
   title = 'Confirm Action',
   message = 'Are you sure you want to proceed?',
   confirmText = 'Confirm',
   cancelText = 'Cancel',
   confirmColor = 'primary',
   icon = null,
-  sqlQuery = null, // For SQL query confirmation
+  sqlQuery = null,
 }) {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
   const [isExecuting, setIsExecuting] = useState(false);
 
-  const handleExecute = async () => {
+  const handleExecute = useCallback(async () => {
     if (isExecuting) return;
     setIsExecuting(true);
     try {
@@ -42,14 +42,13 @@ function ConfirmDialog({
     } finally {
       setIsExecuting(false);
     }
-  };
+  }, [isExecuting, onConfirm]);
 
-  // Reset executing state when dialog closes
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     if (!isExecuting) {
       onClose?.();
     }
-  };
+  }, [isExecuting, onClose]);
 
   return (
     <Dialog
@@ -59,7 +58,7 @@ function ConfirmDialog({
       fullWidth
       PaperProps={{
         sx: {
-          borderRadius: 3,
+          borderRadius: '12px',
           backgroundImage: 'none',
         },
       }}
@@ -75,17 +74,17 @@ function ConfirmDialog({
         <Typography variant="body1" color="text.secondary" sx={{ mb: sqlQuery ? 2 : 0 }}>
           {message}
         </Typography>
-        
-        {/* Show SQL query preview if provided */}
+
+        {/* SQL query preview */}
         {sqlQuery && (
           <Box
             sx={{
               p: 2,
-              borderRadius: 2,
-              backgroundColor: alpha(theme.palette.text.primary, isDarkMode ? 0.2 : 0.04),
+              borderRadius: '12px',
+              backgroundColor: alpha(theme.palette.text.primary, isDarkMode ? 0.1 : 0.04),
               border: '1px solid',
-              borderColor: 'divider',
-              fontFamily: '"Fira Code", "Monaco", monospace',
+              borderColor: theme.palette.divider,
+              fontFamily: '"JetBrains Mono", monospace',
               fontSize: '0.85rem',
               maxHeight: 200,
               overflow: 'auto',
@@ -100,22 +99,20 @@ function ConfirmDialog({
       </DialogContent>
 
       <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
-        <Button 
-          onClick={handleClose} 
+        <Button
+          onClick={handleClose}
           color="inherit"
-          
           disabled={isExecuting}
           sx={{ color: 'text.secondary', borderColor: 'divider' }}
         >
           {cancelText}
         </Button>
-        <Button 
+        <Button
           onClick={handleExecute}
           disabled={isExecuting}
-           
           color={confirmColor}
           startIcon={isExecuting ? <CircularProgress size={16} color="inherit" /> : (sqlQuery ? <PlayArrowRoundedIcon /> : null)}
-          sx={{ minWidth: 100, borderWidth: 1.25 }}
+          sx={{ minWidth: 100 }}
         >
           {isExecuting ? 'Executing...' : confirmText}
         </Button>
@@ -124,4 +121,4 @@ function ConfirmDialog({
   );
 }
 
-export default ConfirmDialog;
+export default memo(ConfirmDialog);

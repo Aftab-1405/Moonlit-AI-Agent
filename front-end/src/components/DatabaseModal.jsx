@@ -266,29 +266,29 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
     }
   }, [open, isConnected, databases.length]);
 
-  const fetchDatabasesRef = useRef(async () => {
-      try {
-        const data = await getDatabases();
-        if (data.status === 'success' && data.databases) {
-          setDatabases(data.databases);
-          if (data.is_remote) {
-            setIsRemote(true);
-            setDbType('postgresql');
-            setConnectionMode('connection_string');
-          }
-          // If we just fetched DBs successfully, switch to DB tab on mobile
-          if (isMobile) setMobileTab(1);
+  const fetchDatabases = useCallback(async () => {
+    try {
+      const data = await getDatabases();
+      if (data.status === 'success' && data.databases) {
+        setDatabases(data.databases);
+        if (data.is_remote) {
+          setIsRemote(true);
+          setDbType('postgresql');
+          setConnectionMode('connection_string');
         }
-      } catch (err) {
-        console.error('Failed to fetch databases:', err);
+        // If we just fetched DBs successfully, switch to DB tab on mobile
+        if (isMobile) setMobileTab(1);
       }
-  });
+    } catch (err) {
+      console.error('Failed to fetch databases:', err);
+    }
+  }, [isMobile]);
 
   useEffect(() => {
     if (open && isConnected && databases.length === 0) {
-      fetchDatabasesRef.current();
+      fetchDatabases();
     }
-  }, [open, isConnected, databases.length]);
+  }, [open, isConnected, databases.length, fetchDatabases]);
 
 
   // --- Handlers ---
@@ -399,7 +399,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
     }
   }, [isRemote, onConnect, safeSetTimeout, onClose]);
 
-  const handleDisconnect = async () => {
+  const handleDisconnect = useCallback(async () => {
     setLoading(true);
     try {
       await disconnectDb();
@@ -413,11 +413,11 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
     } finally {
       setLoading(false);
     }
-  };
+  }, [onConnect, isMobile]);
 
-  const handleMobileTabChange = (event, newValue) => {
+  const handleMobileTabChange = useCallback((event, newValue) => {
     setMobileTab(newValue);
-  };
+  }, []);
 
   // --- Render Helpers ---
 

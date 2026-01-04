@@ -14,6 +14,12 @@
  * - Chat state: Local useState for messages and conversations
  * - Settings: Accessed via ThemeContext (useTheme hook)
  * 
+ * PERFORMANCE OPTIMIZATIONS:
+ * - All handlers wrapped in useCallback
+ * - Derived state uses useMemo
+ * - Style objects memoized to prevent recreation
+ * - Stable close handlers for modals/dialogs
+ * 
  * @module Chat
  */
 
@@ -37,7 +43,7 @@ import { useTheme as useMuiTheme, alpha } from '@mui/material/styles';
 import { useTheme as useAppTheme } from '../contexts/ThemeContext';
 import { useDatabaseConnection } from '../contexts/DatabaseContext';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import MenuOutlinedIcon from '@mui/icons-material/MenuOutlined';
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
@@ -67,24 +73,28 @@ import {
 } from '../api';
 import { getMoonlitGradient } from '../theme';
 
+// ============================================================================
+// CONSTANTS - Static values outside component
+// ============================================================================
 const DRAWER_WIDTH = 260;
 const COLLAPSED_WIDTH = 56;
 const MIN_EDITOR_WIDTH = 320;
-const MAX_EDITOR_WIDTH_PERCENT = 0.6; // 60% of available space
+const MAX_EDITOR_WIDTH_PERCENT = 0.6;
+const UPDATE_THROTTLE_MS = 16; // ~60fps for smooth streaming updates
 
 function Chat() {
   // ===========================================================================
   // HOOKS - External State & Navigation
   // ===========================================================================
-  
+
   const theme = useMuiTheme();
   const isDarkMode = theme.palette.mode === 'dark';
   const { settings } = useAppTheme();
   const { conversationId } = useParams();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  
-  // Database connection state from context (replaces 5 local useState calls)
+
+  // Database connection state from context
   const {
     isConnected: isDbConnected,
     currentDatabase,
@@ -94,156 +104,129 @@ function Chat() {
     resetConnectionState,
     switchDatabase,
   } = useDatabaseConnection();
-  
+
   // ===========================================================================
   // LOCAL STATE - UI Controls
   // ===========================================================================
-  // These remain local because they're purely UI concerns for this component
-  
+
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const [dbModalOpen, setDbModalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
-  
+
   // ===========================================================================
   // LOCAL STATE - Chat & Conversations
   // ===========================================================================
-  // Could be moved to ConversationContext in future if needed elsewhere
-  
+
   const [messages, setMessages] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [currentConversationId, setCurrentConversationId] = useState(null);
-  
+
   // ===========================================================================
   // LOCAL STATE - Query & Results
   // ===========================================================================
-  
+
   const [queryResults, setQueryResults] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState({ open: false, sql: '', onConfirm: null });
-  
+
   // ===========================================================================
   // LOCAL STATE - SQL Editor Canvas
   // ===========================================================================
-  
+
   const [sqlEditorOpen, setSqlEditorOpen] = useState(false);
   const [sqlEditorQuery, setSqlEditorQuery] = useState('');
   const [sqlEditorResults, setSqlEditorResults] = useState(null);
-  const [sqlEditorWidth, setSqlEditorWidth] = useState(450); // Default width in pixels
-  
+  const [sqlEditorWidth, setSqlEditorWidth] = useState(450);
+
   // ===========================================================================
   // REFS
   // ===========================================================================
-  
+
   const messagesContainerRef = useRef(null);
   const queryResolverRef = useRef(null);
-  const abortControllerRef = useRef(null);  // For stopping stream
-  
+  const abortControllerRef = useRef(null);
+  const prevConversationIdRef = useRef(null);
+  const newlyCreatedConvIdRef = useRef(null); // Track IDs we just created to skip fetch
+
   // ===========================================================================
-  // IDLE DETECTION - For Starfield Animation
+  // IDLE DETECTION
   // ===========================================================================
-  
+
   const isIdle = useIdleDetection();
   const idleAnimationEnabled = settings.idleAnimation ?? true;
 
-  // Scroll to bottom when messages change
-  const scrollToBottom = useCallback(() => {
-    if (messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTo({
-        top: messagesContainerRef.current.scrollHeight,
-        behavior: 'smooth'
-      });
-    }
-  }, []);
+  // ===========================================================================
+  // MEMOIZED DERIVED STATE
+  // ===========================================================================
 
-  // Check if currently streaming (last message is AI and isStreaming=true)
-  const isCurrentlyStreaming = messages.length > 0 && 
-    messages[messages.length - 1]?.sender === 'ai' && 
-    messages[messages.length - 1]?.isStreaming;
-  
-  // Get last message content for dependency tracking
-  const lastMessageContent = messages[messages.length - 1]?.content || '';
+  const isCurrentlyStreaming = useMemo(() =>
+    messages.length > 0 &&
+    messages[messages.length - 1]?.sender === 'ai' &&
+    messages[messages.length - 1]?.isStreaming,
+    [messages]
+  );
 
-  // Auto-scroll: triggers on new messages AND during streaming content updates
-  useEffect(() => {
-    // Small delay to ensure DOM has updated
-    const timer = setTimeout(scrollToBottom, 16);
-    return () => clearTimeout(timer);
-  }, [messages, lastMessageContent, scrollToBottom]);
+
+
+  const currentSidebarWidth = useMemo(() =>
+    sidebarCollapsed ? COLLAPSED_WIDTH : DRAWER_WIDTH,
+    [sidebarCollapsed]
+  );
 
   // ===========================================================================
-  // INITIAL DATA FETCH
+  // MEMOIZED STYLE OBJECTS
   // ===========================================================================
-  // Database status is now handled by DatabaseContext on mount.
-  // Only fetch conversations here.
-  
-  // Note: fetchConversations is stable (useCallback with []) so empty deps is correct
-   
-  useEffect(() => {
-    fetchConversations();
-  }, []);
 
-  // Handle URL changes
-  // Note: Dependencies intentionally excluded to prevent infinite loops
-   
-  useEffect(() => {
-    if (conversationId) {
-      if (conversationId !== currentConversationId) {
-        handleSelectConversation(conversationId);
-      }
-    } else {
-      // No ID in URL = New Chat
-      if (currentConversationId) {
-        resetChatState();
-      }
-    }
-  }, [conversationId]);
+  const glassmorphismStyles = useMemo(() => ({
+    background: isDarkMode
+      ? alpha(theme.palette.background.paper, 0.05)
+      : alpha(theme.palette.background.paper, 0.8),
+    backdropFilter: 'blur(12px)',
+    WebkitBackdropFilter: 'blur(12px)',
+    borderColor: alpha(theme.palette.divider, isDarkMode ? 0.1 : 0.15),
+  }), [isDarkMode, theme]);
 
-  useEffect(() => {
-    document.title = 'Moonlit - Chat';
-  }, []);
+  const snackbarContentProps = useMemo(() => {
+    const severityColor = snackbar.severity === 'success' ? theme.palette.success.main :
+      snackbar.severity === 'error' ? theme.palette.error.main :
+        snackbar.severity === 'warning' ? theme.palette.warning.main :
+          theme.palette.info.main;
 
-  // =========================================================================
-  // Tab/Browser Close Detection
-  // =========================================================================
-  // When user closes the tab/browser, notify backend to clear connection
-  // if persistence setting is "Never" (0 minutes).
-  // Uses sendBeacon for reliable delivery during page unload.
-  // =========================================================================
-  
-  useEffect(() => {
-    const handleTabClose = () => {
-      // Get the persistence setting from ThemeContext settings
-      const connectionPersistence = settings.connectionPersistence ?? 0;
-      
-      // Only send disconnect signal if persistence is "Never" (0)
-      // Other values mean user wants connection to persist for that duration
-      if (connectionPersistence === 0 && isDbConnected) {
-        // Use sendBeacon with Blob for reliable delivery during page unload
-        // The Blob ensures correct Content-Type header for Flask
-        const blob = new Blob([JSON.stringify({})], { type: 'application/json' });
-        navigator.sendBeacon('/disconnect_db', blob);
+    return {
+      sx: {
+        backgroundColor: isDarkMode ? alpha(theme.palette.background.paper, 0.95) : theme.palette.background.paper,
+        color: severityColor,
+        fontWeight: 500,
+        borderRadius: '6px',
+        border: `1.5px solid ${severityColor}`,
+        boxShadow: isDarkMode
+          ? `0 4px 12px ${alpha(theme.palette.common.black, 0.4)}`
+          : `0 4px 12px ${alpha(severityColor, 0.15)}`,
+        padding: '10px 16px',
+        minWidth: 'auto !important',
+        '& .MuiSnackbarContent-message': { padding: 0 },
       }
     };
-
-    // Listen for both events to catch all unload scenarios
-    window.addEventListener('beforeunload', handleTabClose);
-    window.addEventListener('pagehide', handleTabClose);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleTabClose);
-      window.removeEventListener('pagehide', handleTabClose);
-    };
-  }, [isDbConnected, settings.connectionPersistence]);
-
-  // NOTE: checkDbStatus has been removed.
-  // Database status is now managed by DatabaseContext which fetches on mount.
+  }, [isDarkMode, theme, snackbar.severity]);
 
   // ===========================================================================
-  // MEMOIZED FETCH FUNCTION
+  // STABLE CLOSE HANDLERS - Prevent inline function recreation
   // ===========================================================================
-  
+
+  const handleCloseDbModal = useCallback(() => setDbModalOpen(false), []);
+  const handleCloseSqlEditor = useCallback(() => setSqlEditorOpen(false), []);
+  const handleCloseSettings = useCallback(() => setSettingsOpen(false), []);
+  const handleCloseQueryResults = useCallback(() => setQueryResults(null), []);
+  const handleCloseSnackbar = useCallback(() => setSnackbar(s => ({ ...s, open: false })), []);
+
+  // ===========================================================================
+  // MEMOIZED CORE FUNCTIONS
+  // ===========================================================================
+
+
+
   const fetchConversations = useCallback(async () => {
     try {
       const data = await getConversations();
@@ -255,52 +238,12 @@ function Chat() {
     }
   }, []);
 
-  // ===========================================================================
-  // MEMOIZED UI HANDLERS
-  // ===========================================================================
-  // These are passed to child components as callbacks.
-  // Memoization with useCallback prevents unnecessary re-renders.
-  
-  const handleDrawerToggle = useCallback(() => {
-    setMobileOpen(prev => !prev);
+  const resetChatState = useCallback(() => {
+    setMessages([]);
+    setCurrentConversationId(null);
+    setQueryResults(null);
+    setMobileOpen(false);
   }, []);
-  
-  const handleSidebarToggle = useCallback(() => {
-    setSidebarCollapsed(prev => !prev);
-  }, []);
-  
-  const handleMenuOpen = useCallback((e) => {
-    setAnchorEl(e.currentTarget);
-  }, []);
-  
-  const handleMenuClose = useCallback(() => {
-    setAnchorEl(null);
-  }, []);
-  
-  const handleLogout = useCallback(async () => {
-    setAnchorEl(null);
-    await logout();
-  }, [logout]);
-
-  // ===========================================================================
-  // CONVERSATION HANDLERS
-  // ===========================================================================
-  
-  const handleNewChat = useCallback(async () => {
-    navigate('/chat');
-    // State reset is handled by useEffect on conversationId param change
-    
-    try {
-      const data = await createConversation();
-      if (data.status === 'success') {
-        const newId = data.conversation_id;
-        navigate(`/chat/${newId}`, { replace: true });
-        fetchConversations();
-      }
-    } catch (error) {
-      console.error('Failed to create new conversation:', error);
-    }
-  }, [navigate, fetchConversations]);
 
   const handleSelectConversation = useCallback(async (convId) => {
     try {
@@ -322,12 +265,173 @@ function Chat() {
     }
   }, []);
 
-  const resetChatState = useCallback(() => {
-    setMessages([]);
-    setCurrentConversationId(null);
-    setQueryResults(null);
-    setMobileOpen(false);
+  // ===========================================================================
+  // EFFECTS
+  // ===========================================================================
+
+  // Auto-scroll using ResizeObserver (industry standard)
+  // Watches for content height changes and scrolls to bottom
+  // Respects user intent: stops scrolling if user scrolls up
+  const userScrolledUpRef = useRef(false);
+  const resizeObserverRef = useRef(null);
+  
+  // Track user scroll intent
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+      // User has scrolled up if more than 100px from bottom
+      userScrolledUpRef.current = distanceFromBottom > 100;
+    };
+    
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => container.removeEventListener('scroll', handleScroll);
   }, []);
+  
+  // ResizeObserver for content growth detection
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    
+    // Cleanup previous observer
+    if (resizeObserverRef.current) {
+      resizeObserverRef.current.disconnect();
+    }
+    
+    const scrollToBottomIfNeeded = () => {
+      if (!userScrolledUpRef.current && container) {
+        container.scrollTo({ top: container.scrollHeight, behavior: 'instant' });
+      }
+    };
+    
+    // Create ResizeObserver to watch for content changes
+    resizeObserverRef.current = new ResizeObserver(() => {
+      scrollToBottomIfNeeded();
+    });
+    
+    // Observe the first child (MessageList content) for size changes
+    const messageListContent = container.firstElementChild;
+    if (messageListContent) {
+      resizeObserverRef.current.observe(messageListContent);
+    }
+    
+    // Also scroll when streaming starts
+    if (isCurrentlyStreaming) {
+      userScrolledUpRef.current = false; // Reset on new message
+      scrollToBottomIfNeeded();
+    }
+    
+    return () => {
+      if (resizeObserverRef.current) {
+        resizeObserverRef.current.disconnect();
+      }
+    };
+  }, [isCurrentlyStreaming]);
+
+  // Initial conversation fetch
+  useEffect(() => {
+    fetchConversations();
+  }, [fetchConversations]);
+
+  // Handle URL changes - using ref to track previous ID
+  // Skip fetching for conversations we just created (they're empty)
+  useEffect(() => {
+    if (conversationId) {
+      if (conversationId !== prevConversationIdRef.current) {
+        // Skip fetch if we just created this conversation
+        if (conversationId === newlyCreatedConvIdRef.current) {
+          // Already set state in handleNewChat, just update refs
+          newlyCreatedConvIdRef.current = null;
+        } else {
+          handleSelectConversation(conversationId);
+        }
+      }
+    } else if (prevConversationIdRef.current) {
+      resetChatState();
+    }
+    prevConversationIdRef.current = conversationId;
+  }, [conversationId, handleSelectConversation, resetChatState]);
+
+  // Set document title
+  useEffect(() => {
+    document.title = 'Moonlit - Chat';
+  }, []);
+
+  // Tab/Browser close detection
+  useEffect(() => {
+    const handleTabClose = () => {
+      const connectionPersistence = settings.connectionPersistence ?? 0;
+      if (connectionPersistence === 0 && isDbConnected) {
+        const blob = new Blob([JSON.stringify({})], { type: 'application/json' });
+        navigator.sendBeacon('/disconnect_db', blob);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleTabClose);
+    window.addEventListener('pagehide', handleTabClose);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleTabClose);
+      window.removeEventListener('pagehide', handleTabClose);
+    };
+  }, [isDbConnected, settings.connectionPersistence]);
+
+  // ===========================================================================
+  // MEMOIZED UI HANDLERS
+  // ===========================================================================
+
+  const handleDrawerToggle = useCallback(() => {
+    setMobileOpen(prev => !prev);
+  }, []);
+
+  const handleSidebarToggle = useCallback(() => {
+    setSidebarCollapsed(prev => !prev);
+  }, []);
+
+  const handleMenuOpen = useCallback((e) => {
+    setAnchorEl(e.currentTarget);
+  }, []);
+
+  const handleMenuClose = useCallback(() => {
+    setAnchorEl(null);
+  }, []);
+
+  const handleLogout = useCallback(async () => {
+    setAnchorEl(null);
+    await logout();
+  }, [logout]);
+
+  const handleOpenSettings = useCallback(() => {
+    handleMenuClose();
+    setSettingsOpen(true);
+  }, [handleMenuClose]);
+
+  // ===========================================================================
+  // CONVERSATION HANDLERS
+  // ===========================================================================
+
+  const handleNewChat = useCallback(async () => {
+    navigate('/chat');
+    try {
+      const data = await createConversation();
+      if (data.status === 'success') {
+        const newId = data.conversation_id;
+        // Track that we created this ID (so useEffect skips fetching it)
+        newlyCreatedConvIdRef.current = newId;
+        // Set state BEFORE navigation to prevent useEffect from fetching
+        setCurrentConversationId(newId);
+        setMessages([]);
+        prevConversationIdRef.current = newId;
+        navigate(`/chat/${newId}`, { replace: true });
+        fetchConversations();
+      }
+    } catch (error) {
+      console.error('Failed to create new conversation:', error);
+    }
+  }, [navigate, fetchConversations]);
 
   const handleDeleteConversation = useCallback(async (convId) => {
     try {
@@ -342,37 +446,75 @@ function Chat() {
   }, [currentConversationId, navigate]);
 
   // ===========================================================================
-  // HANDLER: Database Connection
+  // DATABASE HANDLERS
   // ===========================================================================
-  // Called by DatabaseModal after successful connection.
-  // Uses connectDb from DatabaseContext to update global state.
-  
+
   const handleDbConnect = useCallback((data) => {
     if (data) {
-      // Update context with new connection data
       connectDb(data);
       setSnackbar({ open: true, message: 'Connected to database!', severity: 'success' });
     } else {
-      // Reset context state to reflect disconnection
-      // Note: DatabaseModal already called the API, this just syncs UI state
       resetConnectionState();
       setSnackbar({ open: true, message: 'Disconnected from database', severity: 'info' });
     }
   }, [connectDb, resetConnectionState]);
 
-  const handleRunQuery = (sql) => {
+  const handleDatabaseSwitch = useCallback(async (dbName) => {
+    const result = await switchDatabase(dbName);
+    if (result.success) {
+      setSnackbar({ open: true, message: `Switched to ${dbName}`, severity: 'success' });
+    } else {
+      setSnackbar({ open: true, message: result.error || 'Failed to switch', severity: 'error' });
+    }
+  }, [switchDatabase]);
+
+  // ===========================================================================
+  // QUERY EXECUTION
+  // ===========================================================================
+
+  const executeQuery = useCallback(async (sql, maxRows, queryTimeout) => {
+    try {
+      const data = await runQuery({ sql, maxRows, timeout: queryTimeout });
+      if (data.status === 'success') {
+        const columns = data.result?.fields || [];
+        const rows = data.result?.rows || [];
+
+        const transformedResult = rows.map(row => {
+          const obj = {};
+          columns.forEach((col, idx) => {
+            obj[col] = row[idx];
+          });
+          return obj;
+        });
+
+        setQueryResults({
+          columns,
+          result: transformedResult,
+          row_count: data.row_count,
+          total_rows: data.total_rows,
+          truncated: data.truncated,
+          execution_time: data.execution_time_ms ? data.execution_time_ms / 1000 : null,
+        });
+        setSnackbar({ open: true, message: `Query returned ${data.row_count} rows`, severity: 'success' });
+      } else {
+        setSnackbar({ open: true, message: data.message || 'Query failed', severity: 'error' });
+      }
+    } catch {
+      setSnackbar({ open: true, message: 'Failed to execute query', severity: 'error' });
+    }
+  }, []);
+
+  const handleRunQuery = useCallback((sql) => {
     if (!isDbConnected) {
       setSnackbar({ open: true, message: 'Please connect to a database first', severity: 'warning' });
       setDbModalOpen(true);
       return Promise.resolve();
     }
 
-    // Get settings from ThemeContext (not localStorage directly)
     const confirmBeforeRun = settings.confirmBeforeRun ?? false;
     const maxRows = settings.maxRows ?? 1000;
     const queryTimeout = settings.queryTimeout ?? 30;
 
-    // If confirmation needed, return a promise that resolves when dialog completes
     if (confirmBeforeRun) {
       return new Promise((resolve) => {
         queryResolverRef.current = resolve;
@@ -380,11 +522,8 @@ function Chat() {
           open: true,
           sql: sql,
           onConfirm: async () => {
-            // Execute query - dialog's internal spinner shows during execution
             await executeQuery(sql, maxRows, queryTimeout);
-            // Close dialog after query completes
             setConfirmDialog({ open: false, sql: '', onConfirm: null, onCancel: null });
-            // Resolve promise to stop CodeBlock spinner  
             queryResolverRef.current?.();
           },
           onCancel: () => {
@@ -395,67 +534,24 @@ function Chat() {
       });
     }
 
-    // Execute directly if confirmation not required
     return executeQuery(sql, maxRows, queryTimeout);
-  };
+  }, [isDbConnected, settings.confirmBeforeRun, settings.maxRows, settings.queryTimeout, executeQuery]);
 
-  // Actual query execution (separated for confirmation flow)
-  const executeQuery = async (sql, maxRows, queryTimeout) => {
-    try {
-      const data = await runQuery({ sql, maxRows, timeout: queryTimeout });
-      if (data.status === 'success') {
-        // Transform backend data to SQLResultsTable format
-        // Backend sends: { result: { fields: [...], rows: [[...], [...]] }, row_count, execution_time_ms }
-        // SQLResultsTable expects: { columns: [...], result: [{col1: val1, col2: val2}, ...], row_count, execution_time }
-        const columns = data.result?.fields || [];
-        const rows = data.result?.rows || [];
-        
-        // Transform rows from array of arrays to array of objects with column names as keys
-        const transformedResult = rows.map(row => {
-          const obj = {};
-          columns.forEach((col, idx) => {
-            obj[col] = row[idx];
-          });
-          return obj;
-        });
-        
-        setQueryResults({
-          columns,
-          result: transformedResult,
-          row_count: data.row_count,
-          total_rows: data.total_rows,
-          truncated: data.truncated,
-          execution_time: data.execution_time_ms ? data.execution_time_ms / 1000 : null, // Convert ms to seconds
-        });
-        setSnackbar({ open: true, message: `Query returned ${data.row_count} rows`, severity: 'success' });
-      } else {
-        setSnackbar({ open: true, message: data.message || 'Query failed', severity: 'error' });
-      }
-    } catch {
-      setSnackbar({ open: true, message: 'Failed to execute query', severity: 'error' });
-    }
-  };
+  // ===========================================================================
+  // MESSAGE HANDLING
+  // ===========================================================================
 
-  const handleSendMessage = async (message) => {
+  const handleSendMessage = useCallback(async (message) => {
     if (!message.trim()) return;
 
-    // Add user message and scroll immediately
     setMessages((prev) => [...prev, { sender: 'user', content: message }]);
-    
-    // Add placeholder AI message to show waiting indicator (meteor animation)
     setMessages((prev) => [...prev, { sender: 'ai', content: '', isWaiting: true }]);
-    
-    // Immediate scroll
-    setTimeout(scrollToBottom, 10);
 
-    // Get reasoning settings from ThemeContext (not localStorage directly)
     const enableReasoning = settings.enableReasoning ?? true;
     const reasoningEffort = settings.reasoningEffort ?? 'medium';
     const responseStyle = settings.responseStyle ?? 'balanced';
-    // Get query settings to pass to AI tools
     const maxRows = settings.maxRows ?? 1000;
 
-    // Create AbortController for this request
     abortControllerRef.current = new AbortController();
 
     try {
@@ -472,9 +568,7 @@ function Chat() {
       if (newConversationId && !currentConversationId) {
         setCurrentConversationId(newConversationId);
         navigate(`/chat/${newConversationId}`, { replace: true });
-        
-        // Optimistically add the new conversation to the list immediately
-        // Use the first part of the message as a temporary title
+
         const tempTitle = message.substring(0, 50) + (message.length > 50 ? '...' : '');
         setConversations((prev) => [
           { id: newConversationId, title: tempTitle, created_at: new Date().toISOString() },
@@ -486,24 +580,19 @@ function Chat() {
       const decoder = new TextDecoder();
       let aiResponse = '';
       let lastUpdateTime = 0;
-      const UPDATE_THROTTLE_MS = 16; // ~60fps for smooth updates
 
       const updateMessage = () => {
         setMessages((prev) => {
           const updated = [...prev];
           if (updated[updated.length - 1]?.sender === 'ai') {
-            updated[updated.length - 1] = { 
-              ...updated[updated.length - 1], 
+            updated[updated.length - 1] = {
+              ...updated[updated.length - 1],
               content: aiResponse,
               isStreaming: true,
-              isWaiting: false  // Clear waiting state when content arrives
+              isWaiting: false
             };
           } else {
-            updated.push({ 
-              sender: 'ai', 
-              content: aiResponse,
-              isStreaming: true
-            });
+            updated.push({ sender: 'ai', content: aiResponse, isStreaming: true });
           }
           return updated;
         });
@@ -511,53 +600,41 @@ function Chat() {
 
       while (true) {
         const { done, value } = await reader.read();
-        
+
         if (!done) {
           const chunk = decoder.decode(value, { stream: true });
-          
-          // All content (including inline tool markers [[TOOL:...]]) flows into aiResponse
-          // The MessageList component will parse and render tool indicators inline
           aiResponse += chunk;
         }
-        
-        // Throttle state updates for better performance (industry standard)
-        // Update on every chunk or when done to ensure final content is displayed
+
         const now = Date.now();
         if (done || now - lastUpdateTime >= UPDATE_THROTTLE_MS) {
           if (aiResponse) {
             updateMessage();
-            // Note: scrollToBottom is handled by useEffect on messages change
           }
           lastUpdateTime = now;
-          
           if (done) break;
         }
       }
-      
-      // Mark streaming as complete
-      // Note: scrollToBottom is automatically handled by useEffect on messages change
+
       setMessages((prev) => {
         const updated = [...prev];
         if (updated[updated.length - 1]?.sender === 'ai') {
-          updated[updated.length - 1] = { 
-            ...updated[updated.length - 1], 
+          updated[updated.length - 1] = {
+            ...updated[updated.length - 1],
             isStreaming: false
           };
         }
         return updated;
       });
 
-      // Refresh conversations after streaming to get the real title from backend
       fetchConversations();
     } catch (error) {
-      // Handle abort separately - not an error
       if (error.name === 'AbortError') {
-        // Mark message as stopped (not streaming)
         setMessages((prev) => {
           const updated = [...prev];
           if (updated[updated.length - 1]?.sender === 'ai') {
-            updated[updated.length - 1] = { 
-              ...updated[updated.length - 1], 
+            updated[updated.length - 1] = {
+              ...updated[updated.length - 1],
               isStreaming: false,
               wasStopped: true
             };
@@ -566,7 +643,6 @@ function Chat() {
         });
         return;
       }
-      // Replace the waiting placeholder with error message (not add new)
       setMessages((prev) => {
         const updated = [...prev];
         if (updated[updated.length - 1]?.sender === 'ai' && updated[updated.length - 1]?.isWaiting) {
@@ -579,13 +655,8 @@ function Chat() {
     } finally {
       abortControllerRef.current = null;
     }
-  };
+  }, [currentConversationId, settings, navigate, fetchConversations]);
 
-  // ===========================================================================
-  // HANDLER: Stop Streaming
-  // ===========================================================================
-  // Aborts the current AI response stream when user clicks stop button.
-  
   const handleStopStreaming = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -593,26 +664,11 @@ function Chat() {
   }, []);
 
   // ===========================================================================
-  // HANDLER: Database Switch
+  // PANEL RESIZE
   // ===========================================================================
-  // Uses switchDatabase from DatabaseContext for consistent state updates.
-  
-  const handleDatabaseSwitch = useCallback(async (dbName) => {
-    const result = await switchDatabase(dbName);
-    if (result.success) {
-      setSnackbar({ open: true, message: `Switched to ${dbName}`, severity: 'success' });
-    } else {
-      setSnackbar({ open: true, message: result.error || 'Failed to switch', severity: 'error' });
-    }
-  }, [switchDatabase]);
 
-  // Sidebar width based on collapsed state
-  const currentSidebarWidth = sidebarCollapsed ? COLLAPSED_WIDTH : DRAWER_WIDTH;
-
-  // Handle panel resize via drag
   const handlePanelResize = useCallback((deltaX) => {
     setSqlEditorWidth((prev) => {
-      // deltaX is negative when dragging left (increasing editor width)
       const newWidth = prev - deltaX;
       const availableWidth = window.innerWidth - currentSidebarWidth;
       const maxWidth = availableWidth * MAX_EDITOR_WIDTH_PERCENT;
@@ -620,30 +676,17 @@ function Chat() {
     });
   }, [currentSidebarWidth]);
 
-  // ===========================================================================
-  // UNIFIED SQL EDITOR HANDLER
-  // ===========================================================================
-  // Single entry point for opening SQL Editor - ensures consistency
-  // whether triggered from ChatInput button or AI tool results
-  
   const handleOpenSqlEditor = useCallback((query = '', results = null) => {
     setSqlEditorQuery(query);
     setSqlEditorResults(results);
     setSqlEditorOpen(true);
   }, []);
 
-  // Reusable glassmorphism background styles
-  const glassmorphismStyles = {
-    background: isDarkMode 
-      ? alpha(theme.palette.background.paper, 0.05)
-      : alpha(theme.palette.background.paper, 0.8),
-    backdropFilter: 'blur(12px)',
-    WebkitBackdropFilter: 'blur(12px)',
-    borderColor: alpha(theme.palette.divider, isDarkMode ? 0.1 : 0.15),
-  };
+  // ===========================================================================
+  // MEMOIZED SIDEBAR PROPS
+  // ===========================================================================
 
-  // Shared Sidebar props for both mobile and desktop
-  const commonSidebarProps = {
+  const commonSidebarProps = useMemo(() => ({
     conversations,
     currentConversationId,
     onDeleteConversation: handleDeleteConversation,
@@ -653,19 +696,58 @@ function Chat() {
     availableDatabases,
     onDatabaseSwitch: handleDatabaseSwitch,
     user,
-  };
+  }), [
+    conversations, currentConversationId, handleDeleteConversation,
+    isDbConnected, currentDatabase, dbType, availableDatabases,
+    handleDatabaseSwitch, user
+  ]);
+
+  // Stable sidebar action handlers
+  const handleSidebarNewChat = useCallback(() => {
+    setMobileOpen(false);
+    navigate('/chat');
+  }, [navigate]);
+
+  const handleSidebarSelectConversation = useCallback((id) => {
+    setMobileOpen(false);
+    navigate(`/chat/${id}`);
+  }, [navigate]);
+
+  const handleSidebarOpenDbModal = useCallback(() => {
+    setMobileOpen(false);
+    setDbModalOpen(true);
+  }, []);
+
+
+  const handleSidebarMenuOpen = useCallback((e) => {
+    setMobileOpen(false);
+    handleMenuOpen(e);
+  }, [handleMenuOpen]);
+
+  // ===========================================================================
+  // MEMOIZED CONFIRM DIALOG CLOSE
+  // ===========================================================================
+
+  const handleConfirmDialogClose = useCallback(() => {
+    confirmDialog.onCancel?.();
+    setConfirmDialog({ open: false, sql: '', onConfirm: null, onCancel: null });
+  }, [confirmDialog]);
+
+  // ===========================================================================
+  // RENDER
+  // ===========================================================================
 
   return (
-    <Box sx={{ 
-      display: 'flex', 
-      height: '100vh', 
-      bgcolor: 'background.default', 
+    <Box sx={{
+      display: 'flex',
+      height: '100vh',
+      bgcolor: 'background.default',
       overflow: 'hidden',
       position: 'relative',
     }}>
-      {/* Animated Starfield Background - Activates when user is idle (dark theme only) */}
+      {/* Animated Starfield Background */}
       <StarfieldCanvas active={isIdle && idleAnimationEnabled} />
-      
+
       {/* Immersive gradient overlay */}
       <Box
         sx={{
@@ -676,7 +758,7 @@ function Chat() {
           background: `radial-gradient(ellipse at top right, ${alpha(theme.palette.info.main, 0.04)} 0%, transparent 50%)`,
         }}
       />
-      
+
       {/* Mobile AppBar */}
       <AppBar
         position="fixed"
@@ -695,17 +777,8 @@ function Chat() {
           <IconButton color="inherit" edge="start" onClick={handleDrawerToggle}>
             <MenuOutlinedIcon sx={{ color: 'text.secondary' }} />
           </IconButton>
-          
-          {/* Center: Quota Display for mobile */}
           <QuotaDisplay />
-          
-          {/* Right side: New Chat button */}
-          <IconButton 
-            onClick={handleNewChat}
-            sx={{ 
-              color: 'text.primary',
-            }}
-          >
+          <IconButton onClick={handleNewChat} sx={{ color: 'text.primary' }}>
             <EditNoteOutlinedIcon />
           </IconButton>
         </Toolbar>
@@ -725,20 +798,25 @@ function Chat() {
           <Typography variant="caption" color="text.secondary">{user?.email}</Typography>
         </Box>
         <Divider sx={{ borderColor: alpha(theme.palette.divider, 0.5) }} />
-        <MenuItem onClick={() => { handleMenuClose(); setSettingsOpen(true); }}><ListItemIcon><SettingsOutlinedIcon fontSize="small" /></ListItemIcon>Settings</MenuItem>
-        <MenuItem onClick={handleLogout}><ListItemIcon><LogoutOutlinedIcon fontSize="small" /></ListItemIcon>Sign out</MenuItem>
+        <MenuItem onClick={handleOpenSettings}>
+          <ListItemIcon><SettingsOutlinedIcon fontSize="small" /></ListItemIcon>
+          Settings
+        </MenuItem>
+        <MenuItem onClick={handleLogout}>
+          <ListItemIcon><LogoutOutlinedIcon fontSize="small" /></ListItemIcon>
+          Sign out
+        </MenuItem>
       </Menu>
 
-      {/* Unified Sidebar - handles mobile/desktop internally */}
+      {/* Unified Sidebar */}
       <Sidebar
         {...commonSidebarProps}
-        onNewChat={() => { setMobileOpen(false); navigate('/chat'); }}
-        onSelectConversation={(id) => { setMobileOpen(false); navigate(`/chat/${id}`); }}
-        onOpenDbModal={() => { setMobileOpen(false); setDbModalOpen(true); }}
+        onNewChat={handleSidebarNewChat}
+        onSelectConversation={handleSidebarSelectConversation}
+        onOpenDbModal={handleSidebarOpenDbModal}
         isCollapsed={sidebarCollapsed}
         onToggleCollapse={handleSidebarToggle}
-        onOpenSettings={() => { setMobileOpen(false); setSettingsOpen(true); }}
-        onMenuOpen={(e) => { setMobileOpen(false); handleMenuOpen(e); }}
+        onMenuOpen={handleSidebarMenuOpen}
         mobileOpen={mobileOpen}
         onMobileClose={handleDrawerToggle}
       />
@@ -751,9 +829,7 @@ function Chat() {
           display: 'flex',
           flexDirection: 'column',
           mt: { xs: '56px', md: 0 },
-          // Mobile viewport fix: use svh (small viewport height) for mobile browsers
           height: { xs: 'calc(100svh - 56px)', md: '100vh' },
-          // Fallback for browsers that don't support svh
           '@supports not (height: 100svh)': {
             height: { xs: 'calc(100vh - 56px)', md: '100vh' },
           },
@@ -761,15 +837,15 @@ function Chat() {
           backgroundColor: 'transparent',
           position: 'relative',
           zIndex: 1,
-          minWidth: 0, // Allow shrinking below content size
-          // Smooth MUI-style transition for consistent animation with panel changes
-          transition: theme.transitions.create(['width', 'min-width'], {
-            duration: 300,
-            easing: theme.transitions.easing.easeInOut,
+          minWidth: 0,
+          // Synced with Sidebar's MUI mini variant drawer transition
+          transition: theme.transitions.create(['width', 'margin'], {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.enteringScreen, // 225ms
           }),
         }}
       >
-        {/* Quota Display - Top right indicator */}
+        {/* Quota Display - Desktop only */}
         <Box
           sx={{
             position: 'absolute',
@@ -781,7 +857,8 @@ function Chat() {
         >
           <QuotaDisplay />
         </Box>
-        {/* Empty state: Center logo + input together like Grok */}
+
+        {/* Empty state */}
         <Fade in={messages.length === 0} timeout={300} unmountOnExit>
           <Box
             sx={{
@@ -795,11 +872,10 @@ function Chat() {
               inset: 0,
             }}
           >
-            {/* Welcome Text */}
             <Box sx={{ textAlign: 'center', mb: 2 }}>
-              <Typography 
-                variant="h3" 
-                sx={{ 
+              <Typography
+                variant="h3"
+                sx={{
                   fontWeight: 500,
                   fontSize: { xs: '2rem', sm: '2.5rem' },
                   color: 'text.primary',
@@ -826,9 +902,8 @@ function Chat() {
               </Typography>
             </Box>
 
-            {/* Input - centered with logo */}
             <Box sx={{ width: '100%', maxWidth: 760 }}>
-              <ChatInput 
+              <ChatInput
                 onSend={handleSendMessage}
                 onStop={handleStopStreaming}
                 isStreaming={isCurrentlyStreaming}
@@ -842,15 +917,11 @@ function Chat() {
             </Box>
           </Box>
         </Fade>
-        
+
         {/* Messages state */}
         <Fade in={messages.length > 0} timeout={300} unmountOnExit style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-            {/* Messages Container */}
-            <Box 
-              ref={messagesContainerRef}
-              sx={{ flex: 1, overflow: 'auto' }}
-            >
+            <Box ref={messagesContainerRef} sx={{ flex: 1, overflow: 'auto' }}>
               <MessageList
                 messages={messages}
                 user={user}
@@ -859,8 +930,7 @@ function Chat() {
               />
             </Box>
 
-            {/* Input at bottom when there are messages */}
-            <ChatInput 
+            <ChatInput
               onSend={handleSendMessage}
               onStop={handleStopStreaming}
               isStreaming={isCurrentlyStreaming}
@@ -876,8 +946,7 @@ function Chat() {
         </Fade>
       </Box>
 
-      {/* SQL Editor Panel - Desktop: Side panel with resize */}
-      {/* Component manages its own width transitions via openedMixin/closedMixin */}
+      {/* SQL Editor Panel - Desktop */}
       <Box
         sx={{
           display: { xs: 'none', md: 'flex' },
@@ -887,7 +956,7 @@ function Chat() {
       >
         <ResizeHandle onResize={handlePanelResize} disabled={!sqlEditorOpen} />
         <SQLEditorCanvas
-          onClose={() => setSqlEditorOpen(false)}
+          onClose={handleCloseSqlEditor}
           initialQuery={sqlEditorQuery}
           initialResults={sqlEditorResults}
           isConnected={isDbConnected}
@@ -897,7 +966,7 @@ function Chat() {
         />
       </Box>
 
-      {/* SQL Editor Mobile - Simple overlay for phones/tablets */}
+      {/* SQL Editor Mobile */}
       <Slide direction="up" in={sqlEditorOpen} mountOnEnter unmountOnExit>
         <Box
           sx={{
@@ -913,7 +982,7 @@ function Chat() {
           }}
         >
           <SQLEditorCanvas
-            onClose={() => setSqlEditorOpen(false)}
+            onClose={handleCloseSqlEditor}
             initialQuery={sqlEditorQuery}
             initialResults={sqlEditorResults}
             isConnected={isDbConnected}
@@ -924,59 +993,32 @@ function Chat() {
       </Slide>
 
       {/* Modals */}
-      <DatabaseModal open={dbModalOpen} onClose={() => setDbModalOpen(false)} onConnect={handleDbConnect} isConnected={isDbConnected} currentDatabase={currentDatabase} />
-      
+      <DatabaseModal
+        open={dbModalOpen}
+        onClose={handleCloseDbModal}
+        onConnect={handleDbConnect}
+        isConnected={isDbConnected}
+        currentDatabase={currentDatabase}
+      />
+
       <Snackbar
         open={snackbar.open}
         autoHideDuration={4000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        onClose={handleCloseSnackbar}
         anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
         message={snackbar.message}
-        ContentProps={{
-          sx: {
-            backgroundColor: isDarkMode ? alpha(theme.palette.background.paper, 0.95) : theme.palette.background.paper,
-            color:
-              snackbar.severity === 'success' ? theme.palette.success.main :
-              snackbar.severity === 'error' ? theme.palette.error.main :
-              snackbar.severity === 'warning' ? theme.palette.warning.main :
-              theme.palette.info.main,
-            fontWeight: 500,
-            fontSize: '0.875rem',
-            borderRadius: '6px',
-            border: `1.5px solid ${
-              snackbar.severity === 'success' ? theme.palette.success.main :
-              snackbar.severity === 'error' ? theme.palette.error.main :
-              snackbar.severity === 'warning' ? theme.palette.warning.main :
-              theme.palette.info.main
-            }`,
-            boxShadow: isDarkMode
-              ? `0 4px 12px ${alpha(theme.palette.common.black, 0.4)}`
-              : `0 4px 12px ${alpha(
-                  snackbar.severity === 'success' ? theme.palette.success.main :
-                  snackbar.severity === 'error' ? theme.palette.error.main :
-                  snackbar.severity === 'warning' ? theme.palette.warning.main :
-                  theme.palette.info.main,
-                  0.15
-                )}`,
-            padding: '10px 16px',
-            minWidth: 'auto !important', // Override MUI default 288px
-            '& .MuiSnackbarContent-message': {
-              padding: 0,
-            },
-          }
-        }}
+        ContentProps={snackbarContentProps}
       />
-      
+
       {/* SQL Results Modal */}
       <Dialog
         open={Boolean(queryResults)}
-        onClose={() => setQueryResults(null)}
+        onClose={handleCloseQueryResults}
         maxWidth="xl"
         fullWidth
         fullScreen={false}
         TransitionComponent={Grow}
         sx={{
-          // Fullscreen on mobile only
           '& .MuiDialog-paper': {
             margin: { xs: 0, sm: 2 },
             width: { xs: '100%', sm: 'calc(100% - 32px)' },
@@ -992,19 +1034,16 @@ function Chat() {
           }
         }}
       >
-        {queryResults && <SQLResultsTable data={queryResults} onClose={() => setQueryResults(null)} />}
+        {queryResults && <SQLResultsTable data={queryResults} onClose={handleCloseQueryResults} />}
       </Dialog>
-      
+
       {/* Settings Modal */}
-      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      
+      <SettingsModal open={settingsOpen} onClose={handleCloseSettings} />
+
       {/* Query Confirmation Dialog */}
       <ConfirmDialog
         open={confirmDialog.open}
-        onClose={() => {
-          confirmDialog.onCancel?.();
-          setConfirmDialog({ open: false, sql: '', onConfirm: null, onCancel: null });
-        }}
+        onClose={handleConfirmDialogClose}
         onConfirm={confirmDialog.onConfirm}
         title="Execute Query?"
         message="You are about to execute the following SQL query:"
@@ -1012,7 +1051,6 @@ function Chat() {
         confirmText="Execute"
         confirmColor="success"
       />
-      
     </Box>
   );
 }

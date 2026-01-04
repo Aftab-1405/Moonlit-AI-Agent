@@ -82,10 +82,10 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
   // Detect numeric and string columns
   const { numericColumns, stringColumns } = useMemo(() => {
     if (!result.length || !columns.length) return { numericColumns: [], stringColumns: [] };
-    
+
     const numeric = [];
     const strings = [];
-    
+
     columns.forEach(col => {
       const sampleValue = result.find(row => row[col] !== null)?.[col];
       if (typeof sampleValue === 'number') {
@@ -94,7 +94,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
         strings.push(col);
       }
     });
-    
+
     return { numericColumns: numeric, stringColumns: strings };
   }, [columns, result]);
 
@@ -180,7 +180,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
   }[chartType];
 
   if (!columns.length || !result.length) return null;
-  
+
   if (!numericColumns.length) {
     return (
       <Box sx={{ p: 3, textAlign: 'center' }}>
@@ -195,9 +195,9 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
   return (
     <>
       {/* Main container - matches SQLResultsTable structure exactly */}
-      <Box sx={{ 
-        display: 'flex', 
-        flexDirection: 'column', 
+      <Box sx={{
+        display: 'flex',
+        flexDirection: 'column',
         height: '100%',
         minHeight: 400, // Match SQLResultsTable
         position: fullscreen ? 'fixed' : 'relative',
@@ -225,10 +225,10 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
             {/* Back to Table View - only when viewMode is passed */}
             {!embedded && viewMode && onViewModeChange && (
               <MuiTooltip title="Table View">
-                <IconButton 
-                  size="small" 
+                <IconButton
+                  size="small"
                   onClick={() => onViewModeChange('table')}
-                  sx={{ 
+                  sx={{
                     color: 'text.secondary',
                     '&:hover': { backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06) },
                   }}
@@ -237,31 +237,31 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
                 </IconButton>
               </MuiTooltip>
             )}
-            
+
             {/* Column Selectors inline */}
             <FormControl size="small" sx={{ minWidth: 100 }}>
-              <InputLabel sx={{ fontSize: '0.75rem' }}>Label</InputLabel>
+              <InputLabel>Label</InputLabel>
               <Select
                 value={labelColumn}
                 label="Label"
                 onChange={(e) => setLabelColumn(e.target.value)}
-                sx={{ fontSize: '0.8rem', height: 32 }}
+                sx={{ height: 32 }}
               >
                 {columns.map(col => (
-                  <MenuItem key={col} value={col} sx={{ fontSize: '0.8rem' }}>{col}</MenuItem>
+                  <MenuItem key={col} value={col}>{col}</MenuItem>
                 ))}
               </Select>
             </FormControl>
             <FormControl size="small" sx={{ minWidth: 100 }}>
-              <InputLabel sx={{ fontSize: '0.75rem' }}>Value</InputLabel>
+              <InputLabel>Value</InputLabel>
               <Select
                 value={valueColumn}
                 label="Value"
                 onChange={(e) => setValueColumn(e.target.value)}
-                sx={{ fontSize: '0.8rem', height: 32 }}
+                sx={{ height: 32 }}
               >
                 {numericColumns.map(col => (
-                  <MenuItem key={col} value={col} sx={{ fontSize: '0.8rem' }}>{col}</MenuItem>
+                  <MenuItem key={col} value={col}>{col}</MenuItem>
                 ))}
               </Select>
             </FormControl>
@@ -270,10 +270,10 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
           {/* Right side - Controls */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <MuiTooltip title="Download PNG">
-              <IconButton 
-                size="small" 
+              <IconButton
+                size="small"
                 onClick={handleDownload}
-                sx={{ 
+                sx={{
                   color: 'text.secondary',
                   '&:hover': { backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06) },
                 }}
@@ -282,10 +282,10 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
               </IconButton>
             </MuiTooltip>
             <MuiTooltip title={fullscreen ? 'Exit Fullscreen' : 'Fullscreen'}>
-              <IconButton 
-                size="small" 
+              <IconButton
+                size="small"
                 onClick={() => setFullscreen(!fullscreen)}
-                sx={{ 
+                sx={{
                   color: 'text.secondary',
                   '&:hover': { backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06) },
                 }}
@@ -299,10 +299,10 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
             </MuiTooltip>
             {onClose && !embedded && (
               <MuiTooltip title="Close">
-                <IconButton 
-                  size="small" 
+                <IconButton
+                  size="small"
                   onClick={onClose}
-                  sx={{ 
+                  sx={{
                     color: 'text.secondary',
                     '&:hover': { backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06) },
                   }}
@@ -341,10 +341,10 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
             borderColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.08),
           }}
         >
-          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', position: 'absolute', left: 16 }}>
+          <Typography variant="labelSmall" color="text.secondary" sx={{ position: 'absolute', left: 16 }}>
             {result.length > 50 ? `Showing 50 of ${result.length} data points` : `${result.length} data points`}
           </Typography>
-          
+
           {/* Chart Type Toggle */}
           <ToggleButtonGroup
             value={chartType}

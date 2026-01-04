@@ -40,6 +40,19 @@ import Editor from '@monaco-editor/react';
 import { getUserContext } from '../api';
 import { USER } from '../api/endpoints';
 
+// Static helper outside component
+const formatTimeAgo = (isoString) => {
+  if (!isoString) return 'Unknown';
+  const diff = Date.now() - new Date(isoString).getTime();
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days > 1 ? 's' : ''} ago`;
+};
+
 /**
  * UserDBContextManagerForAI - Granular control over stored database context for AI
  * 
@@ -58,7 +71,7 @@ function UserDBContextManagerForAI() {
   const [expandedQuery, setExpandedQuery] = useState(null);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, type: null, target: null });
   const [error, setError] = useState(null);
-  
+
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
 
@@ -67,7 +80,7 @@ function UserDBContextManagerForAI() {
     fetchContext();
   }, []);
 
-  const fetchContext = async () => {
+  const fetchContext = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -83,9 +96,9 @@ function UserDBContextManagerForAI() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const handleDelete = async () => {
+  const handleDelete = useCallback(async () => {
     const { type, target } = deleteDialog;
     setDeleteDialog({ open: false, type: null, target: null });
 
@@ -113,23 +126,11 @@ function UserDBContextManagerForAI() {
     } catch {
       setError('Failed to delete');
     }
-  };
+  }, [deleteDialog, fetchContext]);
 
-  const formatTimeAgo = (isoString) => {
-    if (!isoString) return 'Unknown';
-    const diff = Date.now() - new Date(isoString).getTime();
-    const minutes = Math.floor(diff / 60000);
-    if (minutes < 1) return 'Just now';
-    if (minutes < 60) return `${minutes} min ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-    const days = Math.floor(hours / 24);
-    return `${days} day${days > 1 ? 's' : ''} ago`;
-  };
-
-  const openDeleteDialog = (type, target = null) => {
+  const openDeleteDialog = useCallback((type, target = null) => {
     setDeleteDialog({ open: true, type, target });
-  };
+  }, []);
 
   const toggleSchemaExpand = useCallback((database) => {
     setExpandedSchema(prev => prev === database ? null : database);
@@ -139,7 +140,7 @@ function UserDBContextManagerForAI() {
     setExpandedQuery(prev => prev === index ? null : index);
   }, []);
 
-  const getDialogContent = () => {
+  const dialogContent = useMemo(() => {
     const { type, target } = deleteDialog;
     if (type === 'schema') {
       const schema = schemas.find(s => s.database === target);
@@ -164,7 +165,7 @@ function UserDBContextManagerForAI() {
       };
     }
     return {};
-  };
+  }, [deleteDialog, schemas, queries]);
 
   const uiColors = useMemo(() => ({
     bg: alpha(theme.palette.text.primary, isDark ? 0.04 : 0.03),
@@ -185,7 +186,7 @@ function UserDBContextManagerForAI() {
       <Alert
         severity="info"
         icon={<InfoOutlinedIcon />}
-        sx={{ mb: 2, '& .MuiAlert-message': { fontSize: '0.8rem' } }}
+        sx={{ mb: 2 }}
       >
         This is the AI's memory of your database structure. Delete only if your schema has changed.
       </Alert>
@@ -208,7 +209,6 @@ function UserDBContextManagerForAI() {
             minHeight: 36,
             textTransform: 'none',
             fontWeight: 500,
-            fontSize: '0.8rem',
             px: 2,
           },
         }}
@@ -220,7 +220,7 @@ function UserDBContextManagerForAI() {
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
               Schemas
               {schemas.length > 0 && (
-                <Chip size="small" label={schemas.length} sx={{ height: 18, fontSize: '0.65rem' }} />
+                <Chip size="small" label={schemas.length} sx={{ height: 18 }} />
               )}
             </Box>
           }
@@ -232,7 +232,7 @@ function UserDBContextManagerForAI() {
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
               Queries
               {queries.length > 0 && (
-                <Chip size="small" label={queries.length} sx={{ height: 18, fontSize: '0.65rem' }} />
+                <Chip size="small" label={queries.length} sx={{ height: 18 }} />
               )}
             </Box>
           }
@@ -321,11 +321,11 @@ function UserDBContextManagerForAI() {
                               size="small"
                               icon={<TableChartRoundedIcon sx={{ fontSize: 12 }} />}
                               label={table}
-                              sx={{ height: 24, fontSize: '0.7rem', backgroundColor: uiColors.bg, border: `1px solid ${uiColors.border}` }}
+                              sx={{ height: 24, backgroundColor: uiColors.bg, border: `1px solid ${uiColors.border}` }}
                             />
                           ))}
                           {schema.tables.length > 20 && (
-                            <Chip size="small" label={`+${schema.tables.length - 20} more`} sx={{ height: 24, fontSize: '0.7rem', backgroundColor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main' }} />
+                            <Chip size="small" label={`+${schema.tables.length - 20} more`} sx={{ height: 24, backgroundColor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main' }} />
                           )}
                         </Box>
 
@@ -421,7 +421,7 @@ function UserDBContextManagerForAI() {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        backgroundColor: query.status === 'success' 
+                        backgroundColor: query.status === 'success'
                           ? alpha(theme.palette.success.main, 0.1)
                           : alpha(theme.palette.error.main, 0.1),
                         flexShrink: 0,
@@ -444,7 +444,6 @@ function UserDBContextManagerForAI() {
                           label={query.database}
                           sx={{
                             height: 24,
-                            fontSize: '0.75rem',
                             fontWeight: 500,
                             backgroundColor: alpha(theme.palette.primary.main, 0.1),
                             color: 'primary.main',
@@ -532,19 +531,19 @@ function UserDBContextManagerForAI() {
       >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <WarningAmberRoundedIcon color="warning" />
-          {getDialogContent().title}
+          {dialogContent.title}
         </DialogTitle>
         <DialogContent>
           {deleteDialog.type !== 'queries' && (
             <Box sx={{ mb: 2 }}>
-              <Chip icon={<StorageRoundedIcon />} label={getDialogContent().database} sx={{ mr: 1 }} />
+              <Chip icon={<StorageRoundedIcon />} label={dialogContent.database} sx={{ mr: 1 }} />
               <Typography variant="caption" color="text.secondary">
-                ({getDialogContent().tableCount} table{getDialogContent().tableCount !== 1 ? 's' : ''})
+                ({dialogContent.tableCount} table{dialogContent.tableCount !== 1 ? 's' : ''})
               </Typography>
             </Box>
           )}
 
-          <Alert severity="warning" sx={{ '& .MuiAlert-message': { fontSize: '0.8rem' } }}>
+          <Alert severity="warning">
             {deleteDialog.type === 'queries' ? (
               'Query history helps the AI understand your recent work patterns.'
             ) : (

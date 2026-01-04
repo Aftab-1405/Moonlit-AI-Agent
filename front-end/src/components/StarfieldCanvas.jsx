@@ -145,9 +145,13 @@ function StarfieldCanvas({ active = false }) {
 
     // initDust removed - circular blobs disabled
 
+    // Darker, more subtle nebula colors (near monochrome)
     const nebulaColors = [
-      { r: 80, g: 60, b: 140 }, { r: 50, g: 80, b: 120 },
-      { r: 100, g: 50, b: 100 }, { r: 40, g: 100, b: 120 }, { r: 120, g: 60, b: 80 },
+      { r: 35, g: 35, b: 50 },  // Dark blue-gray
+      { r: 30, g: 40, b: 50 },  // Steel blue
+      { r: 40, g: 35, b: 45 },  // Dark purple-gray
+      { r: 25, g: 35, b: 45 },  // Deep blue
+      { r: 45, g: 40, b: 40 },  // Warm dark gray
     ];
 
     const initNebulas = (w, h) => {
@@ -157,7 +161,7 @@ function StarfieldCanvas({ active = false }) {
         nebulas.push({
           x: Math.random() * w, y: Math.random() * h,
           radius: 200 + Math.random() * 400, color,
-          baseOpacity: 0.1 + Math.random() * 0.08,  // Enhanced visibility
+          baseOpacity: 0.06 + Math.random() * 0.04,  // Very subtle
           vx: (Math.random() - 0.5) * 0.04, vy: (Math.random() - 0.5) * 0.04,
           pulsePhase: Math.random() * Math.PI * 2,
           pulseSpeed: 0.0015 + Math.random() * 0.0025,

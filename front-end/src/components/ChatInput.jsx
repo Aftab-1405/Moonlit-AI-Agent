@@ -1,15 +1,17 @@
-import { useState, useEffect, useCallback, memo } from 'react';
-import { 
-  Box, 
-  TextField, 
-  IconButton, 
-  Tooltip, 
-  Typography, 
-  Chip, 
+import { useState, useEffect, useCallback, useMemo, memo } from 'react';
+import {
+  Box,
+  TextField,
+  IconButton,
+  Tooltip,
+  Typography,
+  Chip,
   Menu,
   MenuItem,
   ListItemIcon,
   ListItemText,
+  Collapse,
+  Fab,
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
@@ -22,33 +24,39 @@ import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import StorageOutlinedIcon from '@mui/icons-material/StorageOutlined';
 import BubbleChartRoundedIcon from '@mui/icons-material/BubbleChartRounded';
 import CodeRoundedIcon from '@mui/icons-material/CodeRounded';
+import KeyboardArrowUpRoundedIcon from '@mui/icons-material/KeyboardArrowUpRounded';
+import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import { useTheme as useAppTheme } from '../contexts/ThemeContext';
 
 // Centralized API layer
 import { getSchemas, selectSchema } from '../api';
 
-function ChatInput({ 
+// ============================================================================
+// STATIC STYLES - Moved outside to prevent recreation
+// ============================================================================
+const MENU_HEADER_STYLES = { px: 2, py: 0.5, display: 'block', color: 'text.secondary' };
+const LIST_ITEM_ICON_STYLES = { minWidth: 28 };
+
+function ChatInput({
   onSend,
   onStop,
   isStreaming = false,
-  disabled = false, 
-  // Database/Schema props
+  disabled = false,
   isConnected = false,
   dbType = null,
   currentDatabase = null,
   availableDatabases = [],
   onDatabaseSwitch,
-  // Control suggestions visibility
   showSuggestions = true,
-  // SQL Editor toggle
   onOpenSqlEditor,
 }) {
   const [message, setMessage] = useState('');
   const [isFocused, setIsFocused] = useState(false);
+  const [isHidden, setIsHidden] = useState(false);
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
 
-  // Use ThemeContext for reasoning state (syncs with Settings Modal)
+  // Context for reasoning state
   const { settings, updateSetting } = useAppTheme();
   const reasoningEnabled = settings.enableReasoning ?? true;
 
@@ -61,43 +69,68 @@ function ChatInput({
   // Database menu anchor
   const [dbAnchor, setDbAnchor] = useState(null);
 
-  const isPostgreSQL = dbType?.toLowerCase() === 'postgresql';
-  const showSchemaSelector = isConnected && isPostgreSQL && schemas.length > 0;
-  const showDatabaseSelector = isConnected && availableDatabases.length > 1;
+  // ============================================================================
+  // MEMOIZED DERIVED VALUES
+  // ============================================================================
 
-  // Reusable toolbar chip styles (DRY)
-  const toolbarChipStyles = {
+  const isPostgreSQL = useMemo(() =>
+    dbType?.toLowerCase() === 'postgresql',
+    [dbType]
+  );
+
+  const showSchemaSelector = useMemo(() =>
+    isConnected && isPostgreSQL && schemas.length > 0,
+    [isConnected, isPostgreSQL, schemas.length]
+  );
+
+  const showDatabaseSelector = useMemo(() =>
+    isConnected && availableDatabases.length > 1,
+    [isConnected, availableDatabases.length]
+  );
+
+  const hasText = useMemo(() =>
+    message.trim().length > 0,
+    [message]
+  );
+
+  // ============================================================================
+  // MEMOIZED STYLES
+  // ============================================================================
+
+  const toolbarChipStyles = useMemo(() => ({
     height: 26,
-    fontSize: '0.75rem',
+    borderRadius: '12px',
     borderColor: alpha(theme.palette.text.primary, 0.12),
     backgroundColor: alpha(theme.palette.text.primary, 0.03),
     '&:hover': {
       borderColor: alpha(theme.palette.text.primary, 0.2),
       backgroundColor: alpha(theme.palette.text.primary, 0.05),
     },
-  };
+  }), [theme]);
 
-  // Reusable menu styles (DRY)
-  const menuHeaderStyles = { px: 2, py: 0.5, display: 'block', color: 'text.secondary' };
-  const menuItemStyles = { fontSize: '0.85rem' };
-  const listItemIconStyles = { minWidth: 28 };
+  // ============================================================================
+  // STABLE MENU CLOSE HANDLERS
+  // ============================================================================
 
-  // Selected/unselected icon helper
-  const getMenuItemIcon = (isSelected, defaultIcon) => isSelected 
-    ? <CheckRoundedIcon sx={{ fontSize: 16, color: 'success.main' }} />
-    : defaultIcon;
+  const handleCloseDbMenu = useCallback(() => setDbAnchor(null), []);
+  const handleCloseSchemaMenu = useCallback(() => setSchemaAnchor(null), []);
 
-  // Toggle reasoning via ThemeContext (syncs everywhere)
+  // ============================================================================
+  // MEMOIZED HANDLERS
+  // ============================================================================
+
+  const toggleHidden = useCallback(() => {
+    setIsHidden(prev => !prev);
+  }, []);
+
   const toggleReasoning = useCallback(() => {
     updateSetting('enableReasoning', !reasoningEnabled);
   }, [updateSetting, reasoningEnabled]);
 
-  // Fetch schemas function
   const fetchSchemas = useCallback(async () => {
     setSchemaLoading(true);
     try {
       const data = await getSchemas();
-      
       if (data.status === 'success') {
         setSchemas(data.schemas || []);
         setCurrentSchema(data.current_schema || 'public');
@@ -109,20 +142,10 @@ function ChatInput({
     }
   }, []);
 
-  // Fetch schemas when connected to PostgreSQL
-  useEffect(() => {
-    if (isConnected && currentDatabase && isPostgreSQL) {
-      fetchSchemas();
-    } else {
-      setSchemas([]);
-      setCurrentSchema('public');
-    }
-  }, [isConnected, currentDatabase, isPostgreSQL, fetchSchemas]);
-
   const handleSchemaChange = useCallback(async (schema) => {
     setSchemaAnchor(null);
     if (schema === currentSchema) return;
-    
+
     setSchemaLoading(true);
     try {
       const data = await selectSchema(schema);
@@ -157,361 +180,466 @@ function ChatInput({
     }
   }, [handleSubmit]);
 
-  const hasText = message.trim().length > 0;
+  const handleInputChange = useCallback((e) => {
+    setMessage(e.target.value);
+  }, []);
 
-  // Suggestion chips
-  const suggestions = [
-    { 
-      label: 'Check Connection', 
-      icon: <CableOutlinedIcon sx={{ fontSize: 14 }} />, 
-      action: () => onSend?.('Check my database connection status and show connection details') 
+  const handleFocus = useCallback(() => setIsFocused(true), []);
+  const handleBlur = useCallback(() => setIsFocused(false), []);
+
+  const handleOpenDbMenu = useCallback((e) => setDbAnchor(e.currentTarget), []);
+  const handleOpenSchemaMenu = useCallback((e) => setSchemaAnchor(e.currentTarget), []);
+
+  const handleOpenSqlEditorClick = useCallback(() => {
+    onOpenSqlEditor?.();
+  }, [onOpenSqlEditor]);
+
+  const handleStopClick = useCallback(() => {
+    onStop?.();
+  }, [onStop]);
+
+  // ============================================================================
+  // MEMOIZED SUGGESTIONS
+  // ============================================================================
+
+  const suggestions = useMemo(() => [
+    {
+      label: 'Check Connection',
+      icon: <CableOutlinedIcon sx={{ fontSize: 14 }} />,
+      prompt: 'Check my database connection status and show connection details',
     },
-    { 
-      label: 'Schema Details', 
-      icon: <AccountTreeOutlinedIcon sx={{ fontSize: 14 }} />, 
-      action: () => onSend?.('Show me the database schema with all tables and their columns') 
+    {
+      label: 'Schema Details',
+      icon: <AccountTreeOutlinedIcon sx={{ fontSize: 14 }} />,
+      prompt: 'Show me the database schema with all tables and their columns',
     },
-    { 
-      label: 'Recent Queries', 
-      icon: <HistoryOutlinedIcon sx={{ fontSize: 14 }} />, 
-      action: () => onSend?.('Show me the most recently executed SQL queries in this session') 
+    {
+      label: 'Recent Queries',
+      icon: <HistoryOutlinedIcon sx={{ fontSize: 14 }} />,
+      prompt: 'Show me the most recently executed SQL queries in this session',
     },
-  ];
+  ], []);
+
+  const handleSuggestionClick = useCallback((prompt) => {
+    onSend?.(prompt);
+  }, [onSend]);
+
+  // ============================================================================
+  // EFFECTS
+  // ============================================================================
+
+  useEffect(() => {
+    if (isConnected && currentDatabase && isPostgreSQL) {
+      fetchSchemas();
+    } else {
+      setSchemas([]);
+      setCurrentSchema('public');
+    }
+  }, [isConnected, currentDatabase, isPostgreSQL, fetchSchemas]);
+
+  // ============================================================================
+  // MEMOIZED HELPER
+  // ============================================================================
+
+  const getMenuItemIcon = useCallback((isSelected, defaultIcon) =>
+    isSelected
+      ? <CheckRoundedIcon sx={{ fontSize: 16, color: 'success.main' }} />
+      : defaultIcon,
+    []
+  );
+
+  // ============================================================================
+  // RENDER
+  // ============================================================================
 
   return (
-    <Box
-      component="form"
-      onSubmit={handleSubmit}
-      sx={{ 
-        p: { xs: 2, sm: 3 },
-        pb: { xs: 2, sm: 2.5 },
-      }}
-    >
-      {/* Toolbar - Compact row above input */}
-      {(showDatabaseSelector || showSchemaSelector || onOpenSqlEditor) && (
+    <Box sx={{ position: 'relative' }}>
+      {/* Floating show button when hidden */}
+      <Collapse in={isHidden} timeout={200}>
         <Box
           sx={{
-            maxWidth: 760,
-            mx: 'auto',
-            mb: 1,
             display: 'flex',
-            alignItems: 'center',
             justifyContent: 'center',
-            gap: 0.5,
-            flexWrap: 'wrap',
+            py: 1,
           }}
         >
-          {/* Database Selector */}
-          {showDatabaseSelector && (
-            <Tooltip title={`Database: ${currentDatabase}`}>
-              <Chip
-                icon={<StorageOutlinedIcon sx={{ fontSize: 14 }} />}
-                label={currentDatabase}
-                onClick={(e) => setDbAnchor(e.currentTarget)}
-                size="small"
-                
-                sx={toolbarChipStyles}
-              />
-            </Tooltip>
-          )}
-
-          {/* Schema Selector */}
-          {showSchemaSelector && (
-            <Tooltip title={`Schema: ${schemaLoading ? '...' : currentSchema}`}>
-              <Chip
-                icon={<AccountTreeOutlinedIcon sx={{ fontSize: 14 }} />}
-                label={currentSchema}
-                onClick={(e) => setSchemaAnchor(e.currentTarget)}
-                size="small"
-                
-                sx={toolbarChipStyles}
-              />
-            </Tooltip>
-          )}
-
-          {/* SQL Editor Toggle */}
-          {onOpenSqlEditor && (
-            <Tooltip title="Open SQL Editor">
-              <Chip
-                icon={<CodeRoundedIcon sx={{ fontSize: 14 }} />}
-                label="SQL Editor"
-                onClick={() => onOpenSqlEditor()}
-                size="small"
-                
-                sx={toolbarChipStyles}
-              />
-            </Tooltip>
-          )}
-        </Box>
-      )}
-
-      {/* Database Menu */}
-      <Menu
-        anchorEl={dbAnchor}
-        open={Boolean(dbAnchor)}
-        onClose={() => setDbAnchor(null)}
-        PaperProps={{ sx: { minWidth: 180, maxHeight: 320 } }}
-      >
-        <Typography variant="overline" sx={menuHeaderStyles}>
-          Switch Database
-        </Typography>
-        {availableDatabases.map((db) => (
-          <MenuItem
-            key={db}
-            onClick={() => handleDatabaseChange(db)}
-            selected={db === currentDatabase}
-            sx={menuItemStyles}
-          >
-            <ListItemIcon sx={listItemIconStyles}>
-              {getMenuItemIcon(db === currentDatabase, <StorageOutlinedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />)}
-            </ListItemIcon>
-            <ListItemText primary={db} />
-          </MenuItem>
-        ))}
-      </Menu>
-
-      {/* Schema Menu */}
-      <Menu
-        anchorEl={schemaAnchor}
-        open={Boolean(schemaAnchor)}
-        onClose={() => setSchemaAnchor(null)}
-        PaperProps={{ sx: { minWidth: 160, maxHeight: 280 } }}
-      >
-        <Typography variant="overline" sx={menuHeaderStyles}>
-          PostgreSQL Schema
-        </Typography>
-        {schemas.map((schema) => (
-          <MenuItem
-            key={schema}
-            onClick={() => handleSchemaChange(schema)}
-            selected={schema === currentSchema}
-            sx={menuItemStyles}
-          >
-            <ListItemIcon sx={listItemIconStyles}>
-              {getMenuItemIcon(schema === currentSchema, <AccountTreeOutlinedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />)}
-            </ListItemIcon>
-            <ListItemText primary={schema} />
-          </MenuItem>
-        ))}
-      </Menu>
-
-      {/* Input Container - Clean pill shaped */}
-      <Box
-        sx={{
-          maxWidth: 760,
-          mx: 'auto',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 0.75,
-          px: { xs: 1.5, sm: 2 },
-          py: { xs: 1, sm: 1.25 },
-          borderRadius: '28px',
-          border: '1px solid',
-          borderColor: isFocused 
-            ? alpha(theme.palette.text.primary, 0.2)
-            : alpha(theme.palette.text.primary, 0.1),
-          backgroundColor: alpha(theme.palette.text.primary, 0.04),
-          backdropFilter: 'blur(8px)',
-          WebkitBackdropFilter: 'blur(8px)',
-          transition: (theme) => theme.transitions.create(
-            ['border-color', 'background-color', 'box-shadow'],
-            { duration: theme.transitions.duration.short }
-          ),
-          '&:hover': {
-            borderColor: alpha(theme.palette.text.primary, 0.15),
-          },
-        }}
-      >
-        {/* Left Actions - Grouped */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, flexShrink: 0 }}>
-          {/* Attachment icon - Coming soon */}
-          <Tooltip title="Attach file (coming soon)">
-            <span>
-              <IconButton
-                size="small"
-                disabled
-                sx={{
-                  color: 'text.secondary',
-                  opacity: 0.4,
-                  width: 32,
-                  height: 32,
-                }}
-              >
-                <AttachFileRoundedIcon sx={{ fontSize: 18 }} />
-              </IconButton>
-            </span>
-          </Tooltip>
-
-          {/* Reasoning Toggle */}
-          <Tooltip title={reasoningEnabled ? 'Thinking enabled (click to disable)' : 'Thinking disabled (click to enable)'}>
-            <IconButton
+          <Tooltip title="Show input" arrow>
+            <Fab
               size="small"
-              onClick={toggleReasoning}
+              onClick={toggleHidden}
               sx={{
-                color: reasoningEnabled ? theme.palette.info.main : 'text.secondary',
-                borderColor: reasoningEnabled ? alpha(theme.palette.info.main, 0.5) : undefined,
-                width: 32,
-                height: 32,
-                transition: 'all 0.2s ease',
+                backgroundColor: isDarkMode 
+                  ? alpha(theme.palette.common.white, 0.08)
+                  : alpha(theme.palette.common.black, 0.05),
+                border: '1px solid',
+                borderColor: theme.palette.divider,
+                boxShadow: 'none',
                 '&:hover': {
-                  color: reasoningEnabled ? theme.palette.info.dark : theme.palette.text.primary,
-                  backgroundColor: reasoningEnabled 
-                    ? alpha(theme.palette.info.main, isDarkMode ? 0.15 : 0.1) 
-                    : undefined,
-                  borderColor: reasoningEnabled ? theme.palette.info.main : undefined,
-                }
-              }}
-            >
-              <BubbleChartRoundedIcon sx={{ fontSize: 18 }} />
-            </IconButton>
-          </Tooltip>
-        </Box>
-
-        {/* Input Field */}
-        <TextField
-          fullWidth
-          multiline
-          maxRows={5}
-          placeholder="Ask anything..."
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
-          disabled={disabled}
-          variant="standard"
-          InputProps={{
-            disableUnderline: true,
-            sx: { 
-              fontSize: '0.95rem',
-              lineHeight: 1.6,
-              py: 0.5,
-              color: 'text.primary',
-            },
-          }}
-          sx={{ 
-            '& .MuiInputBase-root': { 
-              p: 0,
-              alignItems: 'center',
-            },
-            '& .MuiInputBase-input': {
-              py: 0,
-              '&::placeholder': {
-                color: 'text.secondary',
-                opacity: 0.7,
-              }
-            },
-          }}
-        />
-
-        {/* Send/Stop Button */}
-        <Tooltip title={isStreaming ? 'Stop generating' : (hasText ? 'Send message' : 'Type a message')}>
-          <span>
-            <IconButton
-              type={isStreaming ? 'button' : 'submit'}
-              onClick={isStreaming ? onStop : undefined}
-              disabled={!isStreaming && (!hasText || disabled)}
-              sx={{
-                width: 36,
-                height: 36,
-                
-                color: (hasText || isStreaming)
-                  ? (isStreaming ? theme.palette.error.main : theme.palette.text.primary)
-                  : 'text.disabled',
-                
-                borderColor: (hasText || isStreaming)
-                  ? (isStreaming ? alpha(theme.palette.error.main, 0.5) : alpha(theme.palette.text.primary, 0.5))
-                  : undefined,
-                
-                transition: 'all 0.2s ease',
-                flexShrink: 0,
-                
-                '&:hover': {
-                  backgroundColor: (hasText || isStreaming)
-                    ? (isStreaming 
-                        ? alpha(theme.palette.error.main, 0.1)
-                        : alpha(theme.palette.text.primary, 0.1))
-                    : undefined,
-                  borderColor: (hasText || isStreaming)
-                    ? (isStreaming 
-                        ? theme.palette.error.main 
-                        : theme.palette.text.primary)
-                    : undefined,
+                  backgroundColor: isDarkMode 
+                    ? alpha(theme.palette.common.white, 0.12)
+                    : alpha(theme.palette.common.black, 0.08),
+                  boxShadow: 'none',
                 },
               }}
             >
-              {isStreaming ? (
-                <StopRoundedIcon sx={{ fontSize: 18 }} />
-              ) : (
-                <SendRoundedIcon sx={{ fontSize: 18, ml: 0.25 }} />
-              )}
-            </IconButton>
-          </span>
-        </Tooltip>
-      </Box>
+              <KeyboardArrowUpRoundedIcon sx={{ color: 'text.secondary' }} />
+            </Fab>
+          </Tooltip>
+        </Box>
+      </Collapse>
 
-      {/* Suggestion Chips - Below input */}
-      {showSuggestions && (
-      <Box
-        sx={{
-          maxWidth: 760,
-          mx: 'auto',
-          mt: 1.5,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          gap: 1,
-          flexWrap: 'wrap',
-        }}
-      >
-        {suggestions.map((chip) => (
-          <Chip
-            key={chip.label}
-            icon={chip.icon}
-            label={chip.label}
-            onClick={chip.action}
-            size="small"
-            
+      {/* Main input section - collapsible */}
+      <Collapse in={!isHidden} timeout={300}>
+        <Box
+          component="form"
+          onSubmit={handleSubmit}
+          sx={{
+            p: { xs: 2, sm: 3 },
+            pb: { xs: 2, sm: 2.5 },
+          }}
+        >
+          {/* Toolbar - Compact row above input */}
+          {(showDatabaseSelector || showSchemaSelector || onOpenSqlEditor) && (
+            <Box
+              sx={{
+                maxWidth: 760,
+                mx: 'auto',
+                mb: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 0.5,
+                flexWrap: 'wrap',
+              }}
+            >
+              {showDatabaseSelector && (
+                <Tooltip title={`Database: ${currentDatabase}`}>
+                  <Chip
+                    icon={<StorageOutlinedIcon sx={{ fontSize: 14 }} />}
+                    label={currentDatabase}
+                    onClick={handleOpenDbMenu}
+                    size="small"
+                    sx={toolbarChipStyles}
+                  />
+                </Tooltip>
+              )}
+
+              {showSchemaSelector && (
+                <Tooltip title={`Schema: ${schemaLoading ? '...' : currentSchema}`}>
+                  <Chip
+                    icon={<AccountTreeOutlinedIcon sx={{ fontSize: 14 }} />}
+                    label={currentSchema}
+                    onClick={handleOpenSchemaMenu}
+                    size="small"
+                    sx={toolbarChipStyles}
+                  />
+                </Tooltip>
+              )}
+
+              {onOpenSqlEditor && (
+                <Tooltip title="Open SQL Editor">
+                  <Chip
+                    icon={<CodeRoundedIcon sx={{ fontSize: 14 }} />}
+                    label="SQL Editor"
+                    onClick={handleOpenSqlEditorClick}
+                    size="small"
+                    sx={toolbarChipStyles}
+                  />
+                </Tooltip>
+              )}
+            </Box>
+          )}
+
+          {/* Database Menu */}
+          <Menu
+            anchorEl={dbAnchor}
+            open={Boolean(dbAnchor)}
+            onClose={handleCloseDbMenu}
+            PaperProps={{ sx: { minWidth: 180, maxHeight: 320 } }}
+          >
+            <Typography variant="overline" sx={MENU_HEADER_STYLES}>
+              Switch Database
+            </Typography>
+            {availableDatabases.map((db) => (
+              <MenuItem
+                key={db}
+                onClick={() => handleDatabaseChange(db)}
+                selected={db === currentDatabase}
+              >
+                <ListItemIcon sx={LIST_ITEM_ICON_STYLES}>
+                  {getMenuItemIcon(db === currentDatabase, <StorageOutlinedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />)}
+                </ListItemIcon>
+                <ListItemText primary={db} />
+              </MenuItem>
+            ))}
+          </Menu>
+
+          {/* Schema Menu */}
+          <Menu
+            anchorEl={schemaAnchor}
+            open={Boolean(schemaAnchor)}
+            onClose={handleCloseSchemaMenu}
+            PaperProps={{ sx: { minWidth: 160, maxHeight: 280 } }}
+          >
+            <Typography variant="overline" sx={MENU_HEADER_STYLES}>
+              PostgreSQL Schema
+            </Typography>
+            {schemas.map((schema) => (
+              <MenuItem
+                key={schema}
+                onClick={() => handleSchemaChange(schema)}
+                selected={schema === currentSchema}
+              >
+                <ListItemIcon sx={LIST_ITEM_ICON_STYLES}>
+                  {getMenuItemIcon(schema === currentSchema, <AccountTreeOutlinedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />)}
+                </ListItemIcon>
+                <ListItemText primary={schema} />
+              </MenuItem>
+            ))}
+          </Menu>
+
+          {/* Input Container */}
+          <Box
             sx={{
-              borderRadius: '16px',
-              borderColor: alpha(theme.palette.text.primary, 0.12),
-              color: 'text.secondary',
-              fontSize: '0.8rem',
-              height: 30,
-              backgroundColor: 'transparent',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-              '& .MuiChip-icon': {
-                color: 'inherit',
-                ml: 0.5,
-              },
+              maxWidth: 760,
+              mx: 'auto',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.75,
+              px: { xs: 1.5, sm: 2 },
+              py: { xs: 1, sm: 1.25 },
+              borderRadius: '28px',
+              border: '1px solid',
+              borderColor: isFocused
+                ? alpha(theme.palette.text.primary, 0.2)
+                : alpha(theme.palette.text.primary, 0.1),
+              backgroundColor: alpha(theme.palette.text.primary, 0.04),
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              transition: theme.transitions.create(
+                ['border-color', 'background-color', 'box-shadow'],
+                { duration: theme.transitions.duration.short }
+              ),
               '&:hover': {
-                borderColor: alpha(theme.palette.text.primary, 0.25),
-                backgroundColor: alpha(theme.palette.text.primary, 0.04),
-                color: 'text.primary',
+                borderColor: alpha(theme.palette.text.primary, 0.15),
               },
             }}
-          />
-        ))}
-      </Box>
-      )}
+          >
+            {/* Left Actions */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, flexShrink: 0 }}>
+              <Tooltip title="Attach file (coming soon)">
+                <span>
+                  <IconButton
+                    size="small"
+                    disabled
+                    sx={{
+                      color: 'text.secondary',
+                      opacity: 0.4,
+                      width: 32,
+                      height: 32,
+                    }}
+                  >
+                    <AttachFileRoundedIcon sx={{ fontSize: 18 }} />
+                  </IconButton>
+                </span>
+              </Tooltip>
 
-      {/* Footer hint */}
-      <Typography
-        variant="caption"
-        sx={{ 
-          display: 'block',
-          textAlign: 'center',
-          mt: 1.5,
-          color: 'text.secondary', 
-          opacity: 0.4,
-          fontSize: '0.7rem',
-        }}
-      >
-        AI-powered • Always verify SQL queries before running
-      </Typography>
+              <Tooltip title={reasoningEnabled ? 'Thinking enabled (click to disable)' : 'Thinking disabled (click to enable)'}>
+                <IconButton
+                  size="small"
+                  onClick={toggleReasoning}
+                  sx={{
+                    color: reasoningEnabled ? theme.palette.info.main : 'text.secondary',
+                    borderColor: reasoningEnabled ? alpha(theme.palette.info.main, 0.5) : undefined,
+                    width: 32,
+                    height: 32,
+                    transition: 'all 0.2s ease',
+                    '&:hover': {
+                      color: reasoningEnabled ? theme.palette.info.dark : theme.palette.text.primary,
+                      backgroundColor: reasoningEnabled
+                        ? alpha(theme.palette.info.main, isDarkMode ? 0.15 : 0.1)
+                        : undefined,
+                      borderColor: reasoningEnabled ? theme.palette.info.main : undefined,
+                    },
+                  }}
+                >
+                  <BubbleChartRoundedIcon sx={{ fontSize: 18 }} />
+                </IconButton>
+              </Tooltip>
+            </Box>
+
+            {/* Input Field */}
+            <TextField
+              fullWidth
+              multiline
+              maxRows={5}
+              placeholder="Ask anything..."
+              value={message}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              onFocus={handleFocus}
+              onBlur={handleBlur}
+              disabled={disabled}
+              variant="standard"
+              InputProps={{
+                disableUnderline: true,
+                sx: {
+                  lineHeight: 1.6,
+                  py: 0.5,
+                  color: 'text.primary',
+                },
+              }}
+              sx={{
+                '& .MuiInputBase-root': {
+                  p: 0,
+                  alignItems: 'center',
+                },
+                '& .MuiInputBase-input': {
+                  py: 0,
+                  '&::placeholder': {
+                    color: 'text.secondary',
+                    opacity: 0.7,
+                  },
+                },
+              }}
+            />
+
+            {/* Hide button */}
+            <Tooltip title="Hide input">
+              <IconButton
+                size="small"
+                onClick={toggleHidden}
+                sx={{
+                  width: 32,
+                  height: 32,
+                  color: 'text.disabled',
+                  flexShrink: 0,
+                  '&:hover': { color: 'text.secondary' },
+                }}
+              >
+                <KeyboardArrowDownRoundedIcon sx={{ fontSize: 18 }} />
+              </IconButton>
+            </Tooltip>
+
+            {/* Send/Stop Button */}
+            <Tooltip title={isStreaming ? 'Stop generating' : (hasText ? 'Send message' : 'Type a message')}>
+              <span>
+                <IconButton
+                  type={isStreaming ? 'button' : 'submit'}
+                  onClick={isStreaming ? handleStopClick : undefined}
+                  disabled={!isStreaming && (!hasText || disabled)}
+                  sx={{
+                    width: 36,
+                    height: 36,
+                    color: (hasText || isStreaming)
+                      ? (isStreaming ? theme.palette.error.main : theme.palette.text.primary)
+                      : 'text.disabled',
+                    borderColor: (hasText || isStreaming)
+                      ? (isStreaming ? alpha(theme.palette.error.main, 0.5) : alpha(theme.palette.text.primary, 0.5))
+                      : undefined,
+                    transition: 'all 0.2s ease',
+                    flexShrink: 0,
+                    '&:hover': {
+                      backgroundColor: (hasText || isStreaming)
+                        ? (isStreaming
+                          ? alpha(theme.palette.error.main, 0.1)
+                          : alpha(theme.palette.text.primary, 0.1))
+                        : undefined,
+                      borderColor: (hasText || isStreaming)
+                        ? (isStreaming ? theme.palette.error.main : theme.palette.text.primary)
+                        : undefined,
+                    },
+                  }}
+                >
+                  {isStreaming ? (
+                    <StopRoundedIcon sx={{ fontSize: 18 }} />
+                  ) : (
+                    <SendRoundedIcon sx={{ fontSize: 18, ml: 0.25 }} />
+                  )}
+                </IconButton>
+              </span>
+            </Tooltip>
+          </Box>
+
+          {/* Suggestion Chips */}
+          {showSuggestions && (
+            <Box
+              sx={{
+                maxWidth: 760,
+                mx: 'auto',
+                mt: 1.5,
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                gap: 1,
+                flexWrap: 'wrap',
+              }}
+            >
+              {suggestions.map((chip) => (
+                <Chip
+                  key={chip.label}
+                  icon={chip.icon}
+                  label={chip.label}
+                  onClick={() => handleSuggestionClick(chip.prompt)}
+                  size="small"
+                  sx={{
+                    borderRadius: '12px',
+                    borderColor: alpha(theme.palette.text.primary, 0.12),
+                    color: 'text.secondary',
+                    height: 30,
+                    backgroundColor: 'transparent',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                    '& .MuiChip-icon': {
+                      color: 'inherit',
+                      ml: 0.5,
+                    },
+                    '&:hover': {
+                      borderColor: alpha(theme.palette.text.primary, 0.25),
+                      backgroundColor: alpha(theme.palette.text.primary, 0.04),
+                      color: 'text.primary',
+                    },
+                  }}
+                />
+              ))}
+            </Box>
+          )}
+
+          {/* Footer hint */}
+          <Typography
+            variant="caption"
+            sx={{
+              display: 'block',
+              textAlign: 'center',
+              mt: 1.5,
+              color: 'text.secondary',
+              opacity: 0.4,
+            }}
+          >
+            AI-powered • Always verify SQL queries before running
+          </Typography>
+        </Box>
+      </Collapse>
     </Box>
   );
 }
 
-export default memo(ChatInput);
+// Custom memo comparison for stable props
+function arePropsEqual(prevProps, nextProps) {
+  // Check primitives
+  if (prevProps.isStreaming !== nextProps.isStreaming) return false;
+  if (prevProps.disabled !== nextProps.disabled) return false;
+  if (prevProps.isConnected !== nextProps.isConnected) return false;
+  if (prevProps.dbType !== nextProps.dbType) return false;
+  if (prevProps.currentDatabase !== nextProps.currentDatabase) return false;
+  if (prevProps.showSuggestions !== nextProps.showSuggestions) return false;
+
+  // Check array length
+  if (prevProps.availableDatabases?.length !== nextProps.availableDatabases?.length) return false;
+
+  // Check function refs (these should be stable from parent)
+  // We assume parent provides stable callbacks via useCallback
+  return true;
+}
+
+export default memo(ChatInput, arePropsEqual);

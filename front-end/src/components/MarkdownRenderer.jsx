@@ -1,35 +1,47 @@
+import React, { memo, useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Box, Typography, IconButton, Tooltip, Paper, CircularProgress, useTheme } from '@mui/material';
+import { Box, Typography, IconButton, Tooltip, CircularProgress, useTheme } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
-import { useState, useMemo, useCallback, useEffect, useRef, memo } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus, vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import MermaidDiagram from './MermaidDiagram';
+// import MermaidDiagram from './MermaidDiagram'; // Uncomment if you have this component
 
-// Custom code block component with copy and run buttons
-function CodeBlock({ children, className, onRunQuery }) {
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+const SQL_LANGUAGES = new Set([
+  'sql', 'mysql', 'postgresql', 'sqlite', 'sqlserver', 'oracle', 'tsql', 'plsql'
+]);
+
+const REMARK_PLUGINS = [remarkGfm];
+
+// ============================================================================
+// SUB-COMPONENTS
+// ============================================================================
+
+const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isDarkMode, theme }) {
   const [copied, setCopied] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
-  const theme = useTheme();
-  const isDarkMode = theme.palette.mode === 'dark';
-  
-  // Ref for timeout cleanup - must be before any conditional returns
   const copyTimeoutRef = useRef(null);
 
-  // Cleanup timeout on unmount - must be before any conditional returns
   useEffect(() => {
     return () => {
       if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
     };
   }, []);
 
+  // Defensive parsing: Handle cases where children is an array or incomplete during stream
   const language = className?.replace('language-', '') || '';
-  const code = String(children).replace(/\n$/, '');
-  const isSQL = ['sql', 'mysql', 'postgresql', 'sqlite', 'sqlserver', 'oracle', 'tsql', 'plsql'].includes(language.toLowerCase());
+  const code = useMemo(() => {
+    return Array.isArray(children) ? children.join('') : String(children || '').replace(/\n$/, '');
+  }, [children]);
+
+  const isSQL = SQL_LANGUAGES.has(language.toLowerCase());
   const isMermaid = language.toLowerCase() === 'mermaid';
 
   const handleCopy = useCallback(() => {
@@ -50,225 +62,154 @@ function CodeBlock({ children, className, onRunQuery }) {
     }
   }, [onRunQuery, isSQL, isRunning, code]);
 
-  // Render Mermaid diagrams with special component (after all hooks)
-  if (isMermaid) {
-    return <MermaidDiagram code={code} />;
-  }
+  const containerStyles = useMemo(() => ({
+    my: 2,
+    borderRadius: '12px',
+    overflow: 'hidden',
+    backgroundColor: isDarkMode ? theme.palette.background.paper : alpha(theme.palette.text.primary, 0.03),
+    border: '1px solid',
+    borderColor: theme.palette.divider,
+    minWidth: 0, // CRITICAL: Prevents flexbox overflow issues during streaming
+    width: '100%',
+  }), [isDarkMode, theme]);
+
+  // if (isMermaid) return <MermaidDiagram code={code} />; // Uncomment if using Mermaid
 
   return (
-    <Paper
-      sx={{
-        position: 'relative',
-        my: 2,
-        borderRadius: 2,
-        overflow: 'hidden',
-        backgroundColor: isDarkMode ? '#1E1E1E' : '#f8f8f8',
-        border: '1px solid',
-        borderColor: alpha(theme.palette.text.primary, 0.1),
-      }}
-    >
-      {/* Header */}
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          px: 2,
-          py: 0.75,
-          backgroundColor: alpha(theme.palette.text.primary, 0.03),
-          borderBottom: '1px solid',
-          borderColor: alpha(theme.palette.text.primary, 0.1),
-        }}
-      >
-        <Typography
-          variant="caption"
-          sx={{
-            color: 'text.secondary',
-            fontWeight: 500,
-            textTransform: 'uppercase',
-            letterSpacing: 0.5,
-            fontSize: '0.65rem',
-          }}
-        >
-          {language || 'text'}
+    <Box sx={containerStyles}>
+      <Box sx={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        px: 1.5, py: 0.5, borderBottom: '1px solid', borderColor: theme.palette.divider
+      }}>
+        <Typography variant="caption" sx={{ color: 'text.disabled', fontWeight: 500, textTransform: 'uppercase' }}>
+          {language || 'code'}
         </Typography>
         <Box sx={{ display: 'flex', gap: 0.5 }}>
           {isSQL && (
-            <Tooltip title={isRunning ? "Running query..." : "Run query"}>
+            <Tooltip title={isRunning ? "Running..." : "Run"} arrow>
               <span>
                 <IconButton
                   size="small"
                   onClick={handleRun}
                   disabled={isRunning}
-                  sx={{ 
-                    color: isRunning ? 'text.secondary' : 'success.main', 
-                    '&:hover': { backgroundColor: alpha(theme.palette.success.main, 0.1) },
-                    minWidth: 28,
-                    minHeight: 28,
+                  sx={{
+                    p: 0.5,
+                    color: isRunning ? 'text.disabled' : 'success.main',
+                    '&:hover': { color: 'success.light', bgcolor: alpha(theme.palette.success.main, 0.1) },
                   }}
                 >
-                  {isRunning ? (
-                    <CircularProgress size={14} color="inherit" />
-                  ) : (
-                    <PlayArrowRoundedIcon fontSize="small" />
-                  )}
+                  {isRunning ? <CircularProgress size={14} color="inherit" /> : <PlayArrowRoundedIcon sx={{ fontSize: 16 }} />}
                 </IconButton>
               </span>
             </Tooltip>
           )}
-          <Tooltip title={copied ? 'Copied!' : 'Copy'}>
+          <Tooltip title={copied ? 'Copied!' : 'Copy'} arrow>
             <IconButton
               size="small"
               onClick={handleCopy}
-              sx={{ 
-                color: copied ? 'success.main' : 'text.secondary', 
-                '&:hover': { backgroundColor: alpha(theme.palette.text.primary, 0.05) } 
+              sx={{
+                p: 0.5,
+                color: copied ? 'success.main' : 'text.disabled',
+                '&:hover': { color: 'text.primary', bgcolor: alpha(theme.palette.text.primary, 0.05) },
               }}
             >
-              {copied ? (
-                <CheckRoundedIcon sx={{ fontSize: 14 }} />
-              ) : (
-                <ContentCopyRoundedIcon sx={{ fontSize: 14 }} />
-              )}
+              {copied ? <CheckRoundedIcon sx={{ fontSize: 14 }} /> : <ContentCopyRoundedIcon sx={{ fontSize: 14 }} />}
             </IconButton>
           </Tooltip>
         </Box>
       </Box>
 
-      {/* Code Content with Syntax Highlighting */}
-      <Box sx={{ m: 0, overflow: 'auto' }}>
+      <Box sx={{ overflowX: 'auto' }}>
         <SyntaxHighlighter
           language={language || 'text'}
           style={isDarkMode ? vscDarkPlus : vs}
-          customStyle={{
-            margin: 0,
-            padding: '16px',
-            backgroundColor: 'transparent',
-            fontSize: '0.85rem',
-            lineHeight: 1.6,
-            fontFamily: '"Fira Code", "Monaco", "Consolas", monospace',
-          }}
-          wrapLines={true}
+          customStyle={{ margin: 0, padding: '16px', fontSize: '0.85rem', lineHeight: 1.5 }}
+          wrapLines={false} // CRITICAL: Disabling wrapLines stabilizes height during typing
         >
           {code}
         </SyntaxHighlighter>
       </Box>
-    </Paper>
+    </Box>
   );
-}
+});
 
-// Inline code component
-function InlineCode({ children }) {
-  const theme = useTheme();
-  
+const InlineCode = memo(function InlineCode({ children, theme, isDarkMode }) {
   return (
-    <Box
+    <Typography
       component="code"
       sx={{
-        backgroundColor: alpha(theme.palette.text.primary, 0.08),
-        color: 'primary.light',
-        px: 0.75,
-        py: 0.25,
-        borderRadius: 0.5,
+        fontFamily: '"JetBrains Mono", monospace',
         fontSize: '0.85em',
-        fontFamily: '"Fira Code", "Monaco", monospace',
+        backgroundColor: alpha(theme.palette.text.primary, isDarkMode ? 0.15 : 0.06),
+        color: theme.palette.text.primary,
+        px: 0.6,
+        py: 0.2,
+        borderRadius: 1,
+        fontWeight: 500,
+        wordBreak: 'break-word', // CRITICAL: Prevents inline code from causing horizontal overflow
       }}
     >
       {children}
-    </Box>
+    </Typography>
   );
-}
+});
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
 
 function MarkdownRenderer({ content, onRunQuery }) {
   const theme = useTheme();
-  
-  // Memoize the components object to prevent unnecessary re-renders
+  const isDarkMode = theme.palette.mode === 'dark';
+
   const components = useMemo(() => ({
-    // Handle code blocks vs inline code
     code({ node, className, children, ...props }) {
-      // Check if it's inside a <pre> tag (code block) or standalone (inline)
-      const isCodeBlock = node?.position?.start?.line !== node?.position?.end?.line ||
-                          className?.startsWith('language-') ||
-                          String(children).includes('\n');
-      
-      if (isCodeBlock || className) {
+      const match = /language-(\w+)/.exec(className || '');
+      const isBlock = match || String(children).includes('\n');
+
+      if (isBlock) {
         return (
-          <CodeBlock className={className} onRunQuery={onRunQuery}>
+          <CodeBlock
+            className={className}
+            onRunQuery={onRunQuery}
+            isDarkMode={isDarkMode}
+            theme={theme}
+          >
             {children}
           </CodeBlock>
         );
       }
-      
-      // Inline code
-      return <InlineCode {...props}>{children}</InlineCode>;
+      return <InlineCode theme={theme} isDarkMode={isDarkMode} {...props}>{children}</InlineCode>;
     },
-    // Ensure pre tags don't add extra wrapper
-    pre({ children }) {
-      return <>{children}</>;
-    },
-    // Wrap tables in a container for horizontal scrolling
-    table({ children, ...props }) {
-      return (
-        <Box sx={{ overflowX: 'auto', display: 'block', maxWidth: '100%', my: 2, borderRadius: 1 }}>
-          <table {...props}>{children}</table>
-        </Box>
-      );
-    },
-  }), [onRunQuery]);
-
-  // Memoize remarkPlugins to prevent unnecessary re-renders
-  const remarkPlugins = useMemo(() => [remarkGfm], []);
+    pre: ({ children }) => <>{children}</>,
+    table: ({ children }) => (
+      <Box sx={{ overflowX: 'auto', my: 2, borderRadius: '12px', border: `1px solid ${theme.palette.divider}` }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>{children}</table>
+      </Box>
+    ),
+  }), [onRunQuery, isDarkMode, theme]);
 
   return (
-    <Box
-      sx={{
-        '& p': { my: 1, lineHeight: 1.7 },
-        '& h1, & h2, & h3, & h4': { mt: 2.5, mb: 1, fontWeight: 600 },
-        '& h1': { fontSize: '1.5rem' },
-        '& h2': { fontSize: '1.25rem' },
-        '& h3': { fontSize: '1.1rem' },
-        '& ul, & ol': { pl: 2.5, my: 1 },
-        '& li': { my: 0.25 },
-        '& blockquote': {
-          borderLeft: '3px solid',
-          borderColor: 'primary.main',
-          pl: 2,
-          ml: 0,
-          my: 1.5,
-          color: 'text.secondary',
-        },
-        '& hr': { 
-          border: 'none', 
-          borderTop: '1px solid',
-          borderColor: alpha(theme.palette.text.primary, 0.1),
-          my: 2 
-        },
-        '& table': { width: '100%', borderCollapse: 'collapse', my: 2 },
-        '& th, & td': { 
-          border: '1px solid',
-          borderColor: alpha(theme.palette.text.primary, 0.1),
-          px: 1.5, 
-          py: 0.75, 
-          textAlign: 'left' 
-        },
-        '& th': { 
-          backgroundColor: alpha(theme.palette.text.primary, 0.03), 
-          fontWeight: 600 
-        },
-        '& a': { color: 'primary.light', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } },
-        '& strong': { fontWeight: 600 },
-        // Trim top margin on first block to align with avatar vertically
-        '& > *:first-of-type': { marginTop: 0 },
-      }}
-    >
-      <ReactMarkdown
-        remarkPlugins={remarkPlugins}
-        components={components}
-      >
+    <Box sx={{
+      // GLOBAL STABILITY STYLES
+      overflowWrap: 'anywhere', // CRITICAL: Breaks long strings (URLs/tokens) to prevent layout shifting
+      wordBreak: 'break-word',
+      
+      '& p': { my: 1.5, lineHeight: 1.7 },
+      '& ul, & ol': { pl: 3, my: 1.5 },
+      '& li': { mb: 0.5 },
+      '& a': { color: 'primary.main', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } },
+      
+      // Table Styles
+      '& th': { bgcolor: alpha(theme.palette.text.primary, 0.04), fontWeight: 600, textAlign: 'left', p: 1.5, borderBottom: `1px solid ${theme.palette.divider}` },
+      '& td': { p: 1.5, borderBottom: `1px solid ${theme.palette.divider}` },
+      '& tr:last-child td': { borderBottom: 'none' },
+    }}>
+      <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={components}>
         {content}
       </ReactMarkdown>
     </Box>
   );
 }
 
-export default memo(MarkdownRenderer);
+export default MarkdownRenderer;

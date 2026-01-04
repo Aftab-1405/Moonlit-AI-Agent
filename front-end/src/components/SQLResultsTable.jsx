@@ -42,7 +42,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
   const [cellCopied, setCellCopied] = useState(null); // Track which cell was copied
   const [columnWidthOverrides, setColumnWidths] = useState({});
   const [resizing, setResizing] = useState(null);
-  
+
   const copyTimeoutRef = useRef(null);
   const cellCopyTimeoutRef = useRef(null);
   const resizeStartX = useRef(0);
@@ -77,7 +77,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
   const filteredData = useMemo(() => {
     if (!searchQuery.trim()) return result;
     const query = searchQuery.toLowerCase();
-    return result.filter(row => 
+    return result.filter(row =>
       columns.some(col => {
         const val = row[col];
         if (val === null) return false;
@@ -85,22 +85,22 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
       })
     );
   }, [result, columns, searchQuery]);
-  
+
   // Sorting logic
   const sortedData = useMemo(() => {
     if (!orderBy) return filteredData;
-    
+
     return [...filteredData].sort((a, b) => {
       const aVal = a[orderBy];
       const bVal = b[orderBy];
-      
+
       if (aVal === null) return 1;
       if (bVal === null) return -1;
-      
+
       if (typeof aVal === 'number' && typeof bVal === 'number') {
         return order === 'asc' ? aVal - bVal : bVal - aVal;
       }
-      
+
       return order === 'asc'
         ? String(aVal).localeCompare(String(bVal))
         : String(bVal).localeCompare(String(aVal));
@@ -124,7 +124,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
   // Generate CSV content
   const generateCSV = useCallback(() => {
     if (!columns.length || !result.length) return '';
-    
+
     const header = columns.join(',');
     const rows = result.map((row) =>
       columns.map((col) => {
@@ -136,14 +136,14 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
         return val;
       }).join(',')
     );
-    
+
     return [header, ...rows].join('\n');
   }, [columns, result]);
 
   const handleCopyAsCSV = useCallback(() => {
     const csv = generateCSV();
     if (!csv) return;
-    
+
     navigator.clipboard.writeText(csv);
     setCopied(true);
     if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
@@ -153,7 +153,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
   const handleDownloadCSV = useCallback(() => {
     const csv = generateCSV();
     if (!csv) return;
-    
+
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -211,9 +211,9 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
   // Chart view - pass viewMode controls to ChartVisualization for consistent layout
   if (!embedded && viewMode === 'chart') {
     return (
-      <ChartVisualization 
-        data={data} 
-        onClose={onClose} 
+      <ChartVisualization
+        data={data}
+        onClose={onClose}
         viewMode={viewMode}
         onViewModeChange={(v) => v && setViewMode(v)}
       />
@@ -246,10 +246,10 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
           {/* Chart View Button - only when not embedded */}
           {!embedded && (
             <Tooltip title="Chart View">
-              <IconButton 
-                size="small" 
+              <IconButton
+                size="small"
                 onClick={() => setViewMode('chart')}
-                sx={{ 
+                sx={{
                   color: 'text.secondary',
                   '&:hover': { backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06) },
                 }}
@@ -261,10 +261,8 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
           <Chip
             size="small"
             label={`${searchQuery ? filteredData.length : row_count} rows`}
-            sx={{ 
+            sx={{
               height: 24,
-              fontSize: '0.75rem',
-              fontWeight: 600,
               backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06),
               color: 'text.primary',
               border: '1px solid',
@@ -276,9 +274,8 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
               size="small"
               icon={<TimerOutlinedIcon sx={{ fontSize: 12 }} />}
               label={`${execution_time.toFixed(2)}s`}
-              sx={{ 
+              sx={{
                 height: 24,
-                fontSize: '0.7rem',
                 backgroundColor: isDark ? alpha('#fff', 0.05) : alpha('#000', 0.04),
                 '& .MuiChip-icon': { ml: 0.5, color: 'text.secondary' },
               }}
@@ -288,9 +285,8 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
             <Chip
               size="small"
               label="Truncated"
-              sx={{ 
-                height: 24, 
-                fontSize: '0.7rem',
+              sx={{
+                height: 24,
                 backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06),
                 color: 'text.secondary',
               }}
@@ -316,19 +312,18 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
               width: 160,
               '& .MuiOutlinedInput-root': {
                 height: 32,
-                fontSize: '0.8rem',
                 backgroundColor: isDark ? alpha('#fff', 0.03) : alpha('#000', 0.02),
                 '& fieldset': { borderColor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.1) },
               },
             }}
           />
 
-          
+
           <Tooltip title={copied ? 'Copied!' : 'Copy as CSV'}>
-            <IconButton 
-              size="small" 
+            <IconButton
+              size="small"
               onClick={handleCopyAsCSV}
-              sx={{ 
+              sx={{
                 color: copied ? 'text.primary' : 'text.secondary',
                 '&:hover': { backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06) },
               }}
@@ -341,10 +336,10 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
             </IconButton>
           </Tooltip>
           <Tooltip title="Download CSV">
-            <IconButton 
-              size="small" 
+            <IconButton
+              size="small"
               onClick={handleDownloadCSV}
-              sx={{ 
+              sx={{
                 color: 'text.secondary',
                 '&:hover': { backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06) },
               }}
@@ -354,10 +349,10 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
           </Tooltip>
           {onClose && !embedded && (
             <Tooltip title="Close">
-              <IconButton 
-                size="small" 
+              <IconButton
+                size="small"
                 onClick={onClose}
-                sx={{ 
+                sx={{
                   color: 'text.secondary',
                   '&:hover': { backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06) },
                 }}
@@ -370,8 +365,8 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
       </Box>
 
       {/* Table with resizable columns */}
-      <TableContainer 
-        sx={{ 
+      <TableContainer
+        sx={{
           flex: 1,
           minHeight: 250, // Prevent shrinking
           cursor: resizing ? 'col-resize' : 'default',
@@ -388,11 +383,10 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                     width: columnWidths[column] || 150,
                     minWidth: 80,
                     maxWidth: 500,
-                    backgroundColor: isDark 
+                    backgroundColor: isDark
                       ? alpha(theme.palette.background.paper, 0.95)
                       : theme.palette.background.paper,
                     fontWeight: 600,
-                    fontSize: '0.75rem',
                     textTransform: 'uppercase',
                     letterSpacing: 0.5,
                     color: 'text.secondary',
@@ -454,14 +448,13 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                 {columns.map((column, colIndex) => {
                   const cellKey = `${rowIndex}-${colIndex}`;
                   const isCopied = cellCopied === cellKey;
-                  
+
                   return (
                     <TableCell
                       key={column}
                       onClick={() => handleCellClick(row[column], rowIndex, colIndex)}
                       sx={{
                         width: columnWidths[column] || 150,
-                        fontSize: '0.8rem',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
@@ -481,10 +474,10 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                       {row[column] === null ? (
                         <Typography
                           component="span"
-                          sx={{ 
-                            color: 'text.disabled', 
+                          variant="caption"
+                          sx={{
+                            color: 'text.disabled',
                             fontStyle: 'italic',
-                            fontSize: '0.75rem',
                             backgroundColor: isDark ? alpha('#fff', 0.05) : alpha('#000', 0.05),
                             px: 0.75,
                             py: 0.25,
@@ -496,9 +489,8 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                       ) : typeof row[column] === 'number' ? (
                         <Typography
                           component="span"
-                          sx={{ 
+                          sx={{
                             fontFamily: '"JetBrains Mono", monospace',
-                            fontSize: '0.8rem',
                             color: 'text.primary',
                           }}
                         >
@@ -533,10 +525,8 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
           borderColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.08),
           backgroundColor: theme.palette.background.paper,
           '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
-            fontSize: '0.75rem',
           },
           '& .MuiTablePagination-select': {
-            fontSize: '0.8rem',
           },
         }}
       />
@@ -552,7 +542,6 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
             width: 'fit-content',
             py: 0.5,
             px: 2,
-            fontSize: '0.8rem',
             backgroundColor: isDark ? alpha('#fff', 0.12) : alpha('#000', 0.8),
             color: isDark ? 'text.primary' : '#fff',
           },
