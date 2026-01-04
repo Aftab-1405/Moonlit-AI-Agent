@@ -8,7 +8,7 @@ import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus, vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
-// import MermaidDiagram from './MermaidDiagram'; // Uncomment if you have this component
+import MermaidDiagram from './MermaidDiagram';
 
 // ============================================================================
 // CONSTANTS
@@ -73,7 +73,10 @@ const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isD
     width: '100%',
   }), [isDarkMode, theme]);
 
-  // if (isMermaid) return <MermaidDiagram code={code} />; // Uncomment if using Mermaid
+  // Render Mermaid diagrams with dedicated component (AFTER all hooks)
+  if (isMermaid) {
+    return <MermaidDiagram code={code} />;
+  }
 
   return (
     <Box sx={containerStyles}>
@@ -194,12 +197,12 @@ function MarkdownRenderer({ content, onRunQuery }) {
       // GLOBAL STABILITY STYLES
       overflowWrap: 'anywhere', // CRITICAL: Breaks long strings (URLs/tokens) to prevent layout shifting
       wordBreak: 'break-word',
-      
+
       '& p': { my: 1.5, lineHeight: 1.7 },
       '& ul, & ol': { pl: 3, my: 1.5 },
       '& li': { mb: 0.5 },
       '& a': { color: 'primary.main', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } },
-      
+
       // Table Styles
       '& th': { bgcolor: alpha(theme.palette.text.primary, 0.04), fontWeight: 600, textAlign: 'left', p: 1.5, borderBottom: `1px solid ${theme.palette.divider}` },
       '& td': { p: 1.5, borderBottom: `1px solid ${theme.palette.divider}` },

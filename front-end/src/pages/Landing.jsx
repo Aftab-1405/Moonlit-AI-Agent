@@ -12,6 +12,7 @@ import ShieldIcon from '@mui/icons-material/Shield';
 import InsightsIcon from '@mui/icons-material/Insights';
 import StarfieldCanvas from '../components/StarfieldCanvas';
 import { getMoonlitGradient } from '../theme';
+import { useAuth } from '../contexts/AuthContext';
 
 // ---------- Shared Styles ----------
 const glassCard = (theme) => ({
@@ -555,10 +556,14 @@ function FinalCTA({ onGetStarted }) {
 // ---------- Main Landing ----------
 export default function Landing() {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => { document.title = 'Moonlit - AI Database Assistant'; }, []);
 
-  const handleGetStarted = useCallback(() => navigate('/auth'), [navigate]);
+  // Navigate directly to chat if authenticated, otherwise to auth page
+  const handleGetStarted = useCallback(() => {
+    navigate(isAuthenticated ? '/chat' : '/auth');
+  }, [navigate, isAuthenticated]);
 
   return (
     <Box

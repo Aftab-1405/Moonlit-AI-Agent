@@ -58,7 +58,9 @@ class DatabaseOperations:
             
             with manager.get_cursor(db_config) as cursor:
                 cursor.execute(query)
-                databases = [db[0] for db in cursor.fetchall()]
+                raw_rows = cursor.fetchall()
+                # Use adapter method to extract database names (handles SQLite PRAGMA format)
+                databases = adapter.extract_database_names(raw_rows)
 
             # Filter out system databases using adapter
             system_dbs = adapter.get_system_databases()
@@ -276,7 +278,19 @@ def execute_sql_query(
                     pass
             
             cursor.execute(sql_query)
-            rows = cursor.fetchall()
+            raw_rows = cursor.fetchall()
+            
+            # Convert rows to simple lists for JSON serialization
+            # This handles sqlite3.Row objects and other cursor row types
+            rows = []
+            for row in raw_rows:
+                if hasattr(row, 'keys'):
+                    # sqlite3.Row or similar dict-like object
+                    rows.append(list(row))
+                elif isinstance(row, (list, tuple)):
+                    rows.append(list(row))
+                else:
+                    rows.append([row])
 
             end_time = time.time()
             execution_time = round((end_time - start_time) * 1000, 2)

@@ -49,13 +49,13 @@ const initialState = {
   isConnected: false,
   isLoading: false,
   error: null,
-  
+
   // Database details
   currentDatabase: null,
   dbType: null,
   isRemote: false,
   availableDatabases: [],
-  
+
   // Metadata
   lastConnectedAt: null,
 };
@@ -71,14 +71,14 @@ const ActionTypes = {
   CONNECT_SUCCESS: 'CONNECT_SUCCESS',
   CONNECT_FAILURE: 'CONNECT_FAILURE',
   DISCONNECT: 'DISCONNECT',
-  
+
   // Database operations
   SWITCH_DATABASE: 'SWITCH_DATABASE',
   SET_AVAILABLE_DATABASES: 'SET_AVAILABLE_DATABASES',
-  
+
   // Status sync (from backend)
   SYNC_STATUS: 'SYNC_STATUS',
-  
+
   // Error handling
   SET_ERROR: 'SET_ERROR',
   CLEAR_ERROR: 'CLEAR_ERROR',
@@ -91,9 +91,6 @@ const ActionTypes = {
 // All state transitions are explicit and traceable.
 
 function databaseReducer(state, action) {
-  // Uncomment for debugging:
-  // console.log('[DatabaseReducer]', action.type, action.payload);
-  
   switch (action.type) {
     case ActionTypes.CONNECT_START:
       return {
@@ -101,7 +98,7 @@ function databaseReducer(state, action) {
         isLoading: true,
         error: null,
       };
-      
+
     case ActionTypes.CONNECT_SUCCESS:
       return {
         ...state,
@@ -114,7 +111,7 @@ function databaseReducer(state, action) {
         availableDatabases: action.payload.databases ?? [],
         lastConnectedAt: new Date().toISOString(),
       };
-      
+
     case ActionTypes.CONNECT_FAILURE:
       return {
         ...state,
@@ -122,27 +119,27 @@ function databaseReducer(state, action) {
         isLoading: false,
         error: action.payload.error,
       };
-      
+
     case ActionTypes.DISCONNECT:
       return {
         ...initialState,
         // Keep error if disconnect was due to an error
         error: action.payload?.error ?? null,
       };
-      
+
     case ActionTypes.SWITCH_DATABASE:
       return {
         ...state,
         currentDatabase: action.payload.database,
         error: null,
       };
-      
+
     case ActionTypes.SET_AVAILABLE_DATABASES:
       return {
         ...state,
         availableDatabases: action.payload.databases,
       };
-      
+
     case ActionTypes.SYNC_STATUS:
       // Sync state from backend /db_status endpoint
       // Note: Backend sends current_database (not database) for consistency
@@ -154,20 +151,20 @@ function databaseReducer(state, action) {
         isRemote: action.payload.is_remote ?? false,
         availableDatabases: action.payload.databases ?? [],
       };
-      
+
     case ActionTypes.SET_ERROR:
       return {
         ...state,
         error: action.payload.error,
         isLoading: false,
       };
-      
+
     case ActionTypes.CLEAR_ERROR:
       return {
         ...state,
         error: null,
       };
-      
+
     default:
       console.warn(`[DatabaseReducer] Unknown action type: ${action.type}`);
       return state;
@@ -217,13 +214,13 @@ export function useDatabaseConnection() {
  */
 export function DatabaseProvider({ children }) {
   const [state, dispatch] = useReducer(databaseReducer, initialState);
-  
+
   // ===========================================================================
   // FETCH INITIAL STATUS
   // ===========================================================================
   // On mount, sync with backend to get current connection status.
   // This handles the case where user refreshes the page while connected.
-  
+
   useEffect(() => {
     const checkDbStatus = async () => {
       try {
@@ -233,15 +230,15 @@ export function DatabaseProvider({ children }) {
         console.error('Failed to check DB status:', error);
       }
     };
-    
+
     checkDbStatus();
   }, []);
-  
+
   // ===========================================================================
   // ACTION: CONNECT
   // ===========================================================================
   // Called after successful connection from DatabaseModal
-  
+
   const connect = useCallback((connectionData) => {
     dispatch({
       type: ActionTypes.CONNECT_SUCCESS,
@@ -253,73 +250,73 @@ export function DatabaseProvider({ children }) {
       },
     });
   }, []);
-  
+
   // ===========================================================================
   // ACTION: DISCONNECT
   // ===========================================================================
-  
+
   const disconnect = useCallback(async () => {
     try {
       await disconnectDb();
       dispatch({ type: ActionTypes.DISCONNECT, payload: {} });
     } catch (error) {
       console.error('Disconnect failed:', error);
-      dispatch({ 
-        type: ActionTypes.DISCONNECT, 
-        payload: { error: 'Failed to disconnect' } 
+      dispatch({
+        type: ActionTypes.DISCONNECT,
+        payload: { error: 'Failed to disconnect' }
       });
     }
   }, []);
-  
+
   // ===========================================================================
   // ACTION: RESET CONNECTION STATE (UI only, no API call)
   // ===========================================================================
   // Used when API was already called externally (e.g., from DatabaseModal)
-  
+
   const resetConnectionState = useCallback(() => {
     dispatch({ type: ActionTypes.DISCONNECT, payload: {} });
   }, []);
-  
+
   // ===========================================================================
   // ACTION: SWITCH DATABASE
   // ===========================================================================
-  
+
   const switchDatabase = useCallback(async (dbName) => {
     if (dbName === state.currentDatabase) return { success: true };
-    
+
     try {
       // Remote uses switchDatabaseApi, local uses selectDatabase (session-based)
-      const data = state.isRemote 
+      const data = state.isRemote
         ? await switchDatabaseApi(dbName)
         : await selectDatabase(dbName);
-      
+
       if (data.status === 'connected' || data.status === 'success') {
-        dispatch({ 
-          type: ActionTypes.SWITCH_DATABASE, 
-          payload: { database: dbName } 
+        dispatch({
+          type: ActionTypes.SWITCH_DATABASE,
+          payload: { database: dbName }
         });
         return { success: true };
       } else {
-        dispatch({ 
-          type: ActionTypes.SET_ERROR, 
-          payload: { error: data.message || 'Switch failed' } 
+        dispatch({
+          type: ActionTypes.SET_ERROR,
+          payload: { error: data.message || 'Switch failed' }
         });
         return { success: false, error: data.message };
       }
     } catch {
-      dispatch({ 
-        type: ActionTypes.SET_ERROR, 
-        payload: { error: 'Failed to switch database' } 
+      dispatch({
+        type: ActionTypes.SET_ERROR,
+        payload: { error: 'Failed to switch database' }
       });
       return { success: false, error: 'Failed to switch database' };
     }
   }, [state.currentDatabase, state.isRemote]);
-  
+
   // ===========================================================================
   // ACTION: REFRESH STATUS
   // ===========================================================================
   // Manually refresh connection status from backend
-  
+
   const refreshStatus = useCallback(async () => {
     try {
       const data = await getDbStatus();
@@ -328,29 +325,29 @@ export function DatabaseProvider({ children }) {
       console.error('Failed to refresh DB status:', error);
     }
   }, []);
-  
+
   // ===========================================================================
   // ACTION: SET/CLEAR ERROR
   // ===========================================================================
-  
+
   const setError = useCallback((error) => {
     dispatch({ type: ActionTypes.SET_ERROR, payload: { error } });
   }, []);
-  
+
   const clearError = useCallback(() => {
     dispatch({ type: ActionTypes.CLEAR_ERROR });
   }, []);
-  
+
   // ===========================================================================
   // CONTEXT VALUE
   // ===========================================================================
   // Memoization is handled by useCallback on actions.
   // State changes will correctly trigger re-renders in consumers.
-  
+
   const value = {
     // State (read-only)
     ...state,
-    
+
     // Actions
     connect,
     disconnect,
@@ -360,7 +357,7 @@ export function DatabaseProvider({ children }) {
     setError,
     clearError,
   };
-  
+
   return (
     <DatabaseContext.Provider value={value}>
       {children}

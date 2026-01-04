@@ -78,14 +78,26 @@ function ChatInput({
     [dbType]
   );
 
+  const isSQLite = useMemo(() =>
+    dbType?.toLowerCase() === 'sqlite',
+    [dbType]
+  );
+
   const showSchemaSelector = useMemo(() =>
     isConnected && isPostgreSQL && schemas.length > 0,
     [isConnected, isPostgreSQL, schemas.length]
   );
 
+  // Show database chip if connected (for display), but only make it clickable if multiple DBs
   const showDatabaseSelector = useMemo(() =>
-    isConnected && availableDatabases.length > 1,
-    [isConnected, availableDatabases.length]
+    isConnected && currentDatabase,
+    [isConnected, currentDatabase]
+  );
+
+  // Only allow switching if there are multiple databases (not for SQLite)
+  const canSwitchDatabase = useMemo(() =>
+    availableDatabases.length > 1 && !isSQLite,
+    [availableDatabases.length, isSQLite]
   );
 
   const hasText = useMemo(() =>
@@ -268,14 +280,14 @@ function ChatInput({
               size="small"
               onClick={toggleHidden}
               sx={{
-                backgroundColor: isDarkMode 
+                backgroundColor: isDarkMode
                   ? alpha(theme.palette.common.white, 0.08)
                   : alpha(theme.palette.common.black, 0.05),
                 border: '1px solid',
                 borderColor: theme.palette.divider,
                 boxShadow: 'none',
                 '&:hover': {
-                  backgroundColor: isDarkMode 
+                  backgroundColor: isDarkMode
                     ? alpha(theme.palette.common.white, 0.12)
                     : alpha(theme.palette.common.black, 0.08),
                   boxShadow: 'none',
@@ -313,13 +325,16 @@ function ChatInput({
               }}
             >
               {showDatabaseSelector && (
-                <Tooltip title={`Database: ${currentDatabase}`}>
+                <Tooltip title={canSwitchDatabase ? `Database: ${currentDatabase} (click to switch)` : `Database: ${currentDatabase}`}>
                   <Chip
                     icon={<StorageOutlinedIcon sx={{ fontSize: 14 }} />}
                     label={currentDatabase}
-                    onClick={handleOpenDbMenu}
+                    onClick={canSwitchDatabase ? handleOpenDbMenu : undefined}
                     size="small"
-                    sx={toolbarChipStyles}
+                    sx={{
+                      ...toolbarChipStyles,
+                      cursor: canSwitchDatabase ? 'pointer' : 'default',
+                    }}
                   />
                 </Tooltip>
               )}

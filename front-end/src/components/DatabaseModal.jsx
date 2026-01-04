@@ -27,6 +27,7 @@ import {
   Fade,
   ToggleButton,
   ToggleButtonGroup,
+  Tooltip,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useSettings } from '../contexts/SettingsContext';
@@ -127,36 +128,36 @@ const DatabaseList = memo(({ databases, currentDatabase, onSelect, loading, isMo
   // Empty State
   if (databases.length === 0) {
     return (
-        <Box sx={{ 
-            height: '100%', 
-            display: 'flex', 
-            flexDirection: 'column', 
-            alignItems: 'center', 
-            justifyContent: 'center',
-            p: 4,
-            opacity: 0.6
-        }}>
-            <StorageRoundedIcon sx={{ fontSize: 48, mb: 2, color: 'text.disabled' }} />
-            <Typography variant="body2" color="text.secondary" align="center">
-                No databases found.<br/>Connect to a server first.
-            </Typography>
-        </Box>
+      <Box sx={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        p: 4,
+        opacity: 0.6
+      }}>
+        <StorageRoundedIcon sx={{ fontSize: 48, mb: 2, color: 'text.disabled' }} />
+        <Typography variant="body2" color="text.secondary" align="center">
+          No databases found.<br />Connect to a server first.
+        </Typography>
+      </Box>
     );
   }
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-        {!isMobile && (
-            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5, px: 1, fontWeight: 600 }}>
-                Available Databases
-            </Typography>
-        )}
-      <Paper 
-        variant="outlined" 
-        sx={{ 
+      {!isMobile && (
+        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5, px: 1, fontWeight: 600 }}>
+          Available Databases
+        </Typography>
+      )}
+      <Paper
+        variant="outlined"
+        sx={{
           flex: 1,
-          overflow: 'hidden', 
-          display: 'flex', 
+          overflow: 'hidden',
+          display: 'flex',
           bgcolor: 'background.paper',
           border: isMobile ? 'none' : '1px solid',
           borderColor: 'divider',
@@ -179,8 +180,8 @@ const DatabaseList = memo(({ databases, currentDatabase, onSelect, loading, isMo
                   </ListItemIcon>
                   <ListItemText
                     primary={db}
-                    primaryTypographyProps={{ 
-                      variant: 'body2', 
+                    primaryTypographyProps={{
+                      variant: 'body2',
                       fontWeight: isSelected ? 600 : 400,
                       color: isSelected ? 'primary.main' : 'text.primary'
                     }}
@@ -201,17 +202,17 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { settings } = useSettings();
-  
+
   // Settings
   const defaultDbType = settings.defaultDbType || 'postgresql';
   const rememberConnection = settings.rememberConnection ?? false;
-  
+
   // State
   const [savedConnection, setSavedConnection] = useLocalStorage('moonlit-saved-connection', null);
   const [dbType, setDbType] = useState(defaultDbType);
   const [connectionMode, setConnectionMode] = useState('credentials');
   const [connectionString, setConnectionString] = useState('');
-  
+
   // Mobile Tab State: 0 = Form, 1 = Databases
   const [mobileTab, setMobileTab] = useState(0);
 
@@ -234,7 +235,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
 
   // Validation
   const { errors: fieldErrors, validateForm, clearError } = useFormValidation(dbFieldSchemas);
-  
+
   const timeoutRefs = useRef([]);
   const currentDbConfig = useMemo(() => DB_TYPES.find(d => d.value === dbType) || DB_TYPES[1], [dbType]);
   const isSQLite = dbType === 'sqlite';
@@ -257,12 +258,12 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
   // Reset tab when modal opens
   useEffect(() => {
     if (open) {
-        // If connected and has DBs, show DB tab, otherwise show form
-        if (isConnected && databases.length > 0) {
-            setMobileTab(1);
-        } else {
-            setMobileTab(0);
-        }
+      // If connected and has DBs, show DB tab, otherwise show form
+      if (isConnected && databases.length > 0) {
+        setMobileTab(1);
+      } else {
+        setMobileTab(0);
+      }
     }
   }, [open, isConnected, databases.length]);
 
@@ -354,21 +355,21 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
             dbType,
             connectionMode,
             formData: {
-                host: formData.host,
-                port: formData.port,
-                user: formData.user,
-                database: formData.database 
+              host: formData.host,
+              port: formData.port,
+              user: formData.user,
+              database: formData.database
             }
           });
         }
-        
+
         // Auto-switch to Database tab on mobile upon connection
         if (isMobile) {
-            setMobileTab(1);
+          setMobileTab(1);
         }
 
         if (data.is_remote && data.selectedDatabase) {
-           safeSetTimeout(() => onClose(), 1500);
+          safeSetTimeout(() => onClose(), 1500);
         }
       } else {
         setError(data.message || 'Failed to connect');
@@ -430,7 +431,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
           onChange={(e, val) => val && setConnectionMode(val)}
           fullWidth
           size="small"
-          sx={{ 
+          sx={{
             bgcolor: 'background.default',
             '& .MuiToggleButton-root': { py: 0.75, width: '50%' }
           }}
@@ -442,7 +443,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
             </Stack>
           </ToggleButton>
           <ToggleButton value="connection_string">
-             <Stack direction="row" alignItems="center" spacing={1}>
+            <Stack direction="row" alignItems="center" spacing={1}>
               <LinkRoundedIcon sx={{ fontSize: 18 }} />
               <Typography variant="body2" fontWeight={500}>Remote</Typography>
             </Stack>
@@ -455,12 +456,34 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
           fullWidth
           name="database"
           label="Database Path"
+          placeholder="e.g., C:\\data\\mydb.sqlite or /home/user/data/mydb.db"
           value={formData.database}
           onChange={handleInputChange}
           error={!!fieldErrors.database}
-          helperText={fieldErrors.database}
+          helperText={fieldErrors.database || "Enter the full absolute path to your SQLite database file"}
           InputProps={{
-            endAdornment: <InputAdornment position="end"><FolderOpenOutlinedIcon /></InputAdornment>
+            endAdornment: (
+              <InputAdornment position="end">
+                <Tooltip title="Paste path from clipboard">
+                  <IconButton
+                    size="small"
+                    onClick={async () => {
+                      try {
+                        const text = await navigator.clipboard.readText();
+                        if (text) {
+                          setFormData(prev => ({ ...prev, database: text.trim() }));
+                        }
+                      } catch (err) {
+                        console.warn('Clipboard access denied:', err);
+                      }
+                    }}
+                    sx={{ color: 'text.secondary', '&:hover': { color: 'primary.main' } }}
+                  >
+                    <FolderOpenOutlinedIcon />
+                  </IconButton>
+                </Tooltip>
+              </InputAdornment>
+            )
           }}
         />
       ) : connectionMode === 'connection_string' && supportsConnectionString ? (
@@ -551,17 +574,17 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
     >
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1, borderBottom: 1, borderColor: 'divider' }}>
         <Stack direction="row" alignItems="center" spacing={1.5}>
-           <Box 
-             component="img" 
-             src={currentDbConfig.icon} 
-             alt="db-logo"
-             sx={{ 
-               width: 32, 
-               height: 32, 
-               objectFit: 'contain' 
-             }} 
-           />
-           <Typography variant="h6" fontWeight={600}>Connect Database</Typography>
+          <Box
+            component="img"
+            src={currentDbConfig.icon}
+            alt="db-logo"
+            sx={{
+              width: 32,
+              height: 32,
+              objectFit: 'contain'
+            }}
+          />
+          <Typography variant="h6" fontWeight={600}>Connect Database</Typography>
         </Stack>
         <IconButton onClick={onClose} edge="end">
           <CloseRoundedIcon />
@@ -571,134 +594,134 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
       {/* MOBILE ONLY: View Switcher Tabs */}
       {isMobile && (
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-            <Tabs 
-                value={mobileTab} 
-                onChange={handleMobileTabChange} 
-                variant="fullWidth"
-                textColor="primary"
-                indicatorColor="primary"
-            >
-                <Tab icon={<SettingsInputComponentRoundedIcon fontSize="small"/>} iconPosition="start" label="Credentials" />
-                <Tab 
-                    icon={
-                        <Badge badgeContent={databases.length} color="primary" variant="dot" invisible={databases.length === 0}>
-                            <TableViewRoundedIcon fontSize="small"/>
-                        </Badge>
-                    } 
-                    iconPosition="start" 
-                    label="Databases"
-                    disabled={databases.length === 0 && !isConnected}
-                />
-            </Tabs>
+          <Tabs
+            value={mobileTab}
+            onChange={handleMobileTabChange}
+            variant="fullWidth"
+            textColor="primary"
+            indicatorColor="primary"
+          >
+            <Tab icon={<SettingsInputComponentRoundedIcon fontSize="small" />} iconPosition="start" label="Credentials" />
+            <Tab
+              icon={
+                <Badge badgeContent={databases.length} color="primary" variant="dot" invisible={databases.length === 0}>
+                  <TableViewRoundedIcon fontSize="small" />
+                </Badge>
+              }
+              iconPosition="start"
+              label="Databases"
+              disabled={databases.length === 0 && !isConnected}
+            />
+          </Tabs>
         </Box>
       )}
 
-      <DialogContent 
-        sx={{ 
-          p: 0, 
-          display: 'flex', 
-          flexDirection: 'column', 
+      <DialogContent
+        sx={{
+          p: 0,
+          display: 'flex',
+          flexDirection: 'column',
           height: '100%', // Take full height of Paper
           overflow: 'hidden'
         }}
       >
-        
+
         {/* Only show DB Type Selector if we are on Credentials Tab (Mobile) OR Desktop */}
         {(!isMobile || mobileTab === 0) && (
-            <DbTypeSelector value={dbType} onChange={handleDbTypeChange} />
+          <DbTypeSelector value={dbType} onChange={handleDbTypeChange} />
         )}
 
-        <Box 
-          sx={{ 
-            flex: 1, 
+        <Box
+          sx={{
+            flex: 1,
             display: isMobile ? 'block' : 'flex',
             flexDirection: 'row',
             overflow: isMobile ? 'visible' : 'hidden'
           }}
         >
-          
+
           {/* Left: Form Area */}
           {/* Show on Desktop OR if Mobile Tab is 0 */}
           {(!isMobile || mobileTab === 0) && (
             <Fade in={true}>
-                <Box sx={{ 
-                    flex: isMobile ? 'none' : 1,
-                    p: { xs: 2.5, sm: 3.5 },
-                    overflowY: isMobile ? 'visible' : 'auto',
-                    bgcolor: 'background.paper',
-                    // On mobile, take full height
-                    minHeight: isMobile ? 'calc(100vh - 200px)' : 'auto' 
-                }}>
-                    {renderConnectionForm()}
+              <Box sx={{
+                flex: isMobile ? 'none' : 1,
+                p: { xs: 2.5, sm: 3.5 },
+                overflowY: isMobile ? 'visible' : 'auto',
+                bgcolor: 'background.paper',
+                // On mobile, take full height
+                minHeight: isMobile ? 'calc(100vh - 200px)' : 'auto'
+              }}>
+                {renderConnectionForm()}
 
-                    {error && <Alert severity="error" sx={{ mt: 3 }}>{error}</Alert>}
-                    {success && <Alert severity="success" sx={{ mt: 3 }}>{success}</Alert>}
-                </Box>
+                {error && <Alert severity="error" sx={{ mt: 3 }}>{error}</Alert>}
+                {success && <Alert severity="success" sx={{ mt: 3 }}>{success}</Alert>}
+              </Box>
             </Fade>
           )}
 
           {/* Right: Database List Area */}
           {/* Show on Desktop OR if Mobile Tab is 1 */}
           {(!isMobile || mobileTab === 1) && (
-             <Fade in={true}>
-                <Box sx={{ 
-                    flex: isMobile ? 1 : { sm: 1 }, 
-                    p: { xs: 2.5, sm: 3 }, 
-                    overflowY: isMobile ? 'visible' : 'hidden',
-                    display: 'flex', 
-                    flexDirection: 'column',
-                    bgcolor: 'background.default',
-                    borderLeft: { sm: 1 },
-                    borderColor: 'divider',
-                    // On mobile, take full height
-                    minHeight: isMobile ? 'calc(100vh - 200px)' : 'auto' 
-                }}>
-                    <DatabaseList 
-                        databases={databases} 
-                        currentDatabase={currentDatabase} 
-                        onSelect={handleSelectDatabase}
-                        loading={loading}
-                        isMobile={isMobile}
-                    />
-                </Box>
+            <Fade in={true}>
+              <Box sx={{
+                flex: isMobile ? 1 : { sm: 1 },
+                p: { xs: 2.5, sm: 3 },
+                overflowY: isMobile ? 'visible' : 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
+                bgcolor: 'background.default',
+                borderLeft: { sm: 1 },
+                borderColor: 'divider',
+                // On mobile, take full height
+                minHeight: isMobile ? 'calc(100vh - 200px)' : 'auto'
+              }}>
+                <DatabaseList
+                  databases={databases}
+                  currentDatabase={currentDatabase}
+                  onSelect={handleSelectDatabase}
+                  loading={loading}
+                  isMobile={isMobile}
+                />
+              </Box>
             </Fade>
           )}
         </Box>
       </DialogContent>
 
-      <DialogActions sx={{ 
+      <DialogActions sx={{
         px: 3,
         py: 2,
-        bgcolor: 'background.paper', 
-        borderTop: 1, 
+        bgcolor: 'background.paper',
+        borderTop: 1,
         borderColor: 'divider',
         gap: 1
       }}>
         {isConnected && (
-            <Button 
-                onClick={handleDisconnect} 
-                color="error" 
-                startIcon={<PowerSettingsNewRoundedIcon />}
-                disabled={loading}
-                sx={{ mr: 'auto' }}
-            >
-                {isMobile ? "Disconnect" : "Disconnect DB"}
-            </Button>
+          <Button
+            onClick={handleDisconnect}
+            color="error"
+            startIcon={<PowerSettingsNewRoundedIcon />}
+            disabled={loading}
+            sx={{ mr: 'auto' }}
+          >
+            {isMobile ? "Disconnect" : "Disconnect DB"}
+          </Button>
         )}
-        
+
         {/* Primary Action Button */}
         {/* On Mobile Tab 0 (Credentials) -> Show "Connect" */}
         {/* On Mobile Tab 1 (Databases) -> Hide Connect (User clicks list items) */}
         {!isConnected && (!isMobile || mobileTab === 0) && (
-            <Button
-            
+          <Button
+
             onClick={handleConnect}
             disabled={loading}
             startIcon={loading ? <CircularProgress size={20} color="inherit" /> : null}
             sx={{ minWidth: 120 }}
-            >
+          >
             {loading ? 'Connecting...' : 'Connect'}
-            </Button>
+          </Button>
         )}
       </DialogActions>
     </Dialog>

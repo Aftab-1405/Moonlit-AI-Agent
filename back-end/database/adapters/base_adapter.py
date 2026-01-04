@@ -248,6 +248,19 @@ class BaseDatabaseAdapter(ABC):
             return [desc[0] for desc in cursor.description]
         return []
     
+    def extract_database_names(self, rows: list) -> list:
+        """
+        Extract database names from the result of get_databases_query.
+        
+        Args:
+            rows: Raw rows from cursor.fetchall()
+            
+        Returns:
+            List of database names
+        """
+        # Default: first column contains the database name
+        return [row[0] for row in rows]
+    
     def get_databases_for_cache(self) -> tuple:
         """
         Return SQL query and params to get all databases for caching.

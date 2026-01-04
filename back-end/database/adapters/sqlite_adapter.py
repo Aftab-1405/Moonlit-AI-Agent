@@ -72,8 +72,8 @@ class SQLiteAdapter(BaseDatabaseAdapter):
     def create_connection_pool(self, config: Dict) -> Any:
         """Create SQLite connection pool."""
         try:
-            # For SQLite, 'database' is the file path
-            database_path = config.get('database') or config.get('path') or ':memory:'
+            # For SQLite, prefer 'file_path' (full path) over 'database' (display name)
+            database_path = config.get('file_path') or config.get('database') or config.get('path') or ':memory:'
 
             pool = SQLiteConnectionPool(database_path, max_connections=10)
             logger.info(f"Created SQLite connection pool for {database_path}")
@@ -136,6 +136,15 @@ class SQLiteAdapter(BaseDatabaseAdapter):
         Return query to get attached databases.
         """
         return "PRAGMA database_list"
+    
+    def extract_database_names(self, rows: list) -> list:
+        """
+        Extract database names from PRAGMA database_list.
+        
+        PRAGMA database_list returns: (seq, name, file)
+        We need column 1 (name) not column 0 (seq).
+        """
+        return [row[1] for row in rows if row[1]]  # row[1] is the database name
 
     def get_tables_query(self) -> str:
         """SQL query to list SQLite tables."""
@@ -145,6 +154,31 @@ class SQLiteAdapter(BaseDatabaseAdapter):
             WHERE type = 'table'
             AND name NOT LIKE 'sqlite_%'
         """
+    
+    def get_all_tables_for_cache(self, db_name: str = None, schema: str = 'main') -> tuple:
+        """
+        Return SQL query and params to get all tables for caching.
+        SQLite ignores db_name since it's file-based.
+        """
+        query = """
+            SELECT name
+            FROM sqlite_master
+            WHERE type = 'table'
+            AND name NOT LIKE 'sqlite_%'
+            ORDER BY name
+        """
+        return query, ()
+    
+    def get_columns_for_table_cache(self, db_name: str, table_name: str, schema: str = 'main') -> tuple:
+        """
+        Return SQL query and params to get columns for a table.
+        SQLite uses PRAGMA table_info which returns (cid, name, type, notnull, dflt_value, pk).
+        We wrap in a query to just get column names.
+        """
+        # PRAGMA returns: cid, name, type, notnull, dflt_value, pk
+        # We need to use the PRAGMA directly as it can't be used in subquery
+        # The _cache_schema_sqlite method will handle this specially
+        return f"PRAGMA table_info('{table_name}')", ()
 
     def get_table_schema_query(self) -> str:
         """SQL query to get SQLite table schema."""

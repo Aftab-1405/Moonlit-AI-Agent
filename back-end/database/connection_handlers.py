@@ -66,8 +66,15 @@ def _cache_schema(user_id: str, db_config: dict, database: str, tables: list, db
                 try:
                     cols_query, cols_params = adapter.get_columns_for_table_cache(database, table)
                     cursor.execute(cols_query, cols_params)
-                    columns[table] = [row[0] for row in cursor.fetchall()]
-                except Exception:
+                    rows = cursor.fetchall()
+                    # SQLite PRAGMA table_info returns (cid, name, type, notnull, dflt_value, pk)
+                    # Other DBs return column name in first position
+                    if db_type == 'sqlite':
+                        columns[table] = [row[1] for row in rows]  # name is at index 1
+                    else:
+                        columns[table] = [row[0] for row in rows]
+                except Exception as e:
+                    logger.debug(f"Failed to get columns for {table}: {e}")
                     columns[table] = []
         
         ContextService.cache_schema(user_id, database, tables, columns)
@@ -85,15 +92,20 @@ def connect_local_sqlite(file_path: str, user_id: str = None) -> dict:
     from database.operations import DatabaseOperations
     from database.adapters import get_adapter
     from database.connection_manager import get_connection_manager
+    import os
     
     if not file_path:
         return {'status': 'error', 'message': 'Database file path required'}
     
     _clear_cache()
     
+    # Extract just the filename for display purposes
+    display_name = os.path.basename(file_path)
+    
     db_config = {
         'db_type': 'sqlite',
-        'database': file_path
+        'database': display_name,  # Use filename for display
+        'file_path': file_path,    # Store full path for actual connection
     }
     
     try:
@@ -102,16 +114,32 @@ def connect_local_sqlite(file_path: str, user_id: str = None) -> dict:
         adapter = get_adapter('sqlite')
         
         if adapter.validate_connection(conn):
-            dbs_result = DatabaseOperations.get_databases(db_config)
-            _sync_context(user_id, 'sqlite', file_path, 'local', False)
+            # Sync connection context
+            _sync_context(user_id, 'sqlite', display_name, 'local', False)
             
-            logger.info(f"Connected to SQLite: {file_path}")
+            # Fetch tables for caching and mindmap
+            tables = []
+            try:
+                tables_query, tables_params = adapter.get_all_tables_for_cache(display_name)
+                with manager.get_cursor(db_config) as cursor:
+                    cursor.execute(tables_query, tables_params)
+                    tables = [row[0] for row in cursor.fetchall()]
+            except Exception as e:
+                logger.warning(f"Failed to fetch SQLite tables: {e}")
+            
+            # Cache schema for mindmap/AI context
+            if tables and user_id:
+                _cache_schema(user_id, db_config, display_name, tables, 'sqlite')
+            
+            logger.info(f"Connected to SQLite: {file_path} with {len(tables)} tables")
             return {
                 'status': 'connected',
                 'message': 'Connected to SQLite database',
-                'schemas': dbs_result.get('databases', []),
+                'schemas': [display_name],  # Just the one database
+                'tables': tables,
                 'db_type': 'sqlite',
-                'db_config': db_config
+                'db_config': db_config,
+                'selectedDatabase': display_name,
             }
         return {'status': 'error', 'message': 'Failed to connect to SQLite'}
     except Exception as err:
@@ -149,13 +177,26 @@ def connect_local_mysql(host: str, port: int, user: str, password: str,
             if dbs_result.get('status') == 'success':
                 _sync_context(user_id, 'mysql', database or 'mysql', host, False)
                 
+                # Cache schema if a database is selected
+                if database and user_id:
+                    try:
+                        tables_query, tables_params = adapter.get_all_tables_for_cache(database)
+                        with manager.get_cursor(db_config) as cursor:
+                            cursor.execute(tables_query, tables_params)
+                            tables = [row[0] for row in cursor.fetchall()]
+                        if tables:
+                            _cache_schema(user_id, db_config, database, tables, 'mysql')
+                    except Exception as e:
+                        logger.warning(f"Failed to cache MySQL schema: {e}")
+                
                 logger.info(f"Connected to MySQL: {host}:{port}")
                 return {
                     'status': 'connected',
                     'message': f'Connected to MySQL at {host}:{port}',
                     'schemas': dbs_result['databases'],
                     'db_type': 'mysql',
-                    'db_config': db_config
+                    'db_config': db_config,
+                    'selectedDatabase': database
                 }
             
             return {
@@ -201,13 +242,26 @@ def connect_local_postgresql(host: str, port: int, user: str, password: str,
             if dbs_result.get('status') == 'success':
                 _sync_context(user_id, 'postgresql', database or 'postgres', host, False)
                 
+                # Cache schema if a database is selected
+                if database and user_id:
+                    try:
+                        tables_query, tables_params = adapter.get_all_tables_for_cache(database, 'public')
+                        with manager.get_cursor(db_config) as cursor:
+                            cursor.execute(tables_query, tables_params)
+                            tables = [row[0] for row in cursor.fetchall()]
+                        if tables:
+                            _cache_schema(user_id, db_config, database, tables, 'postgresql')
+                    except Exception as e:
+                        logger.warning(f"Failed to cache PostgreSQL schema: {e}")
+                
                 logger.info(f"Connected to PostgreSQL: {host}:{port}")
                 return {
                     'status': 'connected',
                     'message': f'Connected to PostgreSQL at {host}:{port}',
                     'schemas': dbs_result['databases'],
                     'db_type': 'postgresql',
-                    'db_config': db_config
+                    'db_config': db_config,
+                    'selectedDatabase': database
                 }
             
             return {
@@ -384,6 +438,18 @@ def select_database(db_config: dict, db_name: str, user_id: str = None) -> dict:
     if not db_config:
         return {'status': 'error', 'message': 'No database connected'}
     
+    db_type = db_config.get('db_type', 'mysql')
+    
+    # For SQLite, there's only one database per file - no switching needed
+    if db_type == 'sqlite':
+        current_db = db_config.get('database')
+        logger.info(f"SQLite database already selected: {current_db}")
+        return {
+            'status': 'connected',
+            'message': f'Already connected to {current_db}',
+            'db_config': db_config
+        }
+    
     # Create new config with selected database
     new_config = db_config.copy()
     new_config['database'] = db_name
@@ -407,4 +473,305 @@ def select_database(db_config: dict, db_name: str, user_id: str = None) -> dict:
         }
     except Exception as err:
         logger.exception(f'Error selecting database {db_name}')
+        return {'status': 'error', 'message': str(err)}
+
+
+# =============================================================================
+# ORACLE CONNECTION HANDLERS
+# =============================================================================
+
+def connect_local_oracle(host: str, port: int, user: str, password: str,
+                         service_name: str = None, user_id: str = None) -> dict:
+    """Connect to a local Oracle database server."""
+    from database.adapters import get_adapter
+    from database.connection_manager import get_connection_manager
+    
+    _clear_cache()
+    
+    db_config = {
+        'db_type': 'oracle',
+        'host': host or 'localhost',
+        'port': int(port) if port else 1521,
+        'user': user,
+        'password': password,
+        'service_name': service_name or 'ORCL',
+        'database': user.upper() if user else 'SYSTEM'  # Oracle schema = user
+    }
+    
+    try:
+        manager = get_connection_manager()
+        conn = manager.get_connection(db_config)
+        adapter = get_adapter('oracle')
+        
+        if adapter.validate_connection(conn):
+            # Get schemas (users) as "databases"
+            schemas = []
+            try:
+                with manager.get_cursor(db_config) as cursor:
+                    cursor.execute(adapter.get_databases_query())
+                    schemas = [row[0] for row in cursor.fetchall()]
+            except Exception as e:
+                logger.warning(f"Failed to fetch Oracle schemas: {e}")
+                schemas = [user.upper()] if user else []
+            
+            schema_name = user.upper() if user else 'SYSTEM'
+            _sync_context(user_id, 'oracle', schema_name, host, False)
+            
+            # Cache schema if we have a user/schema
+            if schema_name and user_id:
+                try:
+                    tables_query, tables_params = adapter.get_all_tables_for_cache(schema_name)
+                    with manager.get_cursor(db_config) as cursor:
+                        cursor.execute(tables_query, tables_params)
+                        tables = [row[0] for row in cursor.fetchall()]
+                    if tables:
+                        _cache_schema(user_id, db_config, schema_name, tables, 'oracle')
+                except Exception as e:
+                    logger.warning(f"Failed to cache Oracle schema: {e}")
+            
+            logger.info(f"Connected to Oracle: {host}:{port}/{service_name}")
+            return {
+                'status': 'connected',
+                'message': f'Connected to Oracle at {host}:{port}/{service_name}',
+                'schemas': schemas,
+                'db_type': 'oracle',
+                'db_config': db_config,
+                'selectedDatabase': schema_name
+            }
+        return {'status': 'error', 'message': 'Failed to connect to Oracle'}
+    except Exception as err:
+        logger.exception('Error connecting to Oracle')
+        return {'status': 'error', 'message': str(err)}
+
+
+def connect_remote_oracle(connection_string: str, user_id: str = None) -> dict:
+    """
+    Connect to a remote Oracle database using connection string.
+    
+    Expected format: user/password@host:port/service_name
+    """
+    from database.adapters import get_adapter
+    from database.connection_manager import get_connection_manager
+    import re
+    
+    _clear_cache()
+    
+    # Parse Oracle connection string: user/password@host:port/service_name
+    match = re.match(r'([^/]+)/([^@]+)@([^:]+):?(\d+)?/(.+)', connection_string)
+    if match:
+        user, password, host, port, service_name = match.groups()
+        port = int(port) if port else 1521
+        schema_name = user.upper()
+    else:
+        # Simple format - try direct connection
+        host = 'remote'
+        schema_name = 'REMOTE'
+        service_name = 'unknown'
+    
+    db_config = {
+        'db_type': 'oracle',
+        'connection_string': connection_string,
+        'database': schema_name,
+        'is_remote': True
+    }
+    
+    try:
+        manager = get_connection_manager()
+        conn = manager.get_connection(db_config)
+        adapter = get_adapter('oracle')
+        
+        if adapter.validate_connection(conn):
+            logger.info(f"Connected to remote Oracle: {schema_name}")
+            
+            # Get schemas
+            schemas = []
+            try:
+                with manager.get_cursor(db_config) as cursor:
+                    cursor.execute(adapter.get_databases_query())
+                    schemas = [row[0] for row in cursor.fetchall()]
+            except Exception:
+                schemas = [schema_name]
+            
+            # Get tables
+            tables = []
+            try:
+                tables_query, tables_params = adapter.get_all_tables_for_cache(schema_name)
+                with manager.get_cursor(db_config) as cursor:
+                    cursor.execute(tables_query, tables_params)
+                    tables = [row[0] for row in cursor.fetchall()]
+            except Exception as e:
+                logger.warning(f"Failed to fetch Oracle tables: {e}")
+            
+            _sync_context(user_id, 'oracle', schema_name, host, True)
+            if tables:
+                _cache_schema(user_id, db_config, schema_name, tables, 'oracle')
+            
+            message = f'Connected to remote Oracle: {schema_name}'
+            if tables:
+                message += f' ({len(tables)} tables)'
+            
+            return {
+                'status': 'connected',
+                'message': message,
+                'schemas': schemas,
+                'selectedDatabase': schema_name,
+                'is_remote': True,
+                'tables': tables,
+                'db_type': 'oracle',
+                'db_config': db_config
+            }
+        return {'status': 'error', 'message': 'Failed to connect to remote Oracle'}
+    except Exception as err:
+        logger.exception('Error connecting to remote Oracle')
+        return {'status': 'error', 'message': str(err)}
+
+
+# =============================================================================
+# SQL SERVER CONNECTION HANDLERS
+# =============================================================================
+
+def connect_local_sqlserver(host: str, port: int, user: str, password: str,
+                            database: str = None, user_id: str = None) -> dict:
+    """Connect to a local SQL Server database."""
+    from database.operations import DatabaseOperations
+    from database.adapters import get_adapter
+    from database.connection_manager import get_connection_manager
+    
+    _clear_cache()
+    
+    db_config = {
+        'db_type': 'sqlserver',
+        'host': host or 'localhost',
+        'port': int(port) if port else 1433,
+        'user': user,
+        'password': password
+    }
+    if database:
+        db_config['database'] = database
+    
+    try:
+        manager = get_connection_manager()
+        conn = manager.get_connection(db_config)
+        adapter = get_adapter('sqlserver')
+        
+        if adapter.validate_connection(conn):
+            # Get databases
+            databases = []
+            try:
+                with manager.get_cursor(db_config) as cursor:
+                    cursor.execute(adapter.get_databases_query())
+                    all_dbs = [row[0] for row in cursor.fetchall()]
+                    system_dbs = adapter.get_system_databases()
+                    databases = [db for db in all_dbs if db.lower() not in system_dbs]
+            except Exception as e:
+                logger.warning(f"Failed to fetch SQL Server databases: {e}")
+                if database:
+                    databases = [database]
+            
+            _sync_context(user_id, 'sqlserver', database or 'master', host, False)
+            
+            # Cache schema if a database is selected
+            if database and user_id:
+                try:
+                    tables_query, tables_params = adapter.get_all_tables_for_cache(database)
+                    with manager.get_cursor(db_config) as cursor:
+                        cursor.execute(tables_query, tables_params)
+                        tables = [row[0] for row in cursor.fetchall()]
+                    if tables:
+                        _cache_schema(user_id, db_config, database, tables, 'sqlserver')
+                except Exception as e:
+                    logger.warning(f"Failed to cache SQL Server schema: {e}")
+            
+            logger.info(f"Connected to SQL Server: {host}:{port}")
+            return {
+                'status': 'connected',
+                'message': f'Connected to SQL Server at {host}:{port}',
+                'schemas': databases,
+                'db_type': 'sqlserver',
+                'db_config': db_config,
+                'selectedDatabase': database
+            }
+        return {'status': 'error', 'message': 'Failed to connect to SQL Server'}
+    except Exception as err:
+        logger.exception('Error connecting to SQL Server')
+        return {'status': 'error', 'message': str(err)}
+
+
+def connect_remote_sqlserver(connection_string: str, user_id: str = None) -> dict:
+    """
+    Connect to a remote SQL Server database using connection string.
+    
+    Expected format: Driver={ODBC Driver 17 for SQL Server};Server=xxx;Database=xxx;UID=xxx;PWD=xxx
+    Or: Server=xxx;Database=xxx;User Id=xxx;Password=xxx
+    """
+    from database.adapters import get_adapter
+    from database.connection_manager import get_connection_manager
+    import re
+    
+    _clear_cache()
+    
+    # Parse connection string for database name and server
+    db_match = re.search(r'Database=([^;]+)', connection_string, re.IGNORECASE)
+    server_match = re.search(r'Server=([^;,]+)', connection_string, re.IGNORECASE)
+    
+    db_name = db_match.group(1) if db_match else 'master'
+    host = server_match.group(1) if server_match else 'remote'
+    
+    db_config = {
+        'db_type': 'sqlserver',
+        'connection_string': connection_string,
+        'database': db_name,
+        'is_remote': True
+    }
+    
+    try:
+        manager = get_connection_manager()
+        conn = manager.get_connection(db_config)
+        adapter = get_adapter('sqlserver')
+        
+        if adapter.validate_connection(conn):
+            logger.info(f"Connected to remote SQL Server: {db_name} at {host}")
+            
+            # Get databases
+            all_databases = []
+            try:
+                with manager.get_cursor(db_config) as cursor:
+                    cursor.execute(adapter.get_databases_query())
+                    all_dbs = [row[0] for row in cursor.fetchall()]
+                    system_dbs = adapter.get_system_databases()
+                    all_databases = [db for db in all_dbs if db.lower() not in system_dbs]
+            except Exception:
+                all_databases = [db_name]
+            
+            # Get tables
+            tables = []
+            try:
+                tables_query, tables_params = adapter.get_all_tables_for_cache(db_name)
+                with manager.get_cursor(db_config) as cursor:
+                    cursor.execute(tables_query, tables_params)
+                    tables = [row[0] for row in cursor.fetchall()]
+            except Exception as e:
+                logger.warning(f"Failed to fetch SQL Server tables: {e}")
+            
+            _sync_context(user_id, 'sqlserver', db_name, host, True)
+            if tables:
+                _cache_schema(user_id, db_config, db_name, tables, 'sqlserver')
+            
+            message = f'Connected to remote SQL Server: {db_name}'
+            if tables:
+                message += f' ({len(tables)} tables)'
+            
+            return {
+                'status': 'connected',
+                'message': message,
+                'schemas': all_databases,
+                'selectedDatabase': db_name,
+                'is_remote': True,
+                'tables': tables,
+                'db_type': 'sqlserver',
+                'db_config': db_config
+            }
+        return {'status': 'error', 'message': 'Failed to connect to remote SQL Server'}
+    except Exception as err:
+        logger.exception('Error connecting to remote SQL Server')
         return {'status': 'error', 'message': str(err)}

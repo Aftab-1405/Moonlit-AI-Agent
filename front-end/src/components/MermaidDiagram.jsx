@@ -19,6 +19,7 @@ function MermaidDiagram({ code }) {
   const isDark = theme.palette.mode === 'dark';
   const containerRef = useRef(null);
   const copyTimeoutRef = useRef(null);
+  const renderTimeoutRef = useRef(null);
   const uniqueId = useId().replace(/:/g, '');
 
   const [svg, setSvg] = useState('');
@@ -27,6 +28,8 @@ function MermaidDiagram({ code }) {
   const [copied, setCopied] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [zoom, setZoom] = useState(100);
+  const [isStreaming, setIsStreaming] = useState(true);
+  const [stableCode, setStableCode] = useState('');
 
   // Pan state
   const [isPanning, setIsPanning] = useState(false);
@@ -37,26 +40,50 @@ function MermaidDiagram({ code }) {
   useEffect(() => {
     return () => {
       if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+      if (renderTimeoutRef.current) clearTimeout(renderTimeoutRef.current);
     };
   }, []);
+
+  // Debounce code changes during streaming - wait for code to stabilize
+  useEffect(() => {
+    if (!code) return;
+
+    setIsStreaming(true);
+
+    // Clear any pending render
+    if (renderTimeoutRef.current) {
+      clearTimeout(renderTimeoutRef.current);
+    }
+
+    // Wait 500ms after last code change before attempting render
+    renderTimeoutRef.current = setTimeout(() => {
+      setIsStreaming(false);
+      setStableCode(code);
+    }, 500);
+
+    return () => {
+      if (renderTimeoutRef.current) {
+        clearTimeout(renderTimeoutRef.current);
+      }
+    };
+  }, [code]);
 
   // Get mermaid config from theme.js (centralized)
   const mermaidConfig = useMemo(() => getMermaidThemeConfig(theme), [theme]);
 
-  // Render diagram with theme-aware config
+  // Render diagram only when code is stable (not streaming)
   useEffect(() => {
     const renderDiagram = async () => {
-      if (!code) return;
+      if (!stableCode || isStreaming) return;
 
       setLoading(true);
       setError(null);
-      setSvg('');
 
       try {
         // Re-initialize mermaid with current theme
         mermaid.initialize(mermaidConfig);
 
-        const parseResult = await mermaid.parse(code, { suppressErrors: true });
+        const parseResult = await mermaid.parse(stableCode, { suppressErrors: true });
 
         if (parseResult === false) {
           setError('Diagram contains syntax that cannot be rendered');
@@ -65,7 +92,7 @@ function MermaidDiagram({ code }) {
         }
 
         const id = `mermaid-${uniqueId}-${Date.now()}`;
-        const { svg: renderedSvg } = await mermaid.render(id, code);
+        const { svg: renderedSvg } = await mermaid.render(id, stableCode);
         setSvg(renderedSvg);
       } catch (err) {
         console.warn('Mermaid rendering warning:', err);
@@ -87,7 +114,7 @@ function MermaidDiagram({ code }) {
     cleanup();
     renderDiagram();
     return cleanup;
-  }, [code, uniqueId, mermaidConfig]);
+  }, [stableCode, isStreaming, uniqueId, mermaidConfig]);
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(code);
@@ -325,7 +352,14 @@ function MermaidDiagram({ code }) {
           onMouseLeave={handleMouseLeave}
           sx={diagramContainerStyles}
         >
-          {loading ? (
+          {isStreaming ? (
+            <Box sx={{ textAlign: 'center', cursor: 'default' }}>
+              <CircularProgress size={24} sx={{ color: 'text.secondary' }} />
+              <Typography variant="caption" sx={{ display: 'block', mt: 1, color: 'text.secondary' }}>
+                Receiving diagram code...
+              </Typography>
+            </Box>
+          ) : loading ? (
             <Box sx={{ textAlign: 'center', cursor: 'default' }}>
               <CircularProgress size={24} sx={{ color: 'primary.main' }} />
               <Typography variant="caption" sx={{ display: 'block', mt: 1, color: 'text.secondary' }}>
