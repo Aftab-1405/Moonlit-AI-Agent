@@ -31,7 +31,7 @@ import {
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useSettings } from '../contexts/SettingsContext';
-import { useLocalStorage } from '../hooks/useLocalStorage';
+import { useLocalStorage } from '../hooks';
 
 // Icons
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';

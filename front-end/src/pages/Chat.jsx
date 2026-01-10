@@ -11,14 +11,11 @@
  * STATE ORGANIZATION:
  * - Database state: Managed via DatabaseContext (no prop drilling)
  * - UI state: Local useState for modals, sidebar, snackbar
- * - Chat state: Local useState for messages and conversations
+ * - Chat state: Managed via useConversations hook
+ * - Query execution: Managed via useQueryExecution hook
+ * - SQL Editor: Managed via useSqlEditorPanel hook
+ * - Message streaming: Managed via useMessageStreaming hook
  * - Settings: Accessed via ThemeContext (useTheme hook)
- * 
- * PERFORMANCE OPTIMIZATIONS:
- * - All handlers wrapped in useCallback
- * - Derived state uses useMemo
- * - Style objects memoized to prevent recreation
- * - Stable close handlers for modals/dialogs
  * 
  * @module Chat
  */
@@ -42,7 +39,6 @@ import {
 import { useTheme as useMuiTheme, alpha } from '@mui/material/styles';
 import { useTheme as useAppTheme } from '../contexts/ThemeContext';
 import { useDatabaseConnection } from '../contexts/DatabaseContext';
-import { useNavigate, useParams } from 'react-router-dom';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import MenuOutlinedIcon from '@mui/icons-material/MenuOutlined';
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
@@ -60,27 +56,23 @@ import StarfieldCanvas from '../components/StarfieldCanvas';
 import SQLEditorCanvas from '../components/SQLEditorCanvas';
 import ResizeHandle from '../components/ResizeHandle';
 import QuotaDisplay from '../components/QuotaDisplay';
-import useIdleDetection from '../hooks/useIdleDetection';
 
-// Centralized API layer
+// Custom hooks
 import {
-  getConversations,
-  getConversation,
-  createConversation,
-  deleteConversation,
-  sendMessage,
-  runQuery,
-} from '../api';
+  useIdleDetection,
+  useConversations,
+  useMessageStreaming,
+  useQueryExecution,
+  useSqlEditorPanel,
+} from '../hooks';
+
 import { getMoonlitGradient } from '../theme';
 
 // ============================================================================
-// CONSTANTS - Static values outside component
+// CONSTANTS
 // ============================================================================
 const DRAWER_WIDTH = 260;
 const COLLAPSED_WIDTH = 56;
-const MIN_EDITOR_WIDTH = 320;
-const MAX_EDITOR_WIDTH_PERCENT = 0.6;
-const UPDATE_THROTTLE_MS = 16; // ~60fps for smooth streaming updates
 
 function Chat() {
   // ===========================================================================
@@ -90,8 +82,6 @@ function Chat() {
   const theme = useMuiTheme();
   const isDarkMode = theme.palette.mode === 'dark';
   const { settings } = useAppTheme();
-  const { conversationId } = useParams();
-  const navigate = useNavigate();
   const { user, logout } = useAuth();
 
   // Database connection state from context
@@ -106,49 +96,98 @@ function Chat() {
   } = useDatabaseConnection();
 
   // ===========================================================================
+  // CUSTOM HOOKS - Extracted Logic
+  // ===========================================================================
+
+  // Conversation management
+  const {
+    messages,
+    setMessages,
+    conversations,
+    setConversations,
+    currentConversationId,
+    setCurrentConversationId,
+    fetchConversations,
+    handleNewChat,
+    handleDeleteConversation,
+    navigate,
+  } = useConversations();
+
+  // Sidebar width for SQL editor resize calculations
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const currentSidebarWidth = useMemo(() =>
+    sidebarCollapsed ? COLLAPSED_WIDTH : DRAWER_WIDTH,
+    [sidebarCollapsed]
+  );
+
+  // SQL Editor panel
+  const {
+    sqlEditorOpen,
+    sqlEditorQuery,
+    sqlEditorResults,
+    sqlEditorWidth,
+    handleOpenSqlEditor,
+    handleCloseSqlEditor,
+    handlePanelResize,
+  } = useSqlEditorPanel({ sidebarWidth: currentSidebarWidth });
+
+  // ===========================================================================
   // LOCAL STATE - UI Controls
   // ===========================================================================
 
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const [dbModalOpen, setDbModalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
 
   // ===========================================================================
-  // LOCAL STATE - Chat & Conversations
+  // SNACKBAR HELPER
   // ===========================================================================
 
-  const [messages, setMessages] = useState([]);
-  const [conversations, setConversations] = useState([]);
-  const [currentConversationId, setCurrentConversationId] = useState(null);
+  const showSnackbar = useCallback((message, severity = 'info') => {
+    setSnackbar({ open: true, message, severity });
+  }, []);
 
   // ===========================================================================
-  // LOCAL STATE - Query & Results
+  // QUERY EXECUTION HOOK
   // ===========================================================================
 
-  const [queryResults, setQueryResults] = useState(null);
-  const [confirmDialog, setConfirmDialog] = useState({ open: false, sql: '', onConfirm: null });
+  const {
+    queryResults,
+    confirmDialog,
+    handleRunQuery,
+    handleCloseQueryResults,
+    handleConfirmDialogClose,
+  } = useQueryExecution({
+    isDbConnected,
+    settings,
+    setDbModalOpen,
+    showSnackbar,
+  });
 
   // ===========================================================================
-  // LOCAL STATE - SQL Editor Canvas
+  // MESSAGE STREAMING HOOK
   // ===========================================================================
 
-  const [sqlEditorOpen, setSqlEditorOpen] = useState(false);
-  const [sqlEditorQuery, setSqlEditorQuery] = useState('');
-  const [sqlEditorResults, setSqlEditorResults] = useState(null);
-  const [sqlEditorWidth, setSqlEditorWidth] = useState(450);
+  const {
+    handleSendMessage,
+    handleStopStreaming,
+  } = useMessageStreaming({
+    currentConversationId,
+    setCurrentConversationId,
+    setMessages,
+    setConversations,
+    navigate,
+    fetchConversations,
+    settings,
+  });
 
   // ===========================================================================
   // REFS
   // ===========================================================================
 
   const messagesContainerRef = useRef(null);
-  const queryResolverRef = useRef(null);
-  const abortControllerRef = useRef(null);
-  const prevConversationIdRef = useRef(null);
-  const newlyCreatedConvIdRef = useRef(null); // Track IDs we just created to skip fetch
 
   // ===========================================================================
   // IDLE DETECTION
@@ -166,13 +205,6 @@ function Chat() {
     messages[messages.length - 1]?.sender === 'ai' &&
     messages[messages.length - 1]?.isStreaming,
     [messages]
-  );
-
-
-
-  const currentSidebarWidth = useMemo(() =>
-    sidebarCollapsed ? COLLAPSED_WIDTH : DRAWER_WIDTH,
-    [sidebarCollapsed]
   );
 
   // ===========================================================================
@@ -212,148 +244,75 @@ function Chat() {
   }, [isDarkMode, theme, snackbar.severity]);
 
   // ===========================================================================
-  // STABLE CLOSE HANDLERS - Prevent inline function recreation
+  // STABLE CLOSE HANDLERS
   // ===========================================================================
 
   const handleCloseDbModal = useCallback(() => setDbModalOpen(false), []);
-  const handleCloseSqlEditor = useCallback(() => setSqlEditorOpen(false), []);
   const handleCloseSettings = useCallback(() => setSettingsOpen(false), []);
-  const handleCloseQueryResults = useCallback(() => setQueryResults(null), []);
   const handleCloseSnackbar = useCallback(() => setSnackbar(s => ({ ...s, open: false })), []);
 
   // ===========================================================================
-  // MEMOIZED CORE FUNCTIONS
+  // AUTO-SCROLL - ResizeObserver based
   // ===========================================================================
 
-
-
-  const fetchConversations = useCallback(async () => {
-    try {
-      const data = await getConversations();
-      if (data.status === 'success') {
-        setConversations(data.conversations || []);
-      }
-    } catch (error) {
-      console.error('Failed to fetch conversations:', error);
-    }
-  }, []);
-
-  const resetChatState = useCallback(() => {
-    setMessages([]);
-    setCurrentConversationId(null);
-    setQueryResults(null);
-    setMobileOpen(false);
-  }, []);
-
-  const handleSelectConversation = useCallback(async (convId) => {
-    try {
-      const data = await getConversation(convId);
-      if (data.status === 'success' && data.conversation) {
-        setCurrentConversationId(convId);
-        const formattedMessages = (data.conversation.messages || []).map((msg) => ({
-          sender: msg.sender,
-          content: msg.content,
-          thinking: msg.thinking || undefined,
-          tools: msg.tools || undefined,
-        }));
-        setMessages(formattedMessages);
-        setQueryResults(null);
-        setMobileOpen(false);
-      }
-    } catch (error) {
-      console.error('Failed to load conversation:', error);
-    }
-  }, []);
-
-  // ===========================================================================
-  // EFFECTS
-  // ===========================================================================
-
-  // Auto-scroll using ResizeObserver (industry standard)
-  // Watches for content height changes and scrolls to bottom
-  // Respects user intent: stops scrolling if user scrolls up
   const userScrolledUpRef = useRef(false);
   const resizeObserverRef = useRef(null);
-  
+
   // Track user scroll intent
   useEffect(() => {
     const container = messagesContainerRef.current;
     if (!container) return;
-    
+
     const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = container;
       const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
       // User has scrolled up if more than 100px from bottom
       userScrolledUpRef.current = distanceFromBottom > 100;
     };
-    
+
     container.addEventListener('scroll', handleScroll, { passive: true });
     return () => container.removeEventListener('scroll', handleScroll);
   }, []);
-  
+
   // ResizeObserver for content growth detection
   useEffect(() => {
     const container = messagesContainerRef.current;
     if (!container) return;
-    
+
     // Cleanup previous observer
     if (resizeObserverRef.current) {
       resizeObserverRef.current.disconnect();
     }
-    
+
     const scrollToBottomIfNeeded = () => {
       if (!userScrolledUpRef.current && container) {
         container.scrollTo({ top: container.scrollHeight, behavior: 'instant' });
       }
     };
-    
+
     // Create ResizeObserver to watch for content changes
     resizeObserverRef.current = new ResizeObserver(() => {
       scrollToBottomIfNeeded();
     });
-    
+
     // Observe the first child (MessageList content) for size changes
     const messageListContent = container.firstElementChild;
     if (messageListContent) {
       resizeObserverRef.current.observe(messageListContent);
     }
-    
+
     // Also scroll when streaming starts
     if (isCurrentlyStreaming) {
       userScrolledUpRef.current = false; // Reset on new message
       scrollToBottomIfNeeded();
     }
-    
+
     return () => {
       if (resizeObserverRef.current) {
         resizeObserverRef.current.disconnect();
       }
     };
   }, [isCurrentlyStreaming]);
-
-  // Initial conversation fetch
-  useEffect(() => {
-    fetchConversations();
-  }, [fetchConversations]);
-
-  // Handle URL changes - using ref to track previous ID
-  // Skip fetching for conversations we just created (they're empty)
-  useEffect(() => {
-    if (conversationId) {
-      if (conversationId !== prevConversationIdRef.current) {
-        // Skip fetch if we just created this conversation
-        if (conversationId === newlyCreatedConvIdRef.current) {
-          // Already set state in handleNewChat, just update refs
-          newlyCreatedConvIdRef.current = null;
-        } else {
-          handleSelectConversation(conversationId);
-        }
-      }
-    } else if (prevConversationIdRef.current) {
-      resetChatState();
-    }
-    prevConversationIdRef.current = conversationId;
-  }, [conversationId, handleSelectConversation, resetChatState]);
 
   // Set document title
   useEffect(() => {
@@ -380,7 +339,7 @@ function Chat() {
   }, [isDbConnected, settings.connectionPersistence]);
 
   // ===========================================================================
-  // MEMOIZED UI HANDLERS
+  // UI HANDLERS
   // ===========================================================================
 
   const handleDrawerToggle = useCallback(() => {
@@ -410,280 +369,30 @@ function Chat() {
   }, [handleMenuClose]);
 
   // ===========================================================================
-  // CONVERSATION HANDLERS
-  // ===========================================================================
-
-  const handleNewChat = useCallback(async () => {
-    navigate('/chat');
-    try {
-      const data = await createConversation();
-      if (data.status === 'success') {
-        const newId = data.conversation_id;
-        // Track that we created this ID (so useEffect skips fetching it)
-        newlyCreatedConvIdRef.current = newId;
-        // Set state BEFORE navigation to prevent useEffect from fetching
-        setCurrentConversationId(newId);
-        setMessages([]);
-        prevConversationIdRef.current = newId;
-        navigate(`/chat/${newId}`, { replace: true });
-        fetchConversations();
-      }
-    } catch (error) {
-      console.error('Failed to create new conversation:', error);
-    }
-  }, [navigate, fetchConversations]);
-
-  const handleDeleteConversation = useCallback(async (convId) => {
-    try {
-      await deleteConversation(convId);
-      setConversations((prev) => prev.filter((c) => c.id !== convId));
-      if (currentConversationId === convId) {
-        navigate('/chat');
-      }
-    } catch (error) {
-      console.error('Failed to delete conversation:', error);
-    }
-  }, [currentConversationId, navigate]);
-
-  // ===========================================================================
   // DATABASE HANDLERS
   // ===========================================================================
 
   const handleDbConnect = useCallback((data) => {
     if (data) {
       connectDb(data);
-      setSnackbar({ open: true, message: 'Connected to database!', severity: 'success' });
+      showSnackbar('Connected to database!', 'success');
     } else {
       resetConnectionState();
-      setSnackbar({ open: true, message: 'Disconnected from database', severity: 'info' });
+      showSnackbar('Disconnected from database', 'info');
     }
-  }, [connectDb, resetConnectionState]);
+  }, [connectDb, resetConnectionState, showSnackbar]);
 
   const handleDatabaseSwitch = useCallback(async (dbName) => {
     const result = await switchDatabase(dbName);
     if (result.success) {
-      setSnackbar({ open: true, message: `Switched to ${dbName}`, severity: 'success' });
+      showSnackbar(`Switched to ${dbName}`, 'success');
     } else {
-      setSnackbar({ open: true, message: result.error || 'Failed to switch', severity: 'error' });
+      showSnackbar(result.error || 'Failed to switch', 'error');
     }
-  }, [switchDatabase]);
+  }, [switchDatabase, showSnackbar]);
 
   // ===========================================================================
-  // QUERY EXECUTION
-  // ===========================================================================
-
-  const executeQuery = useCallback(async (sql, maxRows, queryTimeout) => {
-    try {
-      const data = await runQuery({ sql, maxRows, timeout: queryTimeout });
-      if (data.status === 'success') {
-        const columns = data.result?.fields || [];
-        const rows = data.result?.rows || [];
-
-        const transformedResult = rows.map(row => {
-          const obj = {};
-          columns.forEach((col, idx) => {
-            obj[col] = row[idx];
-          });
-          return obj;
-        });
-
-        setQueryResults({
-          columns,
-          result: transformedResult,
-          row_count: data.row_count,
-          total_rows: data.total_rows,
-          truncated: data.truncated,
-          execution_time: data.execution_time_ms ? data.execution_time_ms / 1000 : null,
-        });
-        setSnackbar({ open: true, message: `Query returned ${data.row_count} rows`, severity: 'success' });
-      } else {
-        setSnackbar({ open: true, message: data.message || 'Query failed', severity: 'error' });
-      }
-    } catch {
-      setSnackbar({ open: true, message: 'Failed to execute query', severity: 'error' });
-    }
-  }, []);
-
-  const handleRunQuery = useCallback((sql) => {
-    if (!isDbConnected) {
-      setSnackbar({ open: true, message: 'Please connect to a database first', severity: 'warning' });
-      setDbModalOpen(true);
-      return Promise.resolve();
-    }
-
-    const confirmBeforeRun = settings.confirmBeforeRun ?? false;
-    const maxRows = settings.maxRows ?? 1000;
-    const queryTimeout = settings.queryTimeout ?? 30;
-
-    if (confirmBeforeRun) {
-      return new Promise((resolve) => {
-        queryResolverRef.current = resolve;
-        setConfirmDialog({
-          open: true,
-          sql: sql,
-          onConfirm: async () => {
-            await executeQuery(sql, maxRows, queryTimeout);
-            setConfirmDialog({ open: false, sql: '', onConfirm: null, onCancel: null });
-            queryResolverRef.current?.();
-          },
-          onCancel: () => {
-            setConfirmDialog({ open: false, sql: '', onConfirm: null, onCancel: null });
-            queryResolverRef.current?.();
-          },
-        });
-      });
-    }
-
-    return executeQuery(sql, maxRows, queryTimeout);
-  }, [isDbConnected, settings.confirmBeforeRun, settings.maxRows, settings.queryTimeout, executeQuery]);
-
-  // ===========================================================================
-  // MESSAGE HANDLING
-  // ===========================================================================
-
-  const handleSendMessage = useCallback(async (message) => {
-    if (!message.trim()) return;
-
-    setMessages((prev) => [...prev, { sender: 'user', content: message }]);
-    setMessages((prev) => [...prev, { sender: 'ai', content: '', isWaiting: true }]);
-
-    const enableReasoning = settings.enableReasoning ?? true;
-    const reasoningEffort = settings.reasoningEffort ?? 'medium';
-    const responseStyle = settings.responseStyle ?? 'balanced';
-    const maxRows = settings.maxRows ?? 1000;
-
-    abortControllerRef.current = new AbortController();
-
-    try {
-      const response = await sendMessage({
-        prompt: message,
-        conversationId: currentConversationId,
-        enableReasoning,
-        reasoningEffort,
-        responseStyle,
-        maxRows,
-      }, abortControllerRef.current.signal);
-
-      const newConversationId = response.headers.get('X-Conversation-Id');
-      if (newConversationId && !currentConversationId) {
-        setCurrentConversationId(newConversationId);
-        navigate(`/chat/${newConversationId}`, { replace: true });
-
-        const tempTitle = message.substring(0, 50) + (message.length > 50 ? '...' : '');
-        setConversations((prev) => [
-          { id: newConversationId, title: tempTitle, created_at: new Date().toISOString() },
-          ...prev,
-        ]);
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let aiResponse = '';
-      let lastUpdateTime = 0;
-
-      const updateMessage = () => {
-        setMessages((prev) => {
-          const updated = [...prev];
-          if (updated[updated.length - 1]?.sender === 'ai') {
-            updated[updated.length - 1] = {
-              ...updated[updated.length - 1],
-              content: aiResponse,
-              isStreaming: true,
-              isWaiting: false
-            };
-          } else {
-            updated.push({ sender: 'ai', content: aiResponse, isStreaming: true });
-          }
-          return updated;
-        });
-      };
-
-      while (true) {
-        const { done, value } = await reader.read();
-
-        if (!done) {
-          const chunk = decoder.decode(value, { stream: true });
-          aiResponse += chunk;
-        }
-
-        const now = Date.now();
-        if (done || now - lastUpdateTime >= UPDATE_THROTTLE_MS) {
-          if (aiResponse) {
-            updateMessage();
-          }
-          lastUpdateTime = now;
-          if (done) break;
-        }
-      }
-
-      setMessages((prev) => {
-        const updated = [...prev];
-        if (updated[updated.length - 1]?.sender === 'ai') {
-          updated[updated.length - 1] = {
-            ...updated[updated.length - 1],
-            isStreaming: false
-          };
-        }
-        return updated;
-      });
-
-      fetchConversations();
-    } catch (error) {
-      if (error.name === 'AbortError') {
-        setMessages((prev) => {
-          const updated = [...prev];
-          if (updated[updated.length - 1]?.sender === 'ai') {
-            updated[updated.length - 1] = {
-              ...updated[updated.length - 1],
-              isStreaming: false,
-              wasStopped: true
-            };
-          }
-          return updated;
-        });
-        return;
-      }
-      setMessages((prev) => {
-        const updated = [...prev];
-        if (updated[updated.length - 1]?.sender === 'ai' && updated[updated.length - 1]?.isWaiting) {
-          updated[updated.length - 1] = { sender: 'ai', content: 'Sorry, I encountered an error. Please try again.' };
-        } else {
-          updated.push({ sender: 'ai', content: 'Sorry, I encountered an error. Please try again.' });
-        }
-        return updated;
-      });
-    } finally {
-      abortControllerRef.current = null;
-    }
-  }, [currentConversationId, settings, navigate, fetchConversations]);
-
-  const handleStopStreaming = useCallback(() => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-  }, []);
-
-  // ===========================================================================
-  // PANEL RESIZE
-  // ===========================================================================
-
-  const handlePanelResize = useCallback((deltaX) => {
-    setSqlEditorWidth((prev) => {
-      const newWidth = prev - deltaX;
-      const availableWidth = window.innerWidth - currentSidebarWidth;
-      const maxWidth = availableWidth * MAX_EDITOR_WIDTH_PERCENT;
-      return Math.max(MIN_EDITOR_WIDTH, Math.min(maxWidth, newWidth));
-    });
-  }, [currentSidebarWidth]);
-
-  const handleOpenSqlEditor = useCallback((query = '', results = null) => {
-    setSqlEditorQuery(query);
-    setSqlEditorResults(results);
-    setSqlEditorOpen(true);
-  }, []);
-
-  // ===========================================================================
-  // MEMOIZED SIDEBAR PROPS
+  // SIDEBAR PROPS & HANDLERS
   // ===========================================================================
 
   const commonSidebarProps = useMemo(() => ({
@@ -702,7 +411,6 @@ function Chat() {
     handleDatabaseSwitch, user
   ]);
 
-  // Stable sidebar action handlers
   const handleSidebarNewChat = useCallback(() => {
     setMobileOpen(false);
     navigate('/chat');
@@ -718,20 +426,10 @@ function Chat() {
     setDbModalOpen(true);
   }, []);
 
-
   const handleSidebarMenuOpen = useCallback((e) => {
     setMobileOpen(false);
     handleMenuOpen(e);
   }, [handleMenuOpen]);
-
-  // ===========================================================================
-  // MEMOIZED CONFIRM DIALOG CLOSE
-  // ===========================================================================
-
-  const handleConfirmDialogClose = useCallback(() => {
-    confirmDialog.onCancel?.();
-    setConfirmDialog({ open: false, sql: '', onConfirm: null, onCancel: null });
-  }, [confirmDialog]);
 
   // ===========================================================================
   // RENDER

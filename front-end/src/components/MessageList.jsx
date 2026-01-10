@@ -6,7 +6,7 @@ import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import { useState, useMemo, useRef, useEffect, useCallback, memo } from 'react';
 import { StepsAccordion } from './AIResponseSteps';
 import MarkdownRenderer from './MarkdownRenderer';
-import { useCharacterPacing } from '../hooks/useCharacterPacing';
+import { useCharacterPacing } from '../hooks';
 
 // ============================================================================
 // CONSTANTS & ANIMATIONS
@@ -142,7 +142,7 @@ const AIMessage = memo(function AIMessage({ message, thinking, tools, onRunQuery
     .replace(/\[\[TOOL:[^\]]*\]\]/g, ''), [message]);
 
   const segments = useMemo(() => parseMessageSegments(pacedMessage, thinking, tools), [pacedMessage, thinking, tools]);
-  
+
   const textOnlySegments = useMemo(
     () => segments.filter((segment) => segment.type === 'text' && segment.content.trim()),
     [segments]
@@ -205,7 +205,7 @@ const AIMessage = memo(function AIMessage({ message, thinking, tools, onRunQuery
             {segments.filter(s => s.type === 'thinking' || s.type === 'tool').length > 0 && (
               <StepsAccordion steps={segments.filter(s => s.type === 'thinking' || s.type === 'tool')} isStreaming={isStreaming} />
             )}
-            
+
             {/* Render Text */}
             {segments.filter(s => s.type === 'text' && s.content.trim()).map((segment, idx) => (
               <MarkdownRenderer key={`text-${idx}`} content={segment.content} onRunQuery={onRunQuery} />
@@ -231,11 +231,11 @@ const AIMessage = memo(function AIMessage({ message, thinking, tools, onRunQuery
 
 const MessageList = memo(function MessageList({ messages = [], user, onRunQuery, onOpenSqlEditor }) {
   return (
-    <Box sx={{ 
-      flex: 1, 
+    <Box sx={{
+      flex: 1,
       py: 2,
       // CRITICAL: prevents browser scroll anchoring from fighting with the typing animation
-      overflowAnchor: 'none' 
+      overflowAnchor: 'none'
     }}>
       {messages.map((msg, index) => (
         msg.sender === 'user'
@@ -336,7 +336,8 @@ function parseMarkersInline(text, segments, thinkingField) {
     if (toolStart !== -1 && thinkingStart !== -1) {
       nextMarkerStart = toolStart < thinkingStart ? toolStart : thinkingStart;
       markerType = toolStart < thinkingStart ? 'tool' : 'thinking';
-    } else if (toolStart !== -1) { nextMarkerStart = toolStart; markerType = 'tool';
+    } else if (toolStart !== -1) {
+      nextMarkerStart = toolStart; markerType = 'tool';
     } else if (thinkingStart !== -1) { nextMarkerStart = thinkingStart; markerType = 'thinking'; }
 
     if (nextMarkerStart === -1) {

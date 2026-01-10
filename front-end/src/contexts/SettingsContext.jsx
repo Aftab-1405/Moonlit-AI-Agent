@@ -22,7 +22,7 @@
  */
 
 import { createContext, useContext, useCallback, useMemo } from 'react';
-import { useLocalStorage } from '../hooks/useLocalStorage';
+import { useLocalStorage } from '../hooks';
 
 // =============================================================================
 // CONSTANTS
@@ -38,20 +38,20 @@ const defaultSettings = {
   // ==== Appearance ====
   theme: 'dark',              // 'dark' | 'light'
   idleAnimation: true,        // Starfield animation when idle
-  
+
   // ==== Query Execution ====
   confirmBeforeRun: false,    // Show confirmation dialog before running queries
   queryTimeout: 30,           // Query timeout in seconds
   maxRows: 1000,              // Maximum rows to return from queries
-  
+
   // ==== Results Display ====
   nullDisplay: 'NULL',        // How to display NULL values
-  
+
   // ==== Connection ====
   rememberConnection: false,  // Remember last connection details
   defaultDbType: 'postgresql',// Default database type in connection modal
   connectionPersistence: 0,   // Minutes to persist connection (0 = never)
-  
+
   // ==== AI Assistant ====
   enableReasoning: true,      // Enable AI reasoning/thinking
   reasoningEffort: 'medium',  // 'low' | 'medium' | 'high'
@@ -107,72 +107,72 @@ export function SettingsProvider({ children }) {
   // 1. Loading from localStorage on mount
   // 2. Saving to localStorage on every change
   // 3. Syncing changes across browser tabs via storage events
-  
+
   const [rawSettings, setRawSettings] = useLocalStorage(SETTINGS_KEY, defaultSettings);
-  
+
   // Merge with defaults to ensure new settings are available after updates
   const settings = useMemo(() => ({
     ...defaultSettings,
     ...rawSettings,
   }), [rawSettings]);
-  
+
   // ---------------------------------------------------------------------------
   // Actions
   // ---------------------------------------------------------------------------
-  
+
   /**
    * Update a single setting by key.
    */
   const updateSetting = useCallback((key, value) => {
     setRawSettings(prev => ({ ...prev, [key]: value }));
   }, [setRawSettings]);
-  
+
   /**
    * Update multiple settings at once.
    */
   const updateSettings = useCallback((newSettings) => {
     setRawSettings(prev => ({ ...prev, ...newSettings }));
   }, [setRawSettings]);
-  
+
   /**
    * Reset all settings to their default values.
    */
   const resetSettings = useCallback(() => {
     setRawSettings(defaultSettings);
   }, [setRawSettings]);
-  
+
   /**
    * Get a single setting with optional default.
    */
   const getSetting = useCallback((key, defaultValue = null) => {
     return settings[key] ?? defaultValue;
   }, [settings]);
-  
+
   // ---------------------------------------------------------------------------
   // Derived Values
   // ---------------------------------------------------------------------------
-  
+
   const isDarkMode = settings.theme === 'dark';
-  
+
   // ---------------------------------------------------------------------------
   // Context Value
   // ---------------------------------------------------------------------------
-  
+
   const value = useMemo(() => ({
     // State
     settings,
     isDarkMode,
-    
+
     // Actions
     updateSetting,
     updateSettings,
     resetSettings,
     getSetting,
-    
+
     // Convenience
     theme: settings.theme,
   }), [settings, isDarkMode, updateSetting, updateSettings, resetSettings, getSetting]);
-  
+
   return (
     <SettingsContext.Provider value={value}>
       {children}
