@@ -74,12 +74,20 @@ export function useCharacterPacing(content, isActive, charsPerSecond = 200) {
       return;
     }
 
-    // 2. Animation complete: Stop
+    // 2. Streaming stopped: Immediately reveal all content
+    // This ensures typing animation completes when abort button disappears
+    if (!isActive && progressRef.current < content.length) {
+      progressRef.current = content.length;
+      setRevealedLength(content.length);
+      return;
+    }
+
+    // 3. Animation complete: Stop
     if (progressRef.current >= content.length) {
       return;
     }
 
-    // 3. Animation Loop
+    // 4. Animation Loop
     const charsPerTick = 4;
     const intervalMs = (charsPerTick / charsPerSecond) * 1000;
 
@@ -106,7 +114,7 @@ export function useCharacterPacing(content, isActive, charsPerSecond = 200) {
     }, intervalMs);
 
     return () => clearInterval(timer);
-  }, [content, charsPerSecond, findSafeRevealPoint]);
+  }, [content, charsPerSecond, findSafeRevealPoint, isActive]);
 
   // Reset state if content is cleared/swapped entirely
   useEffect(() => {

@@ -35,6 +35,7 @@ import {
   Grow,
   Slide,
   Fade,
+  useMediaQuery,
 } from '@mui/material';
 import { useTheme as useMuiTheme, alpha } from '@mui/material/styles';
 import { useTheme as useAppTheme } from '../contexts/ThemeContext';
@@ -73,6 +74,7 @@ import { getMoonlitGradient } from '../theme';
 // ============================================================================
 const DRAWER_WIDTH = 260;
 const COLLAPSED_WIDTH = 56;
+const MOBILE_APPBAR_HEIGHT = 56;
 
 function Chat() {
   // ===========================================================================
@@ -81,6 +83,7 @@ function Chat() {
 
   const theme = useMuiTheme();
   const isDarkMode = theme.palette.mode === 'dark';
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const { settings } = useAppTheme();
   const { user, logout } = useAuth();
 
@@ -203,7 +206,7 @@ function Chat() {
   const isCurrentlyStreaming = useMemo(() =>
     messages.length > 0 &&
     messages[messages.length - 1]?.sender === 'ai' &&
-    messages[messages.length - 1]?.isStreaming,
+    (messages[messages.length - 1]?.isStreaming || messages[messages.length - 1]?.isWaiting),
     [messages]
   );
 
@@ -274,6 +277,12 @@ function Chat() {
     return () => container.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Safe tracking of streaming state for event handlers
+  const isStreamingRef = useRef(false);
+  useEffect(() => {
+    isStreamingRef.current = isCurrentlyStreaming;
+  }, [isCurrentlyStreaming]);
+
   // ResizeObserver for content growth detection
   useEffect(() => {
     const container = messagesContainerRef.current;
@@ -285,7 +294,9 @@ function Chat() {
     }
 
     const scrollToBottomIfNeeded = () => {
-      if (!userScrolledUpRef.current && container) {
+      // ONLY scroll if we are actively streaming
+      // This prevents "jumping" when expanding accordions in history
+      if (isStreamingRef.current && !userScrolledUpRef.current && container) {
         container.scrollTo({ top: container.scrollHeight, behavior: 'instant' });
       }
     };
@@ -301,17 +312,24 @@ function Chat() {
       resizeObserverRef.current.observe(messageListContent);
     }
 
-    // Also scroll when streaming starts
-    if (isCurrentlyStreaming) {
-      userScrolledUpRef.current = false; // Reset on new message
-      scrollToBottomIfNeeded();
-    }
-
     return () => {
       if (resizeObserverRef.current) {
         resizeObserverRef.current.disconnect();
       }
     };
+  }, []); // Run once on mount
+
+  // Handle initial scroll on stream start and strict auto-scroll during stream
+  useEffect(() => {
+    if (isCurrentlyStreaming) {
+      userScrolledUpRef.current = false; // Reset on new message
+      if (messagesContainerRef.current) {
+        messagesContainerRef.current.scrollTo({
+          top: messagesContainerRef.current.scrollHeight,
+          behavior: 'instant'
+        });
+      }
+    }
   }, [isCurrentlyStreaming]);
 
   // Set document title
@@ -325,7 +343,9 @@ function Chat() {
       const connectionPersistence = settings.connectionPersistence ?? 0;
       if (connectionPersistence === 0 && isDbConnected) {
         const blob = new Blob([JSON.stringify({})], { type: 'application/json' });
-        navigator.sendBeacon('/disconnect_db', blob);
+        // Use absolute URL for sendBeacon to ensure it works in all environments
+        const disconnectUrl = `${window.location.origin}/api/database/disconnect`;
+        navigator.sendBeacon(disconnectUrl, blob);
       }
     };
 
@@ -526,10 +546,10 @@ function Chat() {
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
-          mt: { xs: '56px', md: 0 },
-          height: { xs: 'calc(100svh - 56px)', md: '100vh' },
+          mt: { xs: `${MOBILE_APPBAR_HEIGHT}px`, md: 0 },
+          height: { xs: `calc(100svh - ${MOBILE_APPBAR_HEIGHT}px)`, md: '100vh' },
           '@supports not (height: 100svh)': {
-            height: { xs: 'calc(100vh - 56px)', md: '100vh' },
+            height: { xs: `calc(100vh - ${MOBILE_APPBAR_HEIGHT}px)`, md: '100vh' },
           },
           overflow: 'hidden',
           backgroundColor: 'transparent',
@@ -644,51 +664,56 @@ function Chat() {
         </Fade>
       </Box>
 
-      {/* SQL Editor Panel - Desktop */}
-      <Box
-        sx={{
-          display: { xs: 'none', md: 'flex' },
-          flexShrink: 0,
-          height: '100vh',
-        }}
-      >
-        <ResizeHandle onResize={handlePanelResize} disabled={!sqlEditorOpen} />
-        <SQLEditorCanvas
-          onClose={handleCloseSqlEditor}
-          initialQuery={sqlEditorQuery}
-          initialResults={sqlEditorResults}
-          isConnected={isDbConnected}
-          currentDatabase={currentDatabase}
-          isOpen={sqlEditorOpen}
-          panelWidth={sqlEditorWidth}
-        />
-      </Box>
-
-      {/* SQL Editor Mobile */}
-      <Slide direction="up" in={sqlEditorOpen} mountOnEnter unmountOnExit>
+      {/* SQL Editor Panel - Desktop only */}
+      {!isMobile && (
         <Box
           sx={{
-            display: { xs: 'flex', md: 'none' },
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: 1300,
-            flexDirection: 'column',
-            bgcolor: 'background.default',
+            display: 'flex',
+            flexShrink: 0,
+            height: '100vh',
           }}
         >
+          <ResizeHandle onResize={handlePanelResize} disabled={!sqlEditorOpen} />
           <SQLEditorCanvas
             onClose={handleCloseSqlEditor}
             initialQuery={sqlEditorQuery}
             initialResults={sqlEditorResults}
             isConnected={isDbConnected}
             currentDatabase={currentDatabase}
-            fullscreen
+            isOpen={sqlEditorOpen}
+            panelWidth={sqlEditorWidth}
           />
         </Box>
-      </Slide>
+      )}
+
+      {/* SQL Editor Mobile - Fullscreen slide-up */}
+      {isMobile && (
+        <Slide direction="up" in={sqlEditorOpen} mountOnEnter unmountOnExit>
+          <Box
+            sx={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 1300,
+              display: 'flex',
+              flexDirection: 'column',
+              bgcolor: 'background.default',
+            }}
+          >
+            <SQLEditorCanvas
+              onClose={handleCloseSqlEditor}
+              initialQuery={sqlEditorQuery}
+              initialResults={sqlEditorResults}
+              isConnected={isDbConnected}
+              currentDatabase={currentDatabase}
+              isOpen={sqlEditorOpen}
+              fullscreen
+            />
+          </Box>
+        </Slide>
+      )}
 
       {/* Modals */}
       <DatabaseModal

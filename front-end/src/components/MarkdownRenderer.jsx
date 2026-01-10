@@ -1,4 +1,4 @@
-import React, { memo, useMemo, useState, useEffect, useCallback, useRef } from 'react';
+import { memo, useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Box, Typography, IconButton, Tooltip, CircularProgress, useTheme } from '@mui/material';
@@ -161,12 +161,12 @@ const InlineCode = memo(function InlineCode({ children, theme, isDarkMode }) {
 // MAIN COMPONENT
 // ============================================================================
 
-function MarkdownRenderer({ content, onRunQuery }) {
+const MarkdownRenderer = memo(function MarkdownRenderer({ content, onRunQuery }) {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
 
   const components = useMemo(() => ({
-    code({ node, className, children, ...props }) {
+    code({ className, children, ...props }) {
       const match = /language-(\w+)/.exec(className || '');
       const isBlock = match || String(children).includes('\n');
 
@@ -187,32 +187,56 @@ function MarkdownRenderer({ content, onRunQuery }) {
     pre: ({ children }) => <>{children}</>,
     table: ({ children }) => (
       <Box sx={{ overflowX: 'auto', my: 2, borderRadius: '12px', border: `1px solid ${theme.palette.divider}` }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>{children}</table>
+        <table style={{ minWidth: 'max-content', width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>{children}</table>
       </Box>
     ),
   }), [onRunQuery, isDarkMode, theme]);
 
+  // Memoize container styles to prevent recreation on every render
+  const containerSx = useMemo(() => ({
+    // GLOBAL STABILITY STYLES
+    overflowWrap: 'anywhere', // CRITICAL: Breaks long strings (URLs/tokens) to prevent layout shifting
+    wordBreak: 'break-word',
+
+    '& p': { my: 1.5, lineHeight: 1.7 },
+    '& ul, & ol': { pl: 3, my: 1.5 },
+    '& li': { mb: 0.5 },
+    '& a': { color: 'primary.main', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } },
+
+    // Table Styles - prevent cramping with proper spacing and nowrap
+    '& table': {
+      overflowWrap: 'normal',  // Override global setting for tables
+      wordBreak: 'normal',
+    },
+    '& th': {
+      bgcolor: alpha(theme.palette.text.primary, 0.06),
+      fontWeight: 600,
+      textAlign: 'left',
+      px: 2,
+      py: 1.25,
+      borderBottom: `1px solid ${theme.palette.divider}`,
+      whiteSpace: 'nowrap',
+      fontSize: '0.8125rem',
+    },
+    '& td': {
+      px: 2,
+      py: 1.25,
+      borderBottom: `1px solid ${theme.palette.divider}`,
+      whiteSpace: 'nowrap',
+    },
+    '& tr:last-child td': { borderBottom: 'none' },
+    '& tr:hover td': {
+      bgcolor: alpha(theme.palette.text.primary, 0.02),
+    },
+  }), [theme]);
+
   return (
-    <Box sx={{
-      // GLOBAL STABILITY STYLES
-      overflowWrap: 'anywhere', // CRITICAL: Breaks long strings (URLs/tokens) to prevent layout shifting
-      wordBreak: 'break-word',
-
-      '& p': { my: 1.5, lineHeight: 1.7 },
-      '& ul, & ol': { pl: 3, my: 1.5 },
-      '& li': { mb: 0.5 },
-      '& a': { color: 'primary.main', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } },
-
-      // Table Styles
-      '& th': { bgcolor: alpha(theme.palette.text.primary, 0.04), fontWeight: 600, textAlign: 'left', p: 1.5, borderBottom: `1px solid ${theme.palette.divider}` },
-      '& td': { p: 1.5, borderBottom: `1px solid ${theme.palette.divider}` },
-      '& tr:last-child td': { borderBottom: 'none' },
-    }}>
+    <Box sx={containerSx}>
       <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={components}>
         {content}
       </ReactMarkdown>
     </Box>
   );
-}
+});
 
 export default MarkdownRenderer;

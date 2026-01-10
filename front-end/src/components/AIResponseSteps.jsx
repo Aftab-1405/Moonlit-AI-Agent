@@ -87,6 +87,17 @@ const DOT_INDICES = [0, 1, 2];
 
 // --- Helpers ---
 
+/**
+ * Section label styles using theme's labelSmall variant
+ * Only adds color & textTransform (theme provides font, size, weight, letterSpacing)
+ */
+const getSectionLabelSx = (isDark) => ({
+  color: isDark ? alpha('#fff', 0.35) : alpha('#000', 0.3),
+  textTransform: 'uppercase',
+  mb: 0.5,
+  display: 'block',
+});
+
 function parseJSON(str) {
   if (!str || str === 'null' || str === '{}') return null;
   try {
@@ -99,10 +110,43 @@ function parseJSON(str) {
 function formatToolName(name) {
   return name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
+/**
+ * Check if a tool result represents a semantic failure/warning state.
+ * Some tools return successfully but with negative outcomes (e.g., "not connected").
+ * 
+ * Note: Tools like get_table_indexes, get_table_constraints, get_foreign_keys
+ * can legitimately return 0 results (table may have none), so those are NOT failures.
+ */
+function isSemanticFailure(name, result) {
+  if (!result) return false;
+  if (result.success === false || result.error) return true;
 
+  // Tool-specific semantic failures
+  switch (name) {
+    case 'get_connection_status':
+      // Not connected is a clear failure state
+      return result.connected === false;
+    case 'get_database_list':
+      // No databases available is problematic
+      return (result.count ?? result.databases?.length ?? 0) === 0;
+    case 'get_database_schema':
+      // No tables in a database usually indicates an issue
+      return (result.table_count ?? result.tables?.length ?? 0) === 0;
+    case 'get_table_columns':
+      // A table with 0 columns is definitely wrong
+      return (result.column_count ?? result.columns?.length ?? 0) === 0;
+    case 'get_sample_data':
+      // Explicitly requested sample data but got nothing
+      return (result.row_count ?? 0) === 0;
+    // Note: get_table_indexes, get_table_constraints, get_foreign_keys
+    // can legitimately return 0 - a table may have no indexes/constraints/FKs
+    default:
+      return false;
+  }
+}
 function getResultSummary(name, result) {
   if (!result) return '';
-  if (!result.success || result.error) return 'failed';
+  if (result.success === false || result.error) return 'failed';
 
   const summaries = {
     'get_connection_status': () => result.connected ? `${result.database || 'connected'}` : 'not connected',
@@ -122,7 +166,9 @@ function getResultSummary(name, result) {
 
 function getDetailedResult(name, result) {
   if (!result) return 'No result';
-  if (!result.success || result.error) return `Error: ${result.error}`;
+  if (result.success === false || result.error) {
+    return `Error: ${result.error || result.message || 'Unknown error'}`;
+  }
 
   const details = {
     'get_connection_status': () => {
@@ -204,7 +250,7 @@ AnimatedDots.displayName = 'AnimatedDots';
 /**
  * Individual step row (thinking or tool) - lightweight, no accordion chrome
  */
-const StepRow = memo(({ step, isStreaming }) => {
+const StepRow = memo(({ step }) => {
   const [expanded, setExpanded] = useState(false);
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -225,7 +271,7 @@ const StepRow = memo(({ step, isStreaming }) => {
       parsedArgs: args,
       parsedResult: result,
       isRunning: running,
-      isError: step.status === 'error' || result?.success === false || result?.error,
+      isError: step.status === 'error' || isSemanticFailure(step.name, result),
     };
   }, [isTool, step]);
 
@@ -266,21 +312,21 @@ const StepRow = memo(({ step, isStreaming }) => {
   // Status icon for tools
   const statusIcon = useMemo(() => {
     if (isThinking) {
-      const isThinkingActive = !step.isComplete;
       return <BubbleChartRoundedIcon sx={{
         fontSize: 15,
-        color: isDark ? alpha('#fff', 0.4) : alpha('#000', 0.35),
+        color: theme.palette.info.main,
+        opacity: isThinkingActive ? 1 : 0.6,
         ...(isThinkingActive && { animation: `${gentlePulse} 1.5s ease-in-out infinite` }),
       }} />;
     }
     if (isRunning) {
-      return <AutorenewRoundedIcon sx={{ fontSize: 15, color: isDark ? alpha('#fff', 0.4) : alpha('#000', 0.35), animation: `${spin} 1s linear infinite` }} />;
+      return <AutorenewRoundedIcon sx={{ fontSize: 15, color: theme.palette.info.main, animation: `${spin} 1s linear infinite` }} />;
     }
     if (isError) {
       return <ErrorRoundedIcon sx={{ fontSize: 15, color: theme.palette.error.main }} />;
     }
     return <CheckCircleRoundedIcon sx={{ fontSize: 15, color: theme.palette.success.main }} />;
-  }, [isThinking, isRunning, isError, isDark, theme, step]);
+  }, [isThinking, isThinkingActive, isRunning, isError, theme]);
 
   // Display text
   const displayText = useMemo(() => {
@@ -449,7 +495,7 @@ const StepRow = memo(({ step, isStreaming }) => {
                 {/* Query */}
                 {parsedArgs?.query && (
                   <Box>
-                    <Typography variant="caption" sx={{ color: isDark ? alpha('#fff', 0.35) : alpha('#000', 0.3), fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.05em', mb: 0.5, display: 'block' }}>
+                    <Typography variant="labelSmall" sx={getSectionLabelSx(isDark)}>
                       Query
                     </Typography>
                     <Box sx={{ borderRadius: '6px', overflow: 'hidden', border: `1px solid ${isDark ? alpha('#fff', 0.06) : alpha('#000', 0.06)}`, height: queryHeight }}>
@@ -468,7 +514,7 @@ const StepRow = memo(({ step, isStreaming }) => {
                 {/* Parameters */}
                 {filteredParams.length > 0 && (
                   <Box>
-                    <Typography variant="caption" sx={{ color: isDark ? alpha('#fff', 0.35) : alpha('#000', 0.3), fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.05em', mb: 0.5, display: 'block' }}>
+                    <Typography variant="labelSmall" sx={getSectionLabelSx(isDark)}>
                       Parameters
                     </Typography>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
@@ -489,7 +535,7 @@ const StepRow = memo(({ step, isStreaming }) => {
                 {/* Result */}
                 {parsedResult && !isRunning && (
                   <Box>
-                    <Typography variant="caption" sx={{ color: isDark ? alpha('#fff', 0.35) : alpha('#000', 0.3), fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.05em', mb: 0.5, display: 'block' }}>
+                    <Typography variant="labelSmall" sx={getSectionLabelSx(isDark)}>
                       Result
                     </Typography>
                     <Typography
@@ -630,7 +676,7 @@ export const StepsAccordion = memo(({ steps, isStreaming }) => {
           }}
         >
           {validSteps.map((step, idx) => (
-            <StepRow key={`${idx}-${step.type}`} step={step} isStreaming={isStreaming} />
+            <StepRow key={`${idx}-${step.type}`} step={step} />
           ))}
         </Box>
       </Collapse>

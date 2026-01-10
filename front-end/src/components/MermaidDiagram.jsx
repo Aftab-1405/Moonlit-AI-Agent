@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useId, useCallback, useMemo, memo } from 'react';
 import mermaid from 'mermaid';
-import { Box, Paper, IconButton, Tooltip, Typography, CircularProgress, Slider } from '@mui/material';
+import { Box, Paper, IconButton, Tooltip, Typography, CircularProgress, Slider, Portal } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
@@ -179,30 +179,53 @@ function MermaidDiagram({ code }) {
     setIsPanning(false);
   }, []);
 
+  // Touch event handlers for mobile panning
+  const handleTouchStart = useCallback((e) => {
+    if (e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    setIsPanning(true);
+    setPanStart({ x: touch.clientX - panPosition.x, y: touch.clientY - panPosition.y });
+  }, [panPosition]);
+
+  const handleTouchMove = useCallback((e) => {
+    if (!isPanning || e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    setPanPosition({
+      x: touch.clientX - panStart.x,
+      y: touch.clientY - panStart.y,
+    });
+  }, [isPanning, panStart]);
+
+  const handleTouchEnd = useCallback(() => {
+    setIsPanning(false);
+  }, []);
+
   // Memoized styles
   const headerStyles = useMemo(() => ({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    px: 2,
-    py: 0.75,
+    px: { xs: 1, sm: 2 },
+    py: { xs: 0.5, sm: 0.75 },
     backgroundColor: isDark ? alpha('#fff', 0.03) : alpha('#000', 0.03),
     borderBottom: '1px solid',
     borderColor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.08),
+    minHeight: { xs: 40, sm: 44 },
   }), [isDark]);
 
   const diagramContainerStyles = useMemo(() => ({
     flex: 1,
-    p: 3,
+    p: { xs: 1.5, sm: 2, md: 3 },
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    minHeight: fullscreen ? 'calc(100vh - 60px)' : 200,
-    maxHeight: fullscreen ? 'calc(100vh - 60px)' : 450,
+    minHeight: fullscreen ? 'calc(100vh - 60px)' : { xs: 180, sm: 200 },
+    maxHeight: fullscreen ? 'calc(100vh - 60px)' : { xs: 320, sm: 400, md: 450 },
     overflow: 'hidden',
     backgroundColor: 'transparent',
     cursor: isPanning ? 'grabbing' : 'grab',
     userSelect: 'none',
+    touchAction: 'none', // Prevent browser handling of touch events
   }), [fullscreen, isPanning]);
 
   const svgContainerStyles = useMemo(() => ({
@@ -222,51 +245,14 @@ function MermaidDiagram({ code }) {
     return (
       <Paper
         sx={{
-          my: 2,
+          my: { xs: 1.5, sm: 2 },
           overflow: 'hidden',
           bgcolor: isDark ? alpha('#000', 0.3) : alpha('#000', 0.02),
           border: '1px solid',
           borderColor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.1),
-          borderRadius: '12px',
+          borderRadius: { xs: '8px', sm: '12px' },
         }}
       >
-        <Box sx={headerStyles}>
-          <Typography variant="labelSmall" sx={{ color: 'text.secondary', textTransform: 'uppercase', fontWeight: 500 }}>
-            mermaid
-          </Typography>
-          <Tooltip title={copied ? 'Copied!' : 'Copy'}>
-            <IconButton size="small" onClick={handleCopy}>
-              {copied ? <CheckRoundedIcon sx={{ fontSize: 14 }} /> : <ContentCopyRoundedIcon sx={{ fontSize: 14 }} />}
-            </IconButton>
-          </Tooltip>
-        </Box>
-        <Box component="pre" sx={{ m: 0, p: 2, overflow: 'auto', fontFamily: 'monospace' }}>
-          <code>{code}</code>
-        </Box>
-      </Paper>
-    );
-  }
-
-  return (
-    <>
-      <Paper
-        ref={containerRef}
-        elevation={fullscreen ? 8 : 0}
-        sx={{
-          my: fullscreen ? 0 : 2,
-          overflow: 'hidden',
-          bgcolor: 'background.paper',
-          border: '1px solid',
-          borderColor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.08),
-          borderRadius: fullscreen ? 0 : '12px',
-          position: fullscreen ? 'fixed' : 'relative',
-          inset: fullscreen ? 0 : 'auto',
-          zIndex: fullscreen ? 9999 : 'auto',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
-        {/* Header */}
         <Box sx={headerStyles}>
           <Typography
             variant="labelSmall"
@@ -274,21 +260,72 @@ function MermaidDiagram({ code }) {
               color: 'text.secondary',
               textTransform: 'uppercase',
               fontWeight: 500,
-              letterSpacing: 0.5,
+              fontSize: { xs: '0.65rem', sm: '0.7rem' },
             }}
           >
-            diagram
+            mermaid
           </Typography>
+          <Tooltip title={copied ? 'Copied!' : 'Copy'}>
+            <IconButton size="small" onClick={handleCopy}>
+              {copied ? <CheckRoundedIcon sx={{ fontSize: { xs: 16, sm: 14 } }} /> : <ContentCopyRoundedIcon sx={{ fontSize: { xs: 16, sm: 14 } }} />}
+            </IconButton>
+          </Tooltip>
+        </Box>
+        <Box
+          component="pre"
+          sx={{
+            m: 0,
+            p: { xs: 1.5, sm: 2 },
+            overflow: 'auto',
+            fontFamily: 'monospace',
+            fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' },
+            maxHeight: { xs: 200, sm: 300 },
+          }}
+        >
+          <code>{code}</code>
+        </Box>
+      </Paper>
+    );
+  }
 
-          {/* Controls */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+  // Shared diagram content - used in both normal and fullscreen modes
+  const diagramContent = (
+    <>
+      {/* Header - Mobile optimized */}
+      <Box sx={headerStyles}>
+        {/* Label - Hidden on mobile, visible on tablet+ */}
+        <Typography
+          variant="labelSmall"
+          sx={{
+            color: 'text.secondary',
+            textTransform: 'uppercase',
+            fontWeight: 500,
+            letterSpacing: 0.5,
+            display: { xs: 'none', sm: 'block' },
+            flexShrink: 0,
+          }}
+        >
+          diagram
+        </Typography>
+
+        {/* Controls - Responsive layout */}
+        <Box sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: { xs: 0.25, sm: 0.5 },
+          flex: { xs: 1, sm: 'none' },
+          justifyContent: { xs: 'space-between', sm: 'flex-end' },
+        }}>
+          {/* Zoom controls group */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
             <Tooltip title="Zoom out">
               <IconButton size="small" onClick={handleZoomOut} disabled={zoom <= 25}>
-                <ZoomOutRoundedIcon sx={{ fontSize: 16 }} />
+                <ZoomOutRoundedIcon sx={{ fontSize: { xs: 18, sm: 16 } }} />
               </IconButton>
             </Tooltip>
 
-            <Box sx={{ width: 80, mx: 0.5, display: { xs: 'none', sm: 'block' } }}>
+            {/* Slider - Hidden on mobile */}
+            <Box sx={{ width: 80, mx: 0.5, display: { xs: 'none', md: 'block' } }}>
               <Slider
                 value={zoom}
                 onChange={handleZoomChange}
@@ -304,91 +341,194 @@ function MermaidDiagram({ code }) {
               />
             </Box>
 
-            <Typography variant="labelMedium" sx={{ color: 'text.secondary', minWidth: 35, textAlign: 'center' }}>
+            {/* Zoom percentage - Compact on mobile */}
+            <Typography
+              variant="labelMedium"
+              sx={{
+                color: 'text.secondary',
+                minWidth: { xs: 32, sm: 35 },
+                textAlign: 'center',
+                fontSize: { xs: '0.7rem', sm: '0.75rem' },
+              }}
+            >
               {zoom}%
             </Typography>
 
             <Tooltip title="Zoom in">
               <IconButton size="small" onClick={handleZoomIn} disabled={zoom >= 300}>
-                <ZoomInRoundedIcon sx={{ fontSize: 16 }} />
+                <ZoomInRoundedIcon sx={{ fontSize: { xs: 18, sm: 16 } }} />
               </IconButton>
             </Tooltip>
 
             <Tooltip title="Reset zoom">
               <IconButton size="small" onClick={handleResetZoom}>
-                <RestartAltRoundedIcon sx={{ fontSize: 16 }} />
+                <RestartAltRoundedIcon sx={{ fontSize: { xs: 18, sm: 16 } }} />
               </IconButton>
             </Tooltip>
+          </Box>
 
-            <Box sx={{ width: 1, height: 16, bgcolor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.1), mx: 0.5 }} />
+          {/* Divider - Hidden on mobile */}
+          <Box sx={{
+            width: 1,
+            height: 16,
+            bgcolor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.1),
+            mx: 0.5,
+            display: { xs: 'none', sm: 'block' },
+          }} />
 
+          {/* Action buttons group */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
             <Tooltip title={copied ? 'Copied!' : 'Copy code'}>
               <IconButton size="small" onClick={handleCopy}>
-                {copied ? <CheckRoundedIcon sx={{ fontSize: 14 }} /> : <ContentCopyRoundedIcon sx={{ fontSize: 14 }} />}
+                {copied ? <CheckRoundedIcon sx={{ fontSize: { xs: 16, sm: 14 } }} /> : <ContentCopyRoundedIcon sx={{ fontSize: { xs: 16, sm: 14 } }} />}
               </IconButton>
             </Tooltip>
 
             <Tooltip title="Download SVG">
               <span>
                 <IconButton size="small" onClick={handleDownload} disabled={!svg}>
-                  <FileDownloadOutlinedIcon sx={{ fontSize: 14 }} />
+                  <FileDownloadOutlinedIcon sx={{ fontSize: { xs: 16, sm: 14 } }} />
                 </IconButton>
               </span>
             </Tooltip>
 
             <Tooltip title={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
               <IconButton size="small" onClick={toggleFullscreen}>
-                {fullscreen ? <FullscreenExitRoundedIcon sx={{ fontSize: 16 }} /> : <FullscreenRoundedIcon sx={{ fontSize: 16 }} />}
+                {fullscreen ? <FullscreenExitRoundedIcon sx={{ fontSize: { xs: 18, sm: 16 } }} /> : <FullscreenRoundedIcon sx={{ fontSize: { xs: 18, sm: 16 } }} />}
               </IconButton>
             </Tooltip>
           </Box>
         </Box>
+      </Box>
 
-        {/* Diagram */}
-        <Box
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseLeave}
-          sx={diagramContainerStyles}
-        >
-          {isStreaming ? (
-            <Box sx={{ textAlign: 'center', cursor: 'default' }}>
-              <CircularProgress size={24} sx={{ color: 'text.secondary' }} />
-              <Typography variant="caption" sx={{ display: 'block', mt: 1, color: 'text.secondary' }}>
-                Receiving diagram code...
-              </Typography>
-            </Box>
-          ) : loading ? (
-            <Box sx={{ textAlign: 'center', cursor: 'default' }}>
-              <CircularProgress size={24} sx={{ color: 'primary.main' }} />
-              <Typography variant="caption" sx={{ display: 'block', mt: 1, color: 'text.secondary' }}>
-                Rendering diagram...
-              </Typography>
-            </Box>
-          ) : svg ? (
-            <Box
-              sx={svgContainerStyles}
-              dangerouslySetInnerHTML={{ __html: svg }}
-            />
-          ) : null}
-        </Box>
-      </Paper>
-
-      {/* Fullscreen backdrop */}
-      {fullscreen && (
-        <Box
-          onClick={toggleFullscreen}
-          sx={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: alpha(theme.palette.common.black, isDark ? 0.9 : 0.8),
-            zIndex: 9998,
-            cursor: 'pointer',
-          }}
-        />
-      )}
+      {/* Diagram */}
+      <Box
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseLeave}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        sx={diagramContainerStyles}
+      >
+        {isStreaming ? (
+          <Box sx={{ textAlign: 'center', cursor: 'default' }}>
+            <CircularProgress size={24} sx={{ color: 'text.secondary' }} />
+            <Typography
+              variant="caption"
+              sx={{
+                display: 'block',
+                mt: 1,
+                color: 'text.secondary',
+                fontSize: { xs: '0.7rem', sm: '0.75rem' },
+              }}
+            >
+              Receiving diagram code...
+            </Typography>
+          </Box>
+        ) : loading ? (
+          <Box sx={{ textAlign: 'center', cursor: 'default' }}>
+            <CircularProgress size={24} sx={{ color: 'primary.main' }} />
+            <Typography
+              variant="caption"
+              sx={{
+                display: 'block',
+                mt: 1,
+                color: 'text.secondary',
+                fontSize: { xs: '0.7rem', sm: '0.75rem' },
+              }}
+            >
+              Rendering diagram...
+            </Typography>
+          </Box>
+        ) : svg ? (
+          <Box
+            sx={svgContainerStyles}
+            dangerouslySetInnerHTML={{ __html: svg }}
+          />
+        ) : null}
+      </Box>
     </>
+  );
+
+  // Fullscreen mode - rendered via Portal to escape stacking contexts
+  if (fullscreen) {
+    return (
+      <>
+        {/* Placeholder to maintain layout */}
+        <Paper
+          sx={{
+            my: { xs: 1.5, sm: 2 },
+            overflow: 'hidden',
+            bgcolor: 'background.paper',
+            border: '1px solid',
+            borderColor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.08),
+            borderRadius: { xs: '8px', sm: '12px' },
+            minHeight: { xs: 180, sm: 200 },
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Typography variant="caption" color="text.secondary">
+            Viewing in fullscreen...
+          </Typography>
+        </Paper>
+
+        {/* Fullscreen overlay - rendered at body level via Portal */}
+        <Portal>
+          {/* Backdrop */}
+          <Box
+            onClick={toggleFullscreen}
+            sx={{
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: alpha(theme.palette.common.black, isDark ? 0.95 : 0.9),
+              zIndex: theme.zIndex.modal + 100,
+              cursor: 'pointer',
+            }}
+          />
+          {/* Fullscreen content */}
+          <Paper
+            ref={containerRef}
+            elevation={8}
+            sx={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: theme.zIndex.modal + 101,
+              overflow: 'hidden',
+              bgcolor: 'background.paper',
+              borderRadius: 0,
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            {diagramContent}
+          </Paper>
+        </Portal>
+      </>
+    );
+  }
+
+  // Normal mode
+  return (
+    <Paper
+      ref={containerRef}
+      elevation={0}
+      sx={{
+        my: { xs: 1.5, sm: 2 },
+        overflow: 'hidden',
+        bgcolor: 'background.paper',
+        border: '1px solid',
+        borderColor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.08),
+        borderRadius: { xs: '8px', sm: '12px' },
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      {diagramContent}
+    </Paper>
   );
 }
 
