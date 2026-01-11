@@ -60,10 +60,8 @@ const CONTENT_CONTAINER_STYLES = {
 // ============================================================================
 const getGlassmorphismStyles = (theme, isDarkMode) => ({
   background: isDarkMode
-    ? alpha(theme.palette.background.paper, 0.05)
+    ? theme.palette.background.default  // Same as main content area
     : theme.palette.background.default,
-  backdropFilter: 'blur(12px)',
-  WebkitBackdropFilter: 'blur(12px)',
   borderRight: '1px solid',
   borderColor: theme.palette.divider,
 });
@@ -98,11 +96,17 @@ const StyledDrawer = styled(MuiDrawer, {
   boxSizing: 'border-box',
   ...(open && {
     ...openedMixin(theme, isDarkMode),
-    '& .MuiDrawer-paper': openedMixin(theme, isDarkMode),
+    '& .MuiDrawer-paper': {
+      ...openedMixin(theme, isDarkMode),
+      borderRadius: 0,  // No rounded corners for sidebar
+    },
   }),
   ...(!open && {
     ...closedMixin(theme, isDarkMode),
-    '& .MuiDrawer-paper': closedMixin(theme, isDarkMode),
+    '& .MuiDrawer-paper': {
+      ...closedMixin(theme, isDarkMode),
+      borderRadius: 0,  // No rounded corners for sidebar
+    },
   }),
 }));
 
@@ -288,18 +292,18 @@ function Sidebar({
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  
+
   // Local state
   const [dbPopoverAnchor, setDbPopoverAnchor] = useState(null);
   const [historyPopoverAnchor, setHistoryPopoverAnchor] = useState(null);
   const [mindmapOpen, setMindmapOpen] = useState(false);
   const [schemaData, setSchemaData] = useState(null);
   const [schemaLoading, setSchemaLoading] = useState(false);
-  
+
   // Refs
   const profileButtonRef = useRef(null);
   const historyButtonRef = useRef(null);
-  
+
   // Derived state
   const isPopoverOpen = Boolean(dbPopoverAnchor);
   const isHistoryPopoverOpen = Boolean(historyPopoverAnchor);
@@ -427,6 +431,7 @@ function Sidebar({
     '& .MuiDrawer-paper': {
       width: EXPANDED_WIDTH,
       height: '100%',
+      borderRadius: 0,  // No rounded corners for sidebar
       ...getGlassmorphismStyles(theme, isDarkMode),
       borderRight: '1px solid',
       borderColor: theme.palette.divider,
@@ -839,7 +844,7 @@ function Sidebar({
           variant="temporary"
           open={mobileOpen}
           onClose={onMobileClose}
-          onOpen={() => {}}
+          onOpen={() => { }}
           disableSwipeToOpen
           ModalProps={{ keepMounted: true }}
           sx={mobileDrawerStyles}

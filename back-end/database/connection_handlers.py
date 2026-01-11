@@ -89,7 +89,6 @@ def _cache_schema(user_id: str, db_config: dict, database: str, tables: list, db
 
 def connect_local_sqlite(file_path: str, user_id: str = None) -> dict:
     """Connect to a local SQLite database file."""
-    from database.operations import DatabaseOperations
     from database.adapters import get_adapter
     from database.connection_manager import get_connection_manager
     import os
@@ -566,7 +565,6 @@ def connect_remote_oracle(connection_string: str, user_id: str = None) -> dict:
         # Simple format - try direct connection
         host = 'remote'
         schema_name = 'REMOTE'
-        service_name = 'unknown'
     
     db_config = {
         'db_type': 'oracle',
@@ -633,7 +631,6 @@ def connect_remote_oracle(connection_string: str, user_id: str = None) -> dict:
 def connect_local_sqlserver(host: str, port: int, user: str, password: str,
                             database: str = None, user_id: str = None) -> dict:
     """Connect to a local SQL Server database."""
-    from database.operations import DatabaseOperations
     from database.adapters import get_adapter
     from database.connection_manager import get_connection_manager
     
