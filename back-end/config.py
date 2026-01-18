@@ -158,6 +158,12 @@ class Config:
     QUERY_TIMEOUT_SECONDS = int(os.getenv('QUERY_TIMEOUT_SECONDS', 30))  # Query timeout
     MAX_QUERY_LENGTH = int(os.getenv('MAX_QUERY_LENGTH', 10000))  # Max characters in query
     
+    # AI Context Configuration (Firestore-based schema context for AI agent)
+    SCHEMA_CONTEXT_TTL_SECONDS = int(os.getenv('SCHEMA_CONTEXT_TTL_SECONDS', 300))  # 5 min TTL
+    SCHEMA_CONTEXT_MAX_TABLES = int(os.getenv('SCHEMA_CONTEXT_MAX_TABLES', 20))  # Max tables to store
+    CONNECTION_CONTEXT_TTL_SECONDS = int(os.getenv('CONNECTION_CONTEXT_TTL_SECONDS', 300))  # 5 min
+    CONTEXT_METRICS_ENABLED = os.getenv('CONTEXT_METRICS_ENABLED', 'True').lower() == 'true'
+    
     # Session/Cookie Configuration (base defaults)
     SESSION_COOKIE_SECURE = False  # Override in production
     SESSION_COOKIE_HTTPONLY = True

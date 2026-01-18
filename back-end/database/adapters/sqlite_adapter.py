@@ -177,7 +177,7 @@ class SQLiteAdapter(BaseDatabaseAdapter):
         """
         # PRAGMA returns: cid, name, type, notnull, dflt_value, pk
         # We need to use the PRAGMA directly as it can't be used in subquery
-        # The _cache_schema_sqlite method will handle this specially
+        # The _store_schema_context method will handle this specially
         return f"PRAGMA table_info('{table_name}')", ()
 
     def get_table_schema_query(self) -> str:

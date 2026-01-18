@@ -2,7 +2,7 @@
 Context Service - Pure FastAPI Version
 
 Manages persistent AI context in Firestore.
-Provides schema caching, connection state, and query history.
+Provides schema context, connection state, and query history.
 No Flask dependencies - context validation is done by caller.
 """
 
@@ -12,7 +12,68 @@ import logging
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 
+from config import get_config
+
 logger = logging.getLogger(__name__)
+
+# Get configuration
+_config = get_config()
+
+
+class ContextMetrics:
+    """Tracks context hit/miss metrics for monitoring effectiveness."""
+    
+    _hits = 0
+    _misses = 0
+    _stores = 0
+    _clears = 0
+    
+    @classmethod
+    def record_hit(cls):
+        """Record a context hit (data found and fresh)."""
+        if _config.CONTEXT_METRICS_ENABLED:
+            cls._hits += 1
+    
+    @classmethod
+    def record_miss(cls):
+        """Record a context miss (data not found or stale)."""
+        if _config.CONTEXT_METRICS_ENABLED:
+            cls._misses += 1
+    
+    @classmethod
+    def record_store(cls):
+        """Record a context store operation."""
+        if _config.CONTEXT_METRICS_ENABLED:
+            cls._stores += 1
+    
+    @classmethod
+    def record_clear(cls):
+        """Record a context clear operation."""
+        if _config.CONTEXT_METRICS_ENABLED:
+            cls._clears += 1
+    
+    @classmethod
+    def get_stats(cls) -> Dict:
+        """Get current metrics statistics."""
+        total = cls._hits + cls._misses
+        hit_rate = (cls._hits / total * 100) if total > 0 else 0.0
+        return {
+            'hits': cls._hits,
+            'misses': cls._misses,
+            'stores': cls._stores,
+            'clears': cls._clears,
+            'total_lookups': total,
+            'hit_rate_percent': round(hit_rate, 2),
+            'metrics_enabled': _config.CONTEXT_METRICS_ENABLED
+        }
+    
+    @classmethod
+    def reset(cls):
+        """Reset all metrics (useful for testing)."""
+        cls._hits = 0
+        cls._misses = 0
+        cls._stores = 0
+        cls._clears = 0
 
 
 class ContextService:
@@ -28,8 +89,6 @@ class ContextService:
     
     COLLECTION_NAME = 'user_context'
     MAX_RECENT_QUERIES = 10
-    SCHEMA_CACHE_TTL_SECONDS = 300  # 5 minutes TTL for schema cache
-    CONNECTION_TTL_SECONDS = 300  # 5 minutes - after this, verify connection
     
     # =========================================================================
     # Firestore Access (delegated to repository)
@@ -147,20 +206,24 @@ class ContextService:
         return hashlib.md5(schema_str.encode()).hexdigest()
     
     @staticmethod
-    def get_cached_schema(user_id: str, database: str) -> Optional[Dict]:
+    def get_schema_context(user_id: str, database: str) -> Optional[Dict]:
         """
-        Get cached schema for a database with TTL check.
+        Get stored schema context for a database with TTL check.
         
-        Returns None if cache is expired or doesn't exist.
+        This is AI context (not cache) - stores database structure
+        so the AI agent understands the schema it's working with.
+        
+        Returns None if context is stale or doesn't exist.
         """
         context = ContextService._get_context(user_id)
         schemas = context.get('database_schemas', {})
         cached = schemas.get(database)
         
         if not cached:
+            ContextMetrics.record_miss()
             return None
         
-        # Check TTL
+        # Check TTL using config value
         cached_at = cached.get('cached_at')
         if cached_at:
             try:
@@ -169,19 +232,27 @@ class ContextService:
                     cache_time = cache_time.replace(tzinfo=None)
                 age_seconds = (datetime.now() - cache_time).total_seconds()
                 
-                if age_seconds > ContextService.SCHEMA_CACHE_TTL_SECONDS:
-                    logger.debug(f"Schema cache expired for {database} (age: {age_seconds:.0f}s)")
+                ttl = _config.SCHEMA_CONTEXT_TTL_SECONDS
+                if age_seconds > ttl:
+                    logger.debug(f"Schema context stale for {database} (age: {age_seconds:.0f}s, TTL: {ttl}s), will refresh")
+                    ContextMetrics.record_miss()
                     return None
             except (ValueError, TypeError) as e:
                 logger.warning(f"Could not parse cached_at timestamp: {e}")
+                ContextMetrics.record_miss()
                 return None
         
+        ContextMetrics.record_hit()
         return cached
     
     @staticmethod
-    def cache_schema(user_id: str, database: str, tables: List[str], 
-                     columns: Dict[str, List]) -> bool:
-        """Cache schema for a database."""
+    def store_schema_context(user_id: str, database: str, tables: List[str], 
+                             columns: Dict[str, List]) -> bool:
+        """Store database schema as AI context.
+        
+        This provides the AI agent with understanding of the database
+        structure (tables, columns) it's working with.
+        """
         schema_data = {
             'tables': tables,
             'columns': columns,
@@ -193,14 +264,15 @@ class ContextService:
         schemas = context.get('database_schemas', {})
         schemas[database] = schema_data
         
-        logger.info(f"Caching schema for user {user_id}, database {database}: {len(tables)} tables")
+        ContextMetrics.record_store()
+        logger.info(f"Stored schema context for user {user_id}, database {database}: {len(tables)} tables")
         return ContextService._update_context(user_id, {'database_schemas': schemas})
     
     @staticmethod
     def is_schema_changed(user_id: str, database: str, 
                           current_tables: List[str], current_columns: Dict) -> bool:
-        """Check if schema has changed since last cache."""
-        cached = ContextService.get_cached_schema(user_id, database)
+        """Check if schema has changed since last context update."""
+        cached = ContextService.get_schema_context(user_id, database)
         if not cached:
             return True
         
@@ -208,18 +280,19 @@ class ContextService:
         return cached.get('schema_hash') != current_hash
     
     @staticmethod
-    def invalidate_schema_cache(user_id: str, database: str) -> bool:
-        """Invalidate schema cache for a database."""
+    def clear_schema_context(user_id: str, database: str) -> bool:
+        """Clear schema context for a database (forces refresh on next access)."""
         from repositories import ContextRepository
         
         success = ContextRepository.delete_field(user_id, f'database_schemas.{database}')
         if success:
-            logger.info(f"Invalidated schema cache for {database}")
+            ContextMetrics.record_clear()
+            logger.info(f"Cleared schema context for {database}")
         return success
     
     @staticmethod
     def get_schema_summary(user_id: str) -> List[Dict]:
-        """Get summary of cached schemas for UI display."""
+        """Get summary of stored schema contexts for UI display."""
         context = ContextService._get_context(user_id)
         schemas = context.get('database_schemas', {})
         
@@ -235,8 +308,8 @@ class ContextService:
         return summary
     
     @staticmethod
-    def get_all_cached_schemas(user_id: str) -> Dict:
-        """Get all cached schemas for user."""
+    def get_all_schema_contexts(user_id: str) -> Dict:
+        """Get all stored schema contexts for user."""
         context = ContextService._get_context(user_id)
         return context.get('database_schemas', {})
     

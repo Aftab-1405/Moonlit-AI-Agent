@@ -4,20 +4,41 @@ Oracle Database Adapter
 Implements database operations for Oracle using oracledb (python-oracledb).
 Supports local Oracle instances and cloud providers (AWS RDS Oracle).
 
+Features:
+- TRUE connection pooling using oracledb.create_pool()
+- Pool of 2-10 connections maintained for efficient reuse
+- Connection acquisition is fast (no connect overhead per query)
+
 Note: Oracle Cloud Autonomous DB requires wallet-based authentication which
 is not supported in this simple connection string approach.
 """
 
 import logging
+import re
 from typing import Any, Dict, List, Optional
 from contextlib import contextmanager
 from .base_adapter import BaseDatabaseAdapter
 
 logger = logging.getLogger(__name__)
 
+# Check if oracledb is available
+try:
+    import oracledb
+    ORACLE_AVAILABLE = True
+except ImportError:
+    ORACLE_AVAILABLE = False
+    logger.warning("oracledb not installed. Oracle support disabled.")
+
 
 class OracleAdapter(BaseDatabaseAdapter):
-    """Oracle database adapter using oracledb."""
+    """Oracle database adapter using oracledb with TRUE connection pooling."""
+
+    def __init__(self):
+        if not ORACLE_AVAILABLE:
+            raise ImportError(
+                "oracledb is required for Oracle support. "
+                "Install it with: pip install oracledb"
+            )
 
     @property
     def db_type(self) -> str:
@@ -31,9 +52,50 @@ class OracleAdapter(BaseDatabaseAdapter):
     def requires_server(self) -> bool:
         return True
 
+    def _parse_connection_string(self, connection_string: str) -> Dict[str, str]:
+        """
+        Parse Oracle connection string to extract components.
+        
+        Supported formats:
+        - user/password@host:port/service_name
+        - user/password@//host:port/service_name (Easy Connect Plus)
+        - user/password@host/service_name (default port 1521)
+        
+        Returns:
+            Dict with 'user', 'password', 'dsn' keys
+        """
+        # Pattern: user/password@[//]host[:port]/service_name
+        pattern = r'^([^/]+)/([^@]+)@(.+)$'
+        match = re.match(pattern, connection_string)
+        
+        if match:
+            user = match.group(1)
+            password = match.group(2)
+            dsn = match.group(3)
+            
+            # Remove leading // if present (Easy Connect Plus format)
+            if dsn.startswith('//'):
+                dsn = dsn[2:]
+            
+            return {
+                'user': user,
+                'password': password,
+                'dsn': dsn
+            }
+        else:
+            raise ValueError(
+                f"Invalid Oracle connection string format. "
+                f"Expected: user/password@host:port/service_name"
+            )
+
     def create_connection_pool(self, config: Dict) -> Any:
         """
-        Create Oracle connection pool.
+        Create TRUE Oracle connection pool using oracledb.create_pool().
+        
+        Pool Configuration:
+        - min: 2 connections (always maintained)
+        - max: 10 connections (scales up under load)
+        - increment: 1 (grows gradually)
         
         Supports:
         1. Connection string (Easy Connect format for AWS RDS, local)
@@ -46,10 +108,13 @@ class OracleAdapter(BaseDatabaseAdapter):
             connection_string = config.get('connection_string')
             
             if connection_string:
-                # Remote connection via connection string
-                # Expected format: user/password@host:port/service_name
-                logger.info("Creating Oracle connection using connection string")
-                config['_connection_string'] = connection_string
+                # Parse connection string to extract user/password/dsn
+                parsed = self._parse_connection_string(connection_string)
+                user = parsed['user']
+                password = parsed['password']
+                dsn = parsed['dsn']
+                
+                logger.info(f"Creating Oracle connection pool using connection string for DSN: {dsn}")
             else:
                 # Local connection via individual parameters
                 host = config.get('host', 'localhost')
@@ -58,60 +123,70 @@ class OracleAdapter(BaseDatabaseAdapter):
                 password = config.get('password', '')
                 service_name = config.get('service_name') or config.get('database', 'ORCL')
                 
-                # Easy Connect string format
+                # Easy Connect string format: host:port/service_name
                 dsn = f"{host}:{port}/{service_name}"
                 
-                config['_dsn'] = dsn
-                config['_user'] = user
-                config['_password'] = password
-                
-                logger.info(f"Creating Oracle connection for {user}@{host}:{port}/{service_name}")
+                logger.info(f"Creating Oracle connection pool for {user}@{host}:{port}/{service_name}")
             
-            # Return config as "pool" - we'll create connections on demand
-            return config
+            # Create TRUE connection pool with oracledb
+            pool = oracledb.create_pool(
+                user=user,
+                password=password,
+                dsn=dsn,
+                min=2,          # Minimum connections always maintained
+                max=10,         # Maximum connections under load
+                increment=1,    # Grow pool by 1 when needed
+                timeout=60,     # Wait up to 60s for available connection
+                getmode=oracledb.POOL_GETMODE_WAIT  # Wait for connection if pool exhausted
+            )
+            
+            logger.info(f"Created Oracle connection pool: min={pool.min}, max={pool.max}, opened={pool.opened}")
+            return pool
                 
         except Exception as err:
-            logger.error(f"Failed to create Oracle connection config: {err}")
+            logger.error(f"Failed to create Oracle connection pool: {err}")
             raise
 
     def get_connection_from_pool(self, pool: Any) -> Any:
-        """Get Oracle connection from pool (creates new connection)."""
-        import oracledb
+        """
+        Get Oracle connection from pool (reuses existing connection).
         
+        This is fast because connections are already established in the pool.
+        """
         try:
-            connection_string = pool.get('_connection_string')
-            
-            if connection_string:
-                # Parse connection string: user/password@host:port/service
-                # or use oracledb.connect directly
-                connection = oracledb.connect(connection_string)
-            else:
-                dsn = pool.get('_dsn')
-                user = pool.get('_user')
-                password = pool.get('_password')
-                
-                if not dsn:
-                    raise ValueError("No DSN found in pool config")
-                
-                connection = oracledb.connect(user=user, password=password, dsn=dsn)
-            
+            # acquire() gets a connection from the pool (fast!)
+            # If pool is exhausted, waits up to 'timeout' seconds
+            connection = pool.acquire()
+            logger.debug(f"Acquired Oracle connection from pool (busy={pool.busy}, opened={pool.opened})")
             return connection
         except Exception as err:
-            logger.error(f"Failed to get Oracle connection: {err}")
+            logger.error(f"Failed to acquire Oracle connection from pool: {err}")
             raise
 
     def close_pool(self, pool: Any) -> bool:
-        """Close Oracle connection pool (no-op for simple connections)."""
-        logger.info("Oracle pool closed")
-        return True
+        """Close Oracle connection pool and all connections in it."""
+        try:
+            if pool:
+                pool.close(force=True)
+                logger.info("Oracle connection pool closed successfully")
+            return True
+        except Exception as err:
+            logger.error(f"Failed to close Oracle pool: {err}")
+            return False
 
     def return_connection_to_pool(self, pool: Any, connection: Any) -> None:
-        """Return Oracle connection back to pool (closes connection)."""
+        """
+        Return Oracle connection back to pool for reuse.
+        
+        Connection is NOT closed - it stays in the pool for next query.
+        """
         try:
-            if connection:
-                connection.close()
+            if connection and pool:
+                # release() returns connection to pool (does NOT close it)
+                pool.release(connection)
+                logger.debug(f"Released Oracle connection to pool (busy={pool.busy})")
         except Exception as err:
-            logger.warning(f"Failed to close Oracle connection: {err}")
+            logger.warning(f"Failed to release Oracle connection to pool: {err}")
 
     @contextmanager
     def get_cursor(self, connection: Any, dictionary: bool = False, buffered: bool = True):

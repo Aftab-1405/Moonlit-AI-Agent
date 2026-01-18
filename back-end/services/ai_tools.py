@@ -433,29 +433,29 @@ class AIToolExecutor:
         # Use current database if not specified
         target_db = database or connection.get('database')
         
-        # Try to get from cache first (now with TTL check)
-        cached_schema = ContextService.get_cached_schema(user_id, target_db)
-        if cached_schema:
-            tables = cached_schema.get('tables', [])
+        # Try to get from stored context first (with TTL check)
+        schema_context = ContextService.get_schema_context(user_id, target_db)
+        if schema_context:
+            tables = schema_context.get('tables', [])
             return {
                 "database": target_db,
                 "tables": tables,
-                "columns": cached_schema.get('columns', {}),
+                "columns": schema_context.get('columns', {}),
                 "table_count": len(tables),
-                "cached_at": cached_schema.get('cached_at'),
-                "source": "cache"
+                "stored_at": schema_context.get('cached_at'),
+                "source": "context"
             }
         
-        # If not cached or expired, fetch fresh (and cache it)
-        return AIToolExecutor._fetch_and_cache_schema(
+        # If not stored or stale, fetch fresh (and store it)
+        return AIToolExecutor._fetch_and_store_schema(
             user_id, target_db, connection.get('db_type'), db_config=db_config
         )
     
     @staticmethod
-    def _fetch_and_cache_schema(user_id: str, database: str, db_type: str, 
+    def _fetch_and_store_schema(user_id: str, database: str, db_type: str, 
                                  db_config: dict = None) -> Dict:
         """
-        Fetch schema from database and cache it.
+        Fetch schema from database and store as AI context.
         
         Optimized with batch column query instead of per-table queries.
         Uses db_config directly when available for better reliability.
@@ -494,8 +494,8 @@ class AIToolExecutor:
                     logger.warning(f"DatabaseOperations fallback also failed: {e}")
                     return {"error": f"Could not fetch schema: {str(e)}"}
             
-            # Cache the schema
-            ContextService.cache_schema(user_id, database, tables, columns)
+            # Store schema as AI context
+            ContextService.store_schema_context(user_id, database, tables, columns)
             
             return {
                 "database": database,
@@ -594,14 +594,14 @@ class AIToolExecutor:
         db_type = connection.get('db_type', 'postgresql')
         
         try:
-            # Try cache first
-            cached = ContextService.get_cached_schema(user_id, database)
-            if cached and table_name in cached.get('columns', {}):
+            # Try stored context first
+            schema_context = ContextService.get_schema_context(user_id, database)
+            if schema_context and table_name in schema_context.get('columns', {}):
                 return {
                     "table": table_name,
-                    "columns": cached['columns'][table_name],
-                    "column_count": len(cached['columns'][table_name]),
-                    "source": "cache"
+                    "columns": schema_context['columns'][table_name],
+                    "column_count": len(schema_context['columns'][table_name]),
+                    "source": "context"
                 }
             
             # Fetch fresh using db_config if available

@@ -75,9 +75,9 @@ async def refresh_user_context(
         if schema_result.get('status') == 'success':
             columns[table] = schema_result.get('columns', [])
     
-    # Cache the schema
+    # Store schema as AI context
     await run_in_threadpool(
-        ContextService.cache_schema,
+        ContextService.store_schema_context,
         user_id, database, tables, columns
     )
     
@@ -85,27 +85,27 @@ async def refresh_user_context(
 
 
 @router.delete('/user/context/schema/{database}')
-async def delete_schema_cache(
+async def delete_schema_context(
     database: str,
     user: dict = Depends(get_current_user)
 ):
-    """Delete cached schema for a specific database."""
+    """Delete stored schema context for a specific database."""
     from services.context_service import ContextService
     
     user_id = user.get('uid') or user
     success = await run_in_threadpool(
-        ContextService.invalidate_schema_cache,
+        ContextService.clear_schema_context,
         user_id, database
     )
     
     if success:
-        return {'status': 'success', 'message': f'Schema cache for {database} deleted'}
-    return {'status': 'error', 'message': 'Failed to delete schema cache'}
+        return {'status': 'success', 'message': f'Schema context for {database} cleared'}
+    return {'status': 'error', 'message': 'Failed to clear schema context'}
 
 
 @router.delete('/user/context/schemas')
-async def delete_all_schema_caches(user: dict = Depends(get_current_user)):
-    """Delete all cached schemas for user."""
+async def delete_all_schema_contexts(user: dict = Depends(get_current_user)):
+    """Delete all stored schema contexts for user."""
     from services.context_service import ContextService
     
     user_id = user.get('uid') or user
@@ -113,11 +113,11 @@ async def delete_all_schema_caches(user: dict = Depends(get_current_user)):
     context = await run_in_threadpool(ContextService.get_full_context, user_id)
     schemas = context.get('schemas', {})
     
-    # Delete each schema cache
+    # Delete each schema context
     for db_name in schemas.keys():
-        await run_in_threadpool(ContextService.invalidate_schema_cache, user_id, db_name)
+        await run_in_threadpool(ContextService.clear_schema_context, user_id, db_name)
     
-    return {'status': 'success', 'message': f'Deleted {len(schemas)} cached schemas'}
+    return {'status': 'success', 'message': f'Cleared {len(schemas)} schema contexts'}
 
 
 @router.delete('/user/context/queries')
@@ -131,6 +131,48 @@ async def clear_query_history(user: dict = Depends(get_current_user)):
     if success:
         return {'status': 'success', 'message': 'Query history cleared'}
     return {'status': 'error', 'message': 'Failed to clear query history'}
+
+
+# =============================================================================
+# CONTEXT METRICS ROUTES
+# =============================================================================
+
+@router.get('/context/metrics')
+async def get_context_metrics(user: dict = Depends(get_current_user)):
+    """
+    Get context hit/miss metrics for monitoring effectiveness.
+    
+    Returns:
+        - hits: Number of times context was found and fresh
+        - misses: Number of times context was stale or not found
+        - stores: Number of context store operations
+        - clears: Number of context clear operations
+        - hit_rate_percent: Hit rate percentage
+        - metrics_enabled: Whether metrics tracking is enabled
+    """
+    from services.context_service import ContextMetrics
+    from config import get_config
+    
+    config = get_config()
+    stats = ContextMetrics.get_stats()
+    
+    # Add config values for reference
+    stats['config'] = {
+        'schema_context_ttl_seconds': config.SCHEMA_CONTEXT_TTL_SECONDS,
+        'schema_context_max_tables': config.SCHEMA_CONTEXT_MAX_TABLES,
+        'connection_context_ttl_seconds': config.CONNECTION_CONTEXT_TTL_SECONDS
+    }
+    
+    return {'status': 'success', 'metrics': stats}
+
+
+@router.post('/context/metrics/reset')
+async def reset_context_metrics(user: dict = Depends(get_current_user)):
+    """Reset context metrics counters (for testing/monitoring)."""
+    from services.context_service import ContextMetrics
+    
+    ContextMetrics.reset()
+    return {'status': 'success', 'message': 'Context metrics reset'}
 
 
 # =============================================================================

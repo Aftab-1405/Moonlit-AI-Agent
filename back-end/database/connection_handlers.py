@@ -48,21 +48,29 @@ def _sync_context(user_id: str, db_type: str, database: str, host: str, is_remot
         logger.warning(f"Failed to sync context: {e}")
 
 
-def _cache_schema(user_id: str, db_config: dict, database: str, tables: list, db_type: str):
-    """Cache schema in Firestore for AI context."""
+def _store_schema_context(user_id: str, db_config: dict, database: str, tables: list, db_type: str):
+    """Store database schema as AI context in Firestore.
+    
+    This provides the AI agent with understanding of the database
+    structure (tables, columns) it's working with.
+    """
     if not user_id:
         return
     try:
         from services.context_service import ContextService
         from database.connection_manager import get_connection_manager
         from database.adapters import get_adapter
+        from config import get_config
+        
+        config = get_config()
+        max_tables = config.SCHEMA_CONTEXT_MAX_TABLES
         
         adapter = get_adapter(db_type)
         manager = get_connection_manager()
         
         columns = {}
         with manager.get_cursor(db_config) as cursor:
-            for table in tables[:20]:
+            for table in tables[:max_tables]:
                 try:
                     cols_query, cols_params = adapter.get_columns_for_table_cache(database, table)
                     cursor.execute(cols_query, cols_params)
@@ -77,10 +85,10 @@ def _cache_schema(user_id: str, db_config: dict, database: str, tables: list, db
                     logger.debug(f"Failed to get columns for {table}: {e}")
                     columns[table] = []
         
-        ContextService.cache_schema(user_id, database, tables, columns)
-        logger.info(f"Cached schema for {database}: {len(tables)} tables")
+        ContextService.store_schema_context(user_id, database, tables, columns)
+        logger.info(f"Stored schema context for {database}: {len(tables)} tables (limit: {max_tables})")
     except Exception as e:
-        logger.warning(f"Failed to cache schema: {e}")
+        logger.warning(f"Failed to store schema context: {e}")
 
 
 # =============================================================================
@@ -128,7 +136,7 @@ def connect_local_sqlite(file_path: str, user_id: str = None) -> dict:
             
             # Cache schema for mindmap/AI context
             if tables and user_id:
-                _cache_schema(user_id, db_config, display_name, tables, 'sqlite')
+                _store_schema_context(user_id, db_config, display_name, tables, 'sqlite')
             
             logger.info(f"Connected to SQLite: {file_path} with {len(tables)} tables")
             return {
@@ -184,7 +192,7 @@ def connect_local_mysql(host: str, port: int, user: str, password: str,
                             cursor.execute(tables_query, tables_params)
                             tables = [row[0] for row in cursor.fetchall()]
                         if tables:
-                            _cache_schema(user_id, db_config, database, tables, 'mysql')
+                            _store_schema_context(user_id, db_config, database, tables, 'mysql')
                     except Exception as e:
                         logger.warning(f"Failed to cache MySQL schema: {e}")
                 
@@ -249,7 +257,7 @@ def connect_local_postgresql(host: str, port: int, user: str, password: str,
                             cursor.execute(tables_query, tables_params)
                             tables = [row[0] for row in cursor.fetchall()]
                         if tables:
-                            _cache_schema(user_id, db_config, database, tables, 'postgresql')
+                            _store_schema_context(user_id, db_config, database, tables, 'postgresql')
                     except Exception as e:
                         logger.warning(f"Failed to cache PostgreSQL schema: {e}")
                 
@@ -322,7 +330,7 @@ def connect_remote_postgresql(connection_string: str, user_id: str = None) -> di
                 logger.warning(f"Failed to fetch tables: {e}")
             
             _sync_context(user_id, 'postgresql', db_name, host, True)
-            _cache_schema(user_id, db_config, db_name, tables, 'postgresql')
+            _store_schema_context(user_id, db_config, db_name, tables, 'postgresql')
             
             message = f'Connected to remote PostgreSQL: {db_name}'
             if tables:
@@ -395,7 +403,7 @@ def connect_remote_mysql(connection_string: str, user_id: str = None) -> dict:
                 logger.warning(f"Failed to fetch tables: {e}")
             
             _sync_context(user_id, 'mysql', db_name, host, True)
-            _cache_schema(user_id, db_config, db_name, tables, 'mysql')
+            _store_schema_context(user_id, db_config, db_name, tables, 'mysql')
             
             message = f'Connected to remote MySQL: {db_name}'
             if tables:
@@ -462,7 +470,7 @@ def select_database(db_config: dict, db_name: str, user_id: str = None) -> dict:
         
         tables = DatabaseOperations.get_tables(new_config, db_name)
         if tables:
-            _cache_schema(user_id, new_config, db_name, tables, db_type)
+            _store_schema_context(user_id, new_config, db_name, tables, db_type)
         
         logger.info(f"Selected database: {db_name}")
         return {
@@ -524,7 +532,7 @@ def connect_local_oracle(host: str, port: int, user: str, password: str,
                         cursor.execute(tables_query, tables_params)
                         tables = [row[0] for row in cursor.fetchall()]
                     if tables:
-                        _cache_schema(user_id, db_config, schema_name, tables, 'oracle')
+                        _store_schema_context(user_id, db_config, schema_name, tables, 'oracle')
                 except Exception as e:
                     logger.warning(f"Failed to cache Oracle schema: {e}")
             
@@ -602,7 +610,7 @@ def connect_remote_oracle(connection_string: str, user_id: str = None) -> dict:
             
             _sync_context(user_id, 'oracle', schema_name, host, True)
             if tables:
-                _cache_schema(user_id, db_config, schema_name, tables, 'oracle')
+                _store_schema_context(user_id, db_config, schema_name, tables, 'oracle')
             
             message = f'Connected to remote Oracle: {schema_name}'
             if tables:
@@ -675,7 +683,7 @@ def connect_local_sqlserver(host: str, port: int, user: str, password: str,
                         cursor.execute(tables_query, tables_params)
                         tables = [row[0] for row in cursor.fetchall()]
                     if tables:
-                        _cache_schema(user_id, db_config, database, tables, 'sqlserver')
+                        _store_schema_context(user_id, db_config, database, tables, 'sqlserver')
                 except Exception as e:
                     logger.warning(f"Failed to cache SQL Server schema: {e}")
             
@@ -752,7 +760,7 @@ def connect_remote_sqlserver(connection_string: str, user_id: str = None) -> dic
             
             _sync_context(user_id, 'sqlserver', db_name, host, True)
             if tables:
-                _cache_schema(user_id, db_config, db_name, tables, 'sqlserver')
+                _store_schema_context(user_id, db_config, db_name, tables, 'sqlserver')
             
             message = f'Connected to remote SQL Server: {db_name}'
             if tables:
