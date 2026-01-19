@@ -41,7 +41,6 @@ const typography = {
   labelSmall: { fontSize: '0.65rem', fontWeight: 500, lineHeight: 1.4, letterSpacing: '0.02em', fontFamily: FONT_MONO },
   labelMedium: { fontSize: '0.7rem', fontWeight: 500, lineHeight: 1.4, letterSpacing: '0.01em', fontFamily: FONT_MONO },
   bodySmall: { fontSize: '0.8rem', lineHeight: 1.5, fontFamily: FONT_MONO },
-  bodyMedium: { fontSize: '0.85rem', lineHeight: 1.5, fontFamily: FONT_MONO },
   bodyLarge: { fontSize: '0.95rem', lineHeight: 1.6, fontFamily: FONT_MONO },
 };
 
@@ -126,6 +125,97 @@ export const getNaturalMoonlitEffects = (theme) => {
     border: '1px solid rgba(79, 70, 229, 0.15)',
     hover: 'rgba(79, 70, 229, 0.04)',
     focus: '0 0 0 3px rgba(79, 70, 229, 0.08)',
+  };
+};
+
+// ============================================
+// 2.5 LANDING PAGE UTILITIES
+// ============================================
+
+// Global keyframes for animations - use in sx via animation property
+export const KEYFRAMES = {
+  float: {
+    '@keyframes float': {
+      '0%, 100%': { transform: 'translateY(0) scale(1)' },
+      '50%': { transform: 'translateY(30px) scale(1.05)' },
+    },
+  },
+  shimmer: {
+    '@keyframes shimmer': {
+      '0%': { left: '-100%' },
+      '100%': { left: '100%' },
+    },
+  },
+  fadeIn: {
+    '@keyframes fadeIn': {
+      from: { opacity: 0, transform: 'translateY(-10px)' },
+      to: { opacity: 1, transform: 'translateY(0)' },
+    },
+  },
+  slideUp: {
+    '@keyframes slideUp': {
+      from: { opacity: 0, transform: 'translateY(20px)' },
+      to: { opacity: 1, transform: 'translateY(0)' },
+    },
+  },
+};
+
+// Glass card sx props - theme-aware glassmorphism
+export const getGlassCardSx = (theme) => ({
+  background: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.03 : 0.7),
+  backdropFilter: 'blur(12px)',
+  WebkitBackdropFilter: 'blur(12px)',
+  borderRadius: 3,
+  transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+  height: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+  '&:hover': {
+    transform: 'translateY(-6px)',
+  },
+});
+
+// Gradient text sx props - use with span or Typography
+export const getGradientTextSx = (theme) => {
+  const effects = getNaturalMoonlitEffects(theme);
+  return {
+    background: effects.textGradient,
+    backgroundClip: 'text',
+    WebkitBackgroundClip: 'text',
+    WebkitTextFillColor: 'transparent',
+  };
+};
+
+// Glow button sx props - primary CTA with shimmer effect
+export const getGlowButtonSx = (theme) => {
+  const effects = getNaturalMoonlitEffects(theme);
+  return {
+    px: 4,
+    py: 1.5,
+    borderRadius: 3,
+    background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.info.main})`,
+    color: theme.palette.getContrastText(theme.palette.primary.main),
+    fontWeight: 600,
+    fontSize: '1rem',
+    position: 'relative',
+    overflow: 'hidden',
+    border: 'none',
+    ...KEYFRAMES.shimmer,
+    '&::before': {
+      content: '""',
+      position: 'absolute',
+      top: 0,
+      left: '-100%',
+      width: '100%',
+      height: '100%',
+      background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)',
+      animation: 'shimmer 2.5s infinite',
+    },
+    '&:hover': {
+      background: `linear-gradient(135deg, ${theme.palette.info.main}, ${theme.palette.primary.main})`,
+      transform: 'translateY(-3px)',
+      boxShadow: effects.shadow,
+    },
   };
 };
 

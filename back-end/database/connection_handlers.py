@@ -393,11 +393,14 @@ def connect_remote_mysql(connection_string: str, user_id: str = None) -> dict:
             tables = []
             try:
                 with manager.get_cursor(db_config) as cursor:
-                    cursor.execute(f"""
+                    cursor.execute(
+                        """
                         SELECT TABLE_NAME FROM information_schema.TABLES 
-                        WHERE TABLE_SCHEMA = '{db_name}' AND TABLE_TYPE = 'BASE TABLE'
+                        WHERE TABLE_SCHEMA = %s AND TABLE_TYPE = 'BASE TABLE'
                         ORDER BY TABLE_NAME
-                    """)
+                        """,
+                        (db_name,)
+                    )
                     tables = [row[0] for row in cursor.fetchall()]
             except Exception as e:
                 logger.warning(f"Failed to fetch tables: {e}")

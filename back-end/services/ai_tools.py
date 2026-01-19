@@ -11,6 +11,7 @@ Separation of Concerns:
 """
 
 import logging
+import re
 from typing import Dict, List, Optional
 from contextlib import contextmanager
 
@@ -762,6 +763,9 @@ class AIToolExecutor:
                 # Set schema for PostgreSQL if specified (PostgreSQL-specific feature)
                 if db_type == 'postgresql':
                     schema = connection.get('schema', 'public')
+                    # Validate schema name to prevent SQL injection
+                    if not re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', schema):
+                        raise ValueError(f"Invalid schema name: {schema}")
                     cursor.execute(f"SET search_path TO {schema}")
                 
                 # Execute the query
