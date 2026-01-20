@@ -84,8 +84,8 @@ class OracleAdapter(BaseDatabaseAdapter):
             }
         else:
             raise ValueError(
-                f"Invalid Oracle connection string format. "
-                f"Expected: user/password@host:port/service_name"
+                "Invalid Oracle connection string format. "
+                "Expected: user/password@host:port/service_name"
             )
 
     def create_connection_pool(self, config: Dict) -> Any:
