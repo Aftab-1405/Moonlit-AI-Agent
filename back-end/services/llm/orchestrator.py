@@ -6,8 +6,9 @@ Handles the multi-turn tool calling loop and final streaming response generation
 
 import json
 import logging
-from typing import Generator
+from typing import Generator, Dict, Any, Optional
 
+from config import Config
 from .client import LLMClient
 from .prompt_builder import PromptBuilder
 from .tool_executor import ToolExecutor
@@ -16,6 +17,17 @@ logger = logging.getLogger(__name__)
 
 # Safety limit to prevent infinite loops
 MAX_TOOL_ROUNDS = 10
+
+# Tools whose results can be cached within a conversation
+CACHEABLE_TOOLS = {
+    'get_connection_status',
+    'get_database_list', 
+    'get_database_schema',
+    'get_table_schema',
+    'get_table_indexes',
+    'get_table_constraints',
+    'get_foreign_keys',
+}
 
 
 class ChatOrchestrator:
@@ -52,7 +64,8 @@ class ChatOrchestrator:
         reasoning_effort: str = 'medium',
         response_style: str = 'balanced',
         max_rows: int = None,
-        api_key: str = None
+        api_key: str = None,
+        tool_cache: Optional[Dict[str, Any]] = None
     ) -> Generator[str, None, None]:
         """
         Sends a message to the LLM and handles tool calls in a streaming response.
@@ -69,10 +82,14 @@ class ChatOrchestrator:
             response_style: 'concise', 'balanced', or 'detailed' (from user settings)
             max_rows: Max rows to return from queries (None = use server config)
             api_key: Optional API key for LLM calls (from rate limiter)
+            tool_cache: Optional cache dict for storing tool results within conversation
             
         Yields:
             Text chunks from AI response, tool status markers, or error messages
         """
+        # Initialize tool cache if not provided
+        if tool_cache is None:
+            tool_cache = {}
         client = LLMClient.get_client(api_key)
         model_name = LLMClient.get_model_name()
         
@@ -144,7 +161,6 @@ class ChatOrchestrator:
                             display_args['max_rows'] = max_rows
                         else:
                             # No Limit selected - show what the server will actually use
-                            from config import Config
                             display_args['max_rows'] = f"No Limit (server max: {Config.MAX_QUERY_RESULTS})"
                     
                     args_json = json.dumps(display_args, default=str)
@@ -152,23 +168,42 @@ class ChatOrchestrator:
                     # Yield "running" status BEFORE tool execution
                     yield f"[[TOOL:{function_name}:running:{args_json}:null]]\n\n"
                     
-                    # Execute the tool
-                    function_response = ToolExecutor.execute(
-                        function_name, function_args, user_id,
-                        db_config=db_config, max_rows=max_rows
-                    )
+                    # Generate cache key for cacheable tools
+                    cache_key = None
+                    if function_name in CACHEABLE_TOOLS:
+                        # Create cache key from tool name + sorted args (excluding rationale)
+                        cache_args = {k: v for k, v in function_args.items() if k != 'rationale'}
+                        cache_key = f"{function_name}:{json.dumps(cache_args, sort_keys=True)}"
+                    
+                    # Check cache first for cacheable tools
+                    if cache_key and cache_key in tool_cache:
+                        logger.info(f"Cache hit for {function_name}")
+                        parsed_response = tool_cache[cache_key]
+                    else:
+                        # Execute the tool
+                        function_response = ToolExecutor.execute(
+                            function_name, function_args, user_id,
+                            db_config=db_config, max_rows=max_rows
+                        )
+                        # Parse once, reuse for both summaries
+                        parsed_response = json.loads(function_response)
+                        
+                        # Cache the result if cacheable
+                        if cache_key:
+                            tool_cache[cache_key] = parsed_response
+                            logger.info(f"Cached result for {function_name}")
                     
                     # Yield "done" status with STRUCTURED result (includes full data for frontend)
                     result_summary = ToolExecutor.summarize_for_ui(
                         function_name,
-                        json.loads(function_response)
+                        parsed_response  # Reuse parsed response
                     )
                     yield f"[[TOOL:{function_name}:done:{args_json}:{result_summary}]]\n\n"
                     
                     # Create token-efficient summary for LLM context (excludes full data)
                     llm_summary = ToolExecutor.summarize_for_llm(
                         function_name,
-                        json.loads(function_response)
+                        parsed_response  # Reuse parsed response
                     )
                     
                     # Add tool response to messages for LLM context
@@ -239,4 +274,18 @@ class ChatOrchestrator:
 
         except Exception as e:
             logger.error(f"Error in stream_with_tools: {e}")
-            yield f"\n[ERROR] Failed to communicate with AI service: {str(e)}"
+            error_str = str(e).lower()
+            
+            # Parse error and return user-friendly message
+            if '429' in error_str or 'rate_limit' in error_str or 'too_many_requests' in error_str or 'queue exceeded' in error_str:
+                yield "\n[ERROR] ⚠️ **Rate Limit Exceeded**\n\nThe AI service is experiencing high traffic. Please wait a moment and try again."
+            elif '401' in error_str or 'authentication' in error_str or 'unauthorized' in error_str:
+                yield "\n[ERROR] ⚠️ **Authentication Error**\n\nUnable to authenticate with AI service. Please contact support."
+            elif '503' in error_str or 'service unavailable' in error_str:
+                yield "\n[ERROR] ⚠️ **Service Unavailable**\n\nThe AI service is temporarily unavailable. Please try again later."
+            elif 'timeout' in error_str or 'timed out' in error_str:
+                yield "\n[ERROR] ⚠️ **Request Timeout**\n\nThe request took too long. Please try a simpler query."
+            elif 'connection' in error_str:
+                yield "\n[ERROR] ⚠️ **Connection Error**\n\nUnable to connect to AI service. Please check your internet connection."
+            else:
+                yield "\n[ERROR] ⚠️ **AI Service Error**\n\nSomething went wrong. Please try again."

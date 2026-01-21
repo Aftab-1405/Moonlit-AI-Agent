@@ -191,9 +191,9 @@ class DevelopmentConfig(Config):
     # Relaxed rate limits for testing
     RATELIMIT_DEFAULT = os.getenv('RATELIMIT_DEFAULT', '1000 per day, 200 per hour')
     
-    # Disable LLM rate limiting for fast local dev
-    LLM_RATELIMIT_ENABLED = False
-    USER_QUOTA_ENABLED = False
+    # LLM rate limiting disabled for dev - key rotation still works
+    LLM_RATELIMIT_ENABLED = os.getenv('LLM_RATELIMIT_ENABLED', 'False').lower() == 'true'
+    USER_QUOTA_ENABLED = os.getenv('USER_QUOTA_ENABLED', 'False').lower() == 'true'
 
 
 class StagingConfig(Config):
@@ -215,9 +215,10 @@ class StagingConfig(Config):
     # Slightly relaxed rate limits for QA testing
     RATELIMIT_DEFAULT = os.getenv('RATELIMIT_DEFAULT', '500 per day, 100 per hour')
     
-    # Conservative LLM limits for staging
-    LLM_MAX_RPM_PER_KEY = 20
-    LLM_MAX_CONCURRENT = 3
+    # LLM rate limiting - enabled by default for staging, can override via .env
+    LLM_RATELIMIT_ENABLED = os.getenv('LLM_RATELIMIT_ENABLED', 'True').lower() == 'true'
+    LLM_MAX_RPM_PER_KEY = int(os.getenv('LLM_MAX_RPM_PER_KEY', 20))
+    LLM_MAX_CONCURRENT = int(os.getenv('LLM_MAX_CONCURRENT', 3))
     
     # Shorter session for staging tests
     SESSION_EXPIRE_SECONDS = int(os.getenv('SESSION_EXPIRE_SECONDS', 43200))  # 12 hours
@@ -243,14 +244,14 @@ class ProductionConfig(Config):
     SESSION_COOKIE_SAMESITE = 'strict'  # Strict same-site policy
     
     # Production rate limiting
-    RATELIMIT_ENABLED = True
+    RATELIMIT_ENABLED = os.getenv('RATELIMIT_ENABLED', 'True').lower() == 'true'
     RATELIMIT_DEFAULT = os.getenv('RATELIMIT_DEFAULT', '200 per day, 50 per hour')
     
-    # Production LLM rate limiting
-    LLM_RATELIMIT_ENABLED = True
-    LLM_MAX_RPM_PER_KEY = 25
-    LLM_MAX_CONCURRENT = 5
-    LLM_QUEUE_TIMEOUT = 45
+    # LLM rate limiting - enabled by default for production, can override via .env
+    LLM_RATELIMIT_ENABLED = os.getenv('LLM_RATELIMIT_ENABLED', 'True').lower() == 'true'
+    LLM_MAX_RPM_PER_KEY = int(os.getenv('LLM_MAX_RPM_PER_KEY', 25))
+    LLM_MAX_CONCURRENT = int(os.getenv('LLM_MAX_CONCURRENT', 5))
+    LLM_QUEUE_TIMEOUT = int(os.getenv('LLM_QUEUE_TIMEOUT', 45))
     
     # Tighter query limits for production
     MAX_QUERY_RESULTS = int(os.getenv('MAX_QUERY_RESULTS', 5000))

@@ -91,6 +91,7 @@ class ConversationService:
         full_response_content = []
         tools_used = []
         was_aborted = False
+        has_error = False  # Track if an error occurred
         
         try:
             # Fetch existing conversation history for context
@@ -118,6 +119,12 @@ class ConversationService:
             )
             
             for chunk in responses:
+                # Detect error messages from orchestrator - don't store these
+                if chunk.startswith('\n[ERROR]') or chunk.startswith('[ERROR]'):
+                    has_error = True
+                    yield chunk
+                    continue  # Don't append to full_response_content
+                
                 # Tool status markers - extract full data for persistence
                 if chunk.startswith('[[TOOL:'):
                     # Full pattern: [[TOOL:name:status:args:result]]
@@ -183,6 +190,7 @@ class ConversationService:
             logger.info(f"Stream aborted for conversation {conversation_id}")
             
         except Exception as err:
+            has_error = True  # Mark as error - don't store
             error_str = str(err).lower()
             
             if 'rate_limit' in error_str or 'quota' in error_str or '429' in error_str:
@@ -198,7 +206,8 @@ class ConversationService:
             yield error_msg
             
         finally:
-            if prompt_stored and not response_stored:
+            # Only store if we have actual content AND no errors occurred
+            if prompt_stored and not response_stored and not has_error:
                 response_text = "".join(full_response_content).strip()
                 if response_text or tools_used:
                     if not response_text and tools_used:
@@ -214,6 +223,8 @@ class ConversationService:
                     response_stored = True
                     status = "partial (aborted)" if was_aborted else "complete"
                     logger.info(f"Stored AI response ({status}): {len(response_text)} chars")
+            elif has_error:
+                logger.info(f"Skipped storing error response for conversation {conversation_id}")
     
     @staticmethod
     def get_streaming_headers(conversation_id: str) -> dict:

@@ -63,13 +63,17 @@ class MultiKeyRateLimiter:
             - success=True, key=valid_key: Proceed with this key
             - success=False, key=None: Timeout, request should be rejected
         """
-        if not self.config.enabled:
-            # Rate limiting disabled - use first key
-            return True, self.config.api_keys[0] if self.config.api_keys else None
-        
         if not self.config.api_keys:
             logger.error("No API keys configured")
             return False, None
+        
+        if not self.config.enabled:
+            # Rate limiting disabled - still do round-robin key rotation
+            async with self.lock:
+                key = self.config.api_keys[self.current_key_index]
+                self.current_key_index = (self.current_key_index + 1) % len(self.config.api_keys)
+                logger.debug(f"Rate limiting disabled, using key index {self.current_key_index} (round-robin)")
+                return True, key
         
         # Wait for semaphore (concurrency limit)
         try:
