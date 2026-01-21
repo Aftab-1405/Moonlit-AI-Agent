@@ -348,6 +348,11 @@ export const getMermaidThemeConfig = (theme) => {
 const getComponentOverrides = (mode) => {
   const isDark = mode === 'dark';
   const colors = isDark ? COLORS.dark : COLORS.light;
+  
+  // Primary colors for alpha usage - single source of truth
+  const primaryMain = isDark ? '#A5B4FC' : '#4F46E5';
+  const hoverAlpha = alpha(primaryMain, 0.06);
+  const focusAlpha = alpha(primaryMain, 0.08);
 
   return {
     MuiCssBaseline: {
@@ -387,7 +392,7 @@ const getComponentOverrides = (mode) => {
           borderWidth: '1.5px',
           borderColor: colors.border.subtle,
           '&:hover': {
-            backgroundColor: isDark ? 'rgba(165, 180, 252, 0.06)' : 'rgba(79, 70, 229, 0.06)',
+            backgroundColor: hoverAlpha,
             borderColor: colors.border.focus,
             transform: 'translateY(-1px)',
           },
@@ -404,7 +409,7 @@ const getComponentOverrides = (mode) => {
           border: `1.5px solid ${colors.border.subtle}`,
           transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
           '&:hover': {
-            backgroundColor: isDark ? 'rgba(165, 180, 252, 0.06)' : 'rgba(79, 70, 229, 0.06)',
+            backgroundColor: hoverAlpha,
             borderColor: colors.border.hover,
           },
         },
@@ -455,7 +460,7 @@ const getComponentOverrides = (mode) => {
               borderColor: colors.border.focus, 
               borderWidth: 2,
               ...(!isDark && {
-                boxShadow: '0 0 0 3px rgba(79, 70, 229, 0.08)',  // Indigo-600 alpha
+                boxShadow: `0 0 0 3px ${focusAlpha}`,
               }),
             },
           },
@@ -466,7 +471,7 @@ const getComponentOverrides = (mode) => {
       styleOverrides: {
         root: {
           color: colors.text.disabled,
-          '&.Mui-checked': { color: isDark ? '#A5B4FC' : '#4F46E5' },  // Moonlit indigo
+          '&.Mui-checked': { color: primaryMain },
         },
       },
     },
@@ -482,7 +487,7 @@ const getComponentOverrides = (mode) => {
           borderColor: isDark ? colors.text.disabled : colors.border.default,
           color: colors.text.secondary,
           '&:hover': {
-            backgroundColor: isDark ? 'rgba(165, 180, 252, 0.06)' : 'rgba(79, 70, 229, 0.06)',
+            backgroundColor: hoverAlpha,
           },
         },
       },
@@ -490,7 +495,7 @@ const getComponentOverrides = (mode) => {
     MuiTooltip: {
       styleOverrides: {
         tooltip: {
-          backgroundColor: isDark ? '#0C0D0F' : colors.text.primary,  // Deepest charcoal
+          backgroundColor: isDark ? colors.bg.input : colors.text.primary,
           borderRadius: 8,
           border: `1px solid ${colors.border.subtle}`,
           fontSize: '0.875rem',
