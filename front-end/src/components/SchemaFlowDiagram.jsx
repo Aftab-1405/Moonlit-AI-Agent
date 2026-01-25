@@ -70,7 +70,7 @@ const DatabaseNode = memo(({ data }) => {
         alignItems: 'center',
         gap: 1,
         minWidth: isMobile ? 120 : 100,
-        transition: 'all 0.2s ease',
+        transition: 'transform 0.2s ease',
         boxShadow: `0 2px 8px ${alpha(theme.palette.primary.main, 0.2)}`,
       }}
     >
@@ -122,7 +122,7 @@ const TableNode = memo(({ data }) => {
         minWidth: isMobile ? 100 : 80,
         minHeight: isMobile ? 44 : 32, // iOS touch target guideline
         cursor: hasColumns ? 'pointer' : 'default',
-        transition: 'all 0.2s ease',
+        transition: 'transform 0.2s ease',
         '&:hover': hasColumns ? {
           backgroundColor: isDark 
             ? alpha(theme.palette.info.main, 0.15)

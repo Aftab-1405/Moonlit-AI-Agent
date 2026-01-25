@@ -148,7 +148,7 @@ const ConversationItem = memo(function ConversationItem({
           cursor: 'pointer',
           justifyContent: isCollapsed ? 'center' : 'flex-start',
           backgroundColor: isActive ? theme.palette.action.selected : 'transparent',
-          transition: 'all 0.2s ease',
+          transition: 'transform 0.2s ease',
           '&:hover .delete-btn': { opacity: 1 },
         }}
         onClick={handleClick}
@@ -195,7 +195,7 @@ const ConversationItem = memo(function ConversationItem({
             ml: 0.5,
             padding: 0.5,
             color: theme.palette.text.secondary,
-            transition: 'all 0.15s ease',
+            transition: 'opacity 0.15s ease',
             '&:hover': {
               color: theme.palette.error.main,
               backgroundColor: alpha(theme.palette.error.main, 0.1),
@@ -259,7 +259,7 @@ const HistoryPopoverItem = memo(function HistoryPopoverItem({
           '&:hover': { opacity: 1 },
           padding: 0.5,
           color: theme.palette.text.secondary,
-          transition: 'all 0.15s ease',
+          transition: 'opacity 0.15s ease',
         }}
       >
         <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
@@ -545,7 +545,7 @@ function Sidebar({
                     borderRadius: 1.5,
                     cursor: 'pointer',
                     color: theme.palette.text.secondary,
-                    transition: 'all 0.2s ease',
+                    transition: 'transform 0.2s ease',
                     '&:hover': {
                       backgroundColor: theme.palette.action.hover,
                       color: theme.palette.text.primary,

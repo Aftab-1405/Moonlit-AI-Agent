@@ -49,7 +49,7 @@ const typography = {
 // ============================================
 
 // MOONLIT Color Palette - Serene, cool tones evoking the night sky
-// Silvery whites, soft grays, deep charcoals, indigo-blues with purple/teal hints
+// Silvery whites, soft grays, deep charcoals with luminous emerald-teal accents
 const COLORS = {
   // Dark mode - True neutral charcoals (no green/teal tint)
   dark: {
@@ -67,7 +67,7 @@ const COLORS = {
       default: '#2C2E33',   // Neutral charcoal border
       subtle: '#1F2125',    // Deep border
       hover: '#3C3E44',     // Lifted charcoal
-      focus: '#A5B4FC',     // Soft indigo glow
+      focus: '#5EEAD4',     // Luminous mint glow
     },
     scrollbar: { thumb: '#3C3E44', thumbHover: '#4C4E54' },
   },
@@ -87,7 +87,7 @@ const COLORS = {
       default: '#D8DEE4',   // Cool light gray
       subtle: '#EDF0F3',    // Subtle silver
       hover: '#B8C4CF',     // Medium cool gray
-      focus: '#4F46E5',     // Deep indigo
+      focus: '#10B981',     // Deep emerald
     },
     scrollbar: { thumb: '#B8C4CF', thumbHover: '#9BA8B4' },
   },
@@ -102,29 +102,32 @@ export const getMoonlitGradient = (theme) => {
 };
 
 // MOONLIT EFFECTS - Theme-aware effects for special UI elements
+// Note: Colors are intentionally hardcoded here for performance (avoids recalculating
+// on every render) and because these complex gradients/glows need precise tuning
+// that doesn't map cleanly to palette.primary values.
 export const getNaturalMoonlitEffects = (theme) => {
   const isDark = theme?.palette?.mode === 'dark';
   
   return isDark ? {
-    // Dark mode - ethereal, glowing moonlight
-    gradient: 'linear-gradient(135deg, #E0E7FF, #C7D2FE, #A5B4FC, #818CF8)',
-    glow: 'radial-gradient(ellipse at center, rgba(165, 180, 252, 0.12) 0%, rgba(129, 140, 248, 0.06) 40%, transparent 70%)',
-    shadow: '0 8px 32px rgba(165, 180, 252, 0.08), 0 4px 16px rgba(129, 140, 248, 0.05)',
-    textGradient: 'linear-gradient(135deg, #C7D2FE, #A5B4FC, #818CF8)',
-    ambient: 'radial-gradient(ellipse at top right, rgba(165, 180, 252, 0.04) 0%, transparent 50%)',
-    border: '1px solid rgba(165, 180, 252, 0.15)',
-    hover: 'rgba(165, 180, 252, 0.04)',
-    focus: '0 0 0 3px rgba(165, 180, 252, 0.08)',
+    // Dark mode - luminous, ethereal mint-emerald with cyan undertones
+    gradient: 'linear-gradient(135deg, #99F6E4, #5EEAD4, #2DD4BF, #14B8A6)',
+    glow: 'radial-gradient(ellipse at center, rgba(94, 234, 212, 0.18) 0%, rgba(45, 212, 191, 0.10) 40%, transparent 70%)',
+    shadow: '0 8px 32px rgba(94, 234, 212, 0.15), 0 4px 16px rgba(45, 212, 191, 0.10), 0 0 60px rgba(94, 234, 212, 0.08)',
+    textGradient: 'linear-gradient(135deg, #99F6E4, #5EEAD4, #2DD4BF)',
+    ambient: 'radial-gradient(ellipse at top right, rgba(94, 234, 212, 0.08) 0%, rgba(45, 212, 191, 0.03) 30%, transparent 60%)',
+    border: '1px solid rgba(94, 234, 212, 0.20)',
+    hover: 'rgba(94, 234, 212, 0.08)',
+    focus: '0 0 0 3px rgba(94, 234, 212, 0.15)',
   } : {
-    // Light mode - subtle, grounded indigo
-    gradient: 'linear-gradient(135deg, #6366F1, #4F46E5, #4338CA)',
-    glow: 'radial-gradient(ellipse at center, rgba(79, 70, 229, 0.08) 0%, rgba(67, 56, 202, 0.04) 40%, transparent 70%)',
-    shadow: '0 8px 32px rgba(79, 70, 229, 0.10), 0 4px 16px rgba(67, 56, 202, 0.06)',
-    textGradient: 'linear-gradient(135deg, #4F46E5, #4338CA, #3730A3)',
-    ambient: 'radial-gradient(ellipse at top right, rgba(79, 70, 229, 0.03) 0%, transparent 50%)',
-    border: '1px solid rgba(79, 70, 229, 0.15)',
-    hover: 'rgba(79, 70, 229, 0.04)',
-    focus: '0 0 0 3px rgba(79, 70, 229, 0.08)',
+    // Light mode - subtle, grounded emerald
+    gradient: 'linear-gradient(135deg, #34D399, #10B981, #059669)',
+    glow: 'radial-gradient(ellipse at center, rgba(16, 185, 129, 0.08) 0%, rgba(5, 150, 105, 0.04) 40%, transparent 70%)',
+    shadow: '0 8px 32px rgba(16, 185, 129, 0.10), 0 4px 16px rgba(5, 150, 105, 0.06)',
+    textGradient: 'linear-gradient(135deg, #10B981, #059669, #047857)',
+    ambient: 'radial-gradient(ellipse at top right, rgba(16, 185, 129, 0.03) 0%, transparent 50%)',
+    border: '1px solid rgba(16, 185, 129, 0.15)',
+    hover: 'rgba(16, 185, 129, 0.04)',
+    focus: '0 0 0 3px rgba(16, 185, 129, 0.08)',
   };
 };
 
@@ -166,7 +169,7 @@ export const getGlassCardSx = (theme) => ({
   backdropFilter: 'blur(12px)',
   WebkitBackdropFilter: 'blur(12px)',
   borderRadius: 3,
-  transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+  transition: 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
   height: '100%',
   display: 'flex',
   flexDirection: 'column',
@@ -221,40 +224,40 @@ export const getGlowButtonSx = (theme) => {
 
 const darkPalette = {
   mode: 'dark',
-  // Primary: Soft moonlit indigo (luminous, ethereal)
-  primary: { main: '#A5B4FC', light: '#C7D2FE', dark: '#818CF8', contrastText: '#121417' },
+  // Primary: Luminous mint-emerald with cyan undertones (glows against dark)
+  primary: { main: '#5EEAD4', light: '#99F6E4', dark: '#2DD4BF', contrastText: '#0F172A' },
   // Secondary: Silvery moonlight for text/neutral elements
   secondary: { main: '#E8ECF0', light: '#F4F6F8', dark: '#9BA8B4', contrastText: '#121417' },
   background: COLORS.dark.bg,
   text: COLORS.dark.text,
   divider: COLORS.dark.border.default,
   action: {
-    active: '#A5B4FC',
-    hover: 'rgba(165, 180, 252, 0.06)',
-    selected: 'rgba(165, 180, 252, 0.10)',
+    active: '#5EEAD4',
+    hover: 'rgba(94, 234, 212, 0.08)',
+    selected: 'rgba(94, 234, 212, 0.12)',
     disabled: 'rgba(232, 236, 240, 0.3)',
     disabledBackground: 'rgba(232, 236, 240, 0.08)',
   },
   // Semantic colors with cool undertones
-  success: { main: '#34D399', light: '#6EE7B7', dark: '#10B981', contrastText: '#121417' },
-  error: { main: '#F87171', light: '#FCA5A5', dark: '#EF4444', contrastText: '#121417' },
-  warning: { main: '#FBBF24', light: '#FCD34D', dark: '#F59E0B', contrastText: '#121417' },
-  info: { main: '#A5B4FC', light: '#C7D2FE', dark: '#818CF8', contrastText: '#121417' },
+  success: { main: '#2DD4BF', light: '#5EEAD4', dark: '#14B8A6', contrastText: '#0F172A' },
+  error: { main: '#FB7185', light: '#FDA4AF', dark: '#F43F5E', contrastText: '#0F172A' },
+  warning: { main: '#FBBF24', light: '#FCD34D', dark: '#F59E0B', contrastText: '#0F172A' },
+  info: { main: '#5EEAD4', light: '#99F6E4', dark: '#2DD4BF', contrastText: '#0F172A' },
 };
 
 const lightPalette = {
   mode: 'light',
-  // Primary: Deep indigo (professional, grounded)
-  primary: { main: '#4F46E5', light: '#6366F1', dark: '#4338CA', contrastText: '#FFFFFF' },
+  // Primary: Deep emerald (professional, grounded)
+  primary: { main: '#10B981', light: '#34D399', dark: '#059669', contrastText: '#FFFFFF' },
   // Secondary: Deep charcoal for text/neutral elements
   secondary: { main: '#1C1E22', light: '#5C6773', dark: '#121417', contrastText: '#FFFFFF' },
   background: COLORS.light.bg,
   text: COLORS.light.text,
   divider: COLORS.light.border.default,
   action: {
-    active: '#4F46E5',
-    hover: 'rgba(79, 70, 229, 0.06)',
-    selected: 'rgba(79, 70, 229, 0.10)',
+    active: '#10B981',
+    hover: 'rgba(16, 185, 129, 0.06)',
+    selected: 'rgba(16, 185, 129, 0.10)',
     disabled: 'rgba(26, 31, 38, 0.26)',
     disabledBackground: 'rgba(26, 31, 38, 0.06)',
   },
@@ -262,7 +265,7 @@ const lightPalette = {
   success: { main: '#059669', light: '#10B981', dark: '#047857', contrastText: '#FFFFFF' },
   error: { main: '#DC2626', light: '#EF4444', dark: '#B91C1C', contrastText: '#FFFFFF' },
   warning: { main: '#D97706', light: '#F59E0B', dark: '#B45309', contrastText: '#FFFFFF' },
-  info: { main: '#4F46E5', light: '#6366F1', dark: '#4338CA', contrastText: '#FFFFFF' },
+  info: { main: '#10B981', light: '#34D399', dark: '#059669', contrastText: '#FFFFFF' },
 };
 
 // ============================================
@@ -350,13 +353,17 @@ const getComponentOverrides = (mode) => {
   const colors = isDark ? COLORS.dark : COLORS.light;
   
   // Primary colors for alpha usage - single source of truth
-  const primaryMain = isDark ? '#A5B4FC' : '#4F46E5';
-  const hoverAlpha = alpha(primaryMain, 0.06);
-  const focusAlpha = alpha(primaryMain, 0.08);
+  const primaryMain = isDark ? '#5EEAD4' : '#10B981';
+  const hoverAlpha = alpha(primaryMain, isDark ? 0.08 : 0.06);
+  const focusAlpha = alpha(primaryMain, isDark ? 0.12 : 0.08);
 
   return {
     MuiCssBaseline: {
       styleOverrides: {
+        html: {
+          // Proper color scheme for scrollbars and form controls
+          colorScheme: isDark ? 'dark' : 'light',
+        },
         body: {
           scrollbarWidth: 'thin',
           scrollbarColor: `${colors.scrollbar.thumb} transparent`,
@@ -387,7 +394,7 @@ const getComponentOverrides = (mode) => {
           padding: '10px 24px',
           fontWeight: 600,
           textTransform: 'none',
-          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+          transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
           letterSpacing: '0.01em',
           borderWidth: '1.5px',
           borderColor: colors.border.subtle,
@@ -395,6 +402,7 @@ const getComponentOverrides = (mode) => {
             backgroundColor: hoverAlpha,
             borderColor: colors.border.focus,
             transform: 'translateY(-1px)',
+            boxShadow: `0 0 0 2px ${focusAlpha}`,
           },
         },
         sizeSmall: { padding: '6px 16px', fontSize: '0.8125rem' },
@@ -407,7 +415,7 @@ const getComponentOverrides = (mode) => {
         root: {
           borderRadius: 10,
           border: `1.5px solid ${colors.border.subtle}`,
-          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+          transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
           '&:hover': {
             backgroundColor: hoverAlpha,
             borderColor: colors.border.hover,

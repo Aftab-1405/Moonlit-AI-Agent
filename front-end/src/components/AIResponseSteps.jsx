@@ -615,7 +615,7 @@ export const StepsAccordion = memo(({ steps, isStreaming }) => {
             ? alpha(theme.palette.common.white, 0.08)
             : alpha(theme.palette.common.black, 0.06)}`,
           borderBottom: expanded ? 'none' : undefined,
-          transition: 'all 0.15s ease',
+          transition: 'transform 0.15s ease',
           '&:hover': {
             backgroundColor: isDark
               ? alpha(theme.palette.common.white, 0.05)

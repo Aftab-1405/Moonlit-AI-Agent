@@ -394,7 +394,7 @@ function UserDBContextManagerForAI() {
                   sx={{
                     borderRadius: 2.5,
                     overflow: 'hidden',
-                    transition: 'all 0.2s ease',
+                    transition: 'transform 0.2s ease',
                     '&:hover': {
                       borderColor: isDark ? alpha('#fff', 0.15) : alpha('#000', 0.15),
                     },

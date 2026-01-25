@@ -468,7 +468,7 @@ function ChatInput({
                     borderColor: reasoningEnabled ? alpha(theme.palette.info.main, 0.5) : undefined,
                     width: 32,
                     height: 32,
-                    transition: 'all 0.2s ease',
+                    transition: 'transform 0.2s ease',
                     '&:hover': {
                       color: reasoningEnabled ? theme.palette.info.dark : theme.palette.text.primary,
                       backgroundColor: reasoningEnabled
@@ -552,7 +552,7 @@ function ChatInput({
                     borderColor: (hasText || isStreaming)
                       ? (isStreaming ? alpha(theme.palette.error.main, 0.5) : alpha(theme.palette.text.primary, 0.5))
                       : undefined,
-                    transition: 'all 0.2s ease',
+                    transition: 'transform 0.2s ease',
                     flexShrink: 0,
                     '&:hover': {
                       backgroundColor: (hasText || isStreaming)
@@ -604,7 +604,7 @@ function ChatInput({
                     height: 30,
                     backgroundColor: 'transparent',
                     cursor: 'pointer',
-                    transition: 'all 0.15s ease',
+                    transition: 'transform 0.15s ease',
                     '& .MuiChip-icon': {
                       color: 'inherit',
                       ml: 0.5,

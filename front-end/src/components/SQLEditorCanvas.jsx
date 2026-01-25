@@ -328,7 +328,7 @@ function SQLEditorCanvas({
       fontWeight: 500,
       textTransform: 'none',
       color: 'text.secondary',
-      transition: 'all 0.2s ease',
+      transition: 'transform 0.2s ease',
       '&.Mui-selected': { color: 'text.primary' },
       '&:hover': {
         color: 'text.primary',

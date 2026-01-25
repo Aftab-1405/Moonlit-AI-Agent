@@ -184,7 +184,7 @@ function Hero({ onGetStarted }) {
                     display: db.hideXs ? { xs: 'none', sm: 'flex' } : 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    transition: 'all 0.3s ease',
+                    transition: 'transform 0.3s ease, opacity 0.3s ease',
                     '&:hover': {
                       opacity: 1,
                       transform: 'scale(1.15)',

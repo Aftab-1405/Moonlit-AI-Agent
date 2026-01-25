@@ -77,7 +77,7 @@ function ValueGrid() {
                     justifyContent: 'center',
                     mx: 'auto',
                     mb: 2,
-                    transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                    transition: 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
                     '&:hover': {
                       transform: 'scale(1.15) rotate(10deg)',
                     },
