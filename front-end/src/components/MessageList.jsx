@@ -78,7 +78,7 @@ const CopyButton = memo(function CopyButton({ copied, onClick, className = 'copy
           opacity: 0,
           color: copied ? 'text.primary' : 'text.secondary',
           transition: 'opacity 0.2s',
-          '&:hover': { color: 'primary.main' },
+          '&:hover': { color: 'text.primary' },
           ...sx,
         }}
       >

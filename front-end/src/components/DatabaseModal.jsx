@@ -477,7 +477,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
                         console.warn('Clipboard access denied:', err);
                       }
                     }}
-                    sx={{ color: 'text.secondary', '&:hover': { color: 'primary.main' } }}
+                    sx={{ color: 'text.secondary', '&:hover': { color: 'text.primary' } }}
                   >
                     <FolderOpenOutlinedIcon />
                   </IconButton>

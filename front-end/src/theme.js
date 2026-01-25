@@ -233,8 +233,8 @@ const darkPalette = {
   divider: COLORS.dark.border.default,
   action: {
     active: '#5EEAD4',
-    hover: 'rgba(94, 234, 212, 0.08)',
-    selected: 'rgba(94, 234, 212, 0.12)',
+    hover: 'rgba(255, 255, 255, 0.06)',
+    selected: 'rgba(255, 255, 255, 0.08)',
     disabled: 'rgba(232, 236, 240, 0.3)',
     disabledBackground: 'rgba(232, 236, 240, 0.08)',
   },
@@ -256,8 +256,8 @@ const lightPalette = {
   divider: COLORS.light.border.default,
   action: {
     active: '#10B981',
-    hover: 'rgba(16, 185, 129, 0.06)',
-    selected: 'rgba(16, 185, 129, 0.10)',
+    hover: 'rgba(0, 0, 0, 0.04)',
+    selected: 'rgba(0, 0, 0, 0.06)',
     disabled: 'rgba(26, 31, 38, 0.26)',
     disabledBackground: 'rgba(26, 31, 38, 0.06)',
   },
@@ -352,9 +352,10 @@ const getComponentOverrides = (mode) => {
   const isDark = mode === 'dark';
   const colors = isDark ? COLORS.dark : COLORS.light;
   
-  // Primary colors for alpha usage - single source of truth
+  // Neutral colors for hover - blend with theme, not green tint
+  const hoverAlpha = isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)';
+  // Primary colors for focus - green accent for interactive emphasis
   const primaryMain = isDark ? '#5EEAD4' : '#10B981';
-  const hoverAlpha = alpha(primaryMain, isDark ? 0.08 : 0.06);
   const focusAlpha = alpha(primaryMain, isDark ? 0.12 : 0.08);
 
   return {
@@ -387,6 +388,7 @@ const getComponentOverrides = (mode) => {
       defaultProps: { 
         disableElevation: true,
         variant: 'outlined',
+        color: 'inherit', // Default to neutral text instead of green
       },
       styleOverrides: {
         root: {
@@ -394,15 +396,31 @@ const getComponentOverrides = (mode) => {
           padding: '10px 24px',
           fontWeight: 600,
           textTransform: 'none',
-          transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+          transition: 'background-color 0.15s ease, border-color 0.15s ease',
           letterSpacing: '0.01em',
           borderWidth: '1.5px',
           borderColor: colors.border.subtle,
+          color: colors.text.primary,
           '&:hover': {
             backgroundColor: hoverAlpha,
-            borderColor: colors.border.focus,
-            transform: 'translateY(-1px)',
-            boxShadow: `0 0 0 2px ${focusAlpha}`,
+            borderColor: colors.border.hover, // Subtle neutral border, not green
+          },
+        },
+        // Text buttons - simple background tint on hover
+        text: {
+          border: 'none',
+          color: colors.text.primary,
+          '&:hover': {
+            backgroundColor: hoverAlpha,
+          },
+        },
+        // Outlined buttons - subtle border + background on hover
+        outlined: {
+          color: colors.text.primary,
+          borderColor: colors.border.subtle,
+          '&:hover': {
+            borderColor: colors.border.hover,
+            backgroundColor: hoverAlpha,
           },
         },
         sizeSmall: { padding: '6px 16px', fontSize: '0.8125rem' },
@@ -414,11 +432,11 @@ const getComponentOverrides = (mode) => {
       styleOverrides: {
         root: {
           borderRadius: 10,
-          border: `1.5px solid ${colors.border.subtle}`,
+          color: colors.text.secondary,
           transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
           '&:hover': {
             backgroundColor: hoverAlpha,
-            borderColor: colors.border.hover,
+            color: colors.text.primary,
           },
         },
         sizeSmall: { padding: 6 },
@@ -538,6 +556,36 @@ const getComponentOverrides = (mode) => {
             '&:hover': { 
               backgroundColor: isDark ? colors.border.hover : colors.border.default,
             },
+          },
+        },
+      },
+    },
+    // Centralized hover colors for ListItemButton
+    MuiListItemButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: 6,
+          '&:hover': {
+            backgroundColor: hoverAlpha,
+          },
+          '&.Mui-selected': {
+            backgroundColor: isDark ? colors.border.default : colors.bg.default,
+            '&:hover': {
+              backgroundColor: isDark ? colors.border.hover : colors.border.default,
+            },
+          },
+        },
+      },
+    },
+    // Centralized hover colors for Links
+    MuiLink: {
+      styleOverrides: {
+        root: {
+          color: colors.text.primary,
+          textDecoration: 'none',
+          '&:hover': {
+            color: colors.text.primary,
+            textDecoration: 'underline',
           },
         },
       },

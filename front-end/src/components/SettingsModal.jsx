@@ -212,11 +212,14 @@ function SettingsModal({ open, onClose }) {
 
           <SettingRow
             label="Idle Animation"
-            description="Show starfield effect when idle"
+            description={settings.theme === 'dark' 
+              ? "Show starfield effect when idle" 
+              : "Only available in dark theme"}
           >
             <Switch
-              checked={settings.idleAnimation ?? true}
+              checked={settings.theme === 'dark' && (settings.idleAnimation ?? true)}
               onChange={(e) => updateSetting('idleAnimation', e.target.checked)}
+              disabled={settings.theme !== 'dark'}
               color="primary"
             />
           </SettingRow>

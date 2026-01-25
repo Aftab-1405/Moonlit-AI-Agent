@@ -112,11 +112,12 @@ function ChatInput({
   const toolbarChipStyles = useMemo(() => ({
     height: 26,
     borderRadius: '12px',
-    borderColor: alpha(theme.palette.text.primary, 0.12),
-    backgroundColor: alpha(theme.palette.text.primary, 0.03),
+    border: '1px solid',
+    borderColor: alpha(theme.palette.text.primary, 0.2), // Increased from 0.12 for dark theme visibility
+    backgroundColor: alpha(theme.palette.text.primary, 0.04),
     '&:hover': {
-      borderColor: alpha(theme.palette.text.primary, 0.2),
-      backgroundColor: alpha(theme.palette.text.primary, 0.05),
+      borderColor: alpha(theme.palette.text.primary, 0.35),
+      backgroundColor: alpha(theme.palette.text.primary, 0.08),
     },
   }), [theme]);
 
@@ -599,19 +600,20 @@ function ChatInput({
                   size="small"
                   sx={{
                     borderRadius: '12px',
-                    borderColor: alpha(theme.palette.text.primary, 0.12),
+                    border: '1px solid', // Explicit border style
+                    borderColor: alpha(theme.palette.text.primary, 0.2), // Increased for dark theme visibility
                     color: 'text.secondary',
                     height: 30,
                     backgroundColor: 'transparent',
                     cursor: 'pointer',
-                    transition: 'transform 0.15s ease',
+                    transition: 'transform 0.15s ease, border-color 0.15s ease',
                     '& .MuiChip-icon': {
                       color: 'inherit',
                       ml: 0.5,
                     },
                     '&:hover': {
-                      borderColor: alpha(theme.palette.text.primary, 0.25),
-                      backgroundColor: alpha(theme.palette.text.primary, 0.04),
+                      borderColor: alpha(theme.palette.text.primary, 0.35),
+                      backgroundColor: alpha(theme.palette.text.primary, 0.06),
                       color: 'text.primary',
                     },
                   }}

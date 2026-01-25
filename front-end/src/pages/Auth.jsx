@@ -630,7 +630,7 @@ function Auth() {
                 sx={{
                   color: 'text.secondary',
                   py: 0.5,
-                  '&:hover': { color: 'primary.main', backgroundColor: 'transparent' },
+                  '&:hover': { color: 'text.primary', backgroundColor: 'transparent' },
                 }}
               >
                 Back to home

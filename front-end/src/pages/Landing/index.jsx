@@ -142,7 +142,7 @@ function Footer() {
                 variant="body2"
                 sx={{
                   transition: 'color 0.2s ease',
-                  '&:hover': { color: theme.palette.primary.main },
+                  '&:hover': { color: theme.palette.text.primary },
                 }}
               >
                 {l}
