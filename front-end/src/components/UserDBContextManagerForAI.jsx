@@ -6,11 +6,9 @@ import {
   Button,
   Alert,
   List,
-  ListItem,
+  ListItemButton,
   ListItemIcon,
   ListItemText,
-  ListItemSecondaryAction,
-  Paper,
   CircularProgress,
   Divider,
   Dialog,
@@ -20,8 +18,8 @@ import {
   Chip,
   Collapse,
   useTheme,
-  Tabs,
-  Tab,
+  ToggleButtonGroup,
+  ToggleButton,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
@@ -40,7 +38,9 @@ import Editor from '@monaco-editor/react';
 import { getUserContext } from '../api';
 import { USER } from '../api/endpoints';
 
-// Static helper outside component
+// ============================================================================
+// HELPERS
+// ============================================================================
 const formatTimeAgo = (isoString) => {
   if (!isoString) return 'Unknown';
   const diff = Date.now() - new Date(isoString).getTime();
@@ -48,25 +48,63 @@ const formatTimeAgo = (isoString) => {
   if (minutes < 1) return 'Just now';
   if (minutes < 60) return `${minutes} min ago`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
-  return `${days} day${days > 1 ? 's' : ''} ago`;
+  return `${days}d ago`;
 };
 
-/**
- * UserDBContextManagerForAI - Granular control over stored database context for AI
- * 
- * Features:
- * - Sub-tabs: Stored Schemas | Query History
- * - View full schema data (tables, columns) in expandable accordions
- * - View actual queries with Monaco SQL editor
- * - Delete individual schemas or clear all
- */
+// ============================================================================
+// REUSABLE COMPONENTS (Matching SettingsModal style)
+// ============================================================================
+
+// Context Card - Subtle bordered card for content groups
+function ContextCard({ children, sx = {} }) {
+  const theme = useTheme();
+  return (
+    <Box
+      sx={{
+        p: 2,
+        borderRadius: 2,
+        border: '1px solid',
+        borderColor: 'divider',
+        backgroundColor: alpha(theme.palette.background.paper, 0.5),
+        transition: 'border-color 0.15s ease',
+        '&:hover': {
+          borderColor: alpha(theme.palette.text.primary, 0.15),
+        },
+        ...sx,
+      }}
+    >
+      {children}
+    </Box>
+  );
+}
+
+// Empty State Component
+function EmptyState({ icon: Icon, title, subtitle }) {
+  return (
+    <ContextCard sx={{ textAlign: 'center', py: 4 }}>
+      <Icon sx={{ fontSize: 44, color: 'text.disabled', mb: 1.5 }} />
+      <Typography variant="body2" color="text.secondary" fontWeight={500}>
+        {title}
+      </Typography>
+      {subtitle && (
+        <Typography variant="caption" color="text.disabled" sx={{ mt: 0.5, display: 'block' }}>
+          {subtitle}
+        </Typography>
+      )}
+    </ContextCard>
+  );
+}
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
 function UserDBContextManagerForAI() {
   const [loading, setLoading] = useState(true);
   const [schemas, setSchemas] = useState([]);
   const [queries, setQueries] = useState([]);
-  const [activeSubTab, setActiveSubTab] = useState(0); // 0: Schemas, 1: Queries
+  const [activeView, setActiveView] = useState('schemas'); // 'schemas' | 'queries'
   const [expandedSchema, setExpandedSchema] = useState(null);
   const [expandedQuery, setExpandedQuery] = useState(null);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, type: null, target: null });
@@ -167,239 +205,229 @@ function UserDBContextManagerForAI() {
     return {};
   }, [deleteDialog, schemas, queries]);
 
-  const uiColors = useMemo(() => ({
-    bg: alpha(theme.palette.text.primary, isDark ? 0.04 : 0.03),
-    border: alpha(theme.palette.text.primary, isDark ? 0.1 : 0.08),
-  }), [theme.palette.text.primary, isDark]);
-
+  // Loading state
   if (loading) {
     return (
-      <Box sx={{ py: 4, display: 'flex', justifyContent: 'center' }}>
+      <Box sx={{ py: 6, display: 'flex', justifyContent: 'center' }}>
         <CircularProgress size={28} />
       </Box>
     );
   }
 
   return (
-    <Box sx={{ py: 0 }}>
-      {/* Info Banner */}
+    <Box>
+      {/* Info Alert */}
       <Alert
         severity="info"
         icon={<InfoOutlinedIcon />}
-        sx={{ mb: 2 }}
+        sx={{
+          mb: 2.5,
+          borderRadius: 2,
+          '& .MuiAlert-message': { width: '100%' },
+        }}
       >
-        This is the AI's memory of your database structure. Delete only if your schema has changed.
+        <Typography variant="body2">
+          This is the AI's memory of your database structure. Delete only if your schema has changed.
+        </Typography>
       </Alert>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+        <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError(null)}>
           {error}
         </Alert>
       )}
 
-      {/* Sub-Tabs */}
-      <Tabs
-        value={activeSubTab}
-        onChange={(e, v) => setActiveSubTab(v)}
-        sx={{
-          minHeight: 36,
-          mb: 2,
-          '& .MuiTabs-indicator': { height: 2 },
-          '& .MuiTab-root': {
-            minHeight: 36,
-            textTransform: 'none',
-            fontWeight: 500,
-            px: 2,
-          },
-        }}
-      >
-        <Tab
-          icon={<StorageRoundedIcon sx={{ fontSize: 16 }} />}
-          iconPosition="start"
-          label={
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-              Schemas
-              {schemas.length > 0 && (
-                <Chip size="small" label={schemas.length} sx={{ height: 18 }} />
-              )}
-            </Box>
-          }
-        />
-        <Tab
-          icon={<HistoryRoundedIcon sx={{ fontSize: 16 }} />}
-          iconPosition="start"
-          label={
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-              Queries
-              {queries.length > 0 && (
-                <Chip size="small" label={queries.length} sx={{ height: 18 }} />
-              )}
-            </Box>
-          }
-        />
-      </Tabs>
-
-      {/* === SCHEMAS TAB === */}
-      {activeSubTab === 0 && (
-        <>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-            <Typography variant="caption" color="text.secondary">
-              Cached database structures for AI context
-            </Typography>
+      {/* View Switcher - ToggleButtonGroup for cleaner look */}
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5 }}>
+        <ToggleButtonGroup
+          value={activeView}
+          exclusive
+          onChange={(e, v) => v && setActiveView(v)}
+          size="small"
+          sx={{
+            '& .MuiToggleButton-root': {
+              px: 2,
+              py: 0.75,
+              textTransform: 'none',
+              fontWeight: 500,
+              gap: 1,
+            },
+          }}
+        >
+          <ToggleButton value="schemas">
+            <StorageRoundedIcon sx={{ fontSize: 16 }} />
+            Schemas
             {schemas.length > 0 && (
-              <Button
-                size="small"
-                color="error"
-                onClick={() => openDeleteDialog('all-schemas')}
-              >
-                Clear All
-              </Button>
+              <Chip size="small" label={schemas.length} sx={{ height: 18, ml: 0.5 }} />
             )}
-          </Box>
+          </ToggleButton>
+          <ToggleButton value="queries">
+            <HistoryRoundedIcon sx={{ fontSize: 16 }} />
+            Queries
+            {queries.length > 0 && (
+              <Chip size="small" label={queries.length} sx={{ height: 18, ml: 0.5 }} />
+            )}
+          </ToggleButton>
+        </ToggleButtonGroup>
 
-          <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-            {schemas.length === 0 ? (
-              <Box sx={{ p: 3, textAlign: 'center' }}>
-                <StorageRoundedIcon sx={{ fontSize: 40, color: 'text.disabled', mb: 1 }} />
-                <Typography variant="body2" color="text.secondary">
-                  No cached schemas
-                </Typography>
-                <Typography variant="caption" color="text.disabled">
-                  Connect to a database to cache its schema
-                </Typography>
-              </Box>
-            ) : (
-              <List dense disablePadding>
-                {schemas.map((schema, index) => (
-                  <Box key={schema.database}>
-                    {index > 0 && <Divider />}
-                    <ListItem
-                      button
-                      onClick={() => toggleSchemaExpand(schema.database)}
-                      sx={{ py: 1.5 }}
-                    >
-                      <ListItemIcon sx={{ minWidth: 28 }}>
-                        <KeyboardArrowDownIcon
-                          sx={{
-                            fontSize: 18,
-                            transform: expandedSchema === schema.database ? 'rotate(0deg)' : 'rotate(-90deg)',
-                            transition: 'transform 0.2s ease',
-                          }}
-                        />
-                      </ListItemIcon>
-                      <ListItemIcon sx={{ minWidth: 36 }}>
-                        <StorageRoundedIcon color="primary" fontSize="small" />
-                      </ListItemIcon>
-                      <ListItemText
-                        primary={<Typography variant="body2" fontWeight={500}>{schema.database}</Typography>}
-                        secondary={
-                          <Typography variant="caption" color="text.secondary">
-                            {schema.table_count} table{schema.table_count !== 1 ? 's' : ''} • {formatTimeAgo(schema.cached_at)}
-                          </Typography>
-                        }
-                      />
-                      <ListItemSecondaryAction>
-                        <IconButton
-                          size="small"
-                          onClick={(e) => { e.stopPropagation(); openDeleteDialog('schema', schema.database); }}
-                          sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}
-                        >
-                          <DeleteOutlineRoundedIcon fontSize="small" />
-                        </IconButton>
-                      </ListItemSecondaryAction>
-                    </ListItem>
+        {/* Clear All Button */}
+        {((activeView === 'schemas' && schemas.length > 0) ||
+          (activeView === 'queries' && queries.length > 0)) && (
+          <Button
+            size="small"
+            color="error"
+            startIcon={<DeleteOutlineRoundedIcon sx={{ fontSize: 16 }} />}
+            onClick={() => openDeleteDialog(activeView === 'schemas' ? 'all-schemas' : 'queries')}
+          >
+            Clear All
+          </Button>
+        )}
+      </Box>
 
-                    <Collapse in={expandedSchema === schema.database} timeout={200}>
-                      <Box sx={{ px: 2, pb: 2, ml: 5 }}>
-                        <Typography variant="caption" sx={{ color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600, mb: 1, display: 'block' }}>
-                          Tables
+      {/* === SCHEMAS VIEW === */}
+      {activeView === 'schemas' && (
+        <>
+          {schemas.length === 0 ? (
+            <EmptyState
+              icon={StorageRoundedIcon}
+              title="No cached schemas"
+              subtitle="Connect to a database to cache its schema"
+            />
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              {schemas.map((schema) => (
+                <ContextCard key={schema.database} sx={{ p: 0, overflow: 'hidden' }}>
+                  {/* Schema Header */}
+                  <ListItemButton
+                    onClick={() => toggleSchemaExpand(schema.database)}
+                    sx={{ py: 1.5, px: 2 }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 36 }}>
+                      <StorageRoundedIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={
+                        <Typography variant="body2" fontWeight={600}>
+                          {schema.database}
                         </Typography>
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 2 }}>
-                          {schema.tables.slice(0, 20).map((table) => (
-                            <Chip
-                              key={table}
-                              size="small"
-                              icon={<TableChartRoundedIcon sx={{ fontSize: 12 }} />}
-                              label={table}
-                              sx={{ height: 24, backgroundColor: uiColors.bg, border: `1px solid ${uiColors.border}` }}
-                            />
-                          ))}
-                          {schema.tables.length > 20 && (
-                            <Chip size="small" label={`+${schema.tables.length - 20} more`} sx={{ height: 24, backgroundColor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main' }} />
-                          )}
-                        </Box>
+                      }
+                      secondary={
+                        <Typography variant="caption" color="text.secondary">
+                          {schema.table_count} table{schema.table_count !== 1 ? 's' : ''} • {formatTimeAgo(schema.cached_at)}
+                        </Typography>
+                      }
+                    />
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <IconButton
+                        size="small"
+                        onClick={(e) => { e.stopPropagation(); openDeleteDialog('schema', schema.database); }}
+                        sx={{ color: 'text.disabled', '&:hover': { color: 'error.main' } }}
+                      >
+                        <DeleteOutlineRoundedIcon sx={{ fontSize: 18 }} />
+                      </IconButton>
+                      <KeyboardArrowDownIcon
+                        sx={{
+                          fontSize: 20,
+                          color: 'text.secondary',
+                          transform: expandedSchema === schema.database ? 'rotate(180deg)' : 'rotate(0deg)',
+                          transition: 'transform 0.2s ease',
+                        }}
+                      />
+                    </Box>
+                  </ListItemButton>
 
-                        {Object.entries(schema.columns || {}).slice(0, 3).map(([tableName, columns]) => (
-                          <Box key={tableName} sx={{ mb: 1.5 }}>
-                            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <ViewColumnRoundedIcon sx={{ fontSize: 12 }} />
-                              {tableName} ({Array.isArray(columns) ? columns.length : 0} columns)
-                            </Typography>
-                            <Typography variant="caption" color="text.disabled" sx={{ display: 'block', pl: 2 }}>
-                              {Array.isArray(columns) ? columns.slice(0, 8).map(c => typeof c === 'object' ? c.name : c).join(', ') : 'No columns'}
-                              {Array.isArray(columns) && columns.length > 8 && ` +${columns.length - 8} more`}
-                            </Typography>
-                          </Box>
+                  {/* Expanded Content */}
+                  <Collapse in={expandedSchema === schema.database} timeout={200}>
+                    <Divider />
+                    <Box sx={{ p: 2, backgroundColor: alpha(theme.palette.background.default, 0.5) }}>
+                      {/* Tables */}
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color: 'text.secondary',
+                          textTransform: 'uppercase',
+                          letterSpacing: 0.5,
+                          fontWeight: 600,
+                          mb: 1,
+                          display: 'block',
+                        }}
+                      >
+                        Tables
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 2 }}>
+                        {schema.tables.slice(0, 15).map((table) => (
+                          <Chip
+                            key={table}
+                            size="small"
+                            icon={<TableChartRoundedIcon sx={{ fontSize: 12 }} />}
+                            label={table}
+                            sx={{
+                              height: 24,
+                              border: '1px solid',
+                              borderColor: 'divider',
+                            }}
+                          />
                         ))}
-                        {Object.keys(schema.columns || {}).length > 3 && (
-                          <Typography variant="caption" color="text.disabled">
-                            ...and {Object.keys(schema.columns).length - 3} more tables
-                          </Typography>
+                        {schema.tables.length > 15 && (
+                          <Chip
+                            size="small"
+                            label={`+${schema.tables.length - 15} more`}
+                            sx={{ height: 24 }}
+                          />
                         )}
                       </Box>
-                    </Collapse>
-                  </Box>
-                ))}
-              </List>
-            )}
-          </Paper>
+
+                      {/* Column Preview */}
+                      {Object.entries(schema.columns || {}).slice(0, 2).map(([tableName, columns]) => (
+                        <Box key={tableName} sx={{ mb: 1 }}>
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              color: 'text.secondary',
+                              fontWeight: 500,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 0.5,
+                            }}
+                          >
+                            <ViewColumnRoundedIcon sx={{ fontSize: 12 }} />
+                            {tableName} ({Array.isArray(columns) ? columns.length : 0} columns)
+                          </Typography>
+                          <Typography variant="caption" color="text.disabled" sx={{ display: 'block', pl: 2 }}>
+                            {Array.isArray(columns)
+                              ? columns.slice(0, 6).map(c => typeof c === 'object' ? c.name : c).join(', ')
+                              : 'No columns'}
+                            {Array.isArray(columns) && columns.length > 6 && ` +${columns.length - 6} more`}
+                          </Typography>
+                        </Box>
+                      ))}
+                      {Object.keys(schema.columns || {}).length > 2 && (
+                        <Typography variant="caption" color="text.disabled">
+                          ...and {Object.keys(schema.columns).length - 2} more tables
+                        </Typography>
+                      )}
+                    </Box>
+                  </Collapse>
+                </ContextCard>
+              ))}
+            </Box>
+          )}
         </>
       )}
 
-      {/* === QUERIES TAB === */}
-      {activeSubTab === 1 && (
+      {/* === QUERIES VIEW === */}
+      {activeView === 'queries' && (
         <>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-            <Typography variant="caption" color="text.secondary">
-              Recent SQL queries stored for AI context
-            </Typography>
-            {queries.length > 0 && (
-              <Button
-                size="small"
-                color="error"
-                startIcon={<DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />}
-                onClick={() => openDeleteDialog('queries')}
-              >
-                Clear All
-              </Button>
-            )}
-          </Box>
-
           {queries.length === 0 ? (
-            <Paper variant="outlined" sx={{ borderRadius: 2, p: 4, textAlign: 'center' }}>
-              <HistoryRoundedIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1.5 }} />
-              <Typography variant="body1" color="text.secondary" fontWeight={500}>
-                No queries stored
-              </Typography>
-              <Typography variant="body2" color="text.disabled" sx={{ mt: 0.5 }}>
-                Run SQL queries to build history
-              </Typography>
-            </Paper>
+            <EmptyState
+              icon={HistoryRoundedIcon}
+              title="No queries stored"
+              subtitle="Run SQL queries to build history"
+            />
           ) : (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
               {queries.map((query, index) => (
-                <Paper
-                  key={index}
-                  variant="outlined"
-                  sx={{
-                    borderRadius: 2.5,
-                    overflow: 'hidden',
-                    transition: 'transform 0.2s ease',
-                    '&:hover': {
-                      borderColor: isDark ? alpha('#fff', 0.15) : alpha('#000', 0.15),
-                    },
-                  }}
-                >
+                <ContextCard key={index} sx={{ p: 0, overflow: 'hidden' }}>
                   {/* Query Header */}
                   <Box
                     onClick={() => toggleQueryExpand(index)}
@@ -407,9 +435,8 @@ function UserDBContextManagerForAI() {
                       p: 2,
                       cursor: 'pointer',
                       display: 'flex',
-                      alignItems: 'flex-start',
+                      alignItems: 'center',
                       gap: 2,
-                      '&:hover': { backgroundColor: uiColors.bg },
                     }}
                   >
                     {/* Status Icon */}
@@ -434,30 +461,24 @@ function UserDBContextManagerForAI() {
                       )}
                     </Box>
 
-                    {/* Query Content */}
+                    {/* Query Info */}
                     <Box sx={{ flex: 1, minWidth: 0 }}>
-                      {/* Metadata Row */}
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                         <Chip
                           size="small"
                           icon={<StorageRoundedIcon sx={{ fontSize: 12 }} />}
                           label={query.database}
                           sx={{
-                            height: 24,
+                            height: 22,
                             fontWeight: 500,
-                            backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                            color: 'primary.main',
                             '& .MuiChip-icon': { color: 'inherit' },
                           }}
                         />
-                        <Typography variant="bodySmall" color="text.secondary">
+                        <Typography variant="caption" color="text.secondary">
                           {query.row_count} row{query.row_count !== 1 ? 's' : ''}
                         </Typography>
                         <Typography variant="caption" color="text.disabled">
-                          •
-                        </Typography>
-                        <Typography variant="caption" color="text.disabled">
-                          {formatTimeAgo(query.executed_at)}
+                          • {formatTimeAgo(query.executed_at)}
                         </Typography>
                       </Box>
                     </Box>
@@ -465,7 +486,7 @@ function UserDBContextManagerForAI() {
                     {/* Expand Icon */}
                     <KeyboardArrowDownIcon
                       sx={{
-                        fontSize: 22,
+                        fontSize: 20,
                         color: 'text.secondary',
                         transform: expandedQuery === index ? 'rotate(180deg)' : 'rotate(0deg)',
                         transition: 'transform 0.2s ease',
@@ -474,16 +495,17 @@ function UserDBContextManagerForAI() {
                     />
                   </Box>
 
-                  {/* Expanded Monaco Editor */}
+                  {/* SQL Editor - Expanded */}
                   <Collapse in={expandedQuery === index} timeout={200}>
                     <Divider />
-                    <Box sx={{ p: 2, backgroundColor: isDark ? alpha('#000', 0.3) : alpha('#000', 0.02) }}>
+                    <Box sx={{ p: 2, backgroundColor: alpha(theme.palette.background.default, 0.5) }}>
                       <Box
                         sx={{
                           borderRadius: 2,
                           overflow: 'hidden',
-                          border: `1px solid ${uiColors.border}`,
-                          height: Math.min(Math.max(100, (query.query.split('\n').length * 22) + 32), 300),
+                          border: '1px solid',
+                          borderColor: 'divider',
+                          height: Math.min(Math.max(80, (query.query.split('\n').length * 20) + 32), 200),
                         }}
                       >
                         <Editor
@@ -494,16 +516,16 @@ function UserDBContextManagerForAI() {
                           options={{
                             readOnly: true,
                             minimap: { enabled: false },
-                            fontSize: 13,
-                            fontFamily: '"JetBrains Mono", "Fira Code", monospace',
-                            lineNumbers: 'on',
+                            fontSize: 12,
+                            fontFamily: '"JetBrains Mono", monospace',
+                            lineNumbers: 'off',
                             folding: false,
                             scrollBeyondLastLine: false,
                             automaticLayout: true,
                             wordWrap: 'on',
-                            padding: { top: 16, bottom: 16 },
+                            padding: { top: 12, bottom: 12 },
                             renderLineHighlight: 'none',
-                            scrollbar: { vertical: 'auto', horizontal: 'hidden', verticalScrollbarSize: 8 },
+                            scrollbar: { vertical: 'auto', horizontal: 'hidden', verticalScrollbarSize: 6 },
                             overviewRulerLanes: 0,
                             hideCursorInOverviewRuler: true,
                             overviewRulerBorder: false,
@@ -514,13 +536,12 @@ function UserDBContextManagerForAI() {
                       </Box>
                     </Box>
                   </Collapse>
-                </Paper>
+                </ContextCard>
               ))}
             </Box>
           )}
         </>
       )}
-
 
       {/* Delete Confirmation Dialog */}
       <Dialog
@@ -528,22 +549,29 @@ function UserDBContextManagerForAI() {
         onClose={() => setDeleteDialog({ open: false, type: null, target: null })}
         maxWidth="xs"
         fullWidth
+        PaperProps={{
+          sx: { borderRadius: 3 },
+        }}
       >
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, pb: 1 }}>
           <WarningAmberRoundedIcon color="warning" />
           {dialogContent.title}
         </DialogTitle>
         <DialogContent>
           {deleteDialog.type !== 'queries' && (
             <Box sx={{ mb: 2 }}>
-              <Chip icon={<StorageRoundedIcon />} label={dialogContent.database} sx={{ mr: 1 }} />
+              <Chip
+                icon={<StorageRoundedIcon />}
+                label={dialogContent.database}
+                sx={{ mr: 1 }}
+              />
               <Typography variant="caption" color="text.secondary">
                 ({dialogContent.tableCount} table{dialogContent.tableCount !== 1 ? 's' : ''})
               </Typography>
             </Box>
           )}
 
-          <Alert severity="warning">
+          <Alert severity="warning" sx={{ borderRadius: 2 }}>
             {deleteDialog.type === 'queries' ? (
               'Query history helps the AI understand your recent work patterns.'
             ) : (
@@ -557,12 +585,15 @@ function UserDBContextManagerForAI() {
             )}
           </Alert>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setDeleteDialog({ open: false, type: null, target: null })} color="inherit">
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button
+            onClick={() => setDeleteDialog({ open: false, type: null, target: null })}
+            color="inherit"
+          >
             Cancel
           </Button>
-          <Button onClick={handleDelete} color="error" >
-            Delete Anyway
+          <Button onClick={handleDelete} color="error">
+            Delete
           </Button>
         </DialogActions>
       </Dialog>
