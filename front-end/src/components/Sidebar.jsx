@@ -191,6 +191,7 @@ const ConversationItem = memo(function ConversationItem({
           className="delete-btn"
           size="small"
           onClick={handleDelete}
+          aria-label="Delete conversation"
           sx={{
             opacity: 0,
             ml: 0.5,
@@ -255,6 +256,7 @@ const HistoryPopoverItem = memo(function HistoryPopoverItem({
       <IconButton
         size="small"
         onClick={handleDelete}
+        aria-label="Delete conversation"
         sx={{
           opacity: 0.5,
           '&:hover': { opacity: 1 },
@@ -644,7 +646,7 @@ function Sidebar({
         }}
       >
         <Tooltip title={isCollapsed ? (user?.displayName || 'Profile') : ''} placement="right" arrow>
-          <IconButton ref={profileButtonRef} onClick={handleProfileClick} size="small">
+          <IconButton ref={profileButtonRef} onClick={handleProfileClick} size="small" aria-label="Open profile menu">
             {user?.photoURL ? (
               <Avatar src={user.photoURL} sx={{ width: 24, height: 24 }} />
             ) : (
@@ -654,7 +656,11 @@ function Sidebar({
         </Tooltip>
 
         <Tooltip title={isMobile ? 'Close sidebar' : (isCollapsed ? 'Expand sidebar' : '')} placement="right" arrow>
-          <IconButton onClick={isMobile ? onMobileClose : onToggleCollapse} size="small">
+          <IconButton 
+            onClick={isMobile ? onMobileClose : onToggleCollapse} 
+            size="small"
+            aria-label={isMobile ? 'Close sidebar' : (isCollapsed ? 'Expand sidebar' : 'Collapse sidebar')}
+          >
             {isMobile ? (
               <KeyboardDoubleArrowLeftRoundedIcon sx={{ fontSize: 20 }} />
             ) : isCollapsed ? (
@@ -792,7 +798,7 @@ function Sidebar({
               />
             )}
           </Box>
-          <IconButton size="small" onClick={handleCloseMindmap} sx={{ color: theme.palette.text.secondary }}>
+          <IconButton size="small" onClick={handleCloseMindmap} aria-label="Close schema mindmap" sx={{ color: theme.palette.text.secondary }}>
             <CloseIcon fontSize="small" />
           </IconButton>
         </DialogTitle>

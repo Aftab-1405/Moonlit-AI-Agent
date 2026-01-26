@@ -281,6 +281,7 @@ function ChatInput({
             <Fab
               size="small"
               onClick={toggleHidden}
+              aria-label="Show message input"
               sx={{
                 backgroundColor: isDarkMode
                   ? alpha(theme.palette.common.white, 0.08)
@@ -449,6 +450,7 @@ function ChatInput({
                   <IconButton
                     size="small"
                     disabled
+                    aria-label="Attach file (coming soon)"
                     sx={{
                       color: 'text.secondary',
                       opacity: 0.4,
@@ -465,6 +467,8 @@ function ChatInput({
                 <IconButton
                   size="small"
                   onClick={toggleReasoning}
+                  aria-label={reasoningEnabled ? 'Disable AI thinking' : 'Enable AI thinking'}
+                  aria-pressed={reasoningEnabled}
                   sx={{
                     color: reasoningEnabled ? theme.palette.info.main : 'text.secondary',
                     borderColor: reasoningEnabled ? alpha(theme.palette.info.main, 0.5) : undefined,
@@ -526,6 +530,7 @@ function ChatInput({
               <IconButton
                 size="small"
                 onClick={toggleHidden}
+                aria-label="Hide message input"
                 sx={{
                   width: 32,
                   height: 32,
@@ -545,6 +550,7 @@ function ChatInput({
                   type={isStreaming ? 'button' : 'submit'}
                   onClick={isStreaming ? handleStopClick : undefined}
                   disabled={!isStreaming && (!hasText || disabled)}
+                  aria-label={isStreaming ? 'Stop generating response' : 'Send message'}
                   sx={{
                     width: 36,
                     height: 36,

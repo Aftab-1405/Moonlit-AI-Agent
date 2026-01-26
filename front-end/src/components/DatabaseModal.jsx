@@ -104,7 +104,12 @@ function FormCard({ title, children, sx = {} }) {
 // Visibility Toggle Adornment
 const VisibilityToggleAdornment = memo(({ show, onToggle }) => (
   <InputAdornment position="end">
-    <IconButton size="small" onClick={onToggle} edge="end">
+    <IconButton 
+      size="small" 
+      onClick={onToggle} 
+      edge="end"
+      aria-label={show ? 'Hide password' : 'Show password'}
+    >
       {show ? <VisibilityOffOutlinedIcon fontSize="small" /> : <VisibilityOutlinedIcon fontSize="small" />}
     </IconButton>
   </InputAdornment>
@@ -474,6 +479,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
                   <Tooltip title="Paste from clipboard">
                     <IconButton
                       size="small"
+                      aria-label="Paste path from clipboard"
                       onClick={async () => {
                         try {
                           const text = await navigator.clipboard.readText();
@@ -604,7 +610,11 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           {isMobile && (
-            <IconButton size="small" onClick={() => setMobileNavOpen(true)}>
+            <IconButton 
+              size="small" 
+              onClick={() => setMobileNavOpen(true)}
+              aria-label="Open database type menu"
+            >
               <MenuRoundedIcon />
             </IconButton>
           )}
@@ -618,7 +628,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
             {isMobile ? 'Connect' : 'Connect Database'}
           </Typography>
         </Box>
-        <IconButton onClick={onClose} size="small">
+        <IconButton onClick={onClose} size="small" aria-label="Close dialog">
           <CloseRoundedIcon />
         </IconButton>
       </Box>
