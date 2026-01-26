@@ -33,15 +33,29 @@ export function useConversations() {
   // Refs
   const prevConversationIdRef = useRef(null);
   const newlyCreatedConvIdRef = useRef(null);
+  
+  // AbortController ref for cancelling in-flight requests
+  const abortControllerRef = useRef(null);
+
+  // Helper to get a fresh AbortController and cancel any previous request
+  const getAbortSignal = useCallback(() => {
+    // Cancel any previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+    return abortControllerRef.current.signal;
+  }, []);
 
   // Fetch all conversations
-  const fetchConversations = useCallback(async () => {
+  const fetchConversations = useCallback(async (signal) => {
     try {
-      const data = await getConversations();
+      const data = await getConversations(signal);
       if (data.status === 'success') {
         setConversations(data.conversations || []);
       }
     } catch (error) {
+      if (error.name === 'AbortError') return; // Ignore abort errors
       logger.error('Failed to fetch conversations:', error);
     }
   }, []);
@@ -54,8 +68,9 @@ export function useConversations() {
 
   // Select and load a conversation
   const handleSelectConversation = useCallback(async (convId) => {
+    const signal = getAbortSignal();
     try {
-      const data = await getConversation(convId);
+      const data = await getConversation(convId, signal);
       if (data.status === 'success' && data.conversation) {
         setCurrentConversationId(convId);
         const formattedMessages = (data.conversation.messages || []).map((msg) => ({
@@ -67,15 +82,17 @@ export function useConversations() {
         setMessages(formattedMessages);
       }
     } catch (error) {
+      if (error.name === 'AbortError') return; // Ignore abort errors
       logger.error('Failed to load conversation:', error);
     }
-  }, []);
+  }, [getAbortSignal]);
 
   // Create new conversation
   const handleNewChat = useCallback(async () => {
     navigate('/chat');
+    const signal = getAbortSignal();
     try {
-      const data = await createConversation();
+      const data = await createConversation(signal);
       if (data.status === 'success') {
         const newId = data.conversation_id;
         newlyCreatedConvIdRef.current = newId;
@@ -83,12 +100,13 @@ export function useConversations() {
         setMessages([]);
         prevConversationIdRef.current = newId;
         navigate(`/chat/${newId}`, { replace: true });
-        fetchConversations();
+        fetchConversations(signal);
       }
     } catch (error) {
+      if (error.name === 'AbortError') return; // Ignore abort errors
       logger.error('Failed to create new conversation:', error);
     }
-  }, [navigate, fetchConversations]);
+  }, [navigate, fetchConversations, getAbortSignal]);
 
   // Delete a conversation
   const handleDeleteConversation = useCallback(async (convId) => {
@@ -99,14 +117,29 @@ export function useConversations() {
         navigate('/chat');
       }
     } catch (error) {
+      if (error.name === 'AbortError') return; // Ignore abort errors
       logger.error('Failed to delete conversation:', error);
     }
   }, [currentConversationId, navigate]);
 
-  // Initial fetch
+  // Initial fetch with cleanup
   useEffect(() => {
-    fetchConversations();
+    const abortController = new AbortController();
+    fetchConversations(abortController.signal);
+    
+    return () => {
+      abortController.abort();
+    };
   }, [fetchConversations]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   // URL sync effect
   useEffect(() => {
@@ -146,3 +179,4 @@ export function useConversations() {
 }
 
 export default useConversations;
+

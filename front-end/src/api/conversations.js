@@ -17,29 +17,32 @@ import { CONVERSATIONS } from './endpoints';
 /**
  * Get all conversations for current user.
  * 
+ * @param {AbortSignal} [signal] - Optional abort signal for cancellation
  * @returns {Promise<{status: string, conversations: Array}>}
  */
-export async function getConversations() {
-  return get(CONVERSATIONS.LIST);
+export async function getConversations(signal) {
+  return get(CONVERSATIONS.LIST, { signal });
 }
 
 /**
  * Get a single conversation by ID.
  * 
  * @param {string} id - Conversation ID
+ * @param {AbortSignal} [signal] - Optional abort signal for cancellation
  * @returns {Promise<{status: string, conversation: Object}>}
  */
-export async function getConversation(id) {
-  return get(CONVERSATIONS.GET(id));
+export async function getConversation(id, signal) {
+  return get(CONVERSATIONS.GET(id), { signal });
 }
 
 /**
  * Create a new conversation.
  * 
+ * @param {AbortSignal} [signal] - Optional abort signal for cancellation
  * @returns {Promise<{status: string, conversation_id: string}>}
  */
-export async function createConversation() {
-  return post(CONVERSATIONS.CREATE);
+export async function createConversation(signal) {
+  return post(CONVERSATIONS.CREATE, undefined, { signal });
 }
 
 /**

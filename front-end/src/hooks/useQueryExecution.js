@@ -7,7 +7,7 @@
  * @module hooks/useQueryExecution
  */
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { runQuery } from '../api';
 
 /**
@@ -34,14 +34,33 @@ export function useQueryExecution({
   });
   
   const queryResolverRef = useRef(null);
+  
+  // AbortController ref for cancelling in-flight queries
+  const abortControllerRef = useRef(null);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   // Close query results
   const handleCloseQueryResults = useCallback(() => setQueryResults(null), []);
 
   // Execute query against database
   const executeQuery = useCallback(async (sql, maxRows, queryTimeout) => {
+    // Cancel any previous query
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+
     try {
-      const data = await runQuery({ sql, maxRows, timeout: queryTimeout });
+      const data = await runQuery({ sql, maxRows, timeout: queryTimeout }, signal);
       if (data.status === 'success') {
         const columns = data.result?.fields || [];
         const rows = data.result?.rows || [];
@@ -66,7 +85,8 @@ export function useQueryExecution({
       } else {
         showSnackbar(data.message || 'Query failed', 'error');
       }
-    } catch {
+    } catch (error) {
+      if (error.name === 'AbortError') return; // Ignore abort errors
       showSnackbar('Failed to execute query', 'error');
     }
   }, [showSnackbar]);
@@ -124,3 +144,4 @@ export function useQueryExecution({
 }
 
 export default useQueryExecution;
+
