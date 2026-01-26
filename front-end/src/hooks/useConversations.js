@@ -15,6 +15,7 @@ import {
   createConversation,
   deleteConversation,
 } from '../api';
+import logger from '../utils/logger';
 
 /**
  * Hook for managing conversations and messages
@@ -41,7 +42,7 @@ export function useConversations() {
         setConversations(data.conversations || []);
       }
     } catch (error) {
-      console.error('Failed to fetch conversations:', error);
+      logger.error('Failed to fetch conversations:', error);
     }
   }, []);
 
@@ -66,7 +67,7 @@ export function useConversations() {
         setMessages(formattedMessages);
       }
     } catch (error) {
-      console.error('Failed to load conversation:', error);
+      logger.error('Failed to load conversation:', error);
     }
   }, []);
 
@@ -85,7 +86,7 @@ export function useConversations() {
         fetchConversations();
       }
     } catch (error) {
-      console.error('Failed to create new conversation:', error);
+      logger.error('Failed to create new conversation:', error);
     }
   }, [navigate, fetchConversations]);
 
@@ -98,7 +99,7 @@ export function useConversations() {
         navigate('/chat');
       }
     } catch (error) {
-      console.error('Failed to delete conversation:', error);
+      logger.error('Failed to delete conversation:', error);
     }
   }, [currentConversationId, navigate]);
 

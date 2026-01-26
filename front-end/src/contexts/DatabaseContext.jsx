@@ -31,6 +31,7 @@
  */
 
 import { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
+import logger from '../utils/logger';
 
 // Centralized API layer
 import {
@@ -166,7 +167,7 @@ function databaseReducer(state, action) {
       };
 
     default:
-      console.warn(`[DatabaseReducer] Unknown action type: ${action.type}`);
+      logger.warn(`[DatabaseReducer] Unknown action type: ${action.type}`);
       return state;
   }
 }
@@ -227,7 +228,7 @@ export function DatabaseProvider({ children }) {
         const data = await getDbStatus();
         dispatch({ type: ActionTypes.SYNC_STATUS, payload: data });
       } catch (error) {
-        console.error('Failed to check DB status:', error);
+        logger.error('Failed to check DB status:', error);
       }
     };
 
@@ -260,7 +261,7 @@ export function DatabaseProvider({ children }) {
       await disconnectDb();
       dispatch({ type: ActionTypes.DISCONNECT, payload: {} });
     } catch (error) {
-      console.error('Disconnect failed:', error);
+      logger.error('Disconnect failed:', error);
       dispatch({
         type: ActionTypes.DISCONNECT,
         payload: { error: 'Failed to disconnect' }
@@ -322,7 +323,7 @@ export function DatabaseProvider({ children }) {
       const data = await getDbStatus();
       dispatch({ type: ActionTypes.SYNC_STATUS, payload: data });
     } catch (error) {
-      console.error('Failed to refresh DB status:', error);
+      logger.error('Failed to refresh DB status:', error);
     }
   }, []);
 

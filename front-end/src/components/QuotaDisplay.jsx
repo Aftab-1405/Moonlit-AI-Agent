@@ -11,6 +11,7 @@ import { Box, Tooltip, Typography, Chip } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import BoltIcon from '@mui/icons-material/Bolt';
 import { getQuotaStatus } from '../api';
+import logger from '../utils/logger';
 
 // Poll interval in milliseconds
 const POLL_INTERVAL = 10000;
@@ -41,7 +42,7 @@ function QuotaDisplay() {
         setError(null);
       }
     } catch (err) {
-      console.debug('Failed to fetch quota:', err);
+      logger.debug('Failed to fetch quota:', err);
       setError(err);
     } finally {
       setIsLoading(false);

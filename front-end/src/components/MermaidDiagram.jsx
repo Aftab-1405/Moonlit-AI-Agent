@@ -13,6 +13,7 @@ import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded';
 
 // Import theme config from centralized theme.js
 import { getMermaidThemeConfig } from '../theme';
+import logger from '../utils/logger';
 
 function MermaidDiagram({ code }) {
   const theme = useTheme();
@@ -95,7 +96,7 @@ function MermaidDiagram({ code }) {
         const { svg: renderedSvg } = await mermaid.render(id, stableCode);
         setSvg(renderedSvg);
       } catch (err) {
-        console.warn('Mermaid rendering warning:', err);
+        logger.warn('Mermaid rendering warning:', err);
         const errorMsg = err?.message || err?.str || 'Diagram syntax error';
         setError(errorMsg.split('\n')[0]);
       } finally {

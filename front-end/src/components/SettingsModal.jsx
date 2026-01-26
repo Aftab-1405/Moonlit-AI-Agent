@@ -32,6 +32,7 @@ import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import { useTheme as useAppTheme } from '../contexts/ThemeContext';
 import UserDBContextManagerForAI from './UserDBContextManagerForAI';
 import { saveUserSettings } from '../api';
+import logger from '../utils/logger';
 
 // ============================================================================
 // NAVIGATION SECTIONS CONFIG
@@ -353,7 +354,7 @@ function SettingsModal({ open, onClose }) {
                           const value = e.target.value;
                           updateSetting('connectionPersistence', value);
                           saveUserSettings({ connectionPersistenceMinutes: value })
-                            .catch(err => console.warn('Failed to sync setting:', err));
+                            .catch(err => logger.warn('Failed to sync setting:', err));
                         }}
                       >
                         <MenuItem value={0}>Never</MenuItem>

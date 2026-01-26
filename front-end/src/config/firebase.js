@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, GithubAuthProvider } from 'firebase/auth';
+import logger from '../utils/logger';
 
 // Firebase configuration - fetched from backend for security
 let firebaseApp = null;
@@ -38,7 +39,7 @@ export const initializeFirebase = async () => {
 
     return { auth, googleProvider, githubProvider };
   } catch (error) {
-    console.error('Failed to initialize Firebase:', error);
+    logger.error('Failed to initialize Firebase:', error);
     throw error;
   }
 };

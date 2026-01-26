@@ -55,6 +55,7 @@ import {
   sqliteSchema,
   dbFieldSchemas,
 } from '../validation';
+import logger from '../utils/logger';
 
 // ============================================================================
 // CONSTANTS & CONFIG
@@ -256,7 +257,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
         }
       }
     } catch (err) {
-      console.error('Failed to fetch databases:', err);
+      logger.error('Failed to fetch databases:', err);
     }
   }, []);
 
@@ -378,7 +379,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
       setSuccess(null);
       onConnect?.(null);
     } catch (e) {
-      console.error(e);
+      logger.error(e);
     } finally {
       setLoading(false);
     }
@@ -478,7 +479,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
                           const text = await navigator.clipboard.readText();
                           if (text) setFormData(prev => ({ ...prev, database: text.trim() }));
                         } catch (err) {
-                          console.warn('Clipboard access denied:', err);
+                          logger.warn('Clipboard access denied:', err);
                         }
                       }}
                     >

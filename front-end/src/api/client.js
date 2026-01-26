@@ -16,6 +16,8 @@
 
 const IS_DEV = import.meta.env.DEV;
 
+import logger from '../utils/logger';
+
 // =============================================================================
 // ERROR CLASSES
 // =============================================================================
@@ -59,7 +61,7 @@ export async function apiClient(endpoint, options = {}) {
 
   // Log requests in development
   if (IS_DEV) {
-    console.debug(`[API] ${config.method || 'GET'} ${endpoint}`);
+    logger.api(config.method || 'GET', endpoint);
   }
 
   try {
@@ -161,7 +163,7 @@ export async function postRaw(endpoint, body, options = {}) {
   };
 
   if (IS_DEV) {
-    console.debug(`[API] POST (raw) ${endpoint}`);
+    logger.api('POST (raw)', endpoint);
   }
 
   const response = await fetch(endpoint, config);

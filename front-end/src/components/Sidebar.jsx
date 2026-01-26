@@ -39,6 +39,7 @@ import SchemaFlowDiagram from './SchemaFlowDiagram';
 
 // Centralized API layer
 import { getUserContext } from '../api';
+import logger from '../utils/logger';
 
 // ============================================================================
 // CONSTANTS - Moved outside component to prevent recreation
@@ -374,7 +375,7 @@ function Sidebar({
         setSchemaData(currentSchema || null);
       }
     } catch (err) {
-      console.error('Failed to fetch schema:', err);
+      logger.error('Failed to fetch schema:', err);
     } finally {
       setSchemaLoading(false);
     }

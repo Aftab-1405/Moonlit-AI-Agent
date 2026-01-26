@@ -9,9 +9,59 @@
 
 import { useCallback, useRef } from 'react';
 import { sendMessage } from '../api';
+import logger from '../utils/logger';
 
 // Throttle for streaming updates (~60fps)
 const UPDATE_THROTTLE_MS = 16;
+
+/**
+ * Get user-friendly error message based on error type
+ * @param {Error} error - The error object
+ * @returns {string} User-friendly error message
+ */
+function getErrorMessage(error) {
+  // Network/connectivity errors
+  if (!navigator.onLine) {
+    return "You appear to be offline. Please check your internet connection and try again.";
+  }
+  
+  if (error.name === 'TypeError' && error.message.includes('fetch')) {
+    return "Unable to connect to the server. Please check your connection and try again.";
+  }
+  
+  // API errors with status codes
+  if (error.status) {
+    switch (error.status) {
+      case 401:
+        return "Your session has expired. Please sign in again.";
+      case 403:
+        return "You don't have permission to perform this action.";
+      case 429:
+        return "You've made too many requests. Please wait a moment and try again.";
+      case 500:
+      case 502:
+      case 503:
+        return "The server is experiencing issues. Please try again in a few moments.";
+      case 504:
+        return "The request timed out. Please try again with a simpler query.";
+      default:
+        if (error.status >= 400 && error.status < 500) {
+          return error.message || "There was a problem with your request. Please try again.";
+        }
+        if (error.status >= 500) {
+          return "Server error. Our team has been notified. Please try again later.";
+        }
+    }
+  }
+  
+  // Timeout errors
+  if (error.name === 'TimeoutError' || error.message?.includes('timeout')) {
+    return "The request took too long. Please try again with a simpler query.";
+  }
+  
+  // Generic fallback
+  return "Something went wrong. Please try again.";
+}
 
 /**
  * Hook for message streaming functionality
@@ -145,13 +195,27 @@ export function useMessageStreaming({
         return;
       }
       
-      // Handle error
+      // Log error for debugging (development only)
+      logger.error('Message streaming error:', error);
+      
+      // Get user-friendly error message
+      const errorMessage = getErrorMessage(error);
+      
+      // Handle error with specific message
       setMessages((prev) => {
         const updated = [...prev];
         if (updated[updated.length - 1]?.sender === 'ai' && updated[updated.length - 1]?.isWaiting) {
-          updated[updated.length - 1] = { sender: 'ai', content: 'Sorry, I encountered an error. Please try again.' };
+          updated[updated.length - 1] = { 
+            sender: 'ai', 
+            content: errorMessage,
+            isError: true 
+          };
         } else {
-          updated.push({ sender: 'ai', content: 'Sorry, I encountered an error. Please try again.' });
+          updated.push({ 
+            sender: 'ai', 
+            content: errorMessage,
+            isError: true 
+          });
         }
         return updated;
       });

@@ -43,6 +43,7 @@ import {
   authFieldSchemas,
 } from '../validation';
 import { getMoonlitGradient } from '../theme';
+import logger from '../utils/logger';
 
 // Tab Panel component
 function TabPanel({ children, value, index }) {
@@ -151,7 +152,7 @@ function Auth() {
       navigate('/chat');
     } catch (error) {
       // Error from Firebase is already handled and displayed via AuthContext
-      console.error('Sign in failed:', error);
+      logger.error('Sign in failed:', error);
     } finally {
       setFormLoading(false);
     }
@@ -174,7 +175,7 @@ function Auth() {
       navigate('/chat');
     } catch (error) {
       // Error from Firebase is already handled and displayed via AuthContext
-      console.error('Sign up failed:', error);
+      logger.error('Sign up failed:', error);
     } finally {
       setFormLoading(false);
     }
@@ -215,7 +216,7 @@ function Auth() {
       setSuccessMessage('Password reset email sent! Check your inbox.');
     } catch (error) {
       // Error from Firebase is already handled and displayed via AuthContext
-      console.error('Password reset failed:', error);
+      logger.error('Password reset failed:', error);
     } finally {
       setResetLoading(false);
     }

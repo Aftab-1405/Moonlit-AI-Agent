@@ -11,6 +11,7 @@ import {
   updateProfile
 } from 'firebase/auth';
 import { initializeFirebase, getFirebaseAuth, getGoogleProvider, getGithubProvider } from '../config/firebase';
+import logger from '../utils/logger';
 
 // Detect if user is on mobile device (static helper)
 const isMobileDevice = () => {
@@ -65,7 +66,7 @@ export const AuthProvider = ({ children }) => {
           try {
             await getRedirectResult(auth);
           } catch (redirectError) {
-            console.error('Redirect result error:', redirectError);
+            logger.error('Redirect result error:', redirectError);
             if (redirectError.code && redirectError.code !== 'auth/popup-closed-by-user') {
               setError(getErrorMessage(redirectError));
             }
@@ -99,7 +100,7 @@ export const AuthProvider = ({ children }) => {
                   }),
                 });
               } catch (err) {
-                console.error('Failed to set session:', err);
+                logger.error('Failed to set session:', err);
               }
             } else {
               setUser(null);
@@ -110,7 +111,7 @@ export const AuthProvider = ({ children }) => {
           return () => unsubscribe();
         }
       } catch (err) {
-        console.error('Firebase init error:', err);
+        logger.error('Firebase init error:', err);
         setError(err.message);
         setLoading(false);
       }
@@ -134,7 +135,7 @@ export const AuthProvider = ({ children }) => {
 
       return result.user;
     } catch (err) {
-      console.error('Sign up error:', err);
+      logger.error('Sign up error:', err);
       setError(getErrorMessage(err));
       throw err;
     }
@@ -150,7 +151,7 @@ export const AuthProvider = ({ children }) => {
       const result = await signInWithEmailAndPassword(auth, email, password);
       return result.user;
     } catch (err) {
-      console.error('Sign in error:', err);
+      logger.error('Sign in error:', err);
       setError(getErrorMessage(err));
       throw err;
     }
@@ -166,7 +167,7 @@ export const AuthProvider = ({ children }) => {
       await sendPasswordResetEmail(auth, email);
       return true;
     } catch (err) {
-      console.error('Password reset error:', err);
+      logger.error('Password reset error:', err);
       setError(getErrorMessage(err));
       throw err;
     }
@@ -191,7 +192,7 @@ export const AuthProvider = ({ children }) => {
         return result.user;
       }
     } catch (err) {
-      console.error('Google sign in error:', err);
+      logger.error('Google sign in error:', err);
       setError(getErrorMessage(err));
       throw err;
     }
@@ -216,7 +217,7 @@ export const AuthProvider = ({ children }) => {
         return result.user;
       }
     } catch (err) {
-      console.error('GitHub sign in error:', err);
+      logger.error('GitHub sign in error:', err);
       setError(getErrorMessage(err));
       throw err;
     }
@@ -232,7 +233,7 @@ export const AuthProvider = ({ children }) => {
       await fetch('/logout', { method: 'POST', credentials: 'include' });
       setUser(null);
     } catch (err) {
-      console.error('Logout error:', err);
+      logger.error('Logout error:', err);
       setError(getErrorMessage(err));
     }
   }, []);

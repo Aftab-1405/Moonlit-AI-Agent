@@ -30,6 +30,7 @@ import { useTheme as useAppTheme } from '../contexts/ThemeContext';
 
 // Centralized API layer
 import { getSchemas, selectSchema } from '../api';
+import logger from '../utils/logger';
 
 // ============================================================================
 // STATIC STYLES - Moved outside to prevent recreation
@@ -149,7 +150,7 @@ function ChatInput({
         setCurrentSchema(data.current_schema || 'public');
       }
     } catch (err) {
-      console.error('Failed to fetch schemas:', err);
+      logger.error('Failed to fetch schemas:', err);
     } finally {
       setSchemaLoading(false);
     }
@@ -166,7 +167,7 @@ function ChatInput({
         setCurrentSchema(schema);
       }
     } catch (err) {
-      console.error('Failed to select schema:', err);
+      logger.error('Failed to select schema:', err);
     } finally {
       setSchemaLoading(false);
     }

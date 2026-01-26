@@ -29,6 +29,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import logger from '../utils/logger';
 
 // =============================================================================
 // TYPE DEFINITIONS (JSDoc for vanilla JS)
@@ -114,7 +115,7 @@ export function useLocalStorage(key, initialValue) {
       const parsed = safeJsonParse(item);
       return parsed !== undefined ? parsed : initialValue;
     } catch (error) {
-      console.warn(`useLocalStorage: Error reading key "${key}":`, error);
+      logger.warn(`useLocalStorage: Error reading key "${key}":`, error);
       return initialValue;
     }
   });
@@ -141,11 +142,11 @@ export function useLocalStorage(key, initialValue) {
         }
       }
     } catch (error) {
-      console.warn(`useLocalStorage: Error setting key "${key}":`, error);
+      logger.warn(`useLocalStorage: Error setting key "${key}":`, error);
       
       // Handle quota exceeded error
       if (error.name === 'QuotaExceededError') {
-        console.error('localStorage quota exceeded. Consider clearing old data.');
+        logger.error('localStorage quota exceeded. Consider clearing old data.');
       }
     }
   }, [key, storedValue]);
@@ -162,7 +163,7 @@ export function useLocalStorage(key, initialValue) {
       }
       setStoredValue(initialValue);
     } catch (error) {
-      console.warn(`useLocalStorage: Error removing key "${key}":`, error);
+      logger.warn(`useLocalStorage: Error removing key "${key}":`, error);
     }
   }, [key, initialValue]);
   
