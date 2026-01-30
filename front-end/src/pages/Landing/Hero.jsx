@@ -1,18 +1,17 @@
-// Hero section component
+// Hero section component - Monochromatic design
 import { Box, Container, Stack, Typography, Button } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
 import PlayCircleOutlinedIcon from '@mui/icons-material/PlayCircleOutlined';
-import { getMoonlitGradient, getNaturalMoonlitEffects, KEYFRAMES, getGlowButtonSx } from '../../theme';
 import { Section } from './index';
 
 function Hero({ onGetStarted }) {
   const theme = useTheme();
-  const effects = getNaturalMoonlitEffects(theme);
+  const isDark = theme.palette.mode === 'dark';
 
   return (
     <Section sx={{ py: { xs: 8, md: 6 } }}>
-      {/* Animated gradient orbs */}
+      {/* Subtle floating orbs - grayscale */}
       <Box sx={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
         <Box
           sx={{
@@ -22,10 +21,13 @@ function Hero({ onGetStarted }) {
             width: 400,
             height: 400,
             borderRadius: '50%',
-            background: effects.glow,
+            background: `radial-gradient(circle, ${alpha(theme.palette.text.primary, isDark ? 0.04 : 0.03)}, transparent 70%)`,
             filter: 'blur(80px)',
             animation: 'float 8s ease-in-out infinite',
-            ...KEYFRAMES.float,
+            '@keyframes float': {
+              '0%, 100%': { transform: 'translateY(0) scale(1)' },
+              '50%': { transform: 'translateY(30px) scale(1.05)' },
+            },
             '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
           }}
         />
@@ -37,10 +39,9 @@ function Hero({ onGetStarted }) {
             width: 300,
             height: 300,
             borderRadius: '50%',
-            background: `radial-gradient(circle, ${alpha(theme.palette.info.main, 0.12)}, transparent 70%)`,
+            background: `radial-gradient(circle, ${alpha(theme.palette.text.primary, isDark ? 0.03 : 0.02)}, transparent 70%)`,
             filter: 'blur(60px)',
             animation: 'float 10s ease-in-out infinite 1s',
-            ...KEYFRAMES.float,
           }}
         />
         <Box
@@ -52,32 +53,50 @@ function Hero({ onGetStarted }) {
             width: 250,
             height: 250,
             borderRadius: '50%',
-            background: `radial-gradient(circle, ${alpha(theme.palette.primary.main, 0.08)}, transparent 70%)`,
+            background: `radial-gradient(circle, ${alpha(theme.palette.text.primary, isDark ? 0.025 : 0.015)}, transparent 70%)`,
             filter: 'blur(50px)',
             animation: 'float 12s ease-in-out infinite 2s',
-            ...KEYFRAMES.float,
           }}
         />
       </Box>
 
-      {/* Radial gradient */}
-      <Box sx={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse 80% 50% at 50% -20%, ${alpha(theme.palette.primary.main, 0.18)}, transparent)`, pointerEvents: 'none' }} />
+      {/* Radial gradient - subtle */}
+      <Box 
+        sx={{ 
+          position: 'absolute', 
+          inset: 0, 
+          background: `radial-gradient(ellipse 80% 50% at 50% -20%, ${alpha(theme.palette.text.primary, isDark ? 0.06 : 0.04)}, transparent)`, 
+          pointerEvents: 'none' 
+        }} 
+      />
 
       <Container maxWidth="md" sx={{ zIndex: 2, textAlign: 'center' }}>
         <Stack spacing={2.5} alignItems="center">
-          {/* Badge */}
+          {/* Badge - subtle monochrome */}
           <Box
             sx={{
               px: 2,
               py: 0.5,
-              borderRadius: 10,
-              background: alpha(theme.palette.primary.main, 0.1),
-              border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+              borderRadius: 2,
+              backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.06 : 0.04),
+              border: `1px solid ${alpha(theme.palette.text.primary, 0.1)}`,
               animation: 'fadeIn 0.6s ease-out',
-              ...KEYFRAMES.fadeIn,
+              '@keyframes fadeIn': {
+                from: { opacity: 0, transform: 'translateY(8px)' },
+                to: { opacity: 1, transform: 'translateY(0)' },
+              },
             }}
           >
-            <Typography variant="labelMedium" sx={{ color: theme.palette.primary.main, fontWeight: 600 }}>
+            <Typography 
+              variant="caption" 
+              sx={{ 
+                color: 'text.secondary', 
+                fontWeight: 600,
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+                fontSize: '0.7rem',
+              }}
+            >
               ✨ AI-Powered Database Assistant
             </Typography>
           </Box>
@@ -90,6 +109,7 @@ function Hero({ onGetStarted }) {
               fontSize: { xs: '2rem', sm: '2.5rem', md: '3.25rem' },
               lineHeight: 1.15,
               letterSpacing: '-0.02em',
+              color: 'text.primary',
             }}
           >
             Stop Writing SQL.
@@ -97,10 +117,9 @@ function Hero({ onGetStarted }) {
             <Box
               component="span"
               sx={{
-                background: getMoonlitGradient(theme),
-                backgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                filter: `drop-shadow(0 0 32px ${alpha(theme.palette.info.main, 0.3)})`,
+                color: isDark 
+                  ? alpha(theme.palette.text.primary, 0.7)
+                  : alpha(theme.palette.text.primary, 0.65),
               }}
             >
               Start Asking Questions.
@@ -109,11 +128,11 @@ function Hero({ onGetStarted }) {
 
           {/* Value Proposition */}
           <Typography
-            variant="bodyLarge"
+            variant="body1"
             color="text.secondary"
             sx={{
               maxWidth: 560,
-              opacity: 0.9,
+              opacity: 0.8,
               fontSize: { xs: '1rem', md: '1.125rem' },
               lineHeight: 1.7,
             }}
@@ -122,30 +141,60 @@ function Hero({ onGetStarted }) {
             No SQL expertise required. Your data never leaves your infrastructure.
           </Typography>
 
-          {/* CTAs */}
+          {/* CTAs - Monochrome buttons */}
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ pt: 0.5 }}>
             <Button
               size="large"
               onClick={onGetStarted}
               endIcon={<ArrowForwardRoundedIcon />}
-              sx={getGlowButtonSx(theme)}
+              sx={{
+                px: 3,
+                py: 1.5,
+                borderRadius: 2,
+                fontWeight: 600,
+                backgroundColor: 'text.primary',
+                color: 'background.default',
+                border: 'none',
+                boxShadow: isDark 
+                  ? `0 4px 20px ${alpha('#000', 0.4)}`
+                  : `0 4px 20px ${alpha('#000', 0.15)}`,
+                transition: theme.transitions.create(['background-color', 'transform', 'box-shadow'], {
+                  duration: 200,
+                }),
+                '&:hover': {
+                  backgroundColor: isDark 
+                    ? alpha(theme.palette.text.primary, 0.85)
+                    : alpha(theme.palette.text.primary, 0.9),
+                  transform: 'translateY(-2px)',
+                  boxShadow: isDark
+                    ? `0 6px 25px ${alpha('#000', 0.5)}`
+                    : `0 6px 25px ${alpha('#000', 0.2)}`,
+                },
+                '&:active': {
+                  transform: 'scale(0.98)',
+                },
+              }}
             >
               Get Started Free
             </Button>
             <Button
               size="large"
+              variant="outlined"
               startIcon={<PlayCircleOutlinedIcon />}
               onClick={() => document.getElementById('demo-section')?.scrollIntoView({ behavior: 'smooth' })}
               sx={{
                 px: 3,
                 py: 1.5,
-                borderRadius: 12,
-                borderColor: alpha(theme.palette.primary.main, 0.3),
-                borderWidth: 1.5,
-                color: theme.palette.text.primary,
+                borderRadius: 2,
+                borderColor: alpha(theme.palette.text.primary, 0.2),
+                borderWidth: 1,
+                color: 'text.primary',
+                transition: theme.transitions.create(['border-color', 'background-color', 'transform'], {
+                  duration: 200,
+                }),
                 '&:hover': {
-                  borderColor: theme.palette.primary.main,
-                  backgroundColor: effects.hover,
+                  borderColor: alpha(theme.palette.text.primary, 0.4),
+                  backgroundColor: alpha(theme.palette.text.primary, 0.04),
                   transform: 'translateY(-2px)',
                 },
               }}
@@ -156,7 +205,16 @@ function Hero({ onGetStarted }) {
 
           {/* Database Logos - Trust Signal */}
           <Stack spacing={1.5} alignItems="center" sx={{ pt: 2 }}>
-            <Typography variant="labelSmall" color="text.secondary" sx={{ opacity: 0.7, fontSize: '0.65rem' }}>
+            <Typography 
+              variant="caption" 
+              color="text.secondary" 
+              sx={{ 
+                opacity: 0.5, 
+                fontSize: '0.65rem',
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+              }}
+            >
               WORKS WITH YOUR FAVORITE DATABASES
             </Typography>
             <Stack
@@ -166,7 +224,10 @@ function Hero({ onGetStarted }) {
               justifyContent="center"
               sx={{
                 opacity: 0.7,
-                filter: theme.palette.mode === 'dark' ? 'brightness(0.85) invert(0)' : 'none',
+                transition: 'opacity 0.3s ease',
+                '&:hover': {
+                  opacity: 0.9,
+                },
               }}
             >
               {[
@@ -184,9 +245,8 @@ function Hero({ onGetStarted }) {
                     display: db.hideXs ? { xs: 'none', sm: 'flex' } : 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    transition: 'transform 0.3s ease, opacity 0.3s ease',
+                    transition: 'transform 0.3s ease',
                     '&:hover': {
-                      opacity: 1,
                       transform: 'scale(1.15)',
                     },
                   }}

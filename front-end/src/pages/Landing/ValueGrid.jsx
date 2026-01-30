@@ -1,16 +1,16 @@
-// ValueGrid section component
+// ValueGrid section component - 3 Column Horizontal Layout
 import { useMemo } from 'react';
-import { Box, Container, Typography, Grid } from '@mui/material';
+import { Box, Container, Typography, Stack } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import SpeedIcon from '@mui/icons-material/Speed';
 import VisibilityIcon from '@mui/icons-material/Visibility';
-import { getMoonlitGradient, getNaturalMoonlitEffects, getGlassCardSx, getGradientTextSx, KEYFRAMES } from '../../theme';
 import { Section } from './index';
 
 function ValueGrid() {
   const theme = useTheme();
-  const effects = getNaturalMoonlitEffects(theme);
+  const isDark = theme.palette.mode === 'dark';
+
   const values = useMemo(() => [
     {
       Icon: AutoAwesomeIcon,
@@ -30,71 +30,145 @@ function ValueGrid() {
   ], []);
 
   return (
-    <Section sx={{ background: effects.ambient, py: { xs: 6, md: 8 } }}>
+    <Section 
+      sx={{ 
+        py: { xs: 8, md: 10 } 
+      }}
+    >
       <Container maxWidth="lg">
-        <Box textAlign="center" mb={3}>
+        {/* Section Header */}
+        <Box textAlign="center" mb={6}>
           <Typography
-            variant="labelMedium"
+            variant="caption"
             fontWeight="bold"
             sx={{
               textTransform: 'uppercase',
               letterSpacing: '0.15em',
-              background: getMoonlitGradient(theme),
-              backgroundClip: 'text',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
+              color: 'text.secondary',
+              fontSize: '0.7rem',
+              display: 'block',
+              mb: 1.5,
             }}
           >
             Why Moonlit
           </Typography>
-          <Typography variant="h3" fontWeight="bold" sx={{ fontSize: { xs: '1.5rem', md: '2rem' }, mt: 1 }}>
+          <Typography 
+            variant="h3" 
+            fontWeight="bold" 
+            sx={{ 
+              fontSize: { xs: '1.75rem', md: '2.25rem' }, 
+            }}
+          >
             Built for{' '}
-            <Box component="span" sx={getGradientTextSx(theme)}>
+            <Box 
+              component="span" 
+              sx={{ 
+                color: isDark 
+                  ? alpha(theme.palette.text.primary, 0.6)
+                  : alpha(theme.palette.text.primary, 0.5),
+              }}
+            >
               Everyone.
             </Box>
           </Typography>
         </Box>
-        <Grid container spacing={2.5} justifyContent="center">
+
+        {/* Values - Horizontal Row using Flexbox */}
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: { xs: 'column', md: 'row' },
+            gap: 3,
+            justifyContent: 'center',
+          }}
+        >
           {values.map((v, i) => (
-            <Grid item xs={12} sm={4} key={v.title}>
-              <Box
-                sx={{
-                  ...getGlassCardSx(theme),
-                  p: 3,
-                  textAlign: 'center',
-                  animation: `slideUp 0.6s ease-out ${i * 0.15}s both`,
-                  ...KEYFRAMES.slideUp,
-                }}
+            <Box
+              key={v.title}
+              sx={{
+                flex: { xs: '1 1 auto', md: '1 1 0' },
+                minWidth: 0,
+                p: 4,
+                backgroundColor: isDark 
+                  ? alpha(theme.palette.common.white, 0.03)
+                  : alpha(theme.palette.common.black, 0.02),
+                border: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06)}`,
+                borderRadius: 3,
+                transition: theme.transitions.create(['border-color', 'background-color', 'transform'], {
+                  duration: 250,
+                }),
+                animation: `fadeInUp 0.5s ease-out ${i * 0.12}s both`,
+                '@keyframes fadeInUp': {
+                  from: { opacity: 0, transform: 'translateY(24px)' },
+                  to: { opacity: 1, transform: 'translateY(0)' },
+                },
+                '&:hover': {
+                  borderColor: alpha(theme.palette.text.primary, isDark ? 0.15 : 0.12),
+                  backgroundColor: isDark 
+                    ? alpha(theme.palette.common.white, 0.04)
+                    : alpha(theme.palette.common.black, 0.03),
+                  transform: 'translateY(-4px)',
+                  '& .icon-container': {
+                    transform: 'scale(1.05)',
+                  },
+                },
+              }}
+            >
+              <Stack 
+                direction="column"
+                spacing={2}
+                alignItems="center"
               >
+                {/* Icon Container */}
                 <Box
+                  className="icon-container"
                   sx={{
-                    width: 52,
-                    height: 52,
-                    borderRadius: 3,
-                    background: `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.15)}, ${alpha(theme.palette.primary.main, 0.1)})`,
+                    width: 56,
+                    height: 56,
+                    borderRadius: 2,
+                    backgroundColor: isDark 
+                      ? alpha(theme.palette.common.white, 0.05)
+                      : alpha(theme.palette.common.black, 0.04),
+                    border: `1px solid ${alpha(theme.palette.text.primary, 0.1)}`,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    mx: 'auto',
-                    mb: 2,
-                    transition: 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-                    '&:hover': {
-                      transform: 'scale(1.15) rotate(10deg)',
-                    },
+                    transition: theme.transitions.create(['transform'], {
+                      duration: 250,
+                    }),
                   }}
                 >
-                  <v.Icon sx={{ fontSize: 24, color: theme.palette.info.main }} />
+                  <v.Icon sx={{ fontSize: 26, color: 'text.primary', opacity: 0.8 }} />
                 </Box>
-                <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>
-                  {v.title}
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.6, opacity: 0.85, fontSize: '0.85rem' }}>
-                  {v.desc}
-                </Typography>
-              </Box>
-            </Grid>
+
+                {/* Content */}
+                <Box sx={{ textAlign: 'center' }}>
+                  <Typography 
+                    variant="h6" 
+                    fontWeight={700} 
+                    sx={{ 
+                      mb: 0.75,
+                      fontSize: '1.1rem',
+                    }}
+                  >
+                    {v.title}
+                  </Typography>
+                  <Typography 
+                    variant="body2" 
+                    color="text.secondary" 
+                    sx={{ 
+                      lineHeight: 1.7, 
+                      opacity: 0.8, 
+                      fontSize: '0.9rem',
+                    }}
+                  >
+                    {v.desc}
+                  </Typography>
+                </Box>
+              </Stack>
+            </Box>
           ))}
-        </Grid>
+        </Box>
       </Container>
     </Section>
   );

@@ -7,7 +7,6 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import StorageOutlinedIcon from '@mui/icons-material/StorageOutlined';
 import CloudOffOutlinedIcon from '@mui/icons-material/CloudOffOutlined';
 import VerifiedUserOutlinedIcon from '@mui/icons-material/VerifiedUserOutlined';
-import { getMoonlitGradient, getNaturalMoonlitEffects } from '../../theme';
 import { useAuth } from '../../contexts/AuthContext';
 
 // Section components
@@ -51,7 +50,7 @@ export const Section = ({ children, sx = {}, id, fullHeight = true }) => (
 // ---------- Inline TrustStrip ----------
 function TrustStrip() {
   const theme = useTheme();
-  const effects = getNaturalMoonlitEffects(theme);
+  const isDark = theme.palette.mode === 'dark';
 
   const trustItems = useMemo(() => [
     { Icon: LockOutlinedIcon, text: 'Credentials never stored' },
@@ -64,9 +63,9 @@ function TrustStrip() {
     <Box
       sx={{
         py: { xs: 4, md: 5 },
-        background: effects.ambient,
-        borderTop: `1px solid ${alpha(theme.palette.primary.main, 0.08)}`,
-        borderBottom: `1px solid ${alpha(theme.palette.primary.main, 0.08)}`,
+        backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.02 : 0.01),
+        borderTop: `1px solid ${alpha(theme.palette.text.primary, 0.06)}`,
+        borderBottom: `1px solid ${alpha(theme.palette.text.primary, 0.06)}`,
         scrollSnapAlign: 'start',
       }}
     >
@@ -85,9 +84,9 @@ function TrustStrip() {
               direction="row"
               spacing={1}
               alignItems="center"
-              sx={{ opacity: 0.85 }}
+              sx={{ opacity: 0.7 }}
             >
-              <item.Icon sx={{ fontSize: 20, color: theme.palette.primary.main }} />
+              <item.Icon sx={{ fontSize: 18, color: 'text.secondary' }} />
               <Typography variant="body2" fontWeight={500} color="text.secondary">
                 {item.text}
               </Typography>
@@ -102,6 +101,7 @@ function TrustStrip() {
 // ---------- Inline Footer ----------
 function Footer() {
   const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
 
   return (
     <Box
@@ -109,8 +109,8 @@ function Footer() {
       sx={{
         width: '100%',
         py: 3,
-        borderTop: `1px solid ${alpha(theme.palette.info.main, 0.1)}`,
-        background: alpha(theme.palette.background.paper, 0.6),
+        borderTop: `1px solid ${alpha(theme.palette.text.primary, 0.08)}`,
+        backgroundColor: alpha(theme.palette.background.paper, 0.6),
         backdropFilter: 'blur(12px)',
         scrollSnapAlign: 'end',
       }}
@@ -123,10 +123,7 @@ function Footer() {
               variant="subtitle2"
               fontWeight="bold"
               sx={{
-                background: getMoonlitGradient(theme),
-                backgroundClip: 'text',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
+                color: 'text.primary',
               }}
             >
               Moonlit
@@ -142,14 +139,14 @@ function Footer() {
                 variant="body2"
                 sx={{
                   transition: 'color 0.2s ease',
-                  '&:hover': { color: theme.palette.text.primary },
+                  '&:hover': { color: 'text.primary' },
                 }}
               >
                 {l}
               </Link>
             ))}
           </Stack>
-          <Typography variant="caption" color="text.secondary" sx={{ opacity: 0.7 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ opacity: 0.6 }}>
             © {new Date().getFullYear()} ABN Alliance
           </Typography>
         </Stack>

@@ -1,39 +1,63 @@
-// DemoSection component
+// DemoSection component - Monochromatic design
 import { Box, Container, Typography } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
-import { getMoonlitGradient, getNaturalMoonlitEffects, getGradientTextSx } from '../../theme';
 import { Section } from './index';
 
 function DemoSection() {
   const theme = useTheme();
-  const effects = getNaturalMoonlitEffects(theme);
   const isDark = theme.palette.mode === 'dark';
 
   return (
-    <Section id="demo-section" sx={{ py: { xs: 6, md: 8 } }}>
+    <Section 
+      id="demo-section" 
+      sx={{ 
+        py: { xs: 4, md: 6 },
+      }}
+    >
       <Container maxWidth="lg">
         <Box textAlign="center" mb={3}>
           <Typography
-            variant="labelMedium"
+            variant="caption"
             fontWeight="bold"
             sx={{
               textTransform: 'uppercase',
               letterSpacing: '0.15em',
-              background: getMoonlitGradient(theme),
-              backgroundClip: 'text',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
+              color: 'text.secondary',
+              fontSize: '0.7rem',
             }}
           >
             See It In Action
           </Typography>
-          <Typography variant="h3" fontWeight="bold" sx={{ fontSize: { xs: '1.5rem', md: '2rem' }, mt: 1 }}>
+          <Typography 
+            variant="h3" 
+            fontWeight="bold" 
+            sx={{ 
+              fontSize: { xs: '1.5rem', md: '2rem' }, 
+              mt: 1 
+            }}
+          >
             From Question to{' '}
-            <Box component="span" sx={getGradientTextSx(theme)}>
+            <Box 
+              component="span" 
+              sx={{ 
+                color: isDark 
+                  ? alpha(theme.palette.text.primary, 0.65)
+                  : alpha(theme.palette.text.primary, 0.55),
+              }}
+            >
               Answer
             </Box>
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5, maxWidth: 440, mx: 'auto', opacity: 0.85 }}>
+          <Typography 
+            variant="body2" 
+            color="text.secondary" 
+            sx={{ 
+              mt: 1.5, 
+              maxWidth: 440, 
+              mx: 'auto', 
+              opacity: 0.75 
+            }}
+          >
             Watch how anyone can explore databases without writing a single line of SQL.
           </Typography>
         </Box>
@@ -41,7 +65,7 @@ function DemoSection() {
         <Box
           sx={{
             position: 'relative',
-            maxWidth: { xs: '100%', md: 800 },
+            maxWidth: { xs: '100%', md: 720 },
             mx: 'auto',
             perspective: '1000px',
           }}
@@ -56,12 +80,11 @@ function DemoSection() {
               },
             }}
           >
-            {/* Browser chrome */}
+            {/* Browser chrome - monochrome dots */}
             <Box
               sx={{
-                borderRadius: '16px 16px 0 0',
-                background: alpha(theme.palette.background.paper, isDark ? 0.15 : 0.9),
-                backdropFilter: 'blur(10px)',
+                borderRadius: '12px 12px 0 0',
+                backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.04 : 0.03),
                 border: `1px solid ${alpha(theme.palette.text.primary, 0.08)}`,
                 borderBottom: 'none',
                 px: 2.5,
@@ -71,10 +94,31 @@ function DemoSection() {
                 gap: 1.5,
               }}
             >
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: '#FF5F56' }} />
-                <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: '#FFBD2E' }} />
-                <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: '#27C93F' }} />
+              <Box sx={{ display: 'flex', gap: 0.75 }}>
+                <Box 
+                  sx={{ 
+                    width: 10, 
+                    height: 10, 
+                    borderRadius: '50%', 
+                    backgroundColor: alpha(theme.palette.text.primary, 0.2),
+                  }} 
+                />
+                <Box 
+                  sx={{ 
+                    width: 10, 
+                    height: 10, 
+                    borderRadius: '50%', 
+                    backgroundColor: alpha(theme.palette.text.primary, 0.15),
+                  }} 
+                />
+                <Box 
+                  sx={{ 
+                    width: 10, 
+                    height: 10, 
+                    borderRadius: '50%', 
+                    backgroundColor: alpha(theme.palette.text.primary, 0.1),
+                  }} 
+                />
               </Box>
               <Box
                 sx={{
@@ -82,8 +126,8 @@ function DemoSection() {
                   ml: 2,
                   px: 2,
                   py: 0.75,
-                  borderRadius: 2,
-                  backgroundColor: isDark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.04),
+                  borderRadius: 1.5,
+                  backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.04 : 0.03),
                   color: 'text.secondary',
                   fontSize: '0.8rem',
                   fontFamily: '"JetBrains Mono", monospace',
@@ -102,8 +146,10 @@ function DemoSection() {
               playsInline
               sx={{
                 width: '100%',
+                maxHeight: { xs: '45vh', md: '55vh' },
+                objectFit: 'cover',
                 display: 'block',
-                borderRadius: '0 0 16px 16px',
+                borderRadius: '0 0 12px 12px',
                 border: `1px solid ${alpha(theme.palette.text.primary, 0.08)}`,
                 borderTop: 'none',
                 backgroundColor: theme.palette.background.paper,
@@ -114,16 +160,15 @@ function DemoSection() {
             </Box>
           </Box>
 
-          {/* Glow effect */}
+          {/* Subtle glow effect - grayscale */}
           <Box
             sx={{
               position: 'absolute',
               inset: -40,
-              background: effects.glow,
+              background: `radial-gradient(ellipse at center, ${alpha(theme.palette.text.primary, isDark ? 0.03 : 0.02)}, transparent 70%)`,
               pointerEvents: 'none',
               zIndex: -1,
               filter: 'blur(40px)',
-              opacity: 0.8,
             }}
           />
         </Box>

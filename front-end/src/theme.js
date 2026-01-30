@@ -1,592 +1,603 @@
 import { createTheme, responsiveFontSizes, alpha } from '@mui/material/styles';
 
 // ============================================
-// 1. SHARED CONFIGURATION
+// 1. DESIGN TOKENS (Static Constants)
 // ============================================
 
-const shape = { borderRadius: 12 };
+const SHAPE = { borderRadius: 8 };
 
-// Standard MUI breakpoints
-const breakpoints = {
-  values: {
-    xs: 0,
-    sm: 600,
-    md: 900,
-    lg: 1200,
-    xl: 1536,
-  },
+const BREAKPOINTS = {
+  values: { xs: 0, sm: 600, md: 900, lg: 1200, xl: 1536 },
 };
 
-// Font families - single source of truth
-const FONT_SERIF = '"Merriweather", serif';
-const FONT_MONO = '"JetBrains Mono", monospace';
-
-const typography = {
-  fontFamily: FONT_SERIF,
-  // Standard MUI variants - fontFamily inherited from root
-  h1: { fontWeight: 700, fontSize: '3rem', lineHeight: 1.1, letterSpacing: '-0.025em' },
-  h2: { fontWeight: 700, fontSize: '2.25rem', lineHeight: 1.2, letterSpacing: '-0.02em' },
-  h3: { fontWeight: 700, fontSize: '1.75rem', lineHeight: 1.3, letterSpacing: '-0.015em' },
-  h4: { fontWeight: 700, fontSize: '1.25rem', lineHeight: 1.4 },
-  h5: { fontWeight: 700, fontSize: '1.125rem', lineHeight: 1.4 },
-  h6: { fontWeight: 700, fontSize: '1rem', lineHeight: 1.5 },
-  subtitle1: { fontSize: '1rem', fontWeight: 500, lineHeight: 1.5 },
-  subtitle2: { fontSize: '0.875rem', fontWeight: 500, lineHeight: 1.5 },
-  body1: { fontSize: '1rem', lineHeight: 1.6 },
-  body2: { fontSize: '0.875rem', lineHeight: 1.5 },
-  caption: { fontSize: '0.75rem', lineHeight: 1.4, letterSpacing: '0.02em' },
-  overline: { fontSize: '0.625rem', fontWeight: 600, lineHeight: 1.5, letterSpacing: '0.1em', textTransform: 'uppercase' },
-  button: { textTransform: 'none', fontWeight: 500, fontSize: '0.875rem' },
-  // Custom monospace variants
-  labelSmall: { fontSize: '0.65rem', fontWeight: 500, lineHeight: 1.4, letterSpacing: '0.02em', fontFamily: FONT_MONO },
-  labelMedium: { fontSize: '0.7rem', fontWeight: 500, lineHeight: 1.4, letterSpacing: '0.01em', fontFamily: FONT_MONO },
-  bodySmall: { fontSize: '0.8rem', lineHeight: 1.5, fontFamily: FONT_MONO },
-  bodyLarge: { fontSize: '0.95rem', lineHeight: 1.6, fontFamily: FONT_MONO },
+const FONTS = {
+  serif: '"Merriweather", "Georgia", serif',
+  mono: '"JetBrains Mono", "Fira Code", "Monaco", monospace',
+  sans: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
 };
 
 // ============================================
-// 2. PALETTE DEFINITIONS
+// 2. MONOCHROMATIC COLOR SYSTEM
 // ============================================
 
-// MOONLIT Color Palette - Serene, cool tones evoking the night sky
-// Silvery whites, soft grays, deep charcoals with luminous emerald-teal accents
-const COLORS = {
-  // Dark mode - True neutral charcoals (no green/teal tint)
+const PALETTE_MODES = {
   dark: {
-    bg: { 
-      default: '#121417',   // True dark charcoal
-      paper: '#1C1E22',     // Slightly lifted charcoal
-      input: '#0C0D0F',     // Deepest charcoal
+    background: {
+      default: '#0a0a0a',
+      paper: '#141414',
+      elevated: '#1a1a1a',
     },
-    text: { 
-      primary: '#E8ECF0',   // Silvery moonlight
-      secondary: '#9BA8B4', // Cool silver-gray
-      disabled: '#5C6773',  // Muted steel
+    text: {
+      primary: '#fafafa',
+      secondary: '#a3a3a3',
+      disabled: '#525252',
+      hint: '#737373',
     },
-    border: { 
-      default: '#2C2E33',   // Neutral charcoal border
-      subtle: '#1F2125',    // Deep border
-      hover: '#3C3E44',     // Lifted charcoal
-      focus: '#5EEAD4',     // Luminous mint glow
+    border: {
+      default: '#262626',
+      subtle: '#1a1a1a',
+      hover: '#404040',
+      focus: '#d4d4d4',
     },
-    scrollbar: { thumb: '#3C3E44', thumbHover: '#4C4E54' },
+    primary: {
+      main: '#e5e5e5',
+      light: '#fafafa',
+      dark: '#a3a3a3',
+      contrastText: '#0a0a0a',
+    },
+    secondary: {
+      main: '#737373',
+      light: '#a3a3a3',
+      dark: '#525252',
+      contrastText: '#fafafa',
+    },
+    error: { main: '#a3a3a3', light: '#d4d4d4', dark: '#737373' },
+    warning: { main: '#a3a3a3', light: '#d4d4d4', dark: '#737373' },
+    info: { main: '#a3a3a3', light: '#d4d4d4', dark: '#737373' },
+    success: { main: '#a3a3a3', light: '#d4d4d4', dark: '#737373' },
+    action: {
+      active: 'rgba(255, 255, 255, 0.7)',
+      hover: 'rgba(255, 255, 255, 0.04)',
+      selected: 'rgba(255, 255, 255, 0.08)',
+      disabled: 'rgba(255, 255, 255, 0.26)',
+      disabledBackground: 'rgba(255, 255, 255, 0.12)',
+    },
+    scrollbar: { track: 'transparent', thumb: '#404040', thumbHover: '#525252' },
   },
-  // Light mode - Soft dawn with cool undertones
   light: {
-    bg: { 
-      default: '#F4F6F8',   // Silvery white
-      paper: '#FFFFFF',     // Pure white
-      input: '#FFFFFF',
+    background: {
+      default: '#fafafa',
+      paper: '#ffffff',
+      elevated: '#ffffff',
     },
-    text: { 
-      primary: '#1A1F26',   // Deep charcoal
-      secondary: '#5C6773', // Cool gray
-      disabled: '#9BA8B4',  // Muted silver
+    text: {
+      primary: '#171717',
+      secondary: '#525252',
+      disabled: '#a3a3a3',
+      hint: '#737373',
     },
-    border: { 
-      default: '#D8DEE4',   // Cool light gray
-      subtle: '#EDF0F3',    // Subtle silver
-      hover: '#B8C4CF',     // Medium cool gray
-      focus: '#10B981',     // Deep emerald
+    border: {
+      default: '#e5e5e5',
+      subtle: '#f5f5f5',
+      hover: '#d4d4d4',
+      focus: '#404040',
     },
-    scrollbar: { thumb: '#B8C4CF', thumbHover: '#9BA8B4' },
+    primary: {
+      main: '#262626',
+      light: '#404040',
+      dark: '#171717',
+      contrastText: '#ffffff',
+    },
+    secondary: {
+      main: '#737373',
+      light: '#a3a3a3',
+      dark: '#525252',
+      contrastText: '#ffffff',
+    },
+    error: { main: '#525252', light: '#737373', dark: '#404040' },
+    warning: { main: '#525252', light: '#737373', dark: '#404040' },
+    info: { main: '#525252', light: '#737373', dark: '#404040' },
+    success: { main: '#525252', light: '#737373', dark: '#404040' },
+    action: {
+      active: 'rgba(0, 0, 0, 0.6)',
+      hover: 'rgba(0, 0, 0, 0.04)',
+      selected: 'rgba(0, 0, 0, 0.08)',
+      disabled: 'rgba(0, 0, 0, 0.26)',
+      disabledBackground: 'rgba(0, 0, 0, 0.12)',
+    },
+    scrollbar: { track: 'transparent', thumb: '#d4d4d4', thumbHover: '#a3a3a3' },
   },
 };
 
-// MOONLIT GRADIENT - Single source for brand gradient
-export const getMoonlitGradient = (theme) => {
-  const isDark = theme.palette.mode === 'dark';
-  return isDark 
-    ? `linear-gradient(135deg, ${theme.palette.primary.light}, ${theme.palette.primary.main})`
-    : `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`;
-};
+// ============================================
+// 3. TYPOGRAPHY SYSTEM
+// ============================================
 
-// MOONLIT EFFECTS - Theme-aware effects for special UI elements
-// Note: Colors are intentionally hardcoded here for performance (avoids recalculating
-// on every render) and because these complex gradients/glows need precise tuning
-// that doesn't map cleanly to palette.primary values.
-export const getNaturalMoonlitEffects = (theme) => {
-  const isDark = theme?.palette?.mode === 'dark';
+const createTypography = (palette) => ({
+  fontFamily: FONTS.serif,
+  fontWeightLight: 300,
+  fontWeightRegular: 400,
+  fontWeightMedium: 500,
+  fontWeightBold: 700,
   
-  return isDark ? {
-    // Dark mode - luminous, ethereal mint-emerald with cyan undertones
-    gradient: 'linear-gradient(135deg, #99F6E4, #5EEAD4, #2DD4BF, #14B8A6)',
-    glow: 'radial-gradient(ellipse at center, rgba(94, 234, 212, 0.18) 0%, rgba(45, 212, 191, 0.10) 40%, transparent 70%)',
-    shadow: '0 8px 32px rgba(94, 234, 212, 0.15), 0 4px 16px rgba(45, 212, 191, 0.10), 0 0 60px rgba(94, 234, 212, 0.08)',
-    textGradient: 'linear-gradient(135deg, #99F6E4, #5EEAD4, #2DD4BF)',
-    ambient: 'radial-gradient(ellipse at top right, rgba(94, 234, 212, 0.08) 0%, rgba(45, 212, 191, 0.03) 30%, transparent 60%)',
-    border: '1px solid rgba(94, 234, 212, 0.20)',
-    hover: 'rgba(94, 234, 212, 0.08)',
-    focus: '0 0 0 3px rgba(94, 234, 212, 0.15)',
-  } : {
-    // Light mode - subtle, grounded emerald
-    gradient: 'linear-gradient(135deg, #34D399, #10B981, #059669)',
-    glow: 'radial-gradient(ellipse at center, rgba(16, 185, 129, 0.08) 0%, rgba(5, 150, 105, 0.04) 40%, transparent 70%)',
-    shadow: '0 8px 32px rgba(16, 185, 129, 0.10), 0 4px 16px rgba(5, 150, 105, 0.06)',
-    textGradient: 'linear-gradient(135deg, #10B981, #059669, #047857)',
-    ambient: 'radial-gradient(ellipse at top right, rgba(16, 185, 129, 0.03) 0%, transparent 50%)',
-    border: '1px solid rgba(16, 185, 129, 0.15)',
-    hover: 'rgba(16, 185, 129, 0.04)',
-    focus: '0 0 0 3px rgba(16, 185, 129, 0.08)',
-  };
-};
-
-// ============================================
-// 2.5 LANDING PAGE UTILITIES
-// ============================================
-
-// Global keyframes for animations - use in sx via animation property
-export const KEYFRAMES = {
-  float: {
-    '@keyframes float': {
-      '0%, 100%': { transform: 'translateY(0) scale(1)' },
-      '50%': { transform: 'translateY(30px) scale(1.05)' },
-    },
+  h1: {
+    fontSize: '2.5rem',
+    fontWeight: 700,
+    lineHeight: 1.2,
+    letterSpacing: '-0.02em',
+    color: palette.text.primary,
   },
-  shimmer: {
-    '@keyframes shimmer': {
-      '0%': { left: '-100%' },
-      '100%': { left: '100%' },
-    },
+  h2: {
+    fontSize: '2rem',
+    fontWeight: 700,
+    lineHeight: 1.25,
+    letterSpacing: '-0.01em',
+    color: palette.text.primary,
   },
-  fadeIn: {
-    '@keyframes fadeIn': {
-      from: { opacity: 0, transform: 'translateY(-10px)' },
-      to: { opacity: 1, transform: 'translateY(0)' },
-    },
+  h3: {
+    fontSize: '1.5rem',
+    fontWeight: 600,
+    lineHeight: 1.3,
+    letterSpacing: '-0.005em',
   },
-  slideUp: {
-    '@keyframes slideUp': {
-      from: { opacity: 0, transform: 'translateY(20px)' },
-      to: { opacity: 1, transform: 'translateY(0)' },
-    },
+  h4: {
+    fontSize: '1.25rem',
+    fontWeight: 600,
+    lineHeight: 1.4,
   },
-};
-
-// Glass card sx props - theme-aware glassmorphism
-export const getGlassCardSx = (theme) => ({
-  background: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.03 : 0.7),
-  backdropFilter: 'blur(12px)',
-  WebkitBackdropFilter: 'blur(12px)',
-  borderRadius: 3,
-  transition: 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-  height: '100%',
-  display: 'flex',
-  flexDirection: 'column',
-  '&:hover': {
-    transform: 'translateY(-6px)',
+  h5: {
+    fontSize: '1.125rem',
+    fontWeight: 600,
+    lineHeight: 1.5,
+  },
+  h6: {
+    fontSize: '1rem',
+    fontWeight: 600,
+    lineHeight: 1.5,
+  },
+  subtitle1: {
+    fontSize: '1rem',
+    fontWeight: 500,
+    lineHeight: 1.5,
+    color: palette.text.primary,
+  },
+  subtitle2: {
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    lineHeight: 1.5,
+    color: palette.text.secondary,
+  },
+  body1: {
+    fontSize: '1rem',
+    lineHeight: 1.6,
+    letterSpacing: '0.01em',
+  },
+  body2: {
+    fontSize: '0.875rem',
+    lineHeight: 1.6,
+    letterSpacing: '0.01em',
+  },
+  caption: {
+    fontSize: '0.75rem',
+    lineHeight: 1.5,
+    letterSpacing: '0.02em',
+    color: palette.text.secondary,
+  },
+  overline: {
+    fontSize: '0.625rem',
+    fontWeight: 600,
+    letterSpacing: '0.1em',
+    lineHeight: 1.5,
+    textTransform: 'uppercase',
+    color: palette.text.secondary,
+  },
+  button: {
+    textTransform: 'none',
+    fontWeight: 500,
+    fontSize: '0.875rem',
+    letterSpacing: '0.025em',
+  },
+  mono: {
+    fontFamily: FONTS.mono,
+    fontSize: '0.875rem',
+    lineHeight: 1.6,
+  },
+  label: {
+    fontFamily: FONTS.mono,
+    fontSize: '0.6875rem',
+    fontWeight: 500,
+    letterSpacing: '0.04em',
+    textTransform: 'uppercase',
+    color: palette.text.hint,
   },
 });
 
-// Gradient text sx props - use with span or Typography
-export const getGradientTextSx = (theme) => {
-  const effects = getNaturalMoonlitEffects(theme);
-  return {
-    background: effects.textGradient,
-    backgroundClip: 'text',
-    WebkitBackgroundClip: 'text',
-    WebkitTextFillColor: 'transparent',
-  };
+// ============================================
+// 4. ANIMATION PRESETS (EXPORTED)
+// ============================================
+
+export const TRANSITIONS = {
+  default: 'all 200ms cubic-bezier(0.4, 0, 0.2, 1)',
+  smooth: 'all 300ms cubic-bezier(0.4, 0, 0.2, 1)',
+  bounce: 'transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1)',
+  fade: 'opacity 200ms ease-in-out',
 };
 
-// Glow button sx props - primary CTA with shimmer effect
-export const getGlowButtonSx = (theme) => {
-  const effects = getNaturalMoonlitEffects(theme);
-  return {
-    px: 4,
-    py: 1.5,
-    borderRadius: 3,
-    background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.info.main})`,
-    color: theme.palette.getContrastText(theme.palette.primary.main),
-    fontWeight: 600,
-    fontSize: '1rem',
-    position: 'relative',
-    overflow: 'hidden',
-    border: 'none',
-    ...KEYFRAMES.shimmer,
-    '&::before': {
-      content: '""',
-      position: 'absolute',
-      top: 0,
-      left: '-100%',
-      width: '100%',
-      height: '100%',
-      background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)',
-      animation: 'shimmer 2.5s infinite',
-    },
-    '&:hover': {
-      background: `linear-gradient(135deg, ${theme.palette.info.main}, ${theme.palette.primary.main})`,
-      transform: 'translateY(-3px)',
-      boxShadow: effects.shadow,
-    },
-  };
-};
-
-const darkPalette = {
-  mode: 'dark',
-  // Primary: Luminous mint-emerald with cyan undertones (glows against dark)
-  primary: { main: '#5EEAD4', light: '#99F6E4', dark: '#2DD4BF', contrastText: '#0F172A' },
-  // Secondary: Silvery moonlight for text/neutral elements
-  secondary: { main: '#E8ECF0', light: '#F4F6F8', dark: '#9BA8B4', contrastText: '#121417' },
-  background: COLORS.dark.bg,
-  text: COLORS.dark.text,
-  divider: COLORS.dark.border.default,
-  action: {
-    active: '#5EEAD4',
-    hover: 'rgba(255, 255, 255, 0.06)',
-    selected: 'rgba(255, 255, 255, 0.08)',
-    disabled: 'rgba(232, 236, 240, 0.3)',
-    disabledBackground: 'rgba(232, 236, 240, 0.08)',
+export const KEYFRAMES = {
+  '@keyframes float': {
+    '0%, 100%': { transform: 'translateY(0) scale(1)' },
+    '50%': { transform: 'translateY(30px) scale(1.05)' },
   },
-  // Semantic colors with cool undertones
-  success: { main: '#2DD4BF', light: '#5EEAD4', dark: '#14B8A6', contrastText: '#0F172A' },
-  error: { main: '#FB7185', light: '#FDA4AF', dark: '#F43F5E', contrastText: '#0F172A' },
-  warning: { main: '#FBBF24', light: '#FCD34D', dark: '#F59E0B', contrastText: '#0F172A' },
-  info: { main: '#5EEAD4', light: '#99F6E4', dark: '#2DD4BF', contrastText: '#0F172A' },
-};
-
-const lightPalette = {
-  mode: 'light',
-  // Primary: Deep emerald (professional, grounded)
-  primary: { main: '#10B981', light: '#34D399', dark: '#059669', contrastText: '#FFFFFF' },
-  // Secondary: Deep charcoal for text/neutral elements
-  secondary: { main: '#1C1E22', light: '#5C6773', dark: '#121417', contrastText: '#FFFFFF' },
-  background: COLORS.light.bg,
-  text: COLORS.light.text,
-  divider: COLORS.light.border.default,
-  action: {
-    active: '#10B981',
-    hover: 'rgba(0, 0, 0, 0.04)',
-    selected: 'rgba(0, 0, 0, 0.06)',
-    disabled: 'rgba(26, 31, 38, 0.26)',
-    disabledBackground: 'rgba(26, 31, 38, 0.06)',
+  '@keyframes shimmer': {
+    '0%': { backgroundPosition: '-200% 0' },
+    '100%': { backgroundPosition: '200% 0' },
   },
-  // Semantic colors - slightly muted for elegance
-  success: { main: '#059669', light: '#10B981', dark: '#047857', contrastText: '#FFFFFF' },
-  error: { main: '#DC2626', light: '#EF4444', dark: '#B91C1C', contrastText: '#FFFFFF' },
-  warning: { main: '#D97706', light: '#F59E0B', dark: '#B45309', contrastText: '#FFFFFF' },
-  info: { main: '#10B981', light: '#34D399', dark: '#059669', contrastText: '#FFFFFF' },
+  '@keyframes fadeIn': {
+    from: { opacity: 0, transform: 'translateY(8px)' },
+    to: { opacity: 1, transform: 'translateY(0)' },
+  },
+  '@keyframes pulse': {
+    '0%, 100%': { opacity: 1 },
+    '50%': { opacity: 0.5 },
+  },
+  '@keyframes slideIn': {
+    from: { transform: 'translateX(-100%)' },
+    to: { transform: 'translateX(0)' },
+  },
+  '@keyframes slideUp': {
+    from: { opacity: 0, transform: 'translateY(20px)' },
+    to: { opacity: 1, transform: 'translateY(0)' },
+  },
 };
 
 // ============================================
-// 3. MERMAID DIAGRAM THEMING
+// 5. UTILITY FUNCTIONS (Monochrome)
 // ============================================
 
-/**
- * Get Mermaid diagram theme config based on current theme
- */
-export const getMermaidThemeConfig = (theme) => {
-  const isDark = theme.palette.mode === 'dark';
+const gradientCache = new Map();
+
+export const getMoonlitGradient = (theme) => {
+  const mode = theme.palette.mode;
+  if (gradientCache.has(mode)) return gradientCache.get(mode);
   
-  const baseConfig = {
-    startOnLoad: false,
-    suppressErrorRendering: true,
-    securityLevel: 'loose',
-    logLevel: 'fatal',
-  };
+  const gradient = mode === 'dark'
+    ? `linear-gradient(135deg, ${theme.palette.text.secondary}, ${theme.palette.text.primary})`
+    : `linear-gradient(135deg, ${theme.palette.text.primary}, ${theme.palette.text.secondary})`;
+    
+  gradientCache.set(mode, gradient);
+  return gradient;
+};
 
-  const darkVariables = {
-    primaryColor: theme.palette.primary.main,
-    primaryTextColor: theme.palette.text.primary,
-    primaryBorderColor: theme.palette.primary.dark,
-    lineColor: theme.palette.text.secondary,
-    secondaryColor: theme.palette.secondary.main,
-    tertiaryColor: alpha(theme.palette.background.paper, 0.8),
-    background: 'transparent',
-    mainBkg: theme.palette.background.paper,
-    nodeBorder: theme.palette.primary.main,
-    clusterBkg: theme.palette.background.default,
-    clusterBorder: theme.palette.divider,
-    titleColor: theme.palette.text.primary,
-    edgeLabelBackground: theme.palette.background.paper,
-    // ER Diagram
-    entityBkg: theme.palette.background.paper,
-    entityBorder: theme.palette.divider,
-    entityTextColor: theme.palette.text.primary,
-    attributeBoxBkg: alpha(theme.palette.primary.main, 0.15),
-    attributeBoxText: theme.palette.text.primary,
-    relationColor: theme.palette.text.secondary,
-    relationLabelColor: theme.palette.text.primary,
-    relationLabelBackground: theme.palette.background.paper,
+export const getAccentEffects = (theme) => {
+  const isDark = theme.palette.mode === 'dark';
+  const main = theme.palette.text.primary;
+  
+  const effects = isDark ? {
+    gradient: `linear-gradient(135deg, ${alpha(main, 0.6)}, ${main})`,
+    glow: `0 0 20px ${alpha(main, 0.1)}, 0 0 40px ${alpha(main, 0.05)}`,
+    border: `1px solid ${alpha(main, 0.15)}`,
+    background: alpha(main, 0.05),
+  } : {
+    gradient: `linear-gradient(135deg, ${main}, ${alpha(main, 0.8)})`,
+    glow: `0 4px 20px ${alpha(main, 0.08)}`,
+    border: `1px solid ${alpha(main, 0.1)}`,
+    background: alpha(main, 0.03),
   };
+  
+  return Object.freeze(effects);
+};
 
-  const lightVariables = {
-    primaryColor: theme.palette.primary.main,
-    primaryTextColor: theme.palette.grey[900],
-    primaryBorderColor: theme.palette.primary.dark,
-    lineColor: theme.palette.grey[600],
-    secondaryColor: theme.palette.secondary.main,
-    tertiaryColor: theme.palette.grey[100],
-    background: 'transparent',
-    mainBkg: '#ffffff',
-    nodeBorder: theme.palette.primary.main,
-    clusterBkg: theme.palette.grey[50],
-    clusterBorder: theme.palette.grey[300],
-    titleColor: theme.palette.grey[900],
-    edgeLabelBackground: '#ffffff',
-    // ER Diagram
-    entityBkg: '#ffffff',
-    entityBorder: theme.palette.grey[400],
-    entityTextColor: theme.palette.grey[900],
-    attributeBoxBkg: theme.palette.grey[100],
-    attributeBoxText: theme.palette.grey[800],
-    relationColor: theme.palette.grey[600],
-    relationLabelColor: theme.palette.grey[900],
-    relationLabelBackground: '#ffffff',
-    textColor: theme.palette.grey[900],
-    labelTextColor: theme.palette.grey[800],
-  };
+export const getGlassSx = (theme) => ({
+  backgroundColor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.6 : 0.8),
+  backdropFilter: 'blur(12px)',
+  WebkitBackdropFilter: 'blur(12px)',
+  border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+});
 
+export const getGlowButtonSx = (theme) => {
+  const isDark = theme.palette.mode === 'dark';
+  const main = theme.palette.primary.main;
+  
   return {
-    ...baseConfig,
-    theme: isDark ? 'dark' : 'default',
-    themeVariables: isDark ? darkVariables : lightVariables,
+    px: 3,
+    py: 1.5,
+    borderRadius: 2,
+    fontWeight: 600,
+    background: main,
+    color: theme.palette.primary.contrastText,
+    border: 'none',
+    boxShadow: isDark 
+      ? `0 4px 15px ${alpha('#000', 0.4)}`
+      : `0 4px 15px ${alpha('#000', 0.15)}`,
+    transition: TRANSITIONS.smooth,
+    '&:hover': {
+      background: isDark ? theme.palette.primary.light : theme.palette.primary.dark,
+      boxShadow: isDark
+        ? `0 6px 20px ${alpha('#000', 0.5)}`
+        : `0 6px 20px ${alpha('#000', 0.2)}`,
+      transform: 'translateY(-2px)',
+    },
+    '&:active': {
+      transform: 'scale(0.98)',
+    },
   };
 };
 
+export const getGradientTextSx = (theme) => ({
+  background: getMoonlitGradient(theme),
+  backgroundClip: 'text',
+  WebkitBackgroundClip: 'text',
+  WebkitTextFillColor: 'transparent',
+});
+
 // ============================================
-// 4. COMPONENT OVERRIDES
+// 6. COMPONENT OVERRIDES
 // ============================================
 
 const getComponentOverrides = (mode) => {
+  const palette = PALETTE_MODES[mode];
   const isDark = mode === 'dark';
-  const colors = isDark ? COLORS.dark : COLORS.light;
   
-  // Neutral colors for hover - blend with theme, not green tint
-  const hoverAlpha = isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)';
-  // Primary colors for focus - green accent for interactive emphasis
-  const primaryMain = isDark ? '#5EEAD4' : '#10B981';
-  const focusAlpha = alpha(primaryMain, isDark ? 0.12 : 0.08);
-
   return {
     MuiCssBaseline: {
       styleOverrides: {
+        ...KEYFRAMES,
         html: {
-          // Proper color scheme for scrollbars and form controls
-          colorScheme: isDark ? 'dark' : 'light',
+          colorScheme: mode,
+          scrollBehavior: 'smooth',
         },
         body: {
+          fontFeatureSettings: '"liga" 1, "calt" 1',
+          textRendering: 'optimizeLegibility',
+          WebkitFontSmoothing: 'antialiased',
+          MozOsxFontSmoothing: 'grayscale',
+          '--scrollbar-thumb': palette.scrollbar.thumb,
+          '--scrollbar-thumb-hover': palette.scrollbar.thumbHover,
           scrollbarWidth: 'thin',
-          scrollbarColor: `${colors.scrollbar.thumb} transparent`,
-          '&::-webkit-scrollbar': { width: 8 },
+          scrollbarColor: 'var(--scrollbar-thumb) transparent',
+          '&::-webkit-scrollbar': { width: 8, height: 8 },
           '&::-webkit-scrollbar-track': { background: 'transparent' },
           '&::-webkit-scrollbar-thumb': {
-            backgroundColor: colors.scrollbar.thumb,
+            backgroundColor: 'var(--scrollbar-thumb)',
             borderRadius: 4,
-            '&:hover': { backgroundColor: colors.scrollbar.thumbHover },
+            border: `2px solid transparent`,
+            backgroundClip: 'content-box',
+            '&:hover': { backgroundColor: 'var(--scrollbar-thumb-hover)' },
           },
-          ...(!isDark && {
-            textRendering: 'optimizeLegibility',
-            WebkitFontSmoothing: 'antialiased',
-            MozOsxFontSmoothing: 'grayscale',
-          }),
+        },
+        '@media (prefers-reduced-motion: reduce)': {
+          '*': {
+            animationDuration: '0.01ms !important',
+            animationIterationCount: '1 !important',
+            transitionDuration: '0.01ms !important',
+          },
         },
       },
     },
-    MuiButtonBase: { defaultProps: { disableRipple: true } },
+    
+    MuiButtonBase: {
+      defaultProps: { disableRipple: true },
+    },
+    
     MuiButton: {
-      defaultProps: { 
+      defaultProps: {
         disableElevation: true,
         variant: 'outlined',
-        color: 'inherit', // Default to neutral text instead of green
       },
       styleOverrides: {
         root: {
-          borderRadius: 10,
+          borderRadius: 6,
           padding: '10px 24px',
           fontWeight: 600,
-          textTransform: 'none',
-          transition: 'background-color 0.15s ease, border-color 0.15s ease',
-          letterSpacing: '0.01em',
-          borderWidth: '1.5px',
-          borderColor: colors.border.subtle,
-          color: colors.text.primary,
-          '&:hover': {
-            backgroundColor: hoverAlpha,
-            borderColor: colors.border.hover, // Subtle neutral border, not green
-          },
+          transition: TRANSITIONS.default,
+          borderWidth: 1,
+          '&:active': { transform: 'scale(0.98)' },
         },
-        // Text buttons - simple background tint on hover
-        text: {
-          border: 'none',
-          color: colors.text.primary,
-          '&:hover': {
-            backgroundColor: hoverAlpha,
-          },
-        },
-        // Outlined buttons - subtle border + background on hover
         outlined: {
-          color: colors.text.primary,
-          borderColor: colors.border.subtle,
+          borderColor: palette.border.default,
+          color: palette.text.primary,
           '&:hover': {
-            borderColor: colors.border.hover,
-            backgroundColor: hoverAlpha,
+            borderColor: palette.border.hover,
+            backgroundColor: palette.action.hover,
+          },
+        },
+        contained: {
+          backgroundColor: palette.primary.main,
+          color: palette.primary.contrastText,
+          '&:hover': {
+            backgroundColor: isDark ? palette.primary.light : palette.primary.dark,
+            boxShadow: isDark 
+              ? `0 4px 12px ${alpha('#000', 0.4)}`
+              : `0 4px 12px ${alpha('#000', 0.15)}`,
           },
         },
         sizeSmall: { padding: '6px 16px', fontSize: '0.8125rem' },
         sizeLarge: { padding: '14px 28px', fontSize: '0.9375rem' },
       },
     },
+    
     MuiIconButton: {
-      defaultProps: { color: 'default' },
       styleOverrides: {
         root: {
-          borderRadius: 10,
-          color: colors.text.secondary,
-          transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+          borderRadius: 6,
+          transition: TRANSITIONS.default,
           '&:hover': {
-            backgroundColor: hoverAlpha,
-            color: colors.text.primary,
+            backgroundColor: palette.action.hover,
           },
         },
-        sizeSmall: { padding: 6 },
-        sizeMedium: { padding: 8 },
       },
     },
+    
     MuiPaper: {
       styleOverrides: {
-        root: { 
-          backgroundImage: 'none', 
-          borderRadius: 16,
-          ...(!isDark && {
-            background: `linear-gradient(145deg, ${colors.bg.paper} 0%, ${colors.bg.default} 100%)`,
-          }),
+        root: {
+          backgroundImage: 'none',
+          borderRadius: SHAPE.borderRadius,
+          backgroundColor: palette.background.paper,
         },
         elevation1: {
-          boxShadow: isDark ? 'none' : '0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px 0 rgba(0, 0, 0, 0.04)',
-          border: `1px solid ${colors.border.subtle}`,
+          boxShadow: isDark 
+            ? '0 1px 3px 0 rgba(0, 0, 0, 0.5)' 
+            : '0 1px 3px 0 rgba(0, 0, 0, 0.08)',
+          border: `1px solid ${palette.border.subtle}`,
+        },
+        elevation2: {
+          boxShadow: isDark
+            ? '0 4px 6px -1px rgba(0, 0, 0, 0.6)'
+            : '0 4px 6px -1px rgba(0, 0, 0, 0.08)',
         },
       },
     },
+    
     MuiCard: {
       styleOverrides: {
         root: {
-          border: `1px solid ${colors.border.subtle}`,
+          border: `1px solid ${palette.border.subtle}`,
           boxShadow: 'none',
+          transition: TRANSITIONS.smooth,
+          '&:hover': {
+            borderColor: palette.border.hover,
+          },
         },
       },
     },
+    
     MuiTextField: {
       styleOverrides: {
         root: {
           '& .MuiOutlinedInput-root': {
-            borderRadius: 10,
-            backgroundColor: isDark ? colors.bg.input : colors.bg.paper,
-            ...(!isDark && {
-              boxShadow: 'inset 0 1px 2px 0 rgba(0, 0, 0, 0.04)',
-            }),
-            '& fieldset': { 
-              borderColor: colors.border.default,
-              borderWidth: '1.5px',
+            borderRadius: 6,
+            backgroundColor: palette.background.elevated,
+            transition: TRANSITIONS.default,
+            '& fieldset': {
+              borderColor: palette.border.default,
+              borderWidth: 1,
+              transition: TRANSITIONS.default,
             },
-            '&:hover fieldset': { 
-              borderColor: colors.border.hover,
+            '&:hover fieldset': { borderColor: palette.border.hover },
+            '&.Mui-focused fieldset': {
+              borderColor: palette.border.focus,
+              borderWidth: 1.5,
             },
-            '&.Mui-focused fieldset': { 
-              borderColor: colors.border.focus, 
-              borderWidth: 2,
-              ...(!isDark && {
-                boxShadow: `0 0 0 3px ${focusAlpha}`,
-              }),
-            },
+          },
+          '& .MuiInputBase-input': {
+            '&::placeholder': { color: palette.text.hint, opacity: 0.8 },
           },
         },
       },
     },
-    MuiCheckbox: {
-      styleOverrides: {
-        root: {
-          color: colors.text.disabled,
-          '&.Mui-checked': { color: primaryMain },
-        },
-      },
-    },
+    
     MuiChip: {
       styleOverrides: {
-        root: { borderRadius: 8, fontWeight: 500, letterSpacing: '0.01em' },
+        root: { 
+          borderRadius: 4, 
+          fontWeight: 500,
+          transition: TRANSITIONS.default,
+        },
         filled: {
-          backgroundColor: isDark ? colors.border.default : colors.bg.default,
-          color: colors.text.primary,
-          ...(!isDark && { border: `1px solid ${colors.border.default}` }),
+          backgroundColor: palette.border.default,
+          color: palette.text.primary,
+          '&:hover': { backgroundColor: palette.border.hover },
         },
         outlined: {
-          borderColor: isDark ? colors.text.disabled : colors.border.default,
-          color: colors.text.secondary,
-          '&:hover': {
-            backgroundColor: hoverAlpha,
-          },
+          borderColor: palette.border.default,
+          '&:hover': { backgroundColor: palette.action.hover },
         },
       },
     },
+    
     MuiTooltip: {
       styleOverrides: {
         tooltip: {
-          backgroundColor: isDark ? colors.bg.input : colors.text.primary,
-          borderRadius: 8,
-          border: `1px solid ${colors.border.subtle}`,
-          fontSize: '0.875rem',
+          backgroundColor: isDark ? palette.background.elevated : palette.text.primary,
+          color: isDark ? palette.text.primary : palette.background.paper,
+          borderRadius: 4,
+          fontSize: '0.75rem',
           fontWeight: 500,
           padding: '8px 12px',
-          ...(!isDark && {
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-          }),
+          boxShadow: isDark ? 'none' : '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+          border: isDark ? `1px solid ${palette.border.default}` : 'none',
+        },
+        arrow: {
+          color: isDark ? palette.background.elevated : palette.text.primary,
         },
       },
     },
+    
     MuiMenu: {
       styleOverrides: {
         paper: {
-          border: `1px solid ${colors.border.subtle}`,
-          boxShadow: isDark ? '0 20px 25px -5px rgba(0, 0, 0, 0.4)' : '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+          border: `1px solid ${palette.border.subtle}`,
+          boxShadow: isDark 
+            ? '0 20px 25px -5px rgba(0, 0, 0, 0.6)'
+            : '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+          borderRadius: 8,
         },
       },
     },
+    
     MuiMenuItem: {
       styleOverrides: {
         root: {
-          borderRadius: 6,
-          margin: '2px 6px',
-          fontSize: '0.875rem',
-          minHeight: '40px',
-          '&:hover': { backgroundColor: isDark ? colors.border.default : colors.bg.default },
+          borderRadius: 4,
+          margin: '2px 8px',
+          padding: '10px 16px',
+          transition: TRANSITIONS.default,
+          '&:hover': { backgroundColor: palette.action.hover },
           '&.Mui-selected': {
-            backgroundColor: isDark ? colors.border.default : colors.bg.default,
-            color: colors.text.primary,
-            fontWeight: 500,
+            backgroundColor: palette.action.selected,
+            fontWeight: 600,
             '&:hover': { 
-              backgroundColor: isDark ? colors.border.hover : colors.border.default,
+              backgroundColor: palette.action.selected,
             },
           },
         },
       },
     },
-    // Centralized hover colors for ListItemButton
+    
     MuiListItemButton: {
       styleOverrides: {
         root: {
           borderRadius: 6,
-          '&:hover': {
-            backgroundColor: hoverAlpha,
-          },
+          transition: TRANSITIONS.default,
+          '&:hover': { backgroundColor: palette.action.hover },
           '&.Mui-selected': {
-            backgroundColor: isDark ? colors.border.default : colors.bg.default,
+            backgroundColor: palette.action.selected,
             '&:hover': {
-              backgroundColor: isDark ? colors.border.hover : colors.border.default,
+              backgroundColor: palette.action.selected,
             },
           },
         },
       },
     },
-    // Centralized hover colors for Links
+    
     MuiLink: {
       styleOverrides: {
         root: {
-          color: colors.text.primary,
-          textDecoration: 'none',
-          '&:hover': {
-            color: colors.text.primary,
-            textDecoration: 'underline',
+          color: palette.text.primary,
+          textDecoration: 'underline',
+          textUnderlineOffset: '2px',
+          transition: TRANSITIONS.default,
+          '&:hover': { 
+            color: palette.text.secondary,
           },
+        },
+      },
+    },
+    
+    MuiSkeleton: {
+      styleOverrides: {
+        root: {
+          backgroundColor: alpha(palette.text.secondary, 0.08),
+          borderRadius: 4,
+        },
+      },
+    },
+
+    MuiDivider: {
+      styleOverrides: {
+        root: {
+          borderColor: palette.border.subtle,
         },
       },
     },
@@ -594,37 +605,90 @@ const getComponentOverrides = (mode) => {
 };
 
 // ============================================
-// 5. THEME FACTORIES
+// 7. MERMAID CONFIG (Cached)
 // ============================================
 
-export const createDarkTheme = () => {
-  const theme = createTheme({
-    breakpoints,
-    shape,
-    typography,
-    palette: darkPalette,
-    components: getComponentOverrides('dark'),
-  });
-  theme.custom = { 
-    getMoonlitGradient: () => getMoonlitGradient(theme),
-    getNaturalMoonlitEffects: () => getNaturalMoonlitEffects(theme),
+const mermaidCache = new Map();
+
+export const getMermaidThemeConfig = (theme) => {
+  const mode = theme.palette.mode;
+  if (mermaidCache.has(mode)) return mermaidCache.get(mode);
+  
+  const isDark = mode === 'dark';
+  const { palette } = theme;
+  
+  const config = {
+    startOnLoad: false,
+    suppressErrorRendering: true,
+    securityLevel: 'loose',
+    theme: isDark ? 'dark' : 'neutral',
+    themeVariables: {
+      primaryColor: palette.primary.main,
+      primaryTextColor: palette.text.primary,
+      primaryBorderColor: palette.border.default,
+      lineColor: palette.text.secondary,
+      secondaryColor: palette.secondary.main,
+      tertiaryColor: palette.background.default,
+      background: 'transparent',
+      mainBkg: palette.background.paper,
+      nodeBorder: palette.border.default,
+      clusterBkg: alpha(palette.background.paper, 0.5),
+      clusterBorder: palette.border.default,
+      titleColor: palette.text.primary,
+      edgeLabelBackground: palette.background.paper,
+      nodeTextColor: palette.text.primary,
+      entityBkg: palette.background.paper,
+      entityBorder: palette.border.default,
+      attributeBoxBkg: palette.action.hover,
+      attributeBoxText: palette.text.primary,
+      relationLabelColor: palette.text.secondary,
+    },
   };
-  return responsiveFontSizes(theme);
+  
+  mermaidCache.set(mode, config);
+  return config;
 };
 
-export const createLightTheme = () => {
-  const theme = createTheme({
-    breakpoints,
-    shape,
-    typography,
-    palette: lightPalette,
-    components: getComponentOverrides('light'),
-  });
-  theme.custom = { 
-    getMoonlitGradient: () => getMoonlitGradient(theme),
-    getNaturalMoonlitEffects: () => getNaturalMoonlitEffects(theme),
+// ============================================
+// 8. THEME FACTORIES
+// ============================================
+
+const createBaseTheme = (mode) => {
+  const palette = {
+    mode,
+    ...PALETTE_MODES[mode],
   };
-  return responsiveFontSizes(theme);
+  
+  const theme = createTheme({
+    breakpoints: BREAKPOINTS,
+    shape: SHAPE,
+    palette,
+    typography: createTypography(palette),
+    components: getComponentOverrides(mode),
+  });
+  
+  theme.custom = {
+    getGradient: () => getMoonlitGradient(theme),
+    getEffects: () => getAccentEffects(theme),
+    fonts: FONTS,
+    transitions: TRANSITIONS,
+  };
+  
+  return theme;
 };
+
+export const createDarkTheme = () => responsiveFontSizes(createBaseTheme('dark'));
+export const createLightTheme = () => responsiveFontSizes(createBaseTheme('light'));
+
+// ============================================
+// 9. BACKWARDS COMPATIBILITY ALIASES
+// ============================================
+
+export const getNaturalMoonlitEffects = getAccentEffects;
+export const getGlassCardSx = getGlassSx;
+
+// ============================================
+// 10. DEFAULT EXPORT
+// ============================================
 
 export default createDarkTheme();

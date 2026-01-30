@@ -98,6 +98,11 @@ export async function apiClient(endpoint, options = {}) {
       throw error;
     }
 
+    // Re-throw AbortError as-is (for request cancellation)
+    if (error.name === 'AbortError') {
+      throw error;
+    }
+
     // Wrap other errors
     throw new ApiError(
       error.message || 'Network error',

@@ -470,17 +470,34 @@ function ChatInput({
                   aria-label={reasoningEnabled ? 'Disable AI thinking' : 'Enable AI thinking'}
                   aria-pressed={reasoningEnabled}
                   sx={{
-                    color: reasoningEnabled ? theme.palette.info.main : 'text.secondary',
-                    borderColor: reasoningEnabled ? alpha(theme.palette.info.main, 0.5) : undefined,
                     width: 32,
                     height: 32,
-                    transition: 'transform 0.2s ease',
+                    borderRadius: '8px',
+                    border: '1px solid',
+                    borderColor: reasoningEnabled 
+                      ? alpha(theme.palette.text.primary, isDarkMode ? 0.4 : 0.3)
+                      : 'transparent',
+                    backgroundColor: reasoningEnabled 
+                      ? alpha(theme.palette.text.primary, isDarkMode ? 0.12 : 0.08)
+                      : 'transparent',
+                    color: reasoningEnabled 
+                      ? theme.palette.text.primary
+                      : alpha(theme.palette.text.secondary, 0.4),
+                    transition: theme.transitions.create(
+                      ['background-color', 'border-color', 'color', 'transform'],
+                      { duration: 150 }
+                    ),
                     '&:hover': {
-                      color: reasoningEnabled ? theme.palette.info.dark : theme.palette.text.primary,
                       backgroundColor: reasoningEnabled
-                        ? alpha(theme.palette.info.main, isDarkMode ? 0.15 : 0.1)
-                        : undefined,
-                      borderColor: reasoningEnabled ? theme.palette.info.main : undefined,
+                        ? alpha(theme.palette.text.primary, isDarkMode ? 0.18 : 0.12)
+                        : alpha(theme.palette.text.primary, 0.06),
+                      borderColor: reasoningEnabled
+                        ? alpha(theme.palette.text.primary, isDarkMode ? 0.5 : 0.4)
+                        : alpha(theme.palette.text.primary, 0.15),
+                      color: theme.palette.text.primary,
+                    },
+                    '&:active': {
+                      transform: 'scale(0.95)',
                     },
                   }}
                 >

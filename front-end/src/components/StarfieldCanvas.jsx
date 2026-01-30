@@ -3,15 +3,16 @@ import { useTheme } from '@mui/material/styles';
 import { Box } from '@mui/material';
 
 /**
- * Moonlit Starfield v2.0 - Next-Level Design & Performance
+ * Moonlit Starfield v2.1 - Monochromatic Edition
  * 
- * Visual Enhancements:
+ * Visual Design:
+ * - Pure grayscale color palette matching monochromatic theme
  * - Multi-layer parallax depth with 4 star layers
- * - Realistic star scintillation with chromatic shimmer
+ * - Realistic star scintillation with subtle shimmer
  * - Constellation-like star clusters for natural grouping
- * - Animated aurora/nebula bands with flowing motion
+ * - Animated nebula bands with flowing motion
  * - Comet trails with particle dispersion
- * - Subtle moon glow ambient lighting
+ * - Subtle ambient glow effect
  * 
  * Performance Optimizations:
  * - Object pooling for meteors (zero allocation during runtime)
@@ -27,10 +28,10 @@ import { Box } from '@mui/material';
 const CONFIG = {
   // Star layers with parallax depth
   layers: [
-    { count: 0.00008, sizeRange: [0.2, 0.4], opacityRange: [0.1, 0.2], speed: 0.005, twinkle: 0.1 },   // Distant dust
-    { count: 0.00005, sizeRange: [0.4, 0.7], opacityRange: [0.2, 0.35], speed: 0.012, twinkle: 0.2 },  // Far stars
-    { count: 0.00002, sizeRange: [0.7, 1.1], opacityRange: [0.35, 0.55], speed: 0.025, twinkle: 0.3 }, // Mid stars
-    { count: 0.000008, sizeRange: [1.1, 1.8], opacityRange: [0.5, 0.75], speed: 0.04, twinkle: 0.4 },  // Near bright stars
+    { count: 0.00008, sizeRange: [0.2, 0.4], opacityRange: [0.08, 0.15], speed: 0.005, twinkle: 0.1 },   // Distant dust
+    { count: 0.00005, sizeRange: [0.4, 0.7], opacityRange: [0.15, 0.28], speed: 0.012, twinkle: 0.2 },  // Far stars
+    { count: 0.00002, sizeRange: [0.7, 1.1], opacityRange: [0.28, 0.45], speed: 0.025, twinkle: 0.3 }, // Mid stars
+    { count: 0.000008, sizeRange: [1.1, 1.8], opacityRange: [0.4, 0.6], speed: 0.04, twinkle: 0.4 },  // Near bright stars
   ],
   // Star clusters (constellation-like groupings)
   clusters: { count: 3, starsPerCluster: [8, 15], radius: [60, 120] },
@@ -38,34 +39,43 @@ const CONFIG = {
   nebulas: { count: 2, pulseSpeed: 0.0008 },
   // Meteors with particle trails
   meteors: { poolSize: 5, minDelay: 6000, maxDelay: 15000 },
-  // Ambient moon glow
-  moonGlow: { enabled: true, intensity: 0.04 },
+  // Ambient glow
+  ambientGlow: { enabled: true, intensity: 0.03 },
   // Performance
   maxDPR: 1.5,  // Cap device pixel ratio for performance
   frameSkipThreshold: 0.02,  // Skip frames below this opacity
 };
 
 // ============================================================================
-// COLOR PALETTES - Moonlit aesthetic
+// MONOCHROMATIC COLOR PALETTE - Pure grayscale
 // ============================================================================
 const COLORS = {
+  // Star colors - varying shades of gray/white
   stars: [
-    [200, 208, 220],  // Cool silver
-    [220, 226, 235],  // Bright silver
-    [232, 236, 240],  // Moonlight white
-    [199, 210, 254],  // Soft indigo (C7D2FE)
-    [165, 180, 252],  // Indigo accent (A5B4FC)
-    [180, 195, 230],  // Blue-silver
+    [180, 180, 180],  // Cool gray
+    [200, 200, 200],  // Light gray
+    [220, 220, 220],  // Bright gray
+    [240, 240, 240],  // Near white
+    [250, 250, 250],  // Pure white
+    [190, 190, 190],  // Medium gray
   ],
+  // Nebula colors - dark grays with subtle variation
   nebulas: [
-    { r: 30, g: 35, b: 55, name: 'deepIndigo' },
-    { r: 40, g: 35, b: 60, name: 'purpleHaze' },
-    { r: 25, g: 40, b: 50, name: 'tealMist' },
-    { r: 50, g: 45, b: 70, name: 'liftedIndigo' },
+    { r: 30, g: 30, b: 30, name: 'deepGray' },
+    { r: 40, g: 40, b: 40, name: 'darkGray' },
+    { r: 25, g: 25, b: 25, name: 'nearBlack' },
+    { r: 50, g: 50, b: 50, name: 'midGray' },
   ],
+  // Meteor colors - white to light gray
   meteor: {
-    head: [232, 236, 240],      // Moonlight
-    trail: [165, 180, 252],     // Indigo
+    head: [250, 250, 250],     // Pure white
+    trail: [180, 180, 180],    // Light gray
+  },
+  // Ambient glow - subtle white
+  glow: {
+    inner: [200, 200, 200],
+    mid: [160, 160, 160],
+    outer: [120, 120, 120],
   },
 };
 
@@ -167,7 +177,7 @@ class StarField {
 }
 
 // ============================================================================
-// NEBULA SYSTEM - Flowing aurora-like bands
+// NEBULA SYSTEM - Flowing cloud bands
 // ============================================================================
 class NebulaSystem {
   constructor(width, height) {
@@ -186,7 +196,7 @@ class NebulaSystem {
         rotation: rand(0, Math.PI),
         rotationSpeed: (Math.random() - 0.5) * 0.0001,
         color,
-        baseOpacity: rand(0.06, 0.10),
+        baseOpacity: rand(0.04, 0.08),
         vx: (Math.random() - 0.5) * 0.04,
         vy: (Math.random() - 0.5) * 0.04,
         pulsePhase: Math.random() * TWO_PI,
@@ -413,19 +423,19 @@ function StarfieldCanvas({ active = false }) {
       const opacity = star.baseOpacity * scintillation * globalOpacity;
       if (opacity < 0.02) continue;
 
+      // Subtle brightness shimmer (monochrome)
       const shimmer = Math.sin(star.shimmerPhase);
-      const r = Math.round(star.color[0] + shimmer * 5);
-      const g = Math.round(star.color[1] + shimmer * 3);
-      const b = Math.round(star.color[2] + shimmer * 8);
+      const brightness = Math.round(star.color[0] + shimmer * 10);
+      const clamped = Math.max(0, Math.min(255, brightness));
 
       ctx.globalAlpha = opacity;
-      ctx.fillStyle = `rgb(${r},${g},${b})`;
+      ctx.fillStyle = `rgb(${clamped},${clamped},${clamped})`;
       ctx.beginPath();
       ctx.arc(star.x, star.y, star.size, 0, TWO_PI);
       ctx.fill();
 
       if (star.layer >= 2 && opacity > 0.25) {
-        ctx.globalAlpha = opacity * 0.15;
+        ctx.globalAlpha = opacity * 0.12;
         ctx.beginPath();
         ctx.arc(star.x, star.y, star.glowSize, 0, TWO_PI);
         ctx.fill();
@@ -434,18 +444,22 @@ function StarfieldCanvas({ active = false }) {
     ctx.globalAlpha = 1;
   }, []);
 
-  const renderMoonGlow = useCallback((ctx, width, height, globalOpacity) => {
-    if (!CONFIG.moonGlow.enabled) return;
+  const renderAmbientGlow = useCallback((ctx, width, height, globalOpacity) => {
+    if (!CONFIG.ambientGlow.enabled) return;
 
     const gradient = ctx.createRadialGradient(
       width * 0.85, height * 0.15, 0,
       width * 0.85, height * 0.15, Math.max(width, height) * 0.6
     );
-    const intensity = CONFIG.moonGlow.intensity * globalOpacity;
-    gradient.addColorStop(0, `rgba(199,210,254,${intensity * 1.5})`);
-    gradient.addColorStop(0.2, `rgba(165,180,252,${intensity})`);
-    gradient.addColorStop(0.5, `rgba(129,140,248,${intensity * 0.4})`);
-    gradient.addColorStop(1, 'rgba(129,140,248,0)');
+    const intensity = CONFIG.ambientGlow.intensity * globalOpacity;
+    const [ir, ig, ib] = COLORS.glow.inner;
+    const [mr, mg, mb] = COLORS.glow.mid;
+    const [or, og, ob] = COLORS.glow.outer;
+
+    gradient.addColorStop(0, `rgba(${ir},${ig},${ib},${intensity * 1.5})`);
+    gradient.addColorStop(0.2, `rgba(${mr},${mg},${mb},${intensity})`);
+    gradient.addColorStop(0.5, `rgba(${or},${og},${ob},${intensity * 0.4})`);
+    gradient.addColorStop(1, `rgba(${or},${og},${ob},0)`);
 
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
@@ -503,7 +517,7 @@ function StarfieldCanvas({ active = false }) {
 
       ctx.clearRect(0, 0, width, height);
 
-      renderMoonGlow(ctx, width, height, globalOpacity);
+      renderAmbientGlow(ctx, width, height, globalOpacity);
 
       state.nebulaSystem.update(width, height);
       state.nebulaSystem.render(ctx, globalOpacity);
@@ -552,7 +566,7 @@ function StarfieldCanvas({ active = false }) {
       clearTimeout(resizeTimeout);
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
-  }, [isDarkMode, renderStars, renderMoonGlow]);
+  }, [isDarkMode, renderStars, renderAmbientGlow]);
 
   useEffect(() => {
     stateRef.current.targetOpacity = active ? 1 : 0;
@@ -570,9 +584,10 @@ function StarfieldCanvas({ active = false }) {
         overflow: 'hidden',
       }}
     >
-      <canvas
+      <Box
+        component="canvas"
         ref={canvasRef}
-        style={{
+        sx={{
           width: '100%',
           height: '100%',
           display: 'block',
