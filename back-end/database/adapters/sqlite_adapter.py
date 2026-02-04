@@ -180,6 +180,15 @@ class SQLiteAdapter(BaseDatabaseAdapter):
         # The _store_schema_context method will handle this specially
         return f"PRAGMA table_info('{table_name}')", ()
 
+    def get_column_details_for_table(self, db_name: str, table_name: str, schema: str = 'main') -> tuple:
+        """
+        Return SQL query and params to get full column details for a table.
+        
+        SQLite uses PRAGMA table_info, which returns:
+        (cid, name, type, notnull, dflt_value, pk)
+        """
+        return f"PRAGMA table_info('{table_name}')", ()
+
     def get_table_schema_query(self) -> str:
         """SQL query to get SQLite table schema."""
         # SQLite uses PRAGMA table_info

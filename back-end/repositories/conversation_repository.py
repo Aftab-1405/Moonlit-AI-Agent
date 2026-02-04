@@ -305,7 +305,12 @@ class ConversationRepository:
             conversation_ref = db.collection(ConversationRepository.COLLECTION_NAME).document(conversation_id)
             
             # Create conversation if it doesn't exist
-            if not conversation_ref.get().exists:
+            existing_doc = conversation_ref.get()
+            if existing_doc.exists:
+                conv_data = existing_doc.to_dict()
+                if conv_data.get('user_id') != user_id:
+                    raise PermissionError("User does not own this conversation")
+            else:
                 conversation_ref.set({
                     'user_id': user_id,
                     'timestamp': datetime.now(),

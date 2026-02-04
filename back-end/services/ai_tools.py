@@ -479,28 +479,41 @@ class AIToolExecutor:
                     tables = []
                     columns = {}
             
-            # Fallback to DatabaseOperations if db_config approach failed
-            if not tables:
+            # Fallback to DatabaseOperations using db_config (required)
+            if not tables and db_config:
                 try:
-                    tables = DatabaseOperations.get_tables(database)
+                    schema = db_config.get('schema', 'public')
+                    tables = DatabaseOperations.get_tables(db_config, database, schema=schema)
                     for table in tables:
                         try:
-                            table_schema = DatabaseOperations.get_table_schema(table, database)
-                            # get_table_schema returns tuples: (name, type, nullable, default, key)
-                            # Build column objects with primary key info
-                            columns[table] = [
-                                {
-                                    'name': col[0],
-                                    'is_primary_key': len(col) > 4 and col[4] == 'PRI'
-                                }
-                                for col in table_schema
-                            ]
+                            table_schema = DatabaseOperations.get_table_schema(db_config, table, database)
+                            # get_table_schema returns tuples:
+                            # - SQLite: (cid, name, type, notnull, dflt_value, pk)
+                            # - Others: (name, type, nullable, default, key)
+                            if db_type == 'sqlite':
+                                columns[table] = [
+                                    {
+                                        'name': col[1],
+                                        'is_primary_key': bool(col[5]) if len(col) > 5 else False
+                                    }
+                                    for col in table_schema
+                                ]
+                            else:
+                                columns[table] = [
+                                    {
+                                        'name': col[0],
+                                        'is_primary_key': len(col) > 4 and col[4] == 'PRI'
+                                    }
+                                    for col in table_schema
+                                ]
                         except Exception as e:
                             logger.warning(f"Could not get columns for table {table}: {e}")
                             columns[table] = []
                 except Exception as e:
                     logger.warning(f"DatabaseOperations fallback also failed: {e}")
                     return {"error": f"Could not fetch schema: {str(e)}"}
+            elif not tables and not db_config:
+                return {"error": "No database config available. Please re-connect to the database."}
             
             # Store schema as AI context
             ContextService.store_schema_context(user_id, database, tables, columns)
@@ -529,7 +542,8 @@ class AIToolExecutor:
             
             # Use explicit db_name if provided, else fall back to db_config
             effective_db_name = db_name or db_config.get('database', '')
-            query, params = adapter.get_all_tables_for_cache(effective_db_name)
+            schema = db_config.get('schema', 'public')
+            query, params = adapter.get_all_tables_for_cache(effective_db_name, schema=schema)
             cursor.execute(query, params) if params else cursor.execute(query)
             
             tables = [row[0] for row in cursor.fetchall()]
@@ -576,12 +590,13 @@ class AIToolExecutor:
         adapter = get_adapter(db_type)
         # Use explicit db_name if provided, else fall back to db_config
         effective_db_name = db_name or db_config.get('database', '')
+        schema = db_config.get('schema', 'public')
         
         with get_tool_connection(db_config) as conn:
             cursor = conn.cursor()
             
             # Use adapter for DBMS-agnostic batch column query
-            query, params = adapter.get_batch_columns_for_tables(effective_db_name, tables)
+            query, params = adapter.get_batch_columns_for_tables(effective_db_name, tables, schema=schema)
             
             if query is None:
                 cursor.close()
@@ -641,24 +656,14 @@ class AIToolExecutor:
                     "source": "context"
                 }
             
-            # Fetch fresh using db_config if available
-            if db_config:
-                # Pass database from connection context (more reliable)
-                columns = AIToolExecutor._fetch_table_columns_with_config(
-                    db_config, table_name, db_type, db_name=database
-                )
-            else:
-                # Fallback to DatabaseOperations (session-based)
-                # get_table_schema returns tuples: (name, type, nullable, default, key)
-                schema = DatabaseOperations.get_table_schema(table_name, database)
-                columns = [
-                    {
-                        "name": col[0],
-                        "type": col[1] if len(col) > 1 else 'unknown',
-                        "nullable": col[2] == 'YES' if len(col) > 2 else True
-                    }
-                    for col in schema
-                ]
+            # Fetch fresh using db_config (required in FastAPI)
+            if not db_config:
+                return {"error": "No database config available. Please re-connect to the database."}
+            
+            # Pass database from connection context (more reliable)
+            columns = AIToolExecutor._fetch_table_columns_with_config(
+                db_config, table_name, db_type, db_name=database
+            )
             
             return {
                 "table": table_name,
@@ -679,21 +684,31 @@ class AIToolExecutor:
         adapter = get_adapter(db_type)
         # Use explicit db_name if provided, else fall back to db_config
         effective_db_name = db_name or db_config.get('database', '')
+        schema = db_config.get('schema', 'public')
         
         with get_tool_connection(db_config) as conn:
             cursor = conn.cursor()
             
             # Use adapter for DBMS-agnostic column details query
-            query, params = adapter.get_column_details_for_table(effective_db_name, table_name)
-            cursor.execute(query, params)
+            query, params = adapter.get_column_details_for_table(effective_db_name, table_name, schema=schema)
+            cursor.execute(query, params) if params else cursor.execute(query)
             
             for row in cursor.fetchall():
-                columns.append({
-                    "name": row[0],
-                    "type": row[1] if len(row) > 1 else 'unknown',
-                    "nullable": (row[2] == 'YES') if len(row) > 2 else True,
-                    "default": row[3] if len(row) > 3 else None
-                })
+                if db_type == 'sqlite':
+                    # PRAGMA table_info: (cid, name, type, notnull, dflt_value, pk)
+                    columns.append({
+                        "name": row[1],
+                        "type": row[2] if len(row) > 2 else 'unknown',
+                        "nullable": not bool(row[3]) if len(row) > 3 else True,
+                        "default": row[4] if len(row) > 4 else None
+                    })
+                else:
+                    columns.append({
+                        "name": row[0],
+                        "type": row[1] if len(row) > 1 else 'unknown',
+                        "nullable": (row[2] == 'YES') if len(row) > 2 else True,
+                        "default": row[3] if len(row) > 3 else None
+                    })
             
             cursor.close()
         

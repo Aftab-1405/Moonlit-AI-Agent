@@ -115,22 +115,29 @@ class DatabaseOperations:
     def get_table_schema(db_config: dict, table_name: str, db_name: str) -> List[Dict]:
         """Get table schema."""
         try:
+            from database.adapters import get_adapter
             from database.connection_manager import get_connection_manager
             
             validated_table = DatabaseSecurity.validate_table_name(table_name)
             validated_db = DatabaseSecurity.validate_database_name(db_name)
             
+            db_type = db_config.get('db_type', 'mysql') if db_config else 'mysql'
+            adapter = get_adapter(db_type)
+            schema = db_config.get('schema', 'public') if db_config else 'public'
+            
             manager = get_connection_manager()
             
             with manager.get_cursor(db_config) as cursor:
-                query = """
-                    SELECT COLUMN_NAME as name, DATA_TYPE as type, IS_NULLABLE as nullable, 
-                           COLUMN_DEFAULT as default_value, COLUMN_KEY as key_type
-                    FROM information_schema.COLUMNS 
-                    WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s
-                    ORDER BY ORDINAL_POSITION
-                """
-                cursor.execute(query, (validated_db, validated_table))
+                if db_type == 'sqlite':
+                    # SQLite PRAGMA doesn't reliably support parameter substitution
+                    cursor.execute(f"PRAGMA table_info('{validated_table}')")
+                elif db_type == 'postgresql':
+                    validated_schema = DatabaseSecurity.validate_database_name(schema)
+                    query = adapter.get_table_schema_query(validated_schema)
+                    cursor.execute(query, (validated_table, validated_table))
+                else:
+                    query = adapter.get_table_schema_query()
+                    cursor.execute(query, (validated_db, validated_table))
                 columns = cursor.fetchall()
             
             logger.info(f"Retrieved schema for table {validated_table}")
@@ -148,17 +155,32 @@ class DatabaseOperations:
         """Get table row count."""
         try:
             from database.connection_manager import get_connection_manager
+            from database.adapters import get_adapter
             
             validated_table = DatabaseSecurity.validate_table_name(table_name)
             validated_db = DatabaseSecurity.validate_database_name(db_name)
             
+            db_type = db_config.get('db_type', 'mysql') if db_config else 'mysql'
+            adapter = get_adapter(db_type)
+            schema = db_config.get('schema', 'public') if db_config else 'public'
+            
             manager = get_connection_manager()
             
             with manager.get_cursor(db_config) as cursor:
-                cursor.execute(
-                    "SELECT TABLE_ROWS FROM information_schema.TABLES WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s",
-                    (validated_db, validated_table)
-                )
+                if db_type == 'sqlite':
+                    cursor.execute(f'SELECT COUNT(*) FROM "{validated_table}"')
+                elif db_type == 'postgresql':
+                    validated_schema = DatabaseSecurity.validate_database_name(schema)
+                    cursor.execute(f'SELECT COUNT(*) FROM "{validated_schema}"."{validated_table}"')
+                elif db_type == 'sqlserver':
+                    schema_name = DatabaseSecurity.validate_database_name(schema or 'dbo')
+                    cursor.execute(f'SELECT COUNT(*) FROM [{schema_name}].[{validated_table}]')
+                elif db_type == 'oracle':
+                    # Oracle schema = owner, use validated_db
+                    cursor.execute(f'SELECT COUNT(*) FROM "{validated_db}"."{validated_table}"')
+                else:
+                    # Default MySQL
+                    cursor.execute(f"SELECT COUNT(*) FROM `{validated_db}`.`{validated_table}`")
                 result = cursor.fetchone()
                 
                 return result[0] if result else 0

@@ -55,6 +55,16 @@ async def connect_db(
                 connection_handlers.connect_remote_mysql,
                 connection_string, user_id
             )
+        elif db_type == 'sqlserver':
+            result = await run_in_threadpool(
+                connection_handlers.connect_remote_sqlserver,
+                connection_string, user_id
+            )
+        elif db_type == 'oracle':
+            result = await run_in_threadpool(
+                connection_handlers.connect_remote_oracle,
+                connection_string, user_id
+            )
         else:
             raise HTTPException(
                 status_code=400,
@@ -82,6 +92,18 @@ async def connect_db(
         elif db_type == 'postgresql':
             result = await run_in_threadpool(
                 connection_handlers.connect_local_postgresql,
+                host, port, username, password,
+                database, user_id
+            )
+        elif db_type == 'sqlserver':
+            result = await run_in_threadpool(
+                connection_handlers.connect_local_sqlserver,
+                host, port, username, password,
+                database, user_id
+            )
+        elif db_type == 'oracle':
+            result = await run_in_threadpool(
+                connection_handlers.connect_local_oracle,
                 host, port, username, password,
                 database, user_id
             )

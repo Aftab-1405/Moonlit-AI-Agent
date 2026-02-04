@@ -96,6 +96,8 @@ class ConversationService:
         try:
             # Fetch existing conversation history for context
             conv_data = ConversationRepository.get(conversation_id)
+            if conv_data and conv_data.get('user_id') != user_id:
+                raise PermissionError("User does not own this conversation")
             history = None
             if conv_data and conv_data.get('messages'):
                 messages = conv_data.get('messages', [])

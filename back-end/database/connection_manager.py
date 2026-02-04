@@ -64,7 +64,7 @@ class ConnectionManager:
         elif db_type == 'sqlite':
             key_parts = [
                 'sqlite',
-                config.get('database', ':memory:')
+                config.get('file_path') or config.get('database', ':memory:')
             ]
         else:
             # For server-based databases (MySQL, PostgreSQL)
