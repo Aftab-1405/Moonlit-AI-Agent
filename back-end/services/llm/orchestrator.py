@@ -23,7 +23,7 @@ CACHEABLE_TOOLS = {
     'get_connection_status',
     'get_database_list', 
     'get_database_schema',
-    'get_table_schema',
+    'get_table_columns',
     'get_table_indexes',
     'get_table_constraints',
     'get_foreign_keys',

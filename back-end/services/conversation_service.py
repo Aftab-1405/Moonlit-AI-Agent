@@ -92,6 +92,57 @@ class ConversationService:
         tools_used = []
         was_aborted = False
         has_error = False  # Track if an error occurred
+
+        def _parse_tool_marker(marker: str):
+            """
+            Parse tool marker string into (name, status, args, result).
+            Marker format: [[TOOL:name:status:args:result]]
+            """
+            if not marker.startswith('[[TOOL:') or not marker.endswith(']]'):
+                return None
+            payload = marker[len('[[TOOL:'):-2]
+
+            parts = []
+            current = []
+            depth = 0
+            in_string = False
+            escape_next = False
+
+            for ch in payload:
+                if escape_next:
+                    current.append(ch)
+                    escape_next = False
+                    continue
+
+                if ch == '\\' and in_string:
+                    current.append(ch)
+                    escape_next = True
+                    continue
+
+                if ch == '"':
+                    current.append(ch)
+                    in_string = not in_string
+                    continue
+
+                if not in_string:
+                    if ch in '{[':
+                        depth += 1
+                    elif ch in '}]':
+                        depth -= 1
+
+                if ch == ':' and depth == 0 and not in_string and len(parts) < 3:
+                    parts.append(''.join(current))
+                    current = []
+                else:
+                    current.append(ch)
+
+            parts.append(''.join(current))
+
+            if len(parts) != 4:
+                return None
+
+            tool_name, status, args_str, result_str = parts
+            return tool_name, status, args_str, result_str
         
         try:
             # Fetch existing conversation history for context
@@ -129,15 +180,9 @@ class ConversationService:
                 
                 # Tool status markers - extract full data for persistence
                 if chunk.startswith('[[TOOL:'):
-                    # Full pattern: [[TOOL:name:status:args:result]]
-                    # Args and result are JSON objects or 'null'
-                    full_match = re.match(
-                        r'\[\[TOOL:(\w+):(running|done):((?:\{.*?\}|null)):((?:\{.*?\}|null))\]\]',
-                        chunk,
-                        re.DOTALL
-                    )
-                    if full_match:
-                        tool_name, status, args_str, result_str = full_match.groups()
+                    parsed = _parse_tool_marker(chunk)
+                    if parsed:
+                        tool_name, status, args_str, result_str = parsed
                         
                         if status == 'running':
                             # Track running tool with placeholder for args (result comes later)

@@ -40,6 +40,13 @@ async def pass_user_prompt_to_llm(
     user_id = user.get('uid') or user
     
     logger.debug(f'Received prompt for conversation: {conversation_id}')
+
+    # Ownership check for existing conversation IDs
+    if data.conversation_id:
+        try:
+            _ = ConversationService.get_conversation_data(conversation_id, user_id)
+        except PermissionError as e:
+            raise HTTPException(status_code=403, detail=str(e))
     
     # 1. Check user quota (fast, Redis-based)
     user_quota = request.app.state.user_quota
