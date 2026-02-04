@@ -159,6 +159,7 @@ export function del(endpoint, options = {}) {
 export async function postRaw(endpoint, body, options = {}) {
   const config = {
     method: 'POST',
+    credentials: 'include', // Send cookies for session-based auth (matches apiClient)
     headers: {
       'Content-Type': 'application/json',
       ...options.headers,

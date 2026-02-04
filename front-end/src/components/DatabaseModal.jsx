@@ -257,7 +257,11 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
         setDatabases(data.databases);
         if (data.is_remote) {
           setIsRemote(true);
-          setDbType('postgresql');
+          // Use actual db_type from backend instead of hardcoding postgresql
+          // This ensures MySQL, SQL Server, Oracle remote connections work correctly
+          if (data.db_type) {
+            setDbType(data.db_type);
+          }
           setConnectionMode('connection_string');
         }
       }

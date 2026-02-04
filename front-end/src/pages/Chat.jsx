@@ -344,7 +344,8 @@ function Chat() {
       if (connectionPersistence === 0 && isDbConnected) {
         const blob = new Blob([JSON.stringify({})], { type: 'application/json' });
         // Use absolute URL for sendBeacon to ensure it works in all environments
-        const disconnectUrl = `${window.location.origin}/api/database/disconnect`;
+        // Must match the backend endpoint: /api/v1/disconnect_db
+        const disconnectUrl = `${window.location.origin}/api/v1/disconnect_db`;
         navigator.sendBeacon(disconnectUrl, blob);
       }
     };

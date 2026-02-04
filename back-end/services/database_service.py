@@ -286,13 +286,17 @@ class DatabaseService:
     
     @staticmethod
     def get_databases(db_config: dict) -> dict:
-        """Get list of databases with is_remote flag."""
+        """Get list of databases with is_remote flag and db_type."""
         from database.operations import DatabaseOperations
         
         result = DatabaseOperations.get_databases(db_config)
         
-        if db_config and db_config.get('connection_string'):
-            result['is_remote'] = True
+        if db_config:
+            # Always include db_type for frontend to use
+            result['db_type'] = db_config.get('db_type')
+            
+            if db_config.get('connection_string'):
+                result['is_remote'] = True
         
         return result
     
