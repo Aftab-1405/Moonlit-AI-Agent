@@ -282,9 +282,9 @@ class AIToolExecutor:
             parameters = {}
         
         # Normalize user_id: can be dict (new auth) or string (legacy)
-        # Use email for Firestore doc ID (backward compatible with existing data)
+        # Use uid for Firestore doc ID (stable, matches routes and context)
         if isinstance(user_id, dict):
-            user_id = user_id.get('email') or user_id.get('uid') or str(user_id)
+            user_id = user_id.get('uid') or user_id.get('email') or str(user_id)
         
         try:
             if tool_name == "get_connection_status":

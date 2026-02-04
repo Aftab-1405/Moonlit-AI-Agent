@@ -239,7 +239,20 @@ class ContextService:
         cached_at = cached.get('cached_at')
         if cached_at:
             try:
-                cache_time = datetime.fromisoformat(cached_at.replace('Z', '+00:00'))
+                # Handle both ISO string and Firestore Timestamp objects
+                if hasattr(cached_at, 'isoformat'):
+                    # It's a datetime or Firestore Timestamp - convert to datetime
+                    if hasattr(cached_at, 'timestamp'):
+                        # Firestore Timestamp has .timestamp() method
+                        from datetime import timezone
+                        cache_time = datetime.fromtimestamp(cached_at.timestamp())
+                    else:
+                        # Regular datetime object
+                        cache_time = cached_at
+                else:
+                    # It's a string - parse as ISO format
+                    cache_time = datetime.fromisoformat(str(cached_at).replace('Z', '+00:00'))
+                
                 if cache_time.tzinfo:
                     cache_time = cache_time.replace(tzinfo=None)
                 age_seconds = (datetime.now() - cache_time).total_seconds()
@@ -249,7 +262,7 @@ class ContextService:
                     logger.debug(f"Schema context stale for {database} (age: {age_seconds:.0f}s, TTL: {ttl}s), will refresh")
                     ContextMetrics.record_miss()
                     return None
-            except (ValueError, TypeError) as e:
+            except (ValueError, TypeError, AttributeError) as e:
                 logger.warning(f"Could not parse cached_at timestamp: {e}")
                 ContextMetrics.record_miss()
                 return None

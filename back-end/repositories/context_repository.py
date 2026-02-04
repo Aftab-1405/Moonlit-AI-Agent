@@ -19,9 +19,14 @@ class ContextRepository:
     
     @staticmethod
     def _normalize_user_id(user_id) -> str:
-        """Normalize user_id to string for Firestore document ID."""
+        """Normalize user_id to string for Firestore document ID.
+        
+        Uses uid as primary identifier to match route behavior.
+        This ensures consistent document IDs across context and conversations.
+        """
         if isinstance(user_id, dict):
-            return user_id.get('email') or user_id.get('uid') or str(user_id)
+            # Prefer uid (stable) over email (can change)
+            return user_id.get('uid') or user_id.get('email') or str(user_id)
         return str(user_id) if user_id else 'anonymous'
     
     @staticmethod
