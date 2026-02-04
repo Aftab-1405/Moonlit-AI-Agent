@@ -7,7 +7,6 @@ No Flask dependencies.
 
 import uuid
 import logging
-import re
 from typing import Optional, Generator
 
 logger = logging.getLogger(__name__)

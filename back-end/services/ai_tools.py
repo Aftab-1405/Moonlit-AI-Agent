@@ -633,7 +633,6 @@ class AIToolExecutor:
     def _get_table_columns(user_id: str, table_name: str, db_config: dict = None) -> Dict:
         """Get columns for a specific table."""
         from services.context_service import ContextService
-        from database.operations import DatabaseOperations
         
         if not table_name:
             return {"error": "Table name is required"}

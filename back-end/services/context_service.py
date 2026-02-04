@@ -244,7 +244,6 @@ class ContextService:
                     # It's a datetime or Firestore Timestamp - convert to datetime
                     if hasattr(cached_at, 'timestamp'):
                         # Firestore Timestamp has .timestamp() method
-                        from datetime import timezone
                         cache_time = datetime.fromtimestamp(cached_at.timestamp())
                     else:
                         # Regular datetime object

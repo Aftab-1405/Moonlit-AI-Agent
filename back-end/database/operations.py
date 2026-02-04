@@ -155,13 +155,11 @@ class DatabaseOperations:
         """Get table row count."""
         try:
             from database.connection_manager import get_connection_manager
-            from database.adapters import get_adapter
             
             validated_table = DatabaseSecurity.validate_table_name(table_name)
             validated_db = DatabaseSecurity.validate_database_name(db_name)
             
             db_type = db_config.get('db_type', 'mysql') if db_config else 'mysql'
-            adapter = get_adapter(db_type)
             schema = db_config.get('schema', 'public') if db_config else 'public'
             
             manager = get_connection_manager()
