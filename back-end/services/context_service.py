@@ -199,9 +199,21 @@ class ContextService:
     @staticmethod
     def compute_schema_hash(tables: List[str], columns: Dict[str, List]) -> str:
         """Compute hash of schema for change detection."""
+        def normalize_columns(col_list):
+            """Normalize column list for consistent hashing."""
+            if not col_list:
+                return []
+            # Check if columns are dicts (new format) or strings (old format)
+            if isinstance(col_list[0], dict):
+                # Sort by column name for consistency
+                return sorted([c.get('name', '') for c in col_list])
+            else:
+                # Old string format
+                return sorted(col_list)
+        
         schema_str = json.dumps({
             'tables': sorted(tables),
-            'columns': {k: sorted(v) if isinstance(v, list) else v for k, v in sorted(columns.items())}
+            'columns': {k: normalize_columns(v) for k, v in sorted(columns.items())}
         }, sort_keys=True)
         return hashlib.md5(schema_str.encode()).hexdigest()
     

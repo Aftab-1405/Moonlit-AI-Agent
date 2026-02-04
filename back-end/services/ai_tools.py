@@ -487,7 +487,14 @@ class AIToolExecutor:
                         try:
                             table_schema = DatabaseOperations.get_table_schema(table, database)
                             # get_table_schema returns tuples: (name, type, nullable, default, key)
-                            columns[table] = [col[0] for col in table_schema]
+                            # Build column objects with primary key info
+                            columns[table] = [
+                                {
+                                    'name': col[0],
+                                    'is_primary_key': len(col) > 4 and col[4] == 'PRI'
+                                }
+                                for col in table_schema
+                            ]
                         except Exception as e:
                             logger.warning(f"Could not get columns for table {table}: {e}")
                             columns[table] = []
@@ -532,10 +539,30 @@ class AIToolExecutor:
         return tables
     
     @staticmethod
+    def _fetch_tables_and_columns(db_config: dict, db_type: str, db_name: str = None) -> tuple:
+        """
+        Fetch tables and columns with primary key info.
+        
+        Returns:
+            tuple: (tables list, columns dict with {name, is_primary_key} objects)
+        """
+        # Fetch tables
+        tables = AIToolExecutor._fetch_tables_with_config(db_config, db_type, db_name)
+        
+        # Fetch columns with primary key info
+        columns = AIToolExecutor._batch_fetch_columns(db_config, tables, db_type, db_name)
+        
+        return tables, columns
+    
+    @staticmethod
     def _batch_fetch_columns(db_config: dict, tables: List[str], db_type: str, 
-                              db_name: str = None) -> Dict[str, List[str]]:
+                              db_name: str = None) -> Dict[str, List]:
         """
         Batch fetch columns for all tables in a single query (DBMS-agnostic).
+        
+        Returns dict where values are lists of column objects with:
+        - name: column name
+        - is_primary_key: True if column is part of primary key
         
         Much faster than individual queries for each table.
         """
@@ -563,10 +590,19 @@ class AIToolExecutor:
             cursor.execute(query, params)
             
             for row in cursor.fetchall():
-                table_name, column_name = row
+                # Query now returns (table_name, column_name, column_key)
+                table_name = row[0]
+                column_name = row[1]
+                column_key = row[2] if len(row) > 2 else ''
+                
                 if table_name not in columns:
                     columns[table_name] = []
-                columns[table_name].append(column_name)
+                
+                # Build column object with primary key info
+                columns[table_name].append({
+                    'name': column_name,
+                    'is_primary_key': column_key == 'PRI'
+                })
             
             cursor.close()
         

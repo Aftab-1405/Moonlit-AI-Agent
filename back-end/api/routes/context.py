@@ -56,24 +56,17 @@ async def refresh_user_context(
 ):
     """Refresh schema cache for current database."""
     from services.context_service import ContextService
-    from database.operations import DatabaseOperations
+    from services.ai_tools import AIToolExecutor
     
     user_id = user.get('uid') or user
     database = db_config.get('database')
+    db_type = db_config.get('db_type', 'postgresql')
     
-    # Get fresh schema data
-    tables_result = await run_in_threadpool(DatabaseOperations.get_tables, db_config)
-    tables = tables_result.get('tables', [])
-    
-    # Get columns for each table
-    columns = {}
-    for table in tables:
-        schema_result = await run_in_threadpool(
-            DatabaseOperations.get_table_schema, 
-            db_config, table
-        )
-        if schema_result.get('status') == 'success':
-            columns[table] = schema_result.get('columns', [])
+    # Use AIToolExecutor's batch fetch which includes primary key info
+    tables, columns = await run_in_threadpool(
+        AIToolExecutor._fetch_tables_and_columns,
+        db_config, db_type, database
+    )
     
     # Store schema as AI context
     await run_in_threadpool(

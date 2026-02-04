@@ -229,6 +229,17 @@ class SQLiteAdapter(BaseDatabaseAdapter):
                 'extra': ''
             }
     
+    def get_batch_columns_for_tables(self, db_name: str, tables: list, schema: str = 'main') -> tuple:
+        """Return SQL query and params to batch fetch columns for multiple tables.
+        
+        SQLite cannot batch PRAGMA statements, so we return None.
+        ai_tools.py will use per-table fallback which handles PRAGMA table_info.
+        PRAGMA table_info returns (cid, name, type, notnull, dflt_value, pk).
+        """
+        # SQLite needs per-table PRAGMA calls, can't batch
+        # Return None to trigger fallback path in ai_tools.py
+        return None, []
+    
     # =========================================================================
     # Schema Metadata Methods (for AI tools)
     # =========================================================================

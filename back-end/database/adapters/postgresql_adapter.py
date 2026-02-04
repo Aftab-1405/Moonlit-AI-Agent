@@ -351,16 +351,31 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
         return query, ()
     
     def get_batch_columns_for_tables(self, db_name: str, tables: list, schema: str = 'public') -> tuple:
-        """Return SQL query and params to batch fetch columns for multiple tables."""
+        """Return SQL query and params to batch fetch columns for multiple tables.
+        
+        Returns (table_name, column_name, column_key) where column_key is 'PRI' for primary keys.
+        """
         if not tables:
             return None, []
         
         query = f"""
-            SELECT table_name, column_name
-            FROM information_schema.columns
-            WHERE table_schema = '{schema}'
-            AND table_name = ANY(%s)
-            ORDER BY table_name, ordinal_position
+            SELECT 
+                c.table_name, 
+                c.column_name,
+                CASE WHEN pk.column_name IS NOT NULL THEN 'PRI' ELSE '' END AS column_key
+            FROM information_schema.columns c
+            LEFT JOIN (
+                SELECT kcu.table_name, kcu.column_name
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage kcu
+                    ON tc.constraint_name = kcu.constraint_name
+                    AND tc.table_schema = kcu.table_schema
+                WHERE tc.constraint_type = 'PRIMARY KEY'
+                AND tc.table_schema = '{schema}'
+            ) pk ON c.table_name = pk.table_name AND c.column_name = pk.column_name
+            WHERE c.table_schema = '{schema}'
+            AND c.table_name = ANY(%s)
+            ORDER BY c.table_name, c.ordinal_position
         """
         return query, (tables,)
     

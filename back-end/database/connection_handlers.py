@@ -52,7 +52,7 @@ def _store_schema_context(user_id: str, db_config: dict, database: str, tables: 
     """Store database schema as AI context in Firestore.
     
     This provides the AI agent with understanding of the database
-    structure (tables, columns) it's working with.
+    structure (tables, columns with primary key info) it's working with.
     """
     if not user_id:
         return
@@ -69,20 +69,46 @@ def _store_schema_context(user_id: str, db_config: dict, database: str, tables: 
         manager = get_connection_manager()
         
         columns = {}
-        with manager.get_cursor(db_config) as cursor:
-            for table in tables[:max_tables]:
-                try:
-                    cols_query, cols_params = adapter.get_columns_for_table_cache(database, table)
-                    cursor.execute(cols_query, cols_params)
-                    rows = cursor.fetchall()
-                    # SQLite PRAGMA table_info returns (cid, name, type, notnull, dflt_value, pk)
-                    # Other DBs return column name in first position
-                    if db_type == 'sqlite':
-                        columns[table] = [row[1] for row in rows]  # name is at index 1
-                    else:
-                        columns[table] = [row[0] for row in rows]
-                except Exception as e:
-                    logger.debug(f"Failed to get columns for {table}: {e}")
+        
+        # Use batch fetch query that includes primary key info
+        tables_subset = tables[:max_tables]
+        query, params = adapter.get_batch_columns_for_tables(database, tables_subset)
+        
+        if query is None:
+            # Fallback for SQLite - use per-table PRAGMA with pk info
+            with manager.get_cursor(db_config) as cursor:
+                for table in tables_subset:
+                    try:
+                        cursor.execute(f"PRAGMA table_info('{table}')")
+                        rows = cursor.fetchall()
+                        # PRAGMA returns (cid, name, type, notnull, dflt_value, pk)
+                        columns[table] = [
+                            {'name': row[1], 'is_primary_key': bool(row[5])}
+                            for row in rows
+                        ]
+                    except Exception as e:
+                        logger.debug(f"Failed to get columns for {table}: {e}")
+                        columns[table] = []
+        else:
+            # Batch fetch with primary key info
+            with manager.get_cursor(db_config) as cursor:
+                cursor.execute(query, params)
+                for row in cursor.fetchall():
+                    table_name = row[0]
+                    column_name = row[1]
+                    column_key = row[2] if len(row) > 2 else ''
+                    
+                    if table_name not in columns:
+                        columns[table_name] = []
+                    
+                    columns[table_name].append({
+                        'name': column_name,
+                        'is_primary_key': column_key == 'PRI'
+                    })
+            
+            # Ensure all tables have entries
+            for table in tables_subset:
+                if table not in columns:
                     columns[table] = []
         
         ContextService.store_schema_context(user_id, database, tables, columns)

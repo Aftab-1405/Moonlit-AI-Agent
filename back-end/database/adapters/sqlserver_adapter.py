@@ -240,19 +240,34 @@ class SQLServerAdapter(BaseDatabaseAdapter):
         return self.get_databases_query(), ()
     
     def get_batch_columns_for_tables(self, db_name: str, tables: List[str], schema: str = 'dbo') -> tuple:
-        """Return SQL query and params to batch fetch columns for multiple tables."""
+        """Return SQL query and params to batch fetch columns for multiple tables.
+        
+        Returns (TABLE_NAME, COLUMN_NAME, column_key) where column_key is 'PRI' for primary keys.
+        """
         if not tables:
             return None, []
         
         placeholders = ','.join(['?'] * len(tables))
         query = f"""
-            SELECT TABLE_NAME, COLUMN_NAME
-            FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_CATALOG = ?
-            AND TABLE_NAME IN ({placeholders})
-            ORDER BY TABLE_NAME, ORDINAL_POSITION
+            SELECT 
+                c.TABLE_NAME, 
+                c.COLUMN_NAME,
+                CASE WHEN pk.COLUMN_NAME IS NOT NULL THEN 'PRI' ELSE '' END AS column_key
+            FROM INFORMATION_SCHEMA.COLUMNS c
+            LEFT JOIN (
+                SELECT ccu.TABLE_NAME, ccu.COLUMN_NAME
+                FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc
+                JOIN INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE ccu 
+                    ON tc.CONSTRAINT_NAME = ccu.CONSTRAINT_NAME
+                    AND tc.TABLE_CATALOG = ccu.TABLE_CATALOG
+                WHERE tc.CONSTRAINT_TYPE = 'PRIMARY KEY'
+                AND tc.TABLE_CATALOG = ?
+            ) pk ON c.TABLE_NAME = pk.TABLE_NAME AND c.COLUMN_NAME = pk.COLUMN_NAME
+            WHERE c.TABLE_CATALOG = ?
+            AND c.TABLE_NAME IN ({placeholders})
+            ORDER BY c.TABLE_NAME, c.ORDINAL_POSITION
         """
-        params = [db_name] + list(tables)
+        params = [db_name, db_name] + list(tables)
         return query, params
     
     # =========================================================================

@@ -243,13 +243,16 @@ class MySQLAdapter(BaseDatabaseAdapter):
         return "SHOW DATABASES", ()
     
     def get_batch_columns_for_tables(self, db_name: str, tables: list, schema: str = 'public') -> tuple:
-        """Return SQL query and params to batch fetch columns for multiple tables."""
+        """Return SQL query and params to batch fetch columns for multiple tables.
+        
+        Returns (TABLE_NAME, COLUMN_NAME, COLUMN_KEY) where COLUMN_KEY is 'PRI' for primary keys.
+        """
         if not tables:
             return None, []
         
         placeholders = ','.join(['%s'] * len(tables))
         query = f"""
-            SELECT TABLE_NAME, COLUMN_NAME
+            SELECT TABLE_NAME, COLUMN_NAME, COLUMN_KEY
             FROM information_schema.COLUMNS
             WHERE TABLE_SCHEMA = %s
             AND TABLE_NAME IN ({placeholders})

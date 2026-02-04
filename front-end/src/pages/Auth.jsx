@@ -42,7 +42,6 @@ import {
   resetPasswordSchema,
   authFieldSchemas,
 } from '../validation';
-import { getMoonlitGradient } from '../theme';
 import logger from '../utils/logger';
 
 // Tab Panel component
@@ -263,7 +262,7 @@ function Auth() {
           left: '-20%',
           width: '60%',
           height: '60%',
-          background: `radial-gradient(circle, ${alpha(theme.palette.primary.main, 0.12)} 0%, transparent 70%)`,
+          background: `radial-gradient(circle, ${alpha(theme.palette.text.primary, 0.06)} 0%, transparent 70%)`,
           filter: 'blur(80px)',
           pointerEvents: 'none',
           zIndex: 0,
@@ -276,7 +275,7 @@ function Auth() {
           right: '-20%',
           width: '60%',
           height: '60%',
-          background: `radial-gradient(circle, ${alpha(theme.palette.primary.main, 0.15)} 0%, transparent 70%)`,
+          background: `radial-gradient(circle, ${alpha(theme.palette.text.primary, 0.08)} 0%, transparent 70%)`,
           filter: 'blur(80px)',
           pointerEvents: 'none',
           zIndex: 0,
@@ -321,11 +320,7 @@ function Auth() {
                 sx={{
                   fontSize: { xs: '2rem', sm: '2.5rem' },
                   fontWeight: 800,
-                  background: getMoonlitGradient(theme),
-                  backgroundClip: 'text',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  textShadow: `0 0 40px ${alpha(theme.palette.primary.main, 0.4)}`,
+                  color: theme.palette.text.primary,
                 }}
               >
                 Moonlit
@@ -452,11 +447,11 @@ function Auth() {
                     disabled={formLoading}
                     sx={{
                       py: 1,
-                      background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.light} 100%)`,
-                      color: theme.palette.mode === 'dark' ? '#000000' : '#FFFFFF',
+                      backgroundColor: theme.palette.text.primary,
+                      color: theme.palette.background.default,
                       fontWeight: 600,
                       '&:hover': {
-                        background: `linear-gradient(135deg, ${theme.palette.primary.light} 0%, ${theme.palette.primary.main} 100%)`,
+                        backgroundColor: alpha(theme.palette.text.primary, 0.85),
                       },
                     }}
                   >
@@ -558,11 +553,11 @@ function Auth() {
                     disabled={formLoading}
                     sx={{
                       py: 1,
-                      background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.light} 100%)`,
-                      color: theme.palette.mode === 'dark' ? '#000000' : '#FFFFFF',
+                      backgroundColor: theme.palette.text.primary,
+                      color: theme.palette.background.default,
                       fontWeight: 600,
                       '&:hover': {
-                        background: `linear-gradient(135deg, ${theme.palette.primary.light} 0%, ${theme.palette.primary.main} 100%)`,
+                        backgroundColor: alpha(theme.palette.text.primary, 0.85),
                       },
                     }}
                   >
@@ -597,8 +592,8 @@ function Auth() {
                     borderColor: alpha(theme.palette.common.white, 0.15),
                     backgroundColor: alpha(theme.palette.common.white, 0.02),
                     '&:hover': {
-                      borderColor: 'primary.main',
-                      backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                      borderColor: alpha(theme.palette.text.primary, 0.3),
+                      backgroundColor: alpha(theme.palette.text.primary, 0.05),
                     },
                   }}
                 >

@@ -333,7 +333,10 @@ class OracleAdapter(BaseDatabaseAdapter):
         return self.get_databases_query(), ()
     
     def get_batch_columns_for_tables(self, db_name: str, tables: List[str], schema: str = None) -> tuple:
-        """Return SQL query and params to batch fetch columns for multiple tables."""
+        """Return SQL query and params to batch fetch columns for multiple tables.
+        
+        Returns (table_name, column_name, column_key) where column_key is 'PRI' for primary keys.
+        """
         if not tables:
             return None, []
         
@@ -341,11 +344,22 @@ class OracleAdapter(BaseDatabaseAdapter):
         # Building IN clause with positional params
         table_placeholders = ','.join([f":{i+2}" for i in range(len(tables))])
         query = f"""
-            SELECT table_name, column_name
-            FROM all_tab_columns
-            WHERE owner = :1
-            AND table_name IN ({table_placeholders})
-            ORDER BY table_name, column_id
+            SELECT 
+                c.table_name, 
+                c.column_name,
+                CASE WHEN pk.column_name IS NOT NULL THEN 'PRI' ELSE '' END AS column_key
+            FROM all_tab_columns c
+            LEFT JOIN (
+                SELECT cc.table_name, cc.column_name
+                FROM all_constraints con
+                JOIN all_cons_columns cc ON con.constraint_name = cc.constraint_name 
+                    AND con.owner = cc.owner
+                WHERE con.constraint_type = 'P'
+                AND con.owner = :1
+            ) pk ON c.table_name = pk.table_name AND c.column_name = pk.column_name
+            WHERE c.owner = :1
+            AND c.table_name IN ({table_placeholders})
+            ORDER BY c.table_name, c.column_id
         """
         params = [db_name.upper()] + [t.upper() for t in tables]
         return query, params

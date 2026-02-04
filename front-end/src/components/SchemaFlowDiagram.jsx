@@ -64,33 +64,33 @@ const DatabaseNode = memo(({ data }) => {
         py: { xs: 1.25, sm: 1 },
         borderRadius: 2,
         backgroundColor: isDark 
-          ? alpha(theme.palette.primary.main, 0.12)
-          : alpha(theme.palette.primary.main, 0.08),
+          ? alpha(theme.palette.text.primary, 0.08)
+          : alpha(theme.palette.text.primary, 0.05),
         border: '1.5px solid',
-        borderColor: alpha(theme.palette.primary.main, isDark ? 0.3 : 0.25),
+        borderColor: alpha(theme.palette.text.primary, isDark ? 0.2 : 0.15),
         display: 'flex',
         alignItems: 'center',
         gap: 1,
         minWidth: isMobile ? 130 : 110,
         transition: 'all 0.2s ease',
-        boxShadow: `0 2px 8px ${alpha(theme.palette.primary.main, 0.15)}`,
+        boxShadow: `0 2px 8px ${alpha(theme.palette.text.primary, 0.1)}`,
         '&:hover': {
-          borderColor: alpha(theme.palette.primary.main, 0.5),
-          boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.25)}`,
+          borderColor: alpha(theme.palette.text.primary, 0.35),
+          boxShadow: `0 4px 12px ${alpha(theme.palette.text.primary, 0.15)}`,
         },
       }}
     >
       <StorageRoundedIcon
         sx={{
           fontSize: { xs: 18, sm: 16 },
-          color: theme.palette.primary.main,
+          color: theme.palette.text.primary,
         }}
       />
       <Typography
         variant="body2"
         sx={{
           fontWeight: 600,
-          color: theme.palette.primary.main,
+          color: theme.palette.text.primary,
           fontSize: { xs: '0.9rem', sm: '0.8rem' },
         }}
       >
@@ -99,7 +99,7 @@ const DatabaseNode = memo(({ data }) => {
       <ChevronRightRoundedIcon
         sx={{
           fontSize: { xs: 18, sm: 14 },
-          color: alpha(theme.palette.primary.main, 0.6),
+          color: alpha(theme.palette.text.primary, 0.5),
           ml: 'auto',
         }}
       />
@@ -129,7 +129,7 @@ const TableNode = memo(({ data }) => {
           : theme.palette.background.paper,
         border: '1px solid',
         borderColor: data.expanded 
-          ? theme.palette.primary.main 
+          ? theme.palette.text.primary 
           : 'divider',
         display: 'flex',
         alignItems: 'center',
@@ -139,13 +139,13 @@ const TableNode = memo(({ data }) => {
         cursor: hasColumns ? 'pointer' : 'default',
         transition: 'all 0.15s ease',
         boxShadow: data.expanded 
-          ? `0 0 0 2px ${alpha(theme.palette.primary.main, 0.15)}`
+          ? `0 0 0 2px ${alpha(theme.palette.text.primary, 0.1)}`
           : 'none',
         '&:hover': hasColumns ? {
-          borderColor: alpha(theme.palette.primary.main, 0.5),
+          borderColor: alpha(theme.palette.text.primary, 0.35),
           backgroundColor: isDark 
-            ? alpha(theme.palette.primary.main, 0.08)
-            : alpha(theme.palette.primary.main, 0.04),
+            ? alpha(theme.palette.text.primary, 0.05)
+            : alpha(theme.palette.text.primary, 0.03),
         } : {},
         '&:active': hasColumns ? {
           transform: 'scale(0.98)',
@@ -158,7 +158,7 @@ const TableNode = memo(({ data }) => {
       <TableChartRoundedIcon
         sx={{
           fontSize: { xs: 16, sm: 14 },
-          color: data.expanded ? theme.palette.primary.main : 'text.secondary',
+          color: data.expanded ? theme.palette.text.primary : 'text.secondary',
         }}
       />
       
@@ -166,7 +166,7 @@ const TableNode = memo(({ data }) => {
         variant="caption"
         sx={{
           fontWeight: 500,
-          color: data.expanded ? theme.palette.primary.main : 'text.primary',
+          color: data.expanded ? theme.palette.text.primary : 'text.primary',
           fontSize: { xs: '0.85rem', sm: '0.75rem' },
         }}
       >

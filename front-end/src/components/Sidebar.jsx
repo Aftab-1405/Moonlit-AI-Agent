@@ -240,7 +240,7 @@ const HistoryPopoverItem = memo(function HistoryPopoverItem({
     >
       <ListItemIcon sx={{ minWidth: 28 }}>
         {isActive ? (
-          <CheckCircleOutlineRoundedIcon sx={{ fontSize: 16, color: theme.palette.primary.main }} />
+          <CheckCircleOutlineRoundedIcon sx={{ fontSize: 16, color: theme.palette.text.primary }} />
         ) : (
           <QuestionAnswerOutlinedIcon sx={{ fontSize: 14, color: theme.palette.text.secondary }} />
         )}
@@ -719,11 +719,11 @@ function Sidebar({
           <Divider sx={{ my: 0.5 }} />
           <ListItemButton onClick={handleOpenNewConnection} sx={{ borderRadius: 1, py: 0.75 }}>
             <ListItemIcon sx={{ minWidth: 28 }}>
-              <AddCircleOutlineRoundedIcon sx={{ fontSize: 16, color: theme.palette.primary.main }} />
+              <AddCircleOutlineRoundedIcon sx={{ fontSize: 16, color: theme.palette.text.primary }} />
             </ListItemIcon>
             <ListItemText
               primary="New Connection"
-              primaryTypographyProps={{ variant: 'body2', color: theme.palette.primary.main }}
+              primaryTypographyProps={{ variant: 'body2', color: theme.palette.text.primary }}
             />
           </ListItemButton>
         </List>
