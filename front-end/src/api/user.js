@@ -21,15 +21,6 @@ export async function getContext() {
 }
 
 /**
- * Refresh user's database context.
- * 
- * @returns {Promise<{status: string, schemas?: Array}>}
- */
-export async function refreshContext() {
-  return post(USER.CONTEXT_REFRESH);
-}
-
-/**
  * Save user settings.
  * 
  * @param {Object} settings - Settings object to save
@@ -41,6 +32,6 @@ export async function saveSettings(settings) {
 
 export default {
   getContext,
-  refreshContext,
   saveSettings,
 };
+

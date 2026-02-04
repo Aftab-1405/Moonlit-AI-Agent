@@ -24,11 +24,15 @@ export async function getFirebaseConfig() {
 /**
  * Create a server session with Firebase ID token.
  * 
- * @param {string} idToken - Firebase ID token
+ * @param {Object|string} payload - Either the idToken string or full payload object
+ * @param {string} payload.idToken - Firebase ID token
+ * @param {Object} [payload.user] - Optional user data
  * @returns {Promise<Object>} Session response
  */
-export async function setSession(idToken) {
-  return post(AUTH.SET_SESSION, { idToken });
+export async function setSession(payload) {
+  // Accept either a string (idToken) or an object with idToken and optional user
+  const body = typeof payload === 'string' ? { idToken: payload } : payload;
+  return post(AUTH.SET_SESSION, body);
 }
 
 /**

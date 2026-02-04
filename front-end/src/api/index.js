@@ -58,7 +58,6 @@ export { runQuery } from './query';
 
 export {
   getContext as getUserContext,
-  refreshContext as refreshUserContext,
   saveSettings as saveUserSettings,
 } from './user';
 

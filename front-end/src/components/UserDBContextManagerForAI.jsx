@@ -150,19 +150,12 @@ function UserDBContextManagerForAI() {
         url = USER.CONTEXT_DELETE_QUERIES;
       }
 
-      const response = await fetch(url, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-
-      if (response.ok) {
-        fetchContext();
-      } else {
-        const data = await response.json();
-        setError(data.message || 'Delete failed');
-      }
-    } catch {
-      setError('Failed to delete');
+      // Use centralized API client instead of raw fetch
+      const { del } = await import('../api');
+      await del(url);
+      fetchContext();
+    } catch (err) {
+      setError(err.message || 'Failed to delete');
     }
   }, [deleteDialog, fetchContext]);
 

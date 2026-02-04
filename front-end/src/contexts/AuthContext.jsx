@@ -11,6 +11,7 @@ import {
   updateProfile
 } from 'firebase/auth';
 import { initializeFirebase, getFirebaseAuth, getGoogleProvider, getGithubProvider } from '../config/firebase';
+import { setSession as setBackendSession, logout as logoutBackend } from '../api';
 import logger from '../utils/logger';
 
 // Detect if user is on mobile device (static helper)
@@ -85,19 +86,14 @@ export const AuthProvider = ({ children }) => {
               // Set session on backend with verified ID token
               try {
                 const idToken = await firebaseUser.getIdToken();
-                await fetch('/set_session', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  credentials: 'include',
-                  body: JSON.stringify({
-                    user: {
-                      uid: firebaseUser.uid,
-                      email: firebaseUser.email,
-                      displayName: firebaseUser.displayName,
-                      photoURL: firebaseUser.photoURL
-                    },
-                    idToken
-                  }),
+                await setBackendSession({
+                  user: {
+                    uid: firebaseUser.uid,
+                    email: firebaseUser.email,
+                    displayName: firebaseUser.displayName,
+                    photoURL: firebaseUser.photoURL
+                  },
+                  idToken
                 });
               } catch (err) {
                 logger.error('Failed to set session:', err);
@@ -230,7 +226,7 @@ export const AuthProvider = ({ children }) => {
       if (auth) {
         await signOut(auth);
       }
-      await fetch('/logout', { method: 'POST', credentials: 'include' });
+      await logoutBackend();
       setUser(null);
     } catch (err) {
       logger.error('Logout error:', err);
