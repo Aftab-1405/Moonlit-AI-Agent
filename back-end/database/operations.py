@@ -253,11 +253,11 @@ def execute_sql_query(
                 'message': f"Query blocked: {', '.join(analysis['warnings'])}"
             }
 
-        # Only allow SELECT queries
-        if analysis['query_type'] != 'SELECT':
+        # Only allow SELECT and WITH (CTE) queries
+        if analysis['query_type'] not in ('SELECT', 'WITH'):
             return {
                 'status': 'error',
-                'message': f'READ-ONLY: Only SELECT queries allowed. {analysis["query_type"]} blocked.',
+                'message': f'READ-ONLY: Only SELECT/WITH queries allowed. {analysis["query_type"]} blocked.',
                 'query_type_blocked': analysis['query_type']
             }
 

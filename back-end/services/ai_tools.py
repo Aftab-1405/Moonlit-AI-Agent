@@ -784,10 +784,10 @@ class AIToolExecutor:
                 'message': f"Query blocked for security reasons: {', '.join(analysis['warnings'])}"
             }
         
-        if analysis['query_type'] != 'SELECT':
+        if analysis['query_type'] not in ('SELECT', 'WITH'):
             return {
                 'status': 'error',
-                'message': f'READ-ONLY MODE: Only SELECT queries are allowed. {analysis["query_type"]} is blocked.'
+                'message': f'READ-ONLY MODE: Only SELECT/WITH queries are allowed. {analysis["query_type"]} is blocked.'
             }
         
         try:

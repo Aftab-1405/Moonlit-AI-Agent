@@ -214,6 +214,28 @@ class ConversationRepository:
             raise
     
     @staticmethod
+    def get_for_user(conversation_id: str, user_id: str) -> Optional[Dict]:
+        """
+        Get conversation by ID, verifying user ownership.
+        
+        Args:
+            conversation_id: The conversation ID
+            user_id: The user ID (must own the conversation)
+            
+        Returns:
+            Conversation document as dict, or None if not exists
+            
+        Raises:
+            PermissionError: If the user doesn't own the conversation
+        """
+        conv = ConversationRepository.get(conversation_id)
+        if conv is None:
+            return None
+        if conv.get('user_id') != user_id:
+            raise PermissionError("User does not own this conversation")
+        return conv
+    
+    @staticmethod
     def get_by_user(user_id: str) -> List[Dict]:
         """
         Get all conversations for a user.

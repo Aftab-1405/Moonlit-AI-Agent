@@ -34,7 +34,10 @@ async def connect_db(
     """Connect to a database (local or remote)."""
     user_id = user.get('uid') or user
     
-    logger.info(f"Connect request data: {data.model_dump()}")
+    # Log connection request without sensitive fields
+    safe_log_data = {k: v for k, v in data.model_dump().items() 
+                     if k not in ('password', 'connection_string')}
+    logger.info(f"Connect request data: {safe_log_data}")
     
     db_type = data.db_type
     connection_string = data.connection_string

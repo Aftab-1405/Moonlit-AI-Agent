@@ -37,10 +37,10 @@ class ConversationService:
         pass
     
     @staticmethod
-    def get_conversation_data(conversation_id: str) -> Optional[dict]:
-        """Fetch conversation from Firestore."""
+    def get_conversation_data(conversation_id: str, user_id: str) -> Optional[dict]:
+        """Fetch conversation from Firestore (verifies user ownership)."""
         from repositories import ConversationRepository
-        return ConversationRepository.get(conversation_id)
+        return ConversationRepository.get_for_user(conversation_id, user_id)
     
     @staticmethod
     def delete_user_conversation(conversation_id: str, user_id: str) -> None:

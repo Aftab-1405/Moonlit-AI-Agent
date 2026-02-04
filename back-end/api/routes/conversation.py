@@ -109,15 +109,18 @@ async def get_conversation(
     conversation_id: str,
     user: dict = Depends(get_current_user)
 ):
-    """Get messages for a conversation."""
+    """Get messages for a conversation (user must own it)."""
     try:
+        user_id = user.get('uid') or user
         conv_data = await run_in_threadpool(
             ConversationService.get_conversation_data,
-            conversation_id
+            conversation_id, user_id
         )
         if conv_data:
             return {'status': 'success', 'conversation': conv_data}
         raise HTTPException(status_code=404, detail='Conversation not found')
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:

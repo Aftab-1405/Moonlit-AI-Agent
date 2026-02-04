@@ -24,8 +24,11 @@ logger = logging.getLogger(__name__)
 # Get environment-specific configuration
 AppConfig = get_config()
 
-# Rate limiter
-limiter = Limiter(key_func=get_remote_address)
+# Rate limiter - uses storage from config (memory:// for dev, redis:// for prod)
+limiter = Limiter(
+    key_func=get_remote_address,
+    storage_uri=AppConfig.RATELIMIT_STORAGE_URL
+)
 
 # Redis client for sessions (initialized in lifespan)
 redis_client: redis.Redis | None = None
