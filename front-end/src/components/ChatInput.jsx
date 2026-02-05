@@ -676,6 +676,10 @@ function arePropsEqual(prevProps, nextProps) {
   if (prevProps.dbType !== nextProps.dbType) return false;
   if (prevProps.currentDatabase !== nextProps.currentDatabase) return false;
   if (prevProps.showSuggestions !== nextProps.showSuggestions) return false;
+  if (prevProps.onSend !== nextProps.onSend) return false;
+  if (prevProps.onStop !== nextProps.onStop) return false;
+  if (prevProps.onOpenSqlEditor !== nextProps.onOpenSqlEditor) return false;
+  if (prevProps.onDatabaseSwitch !== nextProps.onDatabaseSwitch) return false;
 
   // Check array length
   if (prevProps.availableDatabases?.length !== nextProps.availableDatabases?.length) return false;

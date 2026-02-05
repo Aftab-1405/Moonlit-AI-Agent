@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, memo } from 'react';
 import { Box, Typography, Collapse, useTheme, ButtonBase, Link } from '@mui/material';
 import { alpha, keyframes } from '@mui/material/styles';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
@@ -477,9 +477,10 @@ DoneIndicator.displayName = 'DoneIndicator';
 // =============================================================================
 
 export const StepsAccordion = memo(({ steps, isStreaming }) => {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(() => !!isStreaming);
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
+  const prevStreamingRef = useRef(isStreaming);
 
   const validSteps = useMemo(() =>
     Array.isArray(steps) ? steps.filter(s => s && s.type) : []
@@ -510,12 +511,22 @@ export const StepsAccordion = memo(({ steps, isStreaming }) => {
     )
   , [isStreaming, validSteps]);
 
-  // Auto-collapse when streaming completes
+  // Auto-expand when streaming starts
   useEffect(() => {
-    if (!isStreaming && validSteps.length > 0) {
+    if (isStreaming) {
+      setExpanded(true);
+    }
+  }, [isStreaming]);
+
+  // Auto-collapse only when streaming transitions from true -> false
+  useEffect(() => {
+    const wasStreaming = prevStreamingRef.current;
+    if (wasStreaming && !isStreaming && validSteps.length > 0) {
       const timer = setTimeout(() => setExpanded(false), 800);
+      prevStreamingRef.current = isStreaming;
       return () => clearTimeout(timer);
     }
+    prevStreamingRef.current = isStreaming;
   }, [isStreaming, validSteps.length]);
 
   const handleToggle = useCallback(() => setExpanded(prev => !prev), []);

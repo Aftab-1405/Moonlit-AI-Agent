@@ -303,6 +303,14 @@ function stripThinkingMarkers(text) {
   return text.replace(/\[\[THINKING:start\]\]/g, '').replace(/\[\[THINKING:chunk:.*?\]\]/g, '').replace(/\[\[THINKING:end\]\]/g, '');
 }
 
+function extractInlineThinking(text) {
+  if (!text) return { content: '', isComplete: false };
+  const chunks = Array.from(text.matchAll(/\[\[THINKING:chunk:(.*?)\]\]/gs)).map(match => match[1]);
+  const content = chunks.join('');
+  const isComplete = text.includes('[[THINKING:end]]');
+  return { content, isComplete };
+}
+
 function parseMessageSegments(text, thinkingField = null, toolsField = null) {
   const segments = [];
   if (thinkingField && thinkingField.trim()) {
@@ -324,6 +332,12 @@ function parseMessageSegments(text, thinkingField = null, toolsField = null) {
     
     // Parse thinking markers if present, otherwise just use clean text
     if (hasThinkingMarkers) {
+      if (!thinkingField) {
+        const { content, isComplete } = extractInlineThinking(text);
+        if (content || isComplete) {
+          segments.push({ type: 'thinking', content, isComplete });
+        }
+      }
       // Strip thinking markers and add remaining text
       const cleanText = stripThinkingMarkers(text).trim();
       if (cleanText) segments.push({ type: 'text', content: cleanText });
