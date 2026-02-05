@@ -32,6 +32,7 @@ export function useConversations() {
 
   // Refs
   const prevConversationIdRef = useRef(null);
+  const lastLoadedConversationIdRef = useRef(null);
   const newlyCreatedConvIdRef = useRef(null);
   
   // AbortController ref for cancelling in-flight requests
@@ -80,6 +81,7 @@ export function useConversations() {
           tools: msg.tools || undefined,
         }));
         setMessages(formattedMessages);
+        lastLoadedConversationIdRef.current = convId;
       }
     } catch (error) {
       if (error.name === 'AbortError') return; // Ignore abort errors
@@ -99,6 +101,7 @@ export function useConversations() {
         setCurrentConversationId(newId);
         setMessages([]);
         prevConversationIdRef.current = newId;
+        lastLoadedConversationIdRef.current = newId;
         navigate(`/chat/${newId}`, { replace: true });
         fetchConversations(signal);
       }
@@ -144,15 +147,17 @@ export function useConversations() {
   // URL sync effect
   useEffect(() => {
     if (conversationId) {
-      if (conversationId !== prevConversationIdRef.current) {
+      if (conversationId !== prevConversationIdRef.current || conversationId !== lastLoadedConversationIdRef.current) {
         if (conversationId === newlyCreatedConvIdRef.current) {
           newlyCreatedConvIdRef.current = null;
+          lastLoadedConversationIdRef.current = conversationId;
         } else {
           handleSelectConversation(conversationId);
         }
       }
     } else if (prevConversationIdRef.current) {
       resetChatState();
+      lastLoadedConversationIdRef.current = null;
     }
     prevConversationIdRef.current = conversationId;
   }, [conversationId, handleSelectConversation, resetChatState]);
