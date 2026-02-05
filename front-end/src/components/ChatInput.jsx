@@ -22,7 +22,7 @@ import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
 import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import StorageOutlinedIcon from '@mui/icons-material/StorageOutlined';
-import BubbleChartRoundedIcon from '@mui/icons-material/BubbleChartRounded';
+import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
 import CodeRoundedIcon from '@mui/icons-material/CodeRounded';
 import KeyboardArrowUpRoundedIcon from '@mui/icons-material/KeyboardArrowUpRounded';
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
@@ -475,13 +475,13 @@ function ChatInput({
                     borderRadius: '8px',
                     border: '1px solid',
                     borderColor: reasoningEnabled 
-                      ? alpha(theme.palette.text.primary, isDarkMode ? 0.4 : 0.3)
+                      ? alpha(theme.palette.info.main, isDarkMode ? 0.5 : 0.4)
                       : 'transparent',
                     backgroundColor: reasoningEnabled 
-                      ? alpha(theme.palette.text.primary, isDarkMode ? 0.12 : 0.08)
+                      ? alpha(theme.palette.info.main, isDarkMode ? 0.15 : 0.1)
                       : 'transparent',
                     color: reasoningEnabled 
-                      ? theme.palette.text.primary
+                      ? alpha(theme.palette.info.main, isDarkMode ? 0.9 : 0.8)
                       : alpha(theme.palette.text.secondary, 0.4),
                     transition: theme.transitions.create(
                       ['background-color', 'border-color', 'color', 'transform'],
@@ -489,19 +489,21 @@ function ChatInput({
                     ),
                     '&:hover': {
                       backgroundColor: reasoningEnabled
-                        ? alpha(theme.palette.text.primary, isDarkMode ? 0.18 : 0.12)
+                        ? alpha(theme.palette.info.main, isDarkMode ? 0.2 : 0.15)
                         : alpha(theme.palette.text.primary, 0.06),
                       borderColor: reasoningEnabled
-                        ? alpha(theme.palette.text.primary, isDarkMode ? 0.5 : 0.4)
+                        ? alpha(theme.palette.info.main, isDarkMode ? 0.6 : 0.5)
                         : alpha(theme.palette.text.primary, 0.15),
-                      color: theme.palette.text.primary,
+                      color: reasoningEnabled
+                        ? theme.palette.info.main
+                        : theme.palette.text.primary,
                     },
                     '&:active': {
                       transform: 'scale(0.95)',
                     },
                   }}
                 >
-                  <BubbleChartRoundedIcon sx={{ fontSize: 18 }} />
+                  <AccessTimeRoundedIcon sx={{ fontSize: 18 }} />
                 </IconButton>
               </Tooltip>
             </Box>

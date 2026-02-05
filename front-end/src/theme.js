@@ -4,7 +4,7 @@ import { createTheme, responsiveFontSizes, alpha } from '@mui/material/styles';
 // 1. DESIGN TOKENS (Static Constants)
 // ============================================
 
-const SHAPE = { borderRadius: 8 };
+const SHAPE = { borderRadius: 10 };
 
 const BREAKPOINTS = {
   values: { xs: 0, sm: 600, md: 900, lg: 1200, xl: 1536 },
@@ -23,33 +23,33 @@ const FONTS = {
 const PALETTE_MODES = {
   dark: {
     background: {
-      default: '#0a0a0a',
-      paper: '#141414',
-      elevated: '#1a1a1a',
+      default: '#0c0c0e',
+      paper: '#151518',
+      elevated: '#1c1c20',
     },
     text: {
-      primary: '#fafafa',
-      secondary: '#a3a3a3',
-      disabled: '#525252',
-      hint: '#737373',
+      primary: '#f2f2f2',
+      secondary: '#b0b0b0',
+      disabled: '#5a5a5a',
+      hint: '#8a8a8a',
     },
     border: {
-      default: '#262626',
-      subtle: '#1a1a1a',
-      hover: '#404040',
-      focus: '#d4d4d4',
+      default: '#2a2a30',
+      subtle: '#1e1e24',
+      hover: '#3d3d45',
+      focus: '#e0e0e0',
     },
     primary: {
-      main: '#e5e5e5',
-      light: '#fafafa',
-      dark: '#a3a3a3',
-      contrastText: '#0a0a0a',
+      main: '#f0f0f0',
+      light: '#ffffff',
+      dark: '#b5b5b5',
+      contrastText: '#0c0c0e',
     },
     secondary: {
-      main: '#737373',
-      light: '#a3a3a3',
-      dark: '#525252',
-      contrastText: '#fafafa',
+      main: '#8d8d8d',
+      light: '#b5b5b5',
+      dark: '#686868',
+      contrastText: '#f2f2f2',
     },
     error: { main: '#ef4444', light: '#f87171', dark: '#dc2626' },
     warning: { main: '#f59e0b', light: '#fbbf24', dark: '#d97706' },
@@ -57,41 +57,41 @@ const PALETTE_MODES = {
     success: { main: '#22c55e', light: '#4ade80', dark: '#16a34a' },
     action: {
       active: 'rgba(255, 255, 255, 0.7)',
-      hover: 'rgba(255, 255, 255, 0.04)',
-      selected: 'rgba(255, 255, 255, 0.08)',
-      disabled: 'rgba(255, 255, 255, 0.26)',
-      disabledBackground: 'rgba(255, 255, 255, 0.12)',
+      hover: 'rgba(255, 255, 255, 0.045)',
+      selected: 'rgba(255, 255, 255, 0.09)',
+      disabled: 'rgba(255, 255, 255, 0.28)',
+      disabledBackground: 'rgba(255, 255, 255, 0.14)',
     },
-    scrollbar: { track: 'transparent', thumb: '#404040', thumbHover: '#525252' },
+    scrollbar: { track: 'transparent', thumb: '#3b3b44', thumbHover: '#4b4b55' },
   },
   light: {
     background: {
-      default: '#fafafa',
+      default: '#f6f5f3',
       paper: '#ffffff',
-      elevated: '#ffffff',
+      elevated: '#fbfaf8',
     },
     text: {
-      primary: '#171717',
-      secondary: '#525252',
-      disabled: '#a3a3a3',
-      hint: '#737373',
+      primary: '#1b1b1b',
+      secondary: '#4d4d4d',
+      disabled: '#9c9c9c',
+      hint: '#7a7a7a',
     },
     border: {
-      default: '#e5e5e5',
-      subtle: '#f5f5f5',
-      hover: '#d4d4d4',
-      focus: '#404040',
+      default: '#e1dfdc',
+      subtle: '#f1f0ee',
+      hover: '#c7c5c1',
+      focus: '#1b1b1b',
     },
     primary: {
-      main: '#262626',
-      light: '#404040',
-      dark: '#171717',
+      main: '#1f1f1f',
+      light: '#343434',
+      dark: '#111111',
       contrastText: '#ffffff',
     },
     secondary: {
-      main: '#737373',
-      light: '#a3a3a3',
-      dark: '#525252',
+      main: '#7a7a7a',
+      light: '#9a9a9a',
+      dark: '#5a5a5a',
       contrastText: '#ffffff',
     },
     error: { main: '#dc2626', light: '#ef4444', dark: '#b91c1c' },
@@ -100,12 +100,12 @@ const PALETTE_MODES = {
     success: { main: '#16a34a', light: '#22c55e', dark: '#15803d' },
     action: {
       active: 'rgba(0, 0, 0, 0.6)',
-      hover: 'rgba(0, 0, 0, 0.04)',
-      selected: 'rgba(0, 0, 0, 0.08)',
-      disabled: 'rgba(0, 0, 0, 0.26)',
+      hover: 'rgba(0, 0, 0, 0.045)',
+      selected: 'rgba(0, 0, 0, 0.09)',
+      disabled: 'rgba(0, 0, 0, 0.24)',
       disabledBackground: 'rgba(0, 0, 0, 0.12)',
     },
-    scrollbar: { track: 'transparent', thumb: '#d4d4d4', thumbHover: '#a3a3a3' },
+    scrollbar: { track: 'transparent', thumb: '#c7c5c1', thumbHover: '#a9a7a4' },
   },
 };
 
@@ -124,8 +124,9 @@ const createTypography = (palette) => ({
     fontSize: '2.5rem',
     fontWeight: 700,
     lineHeight: 1.2,
-    letterSpacing: '-0.02em',
+    letterSpacing: '-0.015em',
     color: palette.text.primary,
+    fontFamily: FONTS.serif,
   },
   h2: {
     fontSize: '2rem',
@@ -133,12 +134,14 @@ const createTypography = (palette) => ({
     lineHeight: 1.25,
     letterSpacing: '-0.01em',
     color: palette.text.primary,
+    fontFamily: FONTS.serif,
   },
   h3: {
     fontSize: '1.5rem',
     fontWeight: 600,
-    lineHeight: 1.3,
+    lineHeight: 1.35,
     letterSpacing: '-0.005em',
+    fontFamily: FONTS.serif,
   },
   h4: {
     fontSize: '1.25rem',
@@ -158,7 +161,7 @@ const createTypography = (palette) => ({
   subtitle1: {
     fontSize: '1rem',
     fontWeight: 500,
-    lineHeight: 1.5,
+    lineHeight: 1.6,
     color: palette.text.primary,
   },
   subtitle2: {
@@ -169,13 +172,13 @@ const createTypography = (palette) => ({
   },
   body1: {
     fontSize: '1rem',
-    lineHeight: 1.6,
-    letterSpacing: '0.01em',
+    lineHeight: 1.75,
+    letterSpacing: '0.008em',
   },
   body2: {
     fontSize: '0.875rem',
-    lineHeight: 1.6,
-    letterSpacing: '0.01em',
+    lineHeight: 1.7,
+    letterSpacing: '0.008em',
   },
   caption: {
     fontSize: '0.75rem',
@@ -195,7 +198,7 @@ const createTypography = (palette) => ({
     textTransform: 'none',
     fontWeight: 500,
     fontSize: '0.875rem',
-    letterSpacing: '0.025em',
+    letterSpacing: '0.02em',
   },
   mono: {
     fontFamily: FONTS.mono,
@@ -206,7 +209,7 @@ const createTypography = (palette) => ({
     fontFamily: FONTS.mono,
     fontSize: '0.6875rem',
     fontWeight: 500,
-    letterSpacing: '0.04em',
+    letterSpacing: '0.05em',
     textTransform: 'uppercase',
     color: palette.text.hint,
   },
@@ -259,11 +262,11 @@ const gradientCache = new Map();
 export const getMoonlitGradient = (theme) => {
   const mode = theme.palette.mode;
   if (gradientCache.has(mode)) return gradientCache.get(mode);
-  
+
   const gradient = mode === 'dark'
-    ? `linear-gradient(135deg, ${theme.palette.text.secondary}, ${theme.palette.text.primary})`
-    : `linear-gradient(135deg, ${theme.palette.text.primary}, ${theme.palette.text.secondary})`;
-    
+    ? `linear-gradient(135deg, ${alpha(theme.palette.text.primary, 0.2)}, ${alpha(theme.palette.text.primary, 0.8)})`
+    : `linear-gradient(135deg, ${alpha(theme.palette.text.primary, 0.9)}, ${alpha(theme.palette.text.primary, 0.5)})`;
+
   gradientCache.set(mode, gradient);
   return gradient;
 };
@@ -351,6 +354,10 @@ const getComponentOverrides = (mode) => {
           textRendering: 'optimizeLegibility',
           WebkitFontSmoothing: 'antialiased',
           MozOsxFontSmoothing: 'grayscale',
+          backgroundColor: palette.background.default,
+          backgroundImage: isDark
+            ? 'radial-gradient(60% 60% at 20% 0%, rgba(255,255,255,0.05), transparent 60%), radial-gradient(60% 60% at 80% 100%, rgba(255,255,255,0.04), transparent 60%)'
+            : 'radial-gradient(60% 60% at 20% 0%, rgba(0,0,0,0.05), transparent 60%), radial-gradient(60% 60% at 80% 100%, rgba(0,0,0,0.04), transparent 60%)',
           '--scrollbar-thumb': palette.scrollbar.thumb,
           '--scrollbar-thumb-hover': palette.scrollbar.thumbHover,
           scrollbarWidth: 'thin',
@@ -386,9 +393,9 @@ const getComponentOverrides = (mode) => {
       },
       styleOverrides: {
         root: {
-          borderRadius: 6,
-          padding: '10px 24px',
-          fontWeight: 600,
+          borderRadius: 8,
+          padding: '10px 22px',
+          fontWeight: 500,
           transition: TRANSITIONS.default,
           borderWidth: 1,
           '&:active': { transform: 'scale(0.98)' },
@@ -396,6 +403,9 @@ const getComponentOverrides = (mode) => {
         outlined: {
           borderColor: palette.border.default,
           color: palette.text.primary,
+          backgroundColor: isDark
+            ? alpha(palette.text.primary, 0.02)
+            : alpha(palette.text.primary, 0.015),
           '&:hover': {
             borderColor: palette.border.hover,
             backgroundColor: palette.action.hover,
@@ -434,6 +444,9 @@ const getComponentOverrides = (mode) => {
           backgroundImage: 'none',
           borderRadius: SHAPE.borderRadius,
           backgroundColor: palette.background.paper,
+          backgroundImage: isDark
+            ? 'linear-gradient(180deg, rgba(255,255,255,0.02), transparent)'
+            : 'linear-gradient(180deg, rgba(0,0,0,0.02), transparent)',
         },
         elevation1: {
           boxShadow: isDark 
@@ -455,6 +468,9 @@ const getComponentOverrides = (mode) => {
           border: `1px solid ${palette.border.subtle}`,
           boxShadow: 'none',
           transition: TRANSITIONS.smooth,
+          backgroundImage: isDark
+            ? 'linear-gradient(180deg, rgba(255,255,255,0.02), transparent)'
+            : 'linear-gradient(180deg, rgba(0,0,0,0.02), transparent)',
           '&:hover': {
             borderColor: palette.border.hover,
           },
@@ -466,8 +482,8 @@ const getComponentOverrides = (mode) => {
       styleOverrides: {
         root: {
           '& .MuiOutlinedInput-root': {
-            borderRadius: 6,
-            backgroundColor: palette.background.elevated,
+            borderRadius: 8,
+            backgroundColor: alpha(palette.background.paper, isDark ? 0.7 : 0.9),
             transition: TRANSITIONS.default,
             '& fieldset': {
               borderColor: palette.border.default,
@@ -490,14 +506,14 @@ const getComponentOverrides = (mode) => {
     MuiChip: {
       styleOverrides: {
         root: { 
-          borderRadius: 4, 
+          borderRadius: 6, 
           fontWeight: 500,
           transition: TRANSITIONS.default,
         },
         filled: {
-          backgroundColor: palette.border.default,
+          backgroundColor: alpha(palette.text.primary, isDark ? 0.06 : 0.05),
           color: palette.text.primary,
-          '&:hover': { backgroundColor: palette.border.hover },
+          '&:hover': { backgroundColor: alpha(palette.text.primary, isDark ? 0.1 : 0.08) },
         },
         outlined: {
           borderColor: palette.border.default,
@@ -520,6 +536,61 @@ const getComponentOverrides = (mode) => {
         },
         arrow: {
           color: isDark ? palette.background.elevated : palette.text.primary,
+        },
+      },
+    },
+
+    MuiAppBar: {
+      styleOverrides: {
+        root: {
+          backgroundColor: alpha(palette.background.paper, isDark ? 0.8 : 0.9),
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          borderBottom: `1px solid ${palette.border.subtle}`,
+          boxShadow: 'none',
+        },
+      },
+    },
+
+    MuiDialog: {
+      styleOverrides: {
+        paper: {
+          backgroundColor: palette.background.paper,
+          border: `1px solid ${palette.border.subtle}`,
+          backgroundImage: isDark
+            ? 'linear-gradient(180deg, rgba(255,255,255,0.02), transparent)'
+            : 'linear-gradient(180deg, rgba(0,0,0,0.02), transparent)',
+        },
+      },
+    },
+
+    MuiDrawer: {
+      styleOverrides: {
+        paper: {
+          backgroundColor: palette.background.paper,
+          borderRight: `1px solid ${palette.border.subtle}`,
+        },
+      },
+    },
+
+    MuiSnackbarContent: {
+      styleOverrides: {
+        root: {
+          border: `1px solid ${palette.border.subtle}`,
+          backgroundColor: palette.background.elevated,
+        },
+      },
+    },
+
+    MuiTableCell: {
+      styleOverrides: {
+        root: {
+          borderBottom: `1px solid ${palette.border.subtle}`,
+        },
+        head: {
+          color: palette.text.secondary,
+          fontWeight: 600,
+          backgroundColor: alpha(palette.text.primary, isDark ? 0.04 : 0.03),
         },
       },
     },
@@ -657,6 +728,7 @@ const createBaseTheme = (mode) => {
   const palette = {
     mode,
     ...PALETTE_MODES[mode],
+    divider: PALETTE_MODES[mode].border.subtle,
   };
   
   const theme = createTheme({

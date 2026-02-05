@@ -143,6 +143,87 @@ class ConversationService:
             tool_name, status, args_str, result_str = parts
             return tool_name, status, args_str, result_str
         
+        def _find_tool_marker_end(text: str, start: int) -> int:
+            """
+            Find the end index of a [[TOOL:...]] marker starting at 'start'.
+            Uses bracket depth to handle nested JSON.
+            """
+            depth = 0
+            in_string = False
+            escape_next = False
+
+            for i in range(start, len(text)):
+                if escape_next:
+                    escape_next = False
+                    continue
+
+                char = text[i]
+
+                if char == '\\' and in_string:
+                    escape_next = True
+                    continue
+
+                if char == '"':
+                    in_string = not in_string
+                    continue
+
+                if not in_string:
+                    if char == '[':
+                        depth += 1
+                    elif char == ']':
+                        depth -= 1
+                        if depth == 0:
+                            return i
+            return -1
+
+        def _extract_tools_from_text(text: str):
+            """
+            Extract tool markers from full response text (handles streamed chunks).
+            Returns tools list in display order, with 'done' overriding 'running'.
+            """
+            if not text or '[[TOOL:' not in text:
+                return []
+
+            tools = []
+            i = 0
+            while i < len(text):
+                start = text.find('[[TOOL:', i)
+                if start == -1:
+                    break
+                end = _find_tool_marker_end(text, start)
+                if end == -1:
+                    i = start + 7
+                    continue
+                marker = text[start:end + 1]
+                parsed = _parse_tool_marker(marker)
+                if parsed:
+                    tool_name, status, args_str, result_str = parsed
+                    if status == 'running':
+                        tools.append({
+                            'name': tool_name,
+                            'status': 'running',
+                            'args': args_str,
+                            'result': result_str
+                        })
+                    elif status == 'done':
+                        updated = False
+                        for tool in tools:
+                            if tool['name'] == tool_name and tool['status'] == 'running':
+                                tool['status'] = 'done'
+                                tool['args'] = args_str
+                                tool['result'] = result_str
+                                updated = True
+                                break
+                        if not updated:
+                            tools.append({
+                                'name': tool_name,
+                                'status': 'done',
+                                'args': args_str,
+                                'result': result_str
+                            })
+                i = end + 1
+            return tools
+        
         try:
             # Fetch existing conversation history for context
             conv_data = ConversationRepository.get(conversation_id)
@@ -261,6 +342,12 @@ class ConversationService:
                     
                     if was_aborted and response_text:
                         response_text += "\n\n_(Response stopped by user)_"
+                    
+                    # Fallback: re-parse tool markers from full response text.
+                    # This handles cases where markers are split across stream chunks.
+                    parsed_tools = _extract_tools_from_text(response_text)
+                    if parsed_tools:
+                        tools_used = parsed_tools
                     
                     ConversationRepository.store_message(
                         conversation_id, 'ai', response_text, user_id,

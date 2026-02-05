@@ -311,16 +311,26 @@ function parseMessageSegments(text, thinkingField = null, toolsField = null) {
   const hasToolMarkers = text.includes('[[TOOL:');
   const hasThinkingMarkers = text.includes('[[THINKING:');
 
-  if (hasToolMarkers || hasThinkingMarkers) {
+  // If there are inline TOOL markers, parse them (live streaming case)
+  if (hasToolMarkers) {
     parseMarkersInline(text, segments, thinkingField);
   } else {
-    if (Array.isArray(toolsField)) {
+    // No inline tool markers - use stored toolsField (history case)
+    if (Array.isArray(toolsField) && toolsField.length > 0) {
       toolsField.forEach(tool => {
         segments.push({ type: 'tool', name: tool.name, status: tool.status || 'done', args: tool.args, result: tool.result });
       });
     }
-    const cleanText = text.trim();
-    if (cleanText) segments.push({ type: 'text', content: cleanText });
+    
+    // Parse thinking markers if present, otherwise just use clean text
+    if (hasThinkingMarkers) {
+      // Strip thinking markers and add remaining text
+      const cleanText = stripThinkingMarkers(text).trim();
+      if (cleanText) segments.push({ type: 'text', content: cleanText });
+    } else {
+      const cleanText = text.trim();
+      if (cleanText) segments.push({ type: 'text', content: cleanText });
+    }
   }
   return segments;
 }

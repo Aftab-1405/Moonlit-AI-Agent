@@ -1,23 +1,15 @@
 import { useState, useEffect, useMemo, useCallback, memo } from 'react';
-import { Box, Typography, Collapse, useTheme, ButtonBase } from '@mui/material';
+import { Box, Typography, Collapse, useTheme, ButtonBase, Link } from '@mui/material';
 import { alpha, keyframes } from '@mui/material/styles';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
-import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
-import BubbleChartRoundedIcon from '@mui/icons-material/BubbleChartRounded';
-import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
-import TableChartRoundedIcon from '@mui/icons-material/TableChartRounded';
-import CodeRoundedIcon from '@mui/icons-material/CodeRounded';
-import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
-import DataArrayRoundedIcon from '@mui/icons-material/DataArrayRounded';
-import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
-import ViewColumnRoundedIcon from '@mui/icons-material/ViewColumnRounded';
-import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
-import ErrorRoundedIcon from '@mui/icons-material/ErrorRounded';
+import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
+import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
+import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
 import Editor from '@monaco-editor/react';
 
 // =============================================================================
-// KEYFRAME ANIMATIONS (MUI keyframes)
+// KEYFRAME ANIMATIONS
 // =============================================================================
 
 const spin = keyframes`
@@ -25,24 +17,9 @@ const spin = keyframes`
   to { transform: rotate(360deg); }
 `;
 
-const dotPulse = keyframes`
-  0%, 80%, 100% { opacity: 0.3; }
-  40% { opacity: 1; }
-`;
-
-const shimmer = keyframes`
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-`;
-
-const fadeSlideIn = keyframes`
-  0% { opacity: 0; transform: translateY(-4px); }
-  100% { opacity: 1; transform: translateY(0); }
-`;
-
-const gentlePulse = keyframes`
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+const fadeIn = keyframes`
+  from { opacity: 0; }
+  to { opacity: 1; }
 `;
 
 // =============================================================================
@@ -52,19 +29,18 @@ const gentlePulse = keyframes`
 const MONACO_OPTIONS = {
   readOnly: true,
   minimap: { enabled: false },
-  fontSize: 12,
+  fontSize: 13,
   lineNumbers: 'off',
   folding: false,
   scrollBeyondLastLine: false,
   automaticLayout: true,
   wordWrap: 'on',
-  padding: { top: 10, bottom: 10 },
+  padding: { top: 12, bottom: 12 },
   renderLineHighlight: 'none',
   scrollbar: {
     vertical: 'auto',
-    horizontal: 'auto',
+    horizontal: 'hidden',
     verticalScrollbarSize: 6,
-    horizontalScrollbarSize: 6,
   },
   overviewRulerLanes: 0,
   hideCursorInOverviewRuler: true,
@@ -73,20 +49,18 @@ const MONACO_OPTIONS = {
   contextmenu: false,
 };
 
-const TOOL_CONFIG = {
-  'get_connection_status': { action: 'Checking connection', pastAction: 'Checked connection', icon: LinkRoundedIcon },
-  'get_database_list': { action: 'Listing databases', pastAction: 'Listed databases', icon: StorageRoundedIcon },
-  'get_database_schema': { action: 'Fetching schema', pastAction: 'Fetched schema', icon: TableChartRoundedIcon },
-  'get_table_columns': { action: 'Getting table structure', pastAction: 'Got table structure', icon: ViewColumnRoundedIcon },
-  'execute_query': { action: 'Running query', pastAction: 'Executed query', icon: PlayArrowRoundedIcon },
-  'get_recent_queries': { action: 'Fetching query history', pastAction: 'Fetched query history', icon: HistoryRoundedIcon },
-  'get_sample_data': { action: 'Getting sample data', pastAction: 'Got sample data', icon: DataArrayRoundedIcon },
-  'get_table_indexes': { action: 'Fetching indexes', pastAction: 'Fetched indexes', icon: DataArrayRoundedIcon },
-  'get_table_constraints': { action: 'Fetching constraints', pastAction: 'Fetched constraints', icon: TableChartRoundedIcon },
-  'get_foreign_keys': { action: 'Fetching foreign keys', pastAction: 'Fetched foreign keys', icon: LinkRoundedIcon },
+const TOOL_ACTIONS = {
+  'get_connection_status': { running: 'Checking connection status', done: 'Checked connection status' },
+  'get_database_list': { running: 'Listing available databases', done: 'Listed available databases' },
+  'get_database_schema': { running: 'Fetching database schema', done: 'Fetched database schema' },
+  'get_table_columns': { running: 'Getting table structure', done: 'Got table structure' },
+  'execute_query': { running: 'Executing SQL query', done: 'Executed SQL query' },
+  'get_recent_queries': { running: 'Fetching query history', done: 'Fetched query history' },
+  'get_sample_data': { running: 'Getting sample data', done: 'Got sample data' },
+  'get_table_indexes': { running: 'Fetching indexes', done: 'Fetched indexes' },
+  'get_table_constraints': { running: 'Fetching constraints', done: 'Fetched constraints' },
+  'get_foreign_keys': { running: 'Fetching foreign keys', done: 'Fetched foreign keys' },
 };
-
-const DOT_INDICES = [0, 1, 2];
 
 // =============================================================================
 // UTILITY FUNCTIONS
@@ -108,41 +82,14 @@ function formatToolName(name) {
 function isSemanticFailure(name, result) {
   if (!result) return false;
   if (result.success === false || result.error) return true;
-
   switch (name) {
-    case 'get_connection_status':
-      return result.connected === false;
-    case 'get_database_list':
-      return (result.count ?? result.databases?.length ?? 0) === 0;
-    case 'get_database_schema':
-      return (result.table_count ?? result.tables?.length ?? 0) === 0;
-    case 'get_table_columns':
-      return (result.column_count ?? result.columns?.length ?? 0) === 0;
-    case 'get_sample_data':
-      return (result.row_count ?? 0) === 0;
-    default:
-      return false;
+    case 'get_connection_status': return result.connected === false;
+    case 'get_database_list': return (result.count ?? result.databases?.length ?? 0) === 0;
+    case 'get_database_schema': return (result.table_count ?? result.tables?.length ?? 0) === 0;
+    case 'get_table_columns': return (result.column_count ?? result.columns?.length ?? 0) === 0;
+    case 'get_sample_data': return (result.row_count ?? 0) === 0;
+    default: return false;
   }
-}
-
-function getResultSummary(name, result) {
-  if (!result) return '';
-  if (result.success === false || result.error) return 'failed';
-
-  const summaries = {
-    'get_connection_status': () => result.connected ? `${result.database || 'connected'}` : 'not connected',
-    'get_database_list': () => `${result.count ?? result.databases?.length ?? 0} found`,
-    'get_database_schema': () => `${result.table_count ?? result.tables?.length ?? 0} tables`,
-    'get_table_columns': () => `${result.column_count ?? result.columns?.length ?? 0} columns`,
-    'execute_query': () => `${result.row_count ?? 0} rows`,
-    'get_recent_queries': () => `${result.count ?? 0} queries`,
-    'get_sample_data': () => `${result.row_count ?? 0} rows`,
-    'get_table_indexes': () => `${result.count ?? result.indexes?.length ?? 0} indexes`,
-    'get_table_constraints': () => `${result.count ?? result.constraints?.length ?? 0} constraints`,
-    'get_foreign_keys': () => `${result.count ?? result.foreign_keys?.length ?? 0} relationships`,
-  };
-
-  return summaries[name]?.() || 'done';
 }
 
 function getDetailedResult(name, result) {
@@ -156,7 +103,6 @@ function getDetailedResult(name, result) {
       if (!result.connected) return 'Not connected to any database';
       let msg = `Connected to ${result.database || 'database'}`;
       if (result.db_type) msg += ` (${result.db_type.toUpperCase()})`;
-      if (result.host) msg += ` on ${result.host}`;
       return msg;
     },
     'get_database_list': () => {
@@ -170,8 +116,7 @@ function getDetailedResult(name, result) {
     },
     'get_table_columns': () => {
       const count = result.column_count ?? result.columns?.length ?? 0;
-      const cols = result.columns?.slice(0, 5).join(', ') || '';
-      return `Table has ${count} columns${cols ? `: ${cols}${count > 5 ? '...' : ''}` : ''}`;
+      return `Table has ${count} columns`;
     },
     'execute_query': () => {
       const rowCount = result.row_count ?? 0;
@@ -180,71 +125,122 @@ function getDetailedResult(name, result) {
       if (result.truncated && totalRows > rowCount) {
         msg += ` (of ${totalRows.toLocaleString()} total)`;
       }
-      if (result.column_count) msg += ` with ${result.column_count} columns`;
       return msg;
     },
     'get_recent_queries': () => `Found ${result.count ?? 0} recent queries`,
-    'get_sample_data': () => {
-      const count = result.row_count ?? 0;
-      return `Retrieved ${count} sample row${count !== 1 ? 's' : ''} from ${result.table || 'table'}`;
-    },
-    'get_table_indexes': () => {
-      const count = result.count ?? result.indexes?.length ?? 0;
-      const indexes = result.indexes?.slice(0, 3).map(i => i.index_name).join(', ') || '';
-      return `Found ${count} index${count !== 1 ? 'es' : ''} on ${result.table || 'table'}${indexes ? `: ${indexes}${count > 3 ? '...' : ''}` : ''}`;
-    },
-    'get_table_constraints': () => {
-      const count = result.count ?? result.constraints?.length ?? 0;
-      return `Found ${count} constraint${count !== 1 ? 's' : ''} on ${result.table || 'table'}`;
-    },
-    'get_foreign_keys': () => {
-      const count = result.count ?? result.foreign_keys?.length ?? 0;
-      return `Found ${count} foreign key relationship${count !== 1 ? 's' : ''}${result.table ? ` for ${result.table}` : ''}`;
-    },
+    'get_sample_data': () => `Retrieved ${result.row_count ?? 0} sample rows from ${result.table || 'table'}`,
+    'get_table_indexes': () => `Found ${result.count ?? result.indexes?.length ?? 0} indexes`,
+    'get_table_constraints': () => `Found ${result.count ?? result.constraints?.length ?? 0} constraints`,
+    'get_foreign_keys': () => `Found ${result.count ?? result.foreign_keys?.length ?? 0} foreign key relationships`,
   };
 
   return details[name]?.() || 'Completed successfully';
 }
 
 // =============================================================================
-// SUB-COMPONENTS
+// THINKING STEP COMPONENT (Claude-style)
 // =============================================================================
 
-const AnimatedDots = memo(() => (
-  <Box component="span" sx={{ display: 'inline-flex', gap: '2px', ml: 0.5 }}>
-    {DOT_INDICES.map((i) => (
-      <Box
-        key={i}
-        component="span"
-        sx={{
-          width: 3,
-          height: 3,
-          borderRadius: '50%',
-          bgcolor: 'currentColor',
-          animation: `${dotPulse} 1.4s ease-in-out infinite`,
-          animationDelay: `${i * 0.16}s`,
-        }}
-      />
-    ))}
-  </Box>
-));
-AnimatedDots.displayName = 'AnimatedDots';
+const ThinkingStep = memo(({ step }) => {
+  const [showMore, setShowMore] = useState(false);
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+  
+  const isActive = !step.isComplete;
+  const content = step.content || '';
+  const lines = content.split('\n');
+  const isLong = lines.length > 6 || content.length > 400;
+  const displayContent = showMore ? content : lines.slice(0, 6).join('\n');
 
-/**
- * Individual step row
- */
-const StepRow = memo(({ step }) => {
+  return (
+    <Box
+      sx={{
+        animation: `${fadeIn} 0.2s ease-out`,
+        pl: 3,
+        py: 1.5,
+        borderLeft: '2px solid',
+        borderColor: isDark 
+          ? alpha(theme.palette.text.primary, 0.08)
+          : alpha(theme.palette.text.primary, 0.06),
+      }}
+    >
+      {/* Icon and content */}
+      <Box sx={{ display: 'flex', gap: 1.5 }}>
+        <AccessTimeRoundedIcon
+          sx={{
+            fontSize: 18,
+            color: alpha(theme.palette.info.main, isDark ? 0.7 : 0.6),
+            mt: 0.25,
+            flexShrink: 0,
+          }}
+        />
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          {content ? (
+            <>
+              <Typography
+                component="div"
+                sx={{
+                  color: alpha(theme.palette.text.primary, isDark ? 0.85 : 0.8),
+                  fontSize: '0.9rem',
+                  lineHeight: 1.65,
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  '& strong': { fontWeight: 600 },
+                  '& ul, & ol': { pl: 2.5, my: 1 },
+                  '& li': { mb: 0.5 },
+                }}
+              >
+                {displayContent}
+                {!showMore && isLong && '...'}
+              </Typography>
+              {isLong && (
+                <Link
+                  component="button"
+                  onClick={() => setShowMore(!showMore)}
+                  sx={{
+                    mt: 0.75,
+                    fontSize: '0.85rem',
+                    color: alpha(theme.palette.text.secondary, 0.6),
+                    textDecoration: 'none',
+                    cursor: 'pointer',
+                    '&:hover': {
+                      color: alpha(theme.palette.text.secondary, 0.8),
+                      textDecoration: 'underline',
+                    },
+                  }}
+                >
+                  {showMore ? 'Show less' : 'Show more'}
+                </Link>
+              )}
+            </>
+          ) : (
+            <Typography
+              sx={{
+                color: alpha(theme.palette.text.secondary, 0.5),
+                fontSize: '0.9rem',
+                fontStyle: 'italic',
+              }}
+            >
+              {isActive ? 'Thinking...' : 'Thought process'}
+            </Typography>
+          )}
+        </Box>
+      </Box>
+    </Box>
+  );
+});
+ThinkingStep.displayName = 'ThinkingStep';
+
+// =============================================================================
+// TOOL STEP COMPONENT (Claude-style)
+// =============================================================================
+
+const ToolStep = memo(({ step }) => {
   const [expanded, setExpanded] = useState(false);
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
 
-  const stepType = step?.type || '';
-  const isThinking = stepType === 'thinking';
-  const isTool = stepType === 'tool';
-  const isValid = isThinking || isTool;
-
   const { parsedArgs, parsedResult, isError, isRunning } = useMemo(() => {
-    if (!isTool || !step) return { parsedArgs: null, parsedResult: null, isError: false, isRunning: false };
     const args = parseJSON(step.args);
     const result = parseJSON(step.result);
     const running = step.status === 'running';
@@ -254,343 +250,179 @@ const StepRow = memo(({ step }) => {
       isRunning: running,
       isError: step.status === 'error' || isSemanticFailure(step.name, result),
     };
-  }, [isTool, step]);
+  }, [step]);
 
-  const config = useMemo(() => {
-    const name = step?.name;
-    if (!isTool || !name) return { action: 'Processing', pastAction: 'Processed', icon: CodeRoundedIcon };
-    return TOOL_CONFIG[name] || {
-      action: formatToolName(name),
-      pastAction: formatToolName(name),
-      icon: CodeRoundedIcon,
-    };
-  }, [isTool, step]);
+  const actionText = useMemo(() => {
+    const config = TOOL_ACTIONS[step.name];
+    if (config) return isRunning ? config.running : config.done;
+    return formatToolName(step.name);
+  }, [step.name, isRunning]);
 
-  const isThinkingActive = isThinking && step && !step.isComplete;
-
-  useEffect(() => {
-    if (isThinking && !step?.isComplete && step?.content) {
-      setExpanded(true);
-    }
-  }, [isThinking, step?.isComplete, step?.content]);
-
-  const hasDetails = useMemo(() => {
-    if (!step) return false;
-    if (isThinking) return step.content && step.content.trim();
-    if (isTool) return parsedArgs?.query || parsedResult;
-    return false;
-  }, [isThinking, isTool, step, parsedArgs, parsedResult]);
-
-  const handleToggle = useCallback(() => {
-    if (hasDetails) setExpanded(prev => !prev);
-  }, [hasDetails]);
-
-  const statusIcon = useMemo(() => {
-    if (isThinking) {
-      return (
-        <BubbleChartRoundedIcon
-          sx={{
-            fontSize: 14,
-            color: (theme) => alpha(theme.palette.info.main, isDark ? 0.7 : 0.6),
-            opacity: isThinkingActive ? 1 : 0.6,
-            ...(isThinkingActive && { animation: `${gentlePulse} 1.5s ease-in-out infinite` }),
-          }}
-        />
-      );
-    }
-    if (isRunning) {
-      return (
-        <AutorenewRoundedIcon
-          sx={{
-            fontSize: 14,
-            color: (theme) => alpha(theme.palette.primary.main, 0.7),
-            animation: `${spin} 1s linear infinite`,
-          }}
-        />
-      );
-    }
-    if (isError) {
-      return (
-        <ErrorRoundedIcon
-          sx={{ fontSize: 14, color: (theme) => alpha(theme.palette.error.main, 0.7) }}
-        />
-      );
-    }
-    return (
-      <CheckCircleRoundedIcon
-        sx={{ fontSize: 14, color: (theme) => alpha(theme.palette.success.main, isDark ? 0.6 : 0.5) }}
-      />
-    );
-  }, [isThinking, isThinkingActive, isRunning, isError, isDark]);
-
-  const displayText = useMemo(() => {
-    if (isThinking) return isThinkingActive ? 'Thinking' : 'Thought process';
-    if (isTool && config) {
-      return isRunning ? config.action : config.pastAction;
-    }
-    return '';
-  }, [isThinking, isThinkingActive, isTool, isRunning, config]);
-
-  const resultBadge = useMemo(() => {
-    const name = step?.name;
-    if (!isTool || isRunning || !parsedResult || !name) return null;
-    return getResultSummary(name, parsedResult);
-  }, [isTool, isRunning, parsedResult, step]);
+  const hasDetails = parsedArgs?.query || parsedResult;
 
   const queryHeight = useMemo(() => {
     const query = parsedArgs?.query;
-    if (!query) return 60;
+    if (!query) return 80;
     const lineCount = query.split('\n').length;
-    return Math.min(Math.max(60, (lineCount * 18) + 20), 350);
+    return Math.min(Math.max(80, (lineCount * 20) + 24), 300);
   }, [parsedArgs]);
 
-  const filteredParams = useMemo(() => {
-    if (!parsedArgs) return [];
-    return Object.entries(parsedArgs).filter(([key, value]) =>
-      !['query', 'rationale'].includes(key) && value != null
-    );
-  }, [parsedArgs]);
-
-  const ToolIcon = config?.icon;
-
-  if (!isValid) return null;
+  const StatusIcon = isRunning 
+    ? AutorenewRoundedIcon 
+    : isError 
+      ? ErrorOutlineRoundedIcon 
+      : CheckCircleOutlineRoundedIcon;
 
   return (
     <Box
       sx={{
-        borderBottom: (theme) => `1px solid ${alpha(theme.palette.divider, 0.5)}`,
-        '&:last-child': { borderBottom: 'none' },
-        animation: `${fadeSlideIn} 0.2s ease-out`,
-        ...(isRunning && {
-          position: 'relative',
-          '&::before': {
-            content: '""',
-            position: 'absolute',
-            inset: 0,
-            background: (theme) => `linear-gradient(90deg, transparent, ${alpha(theme.palette.primary.main, 0.03)}, transparent)`,
-            backgroundSize: '200% 100%',
-            animation: `${shimmer} 2s ease-in-out infinite`,
-            pointerEvents: 'none',
-          },
-        }),
+        animation: `${fadeIn} 0.2s ease-out`,
+        pl: 3,
+        py: 1,
+        borderLeft: '2px solid',
+        borderColor: isDark 
+          ? alpha(theme.palette.text.primary, 0.08)
+          : alpha(theme.palette.text.primary, 0.06),
       }}
     >
+      {/* Status row */}
       <ButtonBase
-        onClick={handleToggle}
+        onClick={() => hasDetails && setExpanded(!expanded)}
+        disabled={!hasDetails}
         sx={{
           width: '100%',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          px: 1.5,
-          py: 1,
+          justifyContent: 'flex-start',
+          gap: 1.5,
+          py: 0.5,
+          px: 0,
           cursor: hasDetails ? 'pointer' : 'default',
-          transition: (theme) => theme.transitions.create(['background-color'], { duration: 200 }),
-          '&:hover': hasDetails ? {
-            bgcolor: (theme) => alpha(theme.palette.text.primary, 0.02),
+          borderRadius: 0,
+          bgcolor: 'transparent',
+          '&:hover .step-text': hasDetails ? {
+            color: alpha(theme.palette.text.primary, isDark ? 0.95 : 0.85),
+          } : {},
+          '&:hover .step-arrow': hasDetails ? {
+            color: alpha(theme.palette.text.secondary, 0.6),
           } : {},
         }}
         disableRipple
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1, minWidth: 0 }}>
-          {statusIcon}
-          {isTool && ToolIcon && (
-            <ToolIcon sx={{ fontSize: 13, color: (theme) => alpha(theme.palette.text.secondary, 0.4) }} />
-          )}
-          <Typography
-            variant="body2"
+        <StatusIcon
+          sx={{
+            fontSize: 18,
+            flexShrink: 0,
+            color: isRunning
+              ? alpha(theme.palette.primary.main, 0.7)
+              : isError
+                ? alpha(theme.palette.error.main, 0.6)
+                : alpha(theme.palette.success.main, isDark ? 0.6 : 0.5),
+            ...(isRunning && {
+              animation: `${spin} 1s linear infinite`,
+            }),
+          }}
+        />
+        <Typography
+          className="step-text"
+          sx={{
+            color: alpha(theme.palette.text.primary, isDark ? 0.75 : 0.65),
+            fontSize: '0.9rem',
+            fontWeight: 500,
+            transition: 'color 0.15s ease',
+          }}
+        >
+          {actionText}
+        </Typography>
+        {hasDetails && (
+          <KeyboardArrowDownIcon
+            className="step-arrow"
             sx={{
-              color: (theme) => alpha(theme.palette.text.secondary, 0.7),
-              fontSize: '0.8rem',
-              fontWeight: 400,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
+              fontSize: 16,
+              color: alpha(theme.palette.text.secondary, 0.35),
+              transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+              transition: 'transform 0.2s ease, color 0.15s ease',
+              ml: 'auto',
             }}
-          >
-            {displayText}
-            {(isThinkingActive || isRunning) && <AnimatedDots />}
-          </Typography>
-        </Box>
-        
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0 }}>
-          {resultBadge && !expanded && (
-            <Typography
-              variant="caption"
-              sx={{
-                color: (theme) => isError 
-                  ? alpha(theme.palette.error.main, 0.6)
-                  : alpha(theme.palette.text.secondary, 0.45),
-                fontSize: '0.65rem',
-              }}
-            >
-              {resultBadge}
-            </Typography>
-          )}
-          {hasDetails && (
-            <KeyboardArrowDownIcon
-              sx={{
-                fontSize: 16,
-                color: (theme) => alpha(theme.palette.text.secondary, 0.35),
-                transform: expanded ? 'rotate(0deg)' : 'rotate(-90deg)',
-                transition: 'transform 0.15s ease',
-              }}
-            />
-          )}
-        </Box>
+          />
+        )}
       </ButtonBase>
 
+      {/* Expanded details */}
       {hasDetails && (
-        <Collapse in={expanded} timeout={120} unmountOnExit>
-          <Box sx={{ px: 1.5, pb: 1.5, pt: 0.5 }}>
-            {isThinking && step.content && (
-              <Typography
-                variant="body2"
-                sx={{
-                  color: (theme) => alpha(theme.palette.text.secondary, 0.6),
-                  fontSize: '0.75rem',
-                  lineHeight: 1.6,
-                  whiteSpace: 'pre-wrap',
-                  maxHeight: 150,
-                  overflow: 'auto',
-                  fontStyle: 'italic',
-                }}
-              >
-                {step.content}
-              </Typography>
+        <Collapse in={expanded} timeout={150} unmountOnExit>
+          <Box sx={{ pt: 1.5, pl: 4.25 }}>
+            {/* Query */}
+            {parsedArgs?.query && (
+              <Box sx={{ mb: 1.5 }}>
+                <Typography
+                  sx={{
+                    color: alpha(theme.palette.text.secondary, 0.5),
+                    fontSize: '0.75rem',
+                    fontWeight: 500,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    mb: 0.75,
+                  }}
+                >
+                  Query
+                </Typography>
+                <Box
+                  sx={{
+                    borderRadius: 2,
+                    overflow: 'hidden',
+                    height: queryHeight,
+                    border: '1px solid',
+                    borderColor: isDark 
+                      ? alpha(theme.palette.text.primary, 0.1)
+                      : alpha(theme.palette.text.primary, 0.08),
+                    bgcolor: isDark 
+                      ? alpha(theme.palette.background.default, 0.5)
+                      : theme.palette.background.paper,
+                  }}
+                >
+                  <Editor
+                    height="100%"
+                    language="sql"
+                    theme={isDark ? 'vs-dark' : 'light'}
+                    value={parsedArgs.query}
+                    options={MONACO_OPTIONS}
+                    loading={
+                      <Box sx={{ p: 1.5, color: 'text.secondary', fontSize: '0.8rem' }}>
+                        Loading...
+                      </Box>
+                    }
+                  />
+                </Box>
+              </Box>
             )}
 
-            {isTool && (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                {parsedArgs?.rationale && (
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      color: (theme) => alpha(theme.palette.text.secondary, 0.55),
-                      fontSize: '0.75rem',
-                      fontStyle: 'italic',
-                      lineHeight: 1.5,
-                      pb: 0.5,
-                      borderBottom: (theme) => `1px dashed ${alpha(theme.palette.divider, 0.5)}`,
-                    }}
-                  >
-                    {parsedArgs.rationale}
-                  </Typography>
-                )}
-
-                {parsedArgs?.query && (
-                  <Box>
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        color: (theme) => alpha(theme.palette.text.secondary, 0.5),
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.06em',
-                        fontSize: '0.6rem',
-                        fontWeight: 500,
-                        mb: 0.5,
-                        display: 'block',
-                      }}
-                    >
-                      Query
-                    </Typography>
-                    <Box
-                      sx={{
-                        borderRadius: 0.5,
-                        overflow: 'hidden',
-                        border: (theme) => `1px solid ${alpha(theme.palette.divider, 0.5)}`,
-                        height: queryHeight,
-                      }}
-                    >
-                      <Editor
-                        height="100%"
-                        language="sql"
-                        theme={isDark ? 'vs-dark' : 'light'}
-                        value={parsedArgs.query}
-                        options={MONACO_OPTIONS}
-                        loading={<Box sx={{ p: 1, color: 'text.secondary', fontSize: '0.7rem' }}>Loading...</Box>}
-                      />
-                    </Box>
-                  </Box>
-                )}
-
-                {filteredParams.length > 0 && (
-                  <Box>
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        color: (theme) => alpha(theme.palette.text.secondary, 0.5),
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.06em',
-                        fontSize: '0.6rem',
-                        fontWeight: 500,
-                        mb: 0.5,
-                        display: 'block',
-                      }}
-                    >
-                      Parameters
-                    </Typography>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                      {filteredParams.map(([key, value]) => (
-                        <Box
-                          key={key}
-                          sx={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 0.5,
-                            px: 0.75,
-                            py: 0.25,
-                            borderRadius: 0.5,
-                            bgcolor: (theme) => alpha(theme.palette.text.primary, 0.04),
-                          }}
-                        >
-                          <Typography
-                            variant="caption"
-                            sx={{ color: (theme) => alpha(theme.palette.text.secondary, 0.5), fontSize: '0.65rem' }}
-                          >
-                            {key}:
-                          </Typography>
-                          <Typography
-                            variant="caption"
-                            sx={{ fontWeight: 500, fontSize: '0.65rem', color: (theme) => alpha(theme.palette.text.primary, 0.65) }}
-                          >
-                            {String(value)}
-                          </Typography>
-                        </Box>
-                      ))}
-                    </Box>
-                  </Box>
-                )}
-
-                {parsedResult && !isRunning && (
-                  <Box>
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        color: (theme) => alpha(theme.palette.text.secondary, 0.5),
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.06em',
-                        fontSize: '0.6rem',
-                        fontWeight: 500,
-                        mb: 0.5,
-                        display: 'block',
-                      }}
-                    >
-                      Result
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        color: (theme) => isError 
-                          ? alpha(theme.palette.error.main, 0.75)
-                          : alpha(theme.palette.text.secondary, 0.65),
-                        fontSize: '0.75rem',
-                      }}
-                    >
-                      {getDetailedResult(step.name, parsedResult)}
-                    </Typography>
-                  </Box>
-                )}
+            {/* Result */}
+            {parsedResult && !isRunning && (
+              <Box>
+                <Typography
+                  sx={{
+                    color: alpha(theme.palette.text.secondary, 0.5),
+                    fontSize: '0.75rem',
+                    fontWeight: 500,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    mb: 0.5,
+                  }}
+                >
+                  Result
+                </Typography>
+                <Typography
+                  sx={{
+                    color: isError
+                      ? alpha(theme.palette.error.main, 0.8)
+                      : alpha(theme.palette.text.secondary, 0.7),
+                    fontSize: '0.875rem',
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {getDetailedResult(step.name, parsedResult)}
+                </Typography>
               </Box>
             )}
           </Box>
@@ -599,10 +431,49 @@ const StepRow = memo(({ step }) => {
     </Box>
   );
 });
-StepRow.displayName = 'StepRow';
+ToolStep.displayName = 'ToolStep';
 
 // =============================================================================
-// MAIN COMPONENT
+// DONE INDICATOR
+// =============================================================================
+
+const DoneIndicator = memo(() => {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1.5,
+        pl: 3,
+        py: 1,
+        animation: `${fadeIn} 0.3s ease-out`,
+      }}
+    >
+      <CheckCircleOutlineRoundedIcon
+        sx={{
+          fontSize: 18,
+          color: alpha(theme.palette.success.main, isDark ? 0.6 : 0.5),
+        }}
+      />
+      <Typography
+        sx={{
+          color: alpha(theme.palette.text.primary, isDark ? 0.7 : 0.6),
+          fontSize: '0.9rem',
+          fontWeight: 500,
+        }}
+      >
+        Done
+      </Typography>
+    </Box>
+  );
+});
+DoneIndicator.displayName = 'DoneIndicator';
+
+// =============================================================================
+// MAIN COMPONENT - StepsAccordion (Claude-style)
 // =============================================================================
 
 export const StepsAccordion = memo(({ steps, isStreaming }) => {
@@ -614,6 +485,32 @@ export const StepsAccordion = memo(({ steps, isStreaming }) => {
     Array.isArray(steps) ? steps.filter(s => s && s.type) : []
   , [steps]);
 
+  // Generate summary text from steps
+  const summaryText = useMemo(() => {
+    if (validSteps.length === 0) return '';
+    
+    // Get unique completed tool actions
+    const toolSteps = validSteps.filter(s => s.type === 'tool' && s.status !== 'running');
+    const actions = toolSteps.map(s => {
+      const config = TOOL_ACTIONS[s.name];
+      return config?.done || formatToolName(s.name);
+    });
+    
+    // Create short summary
+    if (actions.length === 0) return 'Processing...';
+    if (actions.length === 1) return actions[0];
+    if (actions.length === 2) return actions.join(', ');
+    return `${actions.slice(0, 2).join(', ')}, and more`;
+  }, [validSteps]);
+
+  const isAllComplete = useMemo(() => 
+    !isStreaming && validSteps.every(s => 
+      (s.type === 'thinking' && s.isComplete) || 
+      (s.type === 'tool' && s.status !== 'running')
+    )
+  , [isStreaming, validSteps]);
+
+  // Auto-collapse when streaming completes
   useEffect(() => {
     if (!isStreaming && validSteps.length > 0) {
       const timer = setTimeout(() => setExpanded(false), 800);
@@ -621,84 +518,76 @@ export const StepsAccordion = memo(({ steps, isStreaming }) => {
     }
   }, [isStreaming, validSteps.length]);
 
-  const stepCount = validSteps.length;
-
-  const hasActiveStep = useMemo(() =>
-    validSteps.some(s =>
-      (s.type === 'thinking' && !s.isComplete) ||
-      (s.type === 'tool' && s.status === 'running')
-    ), [validSteps]);
-
   const handleToggle = useCallback(() => setExpanded(prev => !prev), []);
 
-  if (stepCount === 0) return null;
+  if (validSteps.length === 0) return null;
 
   return (
-    <Box sx={{ mb: 1.5 }}>
+    <Box
+      sx={{
+        mb: 2,
+        animation: `${fadeIn} 0.2s ease-out`,
+      }}
+    >
+      {/* Header - Claude style with summary */}
       <ButtonBase
         onClick={handleToggle}
         sx={{
           width: '100%',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          px: 1.5,
-          py: 0.75,
-          borderRadius: expanded ? '4px 4px 0 0' : 1,
-          bgcolor: (theme) => alpha(theme.palette.text.primary, isDark ? 0.03 : 0.02),
-          border: (theme) => `1px solid ${alpha(theme.palette.divider, 0.5)}`,
-          borderBottom: expanded ? 'none' : undefined,
-          transition: (theme) => theme.transitions.create(['background-color'], { duration: 200 }),
-          '&:hover': {
-            bgcolor: (theme) => alpha(theme.palette.text.primary, isDark ? 0.05 : 0.03),
+          gap: 1,
+          py: 1,
+          px: 0,
+          borderRadius: 0,
+          justifyContent: 'flex-start',
+          bgcolor: 'transparent',
+          '&:hover .summary-text': {
+            color: alpha(theme.palette.text.primary, isDark ? 0.9 : 0.8),
+          },
+          '&:hover .summary-arrow': {
+            color: alpha(theme.palette.text.secondary, 0.6),
           },
         }}
         disableRipple
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-          <KeyboardArrowDownIcon
-            sx={{
-              fontSize: 16,
-              color: (theme) => alpha(theme.palette.text.secondary, 0.45),
-              transform: expanded ? 'rotate(0deg)' : 'rotate(-90deg)',
-              transition: 'transform 0.15s ease',
-            }}
-          />
-          <Typography
-            variant="body2"
-            sx={{
-              color: (theme) => alpha(theme.palette.text.secondary, 0.65),
-              fontSize: '0.8rem',
-              fontWeight: 450,
-            }}
-          >
-            {expanded ? 'Steps' : 'Show steps'}
-            {hasActiveStep && <AnimatedDots />}
-          </Typography>
-        </Box>
         <Typography
-          variant="caption"
+          className="summary-text"
           sx={{
-            color: (theme) => alpha(theme.palette.text.secondary, 0.4),
-            fontSize: '0.65rem',
+            color: alpha(theme.palette.text.secondary, isDark ? 0.65 : 0.55),
+            fontSize: '0.9rem',
+            fontWeight: 500,
+            transition: 'color 0.15s ease',
           }}
         >
-          {stepCount}
+          {summaryText}
         </Typography>
+        <KeyboardArrowDownIcon
+          className="summary-arrow"
+          sx={{
+            fontSize: 18,
+            color: alpha(theme.palette.text.secondary, 0.35),
+            transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+            transition: 'transform 0.2s ease, color 0.15s ease',
+          }}
+        />
       </ButtonBase>
 
+      {/* Steps content */}
       <Collapse in={expanded} timeout={150}>
-        <Box
-          sx={{
-            bgcolor: (theme) => alpha(theme.palette.text.primary, isDark ? 0.015 : 0.01),
-            border: (theme) => `1px solid ${alpha(theme.palette.divider, 0.5)}`,
-            borderTop: 'none',
-            borderRadius: '0 0 4px 4px',
-          }}
-        >
-          {validSteps.map((step, idx) => (
-            <StepRow key={`${idx}-${step.type}`} step={step} />
-          ))}
+        <Box sx={{ pt: 0.5 }}>
+          {validSteps.map((step, idx) => {
+            if (step.type === 'thinking') {
+              return <ThinkingStep key={`thinking-${idx}`} step={step} />;
+            }
+            if (step.type === 'tool') {
+              return <ToolStep key={`tool-${idx}-${step.name}`} step={step} />;
+            }
+            return null;
+          })}
+          
+          {/* Done indicator */}
+          {isAllComplete && <DoneIndicator />}
         </Box>
       </Collapse>
     </Box>
