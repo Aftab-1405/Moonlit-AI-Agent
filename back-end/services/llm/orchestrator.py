@@ -228,8 +228,8 @@ class ChatOrchestrator:
                     stream=True,
                     reasoning_effort=reasoning_effort,
                     max_completion_tokens=LLMClient.get_max_completion_tokens(),
-                    temperature=1,
-                    top_p=1
+                    temperature=0.2,
+                    top_p=0.2
                 )
             else:
                 # Final call without tools to get text response (non-reasoning)
@@ -237,7 +237,9 @@ class ChatOrchestrator:
                     model=model_name,
                     messages=messages,
                     stream=True,
-                    max_tokens=LLMClient.get_max_tokens()
+                    max_tokens=LLMClient.get_max_tokens(),
+                    temperature=0.2,
+                    top_p=0.2
                 )
             
             # Yield chunks as they arrive, handling reasoning tokens
