@@ -195,7 +195,7 @@ const AIMessage = memo(function AIMessage({ message, thinking, tools, onRunQuery
           <Avatar
             src="/product-logo.png"
             sx={{
-              width: 24, height: 24, bgcolor: 'transparent', flexShrink: 0, alignSelf: 'flex-start', mt: 0.5,
+              width: 24, height: 24, bgcolor: 'transparent', flexShrink: 0, alignSelf: 'flex-start', mt: 0,
               border: `1px solid ${alpha(theme.palette.primary.main, 0.3)}`,
               animation: isWaiting ? `${spin} 1s linear infinite` : 'none',
             }}

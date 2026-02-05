@@ -199,6 +199,7 @@ const MarkdownRenderer = memo(function MarkdownRenderer({ content, onRunQuery })
     wordBreak: 'break-word',
 
     '& p': { my: 1.5, lineHeight: 1.7 },
+    '& p:first-of-type': { mt: 0 },
     '& ul, & ol': { pl: 3, my: 1.5 },
     '& li': { mb: 0.5 },
     '& a': { color: 'primary.main', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } },

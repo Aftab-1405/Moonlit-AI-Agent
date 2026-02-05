@@ -548,7 +548,7 @@ export const StepsAccordion = memo(({ steps, isStreaming }) => {
           display: 'flex',
           alignItems: 'center',
           gap: 1,
-          py: 1,
+          py: 0.5,
           px: 0,
           borderRadius: 0,
           justifyContent: 'flex-start',
