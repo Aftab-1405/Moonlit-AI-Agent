@@ -188,6 +188,7 @@ async def get_user_settings(
     session: dict = Depends(get_session_data)
 ):
     """Get user settings from session."""
+    session = session or {}
     return {
         'connectionPersistenceMinutes': session.get('connectionPersistenceMinutes', 30)
     }
@@ -272,6 +273,12 @@ async def mark_user_session_active(
     stored_id = session.get('session_instance_id')
     db_config = session.get('db_config')
 
+    # Ignore heartbeats without an instance id to avoid extending activity
+    # for ambiguous clients/tabs.
+    if not incoming_id:
+        logger.warning("Ignoring session heartbeat without sessionInstanceId")
+        return {'status': 'success'}
+
     if incoming_id and stored_id and incoming_id != stored_id and db_config:
         # Treat as a new session instance (e.g., browser reopened)
         try:
@@ -291,9 +298,6 @@ async def mark_user_session_active(
                 'db_config_last_used_at': now,
             })
 
-    updates = {}
-    if incoming_id:
-        updates['session_instance_id'] = incoming_id
-
+    updates = {'session_instance_id': incoming_id}
     await update_session_data(request, updates)
     return {'status': 'success'}
