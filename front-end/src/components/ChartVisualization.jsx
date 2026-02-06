@@ -25,7 +25,6 @@ import {
   InputLabel,
   Tooltip as MuiTooltip,
   useTheme,
-  Chip,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
@@ -98,8 +97,8 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
     return { numericColumns: numeric, stringColumns: strings };
   }, [columns, result]);
 
-  // Derive actual column values from override or first available
-  const labelColumn = labelColumnOverride || stringColumns[0] || '';
+  // Derive column values with robust fallback for mixed and numeric-only results
+  const labelColumn = labelColumnOverride || stringColumns[0] || columns[0] || '';
   const valueColumn = valueColumnOverride || numericColumns[0] || '';
 
   // Chart configuration
@@ -129,6 +128,11 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
   const chartOptions = useMemo(() => ({
     responsive: true,
     maintainAspectRatio: false,
+    layout: {
+      padding: embedded
+        ? { top: 8, right: 8, bottom: 0, left: 8 }
+        : { top: 0, right: 0, bottom: 0, left: 0 },
+    },
     plugins: {
       legend: {
         display: chartType === 'pie' || chartType === 'doughnut',
@@ -160,7 +164,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
         beginAtZero: true,
       },
     },
-  }), [chartType, theme, isDark]);
+  }), [chartType, theme, isDark, embedded]);
 
   const handleDownload = useCallback(() => {
     if (chartRef.current) {
@@ -199,127 +203,124 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
-        minHeight: 400, // Match SQLResultsTable
+        minHeight: embedded ? 0 : 400,
         position: fullscreen ? 'fixed' : 'relative',
         inset: fullscreen ? 0 : 'auto',
         zIndex: fullscreen ? 9999 : 'auto',
         backgroundColor: fullscreen ? theme.palette.background.default : 'transparent',
       }}>
-        {/* Header - same structure as SQLResultsTable */}
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: 1,
-            px: 2,
-            py: embedded ? 1 : 1.5,
-            borderBottom: '1px solid',
-            borderColor: theme.palette.border?.subtle,
-            backgroundColor: theme.palette.action.hover,
-          }}
-        >
-          {/* Left side - Title and selectors */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {/* Back to Table View - only when viewMode is passed */}
-            {!embedded && viewMode && onViewModeChange && (
-              <MuiTooltip title="Table View">
+        {!embedded && (
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 1,
+              px: 2,
+              py: 1.5,
+              borderBottom: '1px solid',
+              borderColor: theme.palette.border?.subtle,
+              backgroundColor: theme.palette.action.hover,
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              {viewMode && onViewModeChange && (
+                <MuiTooltip title="Table View">
+                  <IconButton
+                    size="small"
+                    onClick={() => onViewModeChange('table')}
+                    sx={{
+                      color: 'text.secondary',
+                      '&:hover': { backgroundColor: theme.palette.action.hover },
+                    }}
+                  >
+                    <ArrowBackIcon sx={{ fontSize: 20 }} />
+                  </IconButton>
+                </MuiTooltip>
+              )}
+
+              <FormControl size="small" sx={{ minWidth: 100 }}>
+                <InputLabel>Label</InputLabel>
+                <Select
+                  value={labelColumn}
+                  label="Label"
+                  onChange={(e) => setLabelColumn(e.target.value)}
+                  sx={{ height: 32 }}
+                >
+                  {columns.map(col => (
+                    <MenuItem key={col} value={col}>{col}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <FormControl size="small" sx={{ minWidth: 100 }}>
+                <InputLabel>Value</InputLabel>
+                <Select
+                  value={valueColumn}
+                  label="Value"
+                  onChange={(e) => setValueColumn(e.target.value)}
+                  sx={{ height: 32 }}
+                >
+                  {numericColumns.map(col => (
+                    <MenuItem key={col} value={col}>{col}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <MuiTooltip title="Download PNG">
                 <IconButton
                   size="small"
-                  onClick={() => onViewModeChange('table')}
+                  onClick={handleDownload}
                   sx={{
                     color: 'text.secondary',
                     '&:hover': { backgroundColor: theme.palette.action.hover },
                   }}
                 >
-                  <ArrowBackIcon sx={{ fontSize: 20 }} />
+                  <FileDownloadOutlinedIcon sx={{ fontSize: 18 }} />
                 </IconButton>
               </MuiTooltip>
-            )}
-
-            {/* Column Selectors inline */}
-            <FormControl size="small" sx={{ minWidth: 100 }}>
-              <InputLabel>Label</InputLabel>
-              <Select
-                value={labelColumn}
-                label="Label"
-                onChange={(e) => setLabelColumn(e.target.value)}
-                sx={{ height: 32 }}
-              >
-                {columns.map(col => (
-                  <MenuItem key={col} value={col}>{col}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <FormControl size="small" sx={{ minWidth: 100 }}>
-              <InputLabel>Value</InputLabel>
-              <Select
-                value={valueColumn}
-                label="Value"
-                onChange={(e) => setValueColumn(e.target.value)}
-                sx={{ height: 32 }}
-              >
-                {numericColumns.map(col => (
-                  <MenuItem key={col} value={col}>{col}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Box>
-
-          {/* Right side - Controls */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <MuiTooltip title="Download PNG">
-              <IconButton
-                size="small"
-                onClick={handleDownload}
-                sx={{
-                  color: 'text.secondary',
-                  '&:hover': { backgroundColor: theme.palette.action.hover },
-                }}
-              >
-                <FileDownloadOutlinedIcon sx={{ fontSize: 18 }} />
-              </IconButton>
-            </MuiTooltip>
-            <MuiTooltip title={fullscreen ? 'Exit Fullscreen' : 'Fullscreen'}>
-              <IconButton
-                size="small"
-                onClick={() => setFullscreen(!fullscreen)}
-                sx={{
-                  color: 'text.secondary',
-                  '&:hover': { backgroundColor: theme.palette.action.hover },
-                }}
-              >
-                {fullscreen ? (
-                  <FullscreenExitRoundedIcon sx={{ fontSize: 18 }} />
-                ) : (
-                  <FullscreenRoundedIcon sx={{ fontSize: 18 }} />
-                )}
-              </IconButton>
-            </MuiTooltip>
-            {onClose && !embedded && (
-              <MuiTooltip title="Close">
+              <MuiTooltip title={fullscreen ? 'Exit Fullscreen' : 'Fullscreen'}>
                 <IconButton
                   size="small"
-                  onClick={onClose}
+                  onClick={() => setFullscreen(!fullscreen)}
                   sx={{
                     color: 'text.secondary',
                     '&:hover': { backgroundColor: theme.palette.action.hover },
                   }}
                 >
-                  <CloseRoundedIcon sx={{ fontSize: 18 }} />
+                  {fullscreen ? (
+                    <FullscreenExitRoundedIcon sx={{ fontSize: 18 }} />
+                  ) : (
+                    <FullscreenRoundedIcon sx={{ fontSize: 18 }} />
+                  )}
                 </IconButton>
               </MuiTooltip>
-            )}
+              {onClose && (
+                <MuiTooltip title="Close">
+                  <IconButton
+                    size="small"
+                    onClick={onClose}
+                    sx={{
+                      color: 'text.secondary',
+                      '&:hover': { backgroundColor: theme.palette.action.hover },
+                    }}
+                  >
+                    <CloseRoundedIcon sx={{ fontSize: 18 }} />
+                  </IconButton>
+                </MuiTooltip>
+              )}
+            </Box>
           </Box>
-        </Box>
+        )}
 
         {/* Chart Area - no padding to match TableContainer */}
         <Box
           className="chart-container"
           sx={{
             flex: 1,
-            minHeight: 250,
+            minHeight: embedded ? 0 : 250,
             overflow: 'hidden',
           }}
         >

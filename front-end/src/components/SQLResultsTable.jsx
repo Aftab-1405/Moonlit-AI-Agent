@@ -13,20 +13,17 @@ import {
   IconButton,
   Tooltip,
   Chip,
-  ToggleButton,
-  ToggleButtonGroup,
   TextField,
   InputAdornment,
   Snackbar,
 } from '@mui/material';
-import { useTheme, alpha } from '@mui/material/styles';
+import { useTheme } from '@mui/material/styles';
 import { useSettings } from '../contexts/SettingsContext';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import TimerOutlinedIcon from '@mui/icons-material/TimerOutlined';
-import DataArrayRoundedIcon from '@mui/icons-material/DataArrayRounded';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import AddchartIcon from '@mui/icons-material/Addchart';
 import ChartVisualization from './ChartVisualization';
@@ -226,25 +223,23 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
   );
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 400 }}>
-      {/* Header - Monochrome */}
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 1,
-          px: 2,
-          py: embedded ? 1 : 1.5,
-          borderBottom: '1px solid',
-          borderColor: theme.palette.border?.subtle,
-          backgroundColor: theme.palette.action.hover,
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {/* Chart View Button - only when not embedded */}
-          {!embedded && (
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: embedded ? 0 : 400 }}>
+      {!embedded && (
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 1,
+            px: 2,
+            py: 1.5,
+            borderBottom: '1px solid',
+            borderColor: theme.palette.border?.subtle,
+            backgroundColor: theme.palette.action.hover,
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Tooltip title="Chart View">
               <IconButton
                 size="small"
@@ -257,118 +252,116 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                 <AddchartIcon sx={{ fontSize: 20 }} />
               </IconButton>
             </Tooltip>
-          )}
-          <Chip
-            size="small"
-            label={`${searchQuery ? filteredData.length : row_count} rows`}
-            sx={{
-              height: 24,
-              backgroundColor: theme.palette.action.hover,
-              color: 'text.primary',
-              border: '1px solid',
-              borderColor: theme.palette.border?.subtle,
-            }}
-          />
-          {execution_time && (
             <Chip
               size="small"
-              icon={<TimerOutlinedIcon sx={{ fontSize: 12 }} />}
-              label={`${execution_time.toFixed(2)}s`}
-              sx={{
-                height: 24,
-                backgroundColor: theme.palette.action.disabledBackground,
-                '& .MuiChip-icon': { ml: 0.5, color: 'text.secondary' },
-              }}
-            />
-          )}
-          {truncated && (
-            <Chip
-              size="small"
-              label="Truncated"
+              label={`${searchQuery ? filteredData.length : row_count} rows`}
               sx={{
                 height: 24,
                 backgroundColor: theme.palette.action.hover,
-                color: 'text.secondary',
+                color: 'text.primary',
+                border: '1px solid',
+                borderColor: theme.palette.border?.subtle,
               }}
             />
-          )}
-        </Box>
+            {execution_time && (
+              <Chip
+                size="small"
+                icon={<TimerOutlinedIcon sx={{ fontSize: 12 }} />}
+                label={`${execution_time.toFixed(2)}s`}
+                sx={{
+                  height: 24,
+                  backgroundColor: theme.palette.action.disabledBackground,
+                  '& .MuiChip-icon': { ml: 0.5, color: 'text.secondary' },
+                }}
+              />
+            )}
+            {truncated && (
+              <Chip
+                size="small"
+                label="Truncated"
+                sx={{
+                  height: 24,
+                  backgroundColor: theme.palette.action.hover,
+                  color: 'text.secondary',
+                }}
+              />
+            )}
+          </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          {/* Search */}
-          <TextField
-            size="small"
-            placeholder="Search..."
-            value={searchQuery}
-            onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchRoundedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                </InputAdornment>
-              ),
-            }}
-            sx={{
-              width: 160,
-              '& .MuiOutlinedInput-root': {
-                height: 32,
-                backgroundColor: theme.palette.action.disabledBackground,
-                '& fieldset': { borderColor: theme.palette.border?.subtle },
-              },
-            }}
-          />
-
-
-          <Tooltip title={copied ? 'Copied!' : 'Copy as CSV'}>
-            <IconButton
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <TextField
               size="small"
-              onClick={handleCopyAsCSV}
-              sx={{
-                color: copied ? 'text.primary' : 'text.secondary',
-                '&:hover': { backgroundColor: theme.palette.action.hover },
+              placeholder="Search..."
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchRoundedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                  </InputAdornment>
+                ),
               }}
-            >
-              {copied ? (
-                <CheckRoundedIcon sx={{ fontSize: 18 }} />
-              ) : (
-                <ContentCopyRoundedIcon sx={{ fontSize: 18 }} />
-              )}
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Download CSV">
-            <IconButton
-              size="small"
-              onClick={handleDownloadCSV}
               sx={{
-                color: 'text.secondary',
-                '&:hover': { backgroundColor: theme.palette.action.hover },
+                width: 160,
+                '& .MuiOutlinedInput-root': {
+                  height: 32,
+                  backgroundColor: theme.palette.action.disabledBackground,
+                  '& fieldset': { borderColor: theme.palette.border?.subtle },
+                },
               }}
-            >
-              <FileDownloadOutlinedIcon sx={{ fontSize: 18 }} />
-            </IconButton>
-          </Tooltip>
-          {onClose && !embedded && (
-            <Tooltip title="Close">
+            />
+
+            <Tooltip title={copied ? 'Copied!' : 'Copy as CSV'}>
               <IconButton
                 size="small"
-                onClick={onClose}
+                onClick={handleCopyAsCSV}
+                sx={{
+                  color: copied ? 'text.primary' : 'text.secondary',
+                  '&:hover': { backgroundColor: theme.palette.action.hover },
+                }}
+              >
+                {copied ? (
+                  <CheckRoundedIcon sx={{ fontSize: 18 }} />
+                ) : (
+                  <ContentCopyRoundedIcon sx={{ fontSize: 18 }} />
+                )}
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Download CSV">
+              <IconButton
+                size="small"
+                onClick={handleDownloadCSV}
                 sx={{
                   color: 'text.secondary',
                   '&:hover': { backgroundColor: theme.palette.action.hover },
                 }}
               >
-                <CloseRoundedIcon sx={{ fontSize: 18 }} />
+                <FileDownloadOutlinedIcon sx={{ fontSize: 18 }} />
               </IconButton>
             </Tooltip>
-          )}
+            {onClose && (
+              <Tooltip title="Close">
+                <IconButton
+                  size="small"
+                  onClick={onClose}
+                  sx={{
+                    color: 'text.secondary',
+                    '&:hover': { backgroundColor: theme.palette.action.hover },
+                  }}
+                >
+                  <CloseRoundedIcon sx={{ fontSize: 18 }} />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Box>
         </Box>
-      </Box>
+      )}
 
       {/* Table with resizable columns */}
       <TableContainer
         sx={{
           flex: 1,
-          minHeight: 250, // Prevent shrinking
+          minHeight: embedded ? 0 : 250,
           cursor: resizing ? 'col-resize' : 'default',
           overflow: 'auto',
         }}

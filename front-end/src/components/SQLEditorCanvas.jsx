@@ -132,7 +132,8 @@ const StyledPanel = styled(Box, {
 // EXTRACTED COMPONENTS - Memoized and outside main component
 // ============================================================================
 
-const EmptyState = memo(function EmptyState({ icon: Icon, title, subtitle, textColor }) {
+const EmptyState = memo(function EmptyState({ icon: _Icon, title, subtitle, textColor }) {
+  const Icon = _Icon;
   return (
     <Box
       sx={{
@@ -330,7 +331,7 @@ function SQLEditorCanvas({
     borderColor: theme.palette.border?.subtle,
     backgroundColor: 'transparent',
     flexShrink: 0,
-  }), [isDark, theme]);
+  }), [theme]);
 
   const tabsStyles = useMemo(() => ({
     minHeight: 44,
@@ -354,7 +355,7 @@ function SQLEditorCanvas({
         backgroundColor: theme.palette.action.hover,
       },
     },
-  }), [isDark, theme]);
+  }), [theme]);
 
   const actionBarStyles = useMemo(() => ({
     display: 'flex',
@@ -387,6 +388,29 @@ function SQLEditorCanvas({
       borderColor: 'transparent',
     },
   }), [isDark, isRunning, textColor]);
+
+  const embeddedContentShellStyles = useMemo(() => ({
+    height: '100%',
+    minHeight: 0,
+    boxSizing: 'border-box',
+    px: { xs: 1, sm: 1.5 },
+    pt: { xs: 1, sm: 1.5 },
+    pb: { xs: 1, sm: 1.5 },
+    overflow: 'auto',
+    backgroundColor: 'transparent',
+  }), []);
+
+  const embeddedContentFrameStyles = useMemo(() => ({
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100%',
+    minHeight: 0,
+    borderRadius: 2,
+    border: '1px solid',
+    borderColor: theme.palette.border?.subtle || alpha(theme.palette.divider, isDark ? 0.16 : 0.2),
+    backgroundColor: alpha(theme.palette.background.paper, isDark ? 0.14 : 0.75),
+    overflow: 'hidden',
+  }), [theme, isDark]);
 
   // Memoized tab content renderer
   const editorTabContent = useMemo(() => (
@@ -439,9 +463,11 @@ function SQLEditorCanvas({
   ), [error, isDark, query, handleKeyDown, handleQueryChange, handleEditorDidMount, theme]);
 
   const resultsTabContent = useMemo(() => (
-    <Box sx={{ height: '100%', overflow: 'auto', backgroundColor: 'transparent' }}>
+    <Box sx={embeddedContentShellStyles}>
       {results ? (
-        <SQLResultsTable data={results} onClose={handleCloseResults} embedded />
+        <Box sx={embeddedContentFrameStyles}>
+          <SQLResultsTable data={results} onClose={handleCloseResults} embedded />
+        </Box>
       ) : (
         <EmptyState
           icon={TableChartOutlinedIcon}
@@ -451,12 +477,14 @@ function SQLEditorCanvas({
         />
       )}
     </Box>
-  ), [results, handleCloseResults, textColor]);
+  ), [results, handleCloseResults, textColor, embeddedContentShellStyles, embeddedContentFrameStyles]);
 
   const chartTabContent = useMemo(() => (
-    <Box sx={{ height: '100%', overflow: 'auto', backgroundColor: 'transparent' }}>
+    <Box sx={embeddedContentShellStyles}>
       {results ? (
-        <ChartVisualization data={results} embedded />
+        <Box sx={embeddedContentFrameStyles}>
+          <ChartVisualization data={results} embedded />
+        </Box>
       ) : (
         <EmptyState
           icon={BarChartRoundedIcon}
@@ -466,7 +494,7 @@ function SQLEditorCanvas({
         />
       )}
     </Box>
-  ), [results, textColor]);
+  ), [results, textColor, embeddedContentShellStyles, embeddedContentFrameStyles]);
 
   // Tab content based on active tab
   const tabContent = activeTab === 0 ? editorTabContent : activeTab === 1 ? resultsTabContent : chartTabContent;
@@ -614,7 +642,7 @@ function SQLEditorCanvas({
         {headerComponent}
         {tabBarComponent}
         <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>{tabContent}</Box>
-        {actionBarComponent}
+        {activeTab === 0 && actionBarComponent}
       </Box>
     );
   }
@@ -627,7 +655,7 @@ function SQLEditorCanvas({
       <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: 'transparent' }}>
         {tabContent}
       </Box>
-      {actionBarComponent}
+      {activeTab === 0 && actionBarComponent}
     </StyledPanel>
   );
 }
