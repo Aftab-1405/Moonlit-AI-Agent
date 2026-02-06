@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, memo, useCallback } from 'react';
+import { useState, useMemo, useRef, memo, useCallback, useEffect } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -60,6 +60,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   const chartRef = useRef(null);
+  const containerRef = useRef(null);
 
   // Chart.js default vibrant color palette (solid, no transparency)
   const chartColors = useMemo(() => [
@@ -100,6 +101,37 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
   // Derive column values with robust fallback for mixed and numeric-only results
   const labelColumn = labelColumnOverride || stringColumns[0] || columns[0] || '';
   const valueColumn = valueColumnOverride || numericColumns[0] || '';
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+
+    const resizeChart = () => {
+      chart.resize();
+    };
+
+    const rafId = requestAnimationFrame(resizeChart);
+    const timeoutId = setTimeout(resizeChart, 120);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      clearTimeout(timeoutId);
+    };
+  }, [fullscreen, chartType, labelColumn, valueColumn, result.length]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || typeof ResizeObserver === 'undefined') return;
+
+    const observer = new ResizeObserver(() => {
+      chartRef.current?.resize();
+    });
+    observer.observe(container);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
 
   // Chart configuration
   const chartData = useMemo(() => {
@@ -199,7 +231,9 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
   return (
     <>
       {/* Main container - matches SQLResultsTable structure exactly */}
-      <Box sx={{
+      <Box
+        ref={containerRef}
+        sx={{
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
@@ -208,7 +242,8 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
         inset: fullscreen ? 0 : 'auto',
         zIndex: fullscreen ? 9999 : 'auto',
         backgroundColor: fullscreen ? theme.palette.background.default : 'transparent',
-      }}>
+      }}
+      >
         {!embedded && (
           <Box
             sx={{

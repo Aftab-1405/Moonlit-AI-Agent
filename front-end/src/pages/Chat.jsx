@@ -779,9 +779,12 @@ function Chat() {
           '& .MuiDialog-paper': {
             margin: { xs: 0, sm: 2 },
             width: { xs: '100%', sm: 'calc(100% - 32px)' },
-            height: { xs: '100%', sm: 'auto' },
+            height: { xs: '100%', sm: '85vh' },
             maxHeight: { xs: '100%', sm: '85vh' },
             borderRadius: { xs: 0, sm: 2 },
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
           },
         }}
         PaperProps={{
