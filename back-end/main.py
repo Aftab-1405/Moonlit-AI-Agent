@@ -58,6 +58,16 @@ async def lifespan(app: FastAPI):
     
     # Initialize Redis for sessions
     redis_url = os.getenv('UPSTASH_REDIS_URL')
+    env = (AppConfig.APP_ENV or 'development').lower()
+    is_prod_like = env in ('staging', 'production')
+    
+    if is_prod_like:
+        if not redis_url:
+            logger.error("UPSTASH_REDIS_URL is required for staging/production (multi-worker safe sessions)")
+            raise RuntimeError("UPSTASH_REDIS_URL must be set for staging/production")
+        if AppConfig.RATELIMIT_ENABLED and str(AppConfig.RATELIMIT_STORAGE_URL).lower().startswith('memory'):
+            logger.error("RATELIMIT_STORAGE_URL must not use memory storage in staging/production")
+            raise RuntimeError("RATELIMIT_STORAGE_URL must be a shared backend (e.g., Redis) in staging/production")
     if redis_url:
         # Convert redis:// to rediss:// for TLS (Upstash requires TLS)
         if redis_url.startswith('redis://'):

@@ -30,8 +30,20 @@ export async function saveSettings(settings) {
   return post(USER.SETTINGS, settings);
 }
 
+/**
+ * Mark session as active (heartbeat).
+ *
+ * @returns {Promise<{status: string}>}
+ */
+export async function sessionActive(sessionInstanceId) {
+  return post(USER.SESSION_ACTIVE, {
+    sessionInstanceId,
+  });
+}
+
 export default {
   getContext,
   saveSettings,
+  sessionActive,
 };
 

@@ -65,10 +65,10 @@ function ResizeHandle({ onResize, onResizeEnd, disabled = false }) {
         backgroundColor: 'transparent',
         transition: 'background-color 0.15s ease',
         '&:hover': {
-          backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06),
+          backgroundColor: theme.palette.action.hover,
         },
         '&:active': {
-          backgroundColor: isDark ? alpha('#fff', 0.12) : alpha('#000', 0.1),
+          backgroundColor: theme.palette.action.selected,
         },
         // Visual indicator line
         '&::after': {
@@ -76,12 +76,12 @@ function ResizeHandle({ onResize, onResizeEnd, disabled = false }) {
           width: 2,
           height: 40,
           borderRadius: 1,
-          backgroundColor: isDark ? alpha('#fff', 0.15) : alpha('#000', 0.12),
+          backgroundColor: theme.palette.border?.subtle,
           transition: 'background-color 0.15s ease, height 0.15s ease',
         },
         '&:hover::after': {
           height: 60,
-          backgroundColor: isDark ? alpha('#fff', 0.3) : alpha('#000', 0.25),
+          backgroundColor: theme.palette.text.secondary,
         },
       }}
     />

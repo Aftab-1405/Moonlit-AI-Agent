@@ -68,16 +68,15 @@ async def set_session(
             'verified': True
         }
         
-        conversation_id = str(uuid.uuid4())
-        
         # Get existing session data to preserve db_config if it exists
         existing_session = await get_session_data(request)
+        conversation_id = existing_session.get('conversation_id') if existing_session else str(uuid.uuid4())
         
         # Merge with existing session data to preserve db_config
         session_data = {
             **(existing_session or {}),  # Preserve existing data (especially db_config)
             'user': user_data,            # Update user info
-            'conversation_id': existing_session.get('conversation_id') if existing_session else conversation_id
+            'conversation_id': conversation_id
         }
         
         # Store in Redis (use existing session_id if available to keep same cookie)

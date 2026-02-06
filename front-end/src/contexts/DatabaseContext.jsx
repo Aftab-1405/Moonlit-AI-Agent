@@ -39,7 +39,23 @@ import {
   disconnectDb,
   switchDatabase as switchDatabaseApi,
   selectDatabase,
+  sessionActive,
 } from '../api';
+
+const SESSION_INSTANCE_KEY = 'moonlit-session-instance-id';
+
+function getSessionInstanceId() {
+  try {
+    let id = sessionStorage.getItem(SESSION_INSTANCE_KEY);
+    if (!id) {
+      id = crypto.randomUUID ? crypto.randomUUID() : `sid_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      sessionStorage.setItem(SESSION_INSTANCE_KEY, id);
+    }
+    return id;
+  } catch {
+    return null;
+  }
+}
 
 // =============================================================================
 // INITIAL STATE
@@ -225,6 +241,10 @@ export function DatabaseProvider({ children }) {
   useEffect(() => {
     const checkDbStatus = async () => {
       try {
+        const sessionInstanceId = getSessionInstanceId();
+        if (sessionInstanceId) {
+          await sessionActive(sessionInstanceId);
+        }
         const data = await getDbStatus();
         dispatch({ type: ActionTypes.SYNC_STATUS, payload: data });
       } catch (error) {

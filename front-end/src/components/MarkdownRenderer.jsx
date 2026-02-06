@@ -66,9 +66,9 @@ const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isD
     my: 2,
     borderRadius: '12px',
     overflow: 'hidden',
-    backgroundColor: isDarkMode ? theme.palette.background.paper : alpha(theme.palette.text.primary, 0.03),
+    backgroundColor: theme.palette.background.elevated,
     border: '1px solid',
-    borderColor: theme.palette.divider,
+    borderColor: theme.palette.border?.subtle || theme.palette.divider,
     minWidth: 0, // CRITICAL: Prevents flexbox overflow issues during streaming
     width: '100%',
   }), [isDarkMode, theme]);
@@ -82,9 +82,13 @@ const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isD
     <Box sx={containerStyles}>
       <Box sx={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        px: 1.5, py: 0.5, borderBottom: '1px solid', borderColor: theme.palette.divider
+        px: 1.5,
+        py: 0.5,
+        borderBottom: '1px solid',
+        borderColor: theme.palette.divider,
+        backgroundColor: theme.palette.action.hover,
       }}>
-        <Typography variant="caption" sx={{ color: 'text.disabled', fontWeight: 500, textTransform: 'uppercase' }}>
+        <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500, textTransform: 'uppercase' }}>
           {language || 'code'}
         </Typography>
         <Box sx={{ display: 'flex', gap: 0.5 }}>
@@ -126,7 +130,7 @@ const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isD
         <SyntaxHighlighter
           language={language || 'text'}
           style={isDarkMode ? vscDarkPlus : vs}
-          customStyle={{ margin: 0, padding: '16px', fontSize: '0.85rem', lineHeight: 1.5 }}
+          customStyle={{ margin: 0, padding: '16px', fontSize: '0.85rem', lineHeight: 1.5, background: 'transparent' }}
           wrapLines={false} // CRITICAL: Disabling wrapLines stabilizes height during typing
         >
           {code}
@@ -143,7 +147,7 @@ const InlineCode = memo(function InlineCode({ children, theme, isDarkMode }) {
       sx={{
         fontFamily: '"JetBrains Mono", monospace',
         fontSize: '0.85em',
-        backgroundColor: alpha(theme.palette.text.primary, isDarkMode ? 0.15 : 0.06),
+        backgroundColor: alpha(theme.palette.text.primary, isDarkMode ? 0.14 : 0.05),
         color: theme.palette.text.primary,
         px: 0.6,
         py: 0.2,
@@ -203,6 +207,22 @@ const MarkdownRenderer = memo(function MarkdownRenderer({ content, onRunQuery })
     '& ul, & ol': { pl: 3, my: 1.5 },
     '& li': { mb: 0.5 },
     '& a': { color: 'primary.main', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } },
+    '& blockquote': {
+      borderLeft: `3px solid ${theme.palette.border?.default || theme.palette.divider}`,
+      margin: 0,
+      my: 2,
+      pl: 2,
+      pr: 1.5,
+      py: 1,
+      color: theme.palette.text.secondary,
+      backgroundColor: theme.palette.action.hover,
+      borderRadius: 6,
+    },
+    '& hr': {
+      border: 'none',
+      borderTop: `1px solid ${theme.palette.border?.subtle || theme.palette.divider}`,
+      my: 2,
+    },
 
     // Table Styles - prevent cramping with proper spacing and nowrap
     '& table': {
@@ -210,7 +230,7 @@ const MarkdownRenderer = memo(function MarkdownRenderer({ content, onRunQuery })
       wordBreak: 'normal',
     },
     '& th': {
-      bgcolor: alpha(theme.palette.text.primary, 0.06),
+      bgcolor: theme.palette.action.hover,
       fontWeight: 600,
       textAlign: 'left',
       px: 2,
@@ -222,12 +242,12 @@ const MarkdownRenderer = memo(function MarkdownRenderer({ content, onRunQuery })
     '& td': {
       px: 2,
       py: 1.25,
-      borderBottom: `1px solid ${theme.palette.divider}`,
+      borderBottom: `1px solid ${theme.palette.border?.subtle || theme.palette.divider}`,
       whiteSpace: 'nowrap',
     },
     '& tr:last-child td': { borderBottom: 'none' },
     '& tr:hover td': {
-      bgcolor: alpha(theme.palette.text.primary, 0.02),
+      bgcolor: theme.palette.action.hover,
     },
   }), [theme]);
 

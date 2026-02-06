@@ -75,51 +75,69 @@ class MultiKeyRateLimiter:
                 logger.debug(f"Rate limiting disabled, using key index {self.current_key_index} (round-robin)")
                 return True, key
         
-        # Wait for semaphore (concurrency limit)
-        try:
-            await asyncio.wait_for(
-                self.semaphore.acquire(),
-                timeout=self.config.queue_timeout
-            )
-        except asyncio.TimeoutError:
-            logger.warning("Rate limiter timeout - queue full")
-            return False, None
+        deadline = time.time() + self.config.queue_timeout
         
-        async with self.lock:
-            now = time.time()
+        while True:
+            remaining = deadline - time.time()
+            if remaining <= 0:
+                logger.warning("Rate limiter timeout - queue full")
+                return False, None
             
-            # Try each key (round-robin with fallback)
-            for _ in range(len(self.config.api_keys)):
-                key = self.config.api_keys[self.current_key_index]
-                self.current_key_index = (self.current_key_index + 1) % len(self.config.api_keys)
-                
-                timestamps = self.key_timestamps[key]
-                
-                # Clean old timestamps (older than 60 seconds)
-                while timestamps and now - timestamps[0] > 60:
-                    timestamps.popleft()
-                
-                # Check if this key has capacity
-                if len(timestamps) < self.config.max_rpm_per_key:
-                    timestamps.append(now)
-                    logger.debug(f"Using key index {self.current_key_index}, RPM: {len(timestamps)}/{self.config.max_rpm_per_key}")
-                    return True, key
+            # Wait for semaphore (concurrency limit)
+            try:
+                await asyncio.wait_for(
+                    self.semaphore.acquire(),
+                    timeout=remaining
+                )
+            except asyncio.TimeoutError:
+                logger.warning("Rate limiter timeout - queue full")
+                return False, None
             
-            # All keys at limit - wait for oldest to expire
-            oldest_key = min(
-                self.key_timestamps.keys(),
-                key=lambda k: self.key_timestamps[k][0] if self.key_timestamps[k] else float('inf')
-            )
-            oldest_timestamps = self.key_timestamps[oldest_key]
-            
-            if oldest_timestamps:
-                wait_time = 60 - (now - oldest_timestamps[0])
+            wait_time = 0.0
+            async with self.lock:
+                now = time.time()
+                
+                # Try each key (round-robin with fallback)
+                for _ in range(len(self.config.api_keys)):
+                    key = self.config.api_keys[self.current_key_index]
+                    self.current_key_index = (self.current_key_index + 1) % len(self.config.api_keys)
+                    
+                    timestamps = self.key_timestamps[key]
+                    
+                    # Clean old timestamps (older than 60 seconds)
+                    while timestamps and now - timestamps[0] > 60:
+                        timestamps.popleft()
+                    
+                    # Check if this key has capacity
+                    if len(timestamps) < self.config.max_rpm_per_key:
+                        timestamps.append(now)
+                        logger.debug(
+                            f"Using key index {self.current_key_index}, "
+                            f"RPM: {len(timestamps)}/{self.config.max_rpm_per_key}"
+                        )
+                        return True, key
+                
+                # All keys at limit - compute wait time without blocking the semaphore
+                wait_candidates = [
+                    60 - (now - timestamps[0])
+                    for timestamps in self.key_timestamps.values()
+                    if timestamps
+                ]
+                wait_time = max(min(wait_candidates, default=0), 0)
                 if wait_time > 0:
                     logger.info(f"All keys at RPM limit, waiting {wait_time:.1f}s")
-                    await asyncio.sleep(wait_time)
             
-            oldest_timestamps.append(time.time())
-            return True, oldest_key
+            # No key available; release semaphore before waiting
+            self.semaphore.release()
+            
+            if wait_time <= 0:
+                await asyncio.sleep(0)
+                continue
+            
+            sleep_for = min(wait_time, max(deadline - time.time(), 0))
+            if sleep_for <= 0:
+                return False, None
+            await asyncio.sleep(sleep_for)
     
     def release(self):
         """Release semaphore after LLM call completes."""

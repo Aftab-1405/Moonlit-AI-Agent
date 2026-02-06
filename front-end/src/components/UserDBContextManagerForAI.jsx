@@ -504,8 +504,29 @@ function UserDBContextManagerForAI() {
                         <Editor
                           height="100%"
                           language="sql"
-                          theme={isDark ? 'vs-dark' : 'light'}
+                          theme={isDark ? 'moonlit-dark' : 'moonlit-light'}
                           value={query.query}
+                          beforeMount={(monaco) => {
+                            // Define custom themes matching app's color scheme
+                            monaco.editor.defineTheme('moonlit-dark', {
+                              base: 'vs-dark',
+                              inherit: true,
+                              rules: [],
+                              colors: {
+                                'editor.background': '#0c0c0e',
+                                'editorGutter.background': '#0c0c0e',
+                              },
+                            });
+                            monaco.editor.defineTheme('moonlit-light', {
+                              base: 'vs',
+                              inherit: true,
+                              rules: [],
+                              colors: {
+                                'editor.background': '#f5f2ee',
+                                'editorGutter.background': '#f5f2ee',
+                              },
+                            });
+                          }}
                           options={{
                             readOnly: true,
                             minimap: { enabled: false },

@@ -2,8 +2,9 @@
 """User context and settings related API routes."""
 
 import logging
+import time
 
-from fastapi import APIRouter, Request, Depends
+from fastapi import APIRouter, Request, Depends, HTTPException, status
 from fastapi.concurrency import run_in_threadpool
 
 from dependencies import (
@@ -11,8 +12,9 @@ from dependencies import (
     require_db_config,
     get_session_data,
     update_session_data,
+    _expire_db_config,
 )
-from api.request_schemas import SaveUserSettingsRequest
+from api.request_schemas import SaveUserSettingsRequest, CloseSessionRequest, SessionActiveRequest
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["context"])
@@ -163,6 +165,14 @@ async def get_context_metrics(user: dict = Depends(get_current_user)):
 async def reset_context_metrics(user: dict = Depends(get_current_user)):
     """Reset context metrics counters (for testing/monitoring)."""
     from services.context_service import ContextMetrics
+    from config import get_config
+    
+    config = get_config()
+    if not config.DEBUG and not config.TESTING:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail='Context metrics reset is disabled in this environment'
+        )
     
     ContextMetrics.reset()
     return {'status': 'success', 'message': 'Context metrics reset'}
@@ -191,4 +201,99 @@ async def save_user_settings(
 ):
     """Save user settings to session."""
     await update_session_data(request, data.model_dump(exclude_unset=True))
+
+    # Enforce connection persistence immediately if applicable
+    if data.connectionPersistenceMinutes is not None:
+        session = await get_session_data(request) or {}
+        db_config = session.get('db_config')
+        if db_config:
+            closed_at = session.get('db_config_last_closed_at')
+            if closed_at and data.connectionPersistenceMinutes > 0:
+                if time.time() - float(closed_at) > (data.connectionPersistenceMinutes * 60):
+                    await _expire_db_config(request, db_config, "settings_update")
+            elif closed_at and (not data.connectionPersistenceMinutes or data.connectionPersistenceMinutes <= 0):
+                await _expire_db_config(request, db_config, "settings_update_no_persistence")
+
+    return {'status': 'success'}
+
+
+@router.post('/user/session/close')
+async def close_user_session(
+    request: Request,
+    data: CloseSessionRequest,
+    user: dict = Depends(get_current_user)
+):
+    """Mark session as closed to enforce connection persistence window."""
+    now = time.time()
+
+    # Store the latest persistence setting in the session if provided
+    if data.connectionPersistenceMinutes is not None:
+        await update_session_data(request, {
+            'connectionPersistenceMinutes': data.connectionPersistenceMinutes
+        })
+    if data.sessionInstanceId:
+        await update_session_data(request, {
+            'session_instance_id': data.sessionInstanceId
+        })
+
+    session = await get_session_data(request) or {}
+    db_config = session.get('db_config')
+    if not db_config:
+        return {'status': 'success'}
+
+    persistence_minutes = data.connectionPersistenceMinutes
+    if persistence_minutes is None:
+        try:
+            persistence_minutes = int(session.get('connectionPersistenceMinutes'))
+        except (TypeError, ValueError):
+            persistence_minutes = 0
+
+    if not persistence_minutes or persistence_minutes <= 0:
+        await _expire_db_config(request, db_config, "tab_close_no_persistence")
+        return {'status': 'success'}
+
+    # Mark closed time; reopened requests will enforce persistence window
+    await update_session_data(request, {
+        'db_config_last_closed_at': now,
+    })
+
+    return {'status': 'success'}
+
+
+@router.post('/user/session/active')
+async def mark_user_session_active(
+    request: Request,
+    data: SessionActiveRequest,
+    user: dict = Depends(get_current_user)
+):
+    """Heartbeat to mark session as active."""
+    session = await get_session_data(request) or {}
+    incoming_id = data.sessionInstanceId
+    stored_id = session.get('session_instance_id')
+    db_config = session.get('db_config')
+
+    if incoming_id and stored_id and incoming_id != stored_id and db_config:
+        # Treat as a new session instance (e.g., browser reopened)
+        try:
+            persistence_minutes = int(session.get('connectionPersistenceMinutes', 0))
+        except (TypeError, ValueError):
+            persistence_minutes = 0
+        last_active = session.get('session_active_at') or time.time()
+        now = time.time()
+
+        if persistence_minutes <= 0:
+            await _expire_db_config(request, db_config, "session_instance_changed_no_persistence")
+        elif now - float(last_active) > (persistence_minutes * 60):
+            await _expire_db_config(request, db_config, "session_instance_changed_expired")
+        else:
+            await update_session_data(request, {
+                'db_config_last_closed_at': None,
+                'db_config_last_used_at': now,
+            })
+
+    updates = {}
+    if incoming_id:
+        updates['session_instance_id'] = incoming_id
+
+    await update_session_data(request, updates)
     return {'status': 'success'}

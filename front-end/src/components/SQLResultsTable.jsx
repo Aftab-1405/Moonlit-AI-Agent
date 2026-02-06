@@ -238,8 +238,8 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
           px: 2,
           py: embedded ? 1 : 1.5,
           borderBottom: '1px solid',
-          borderColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.08),
-          backgroundColor: isDark ? alpha('#fff', 0.02) : alpha('#000', 0.02),
+          borderColor: theme.palette.border?.subtle,
+          backgroundColor: theme.palette.action.hover,
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -251,7 +251,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                 onClick={() => setViewMode('chart')}
                 sx={{
                   color: 'text.secondary',
-                  '&:hover': { backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06) },
+                  '&:hover': { backgroundColor: theme.palette.action.hover },
                 }}
               >
                 <AddchartIcon sx={{ fontSize: 20 }} />
@@ -263,10 +263,10 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
             label={`${searchQuery ? filteredData.length : row_count} rows`}
             sx={{
               height: 24,
-              backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06),
+              backgroundColor: theme.palette.action.hover,
               color: 'text.primary',
               border: '1px solid',
-              borderColor: isDark ? alpha('#fff', 0.12) : alpha('#000', 0.1),
+              borderColor: theme.palette.border?.subtle,
             }}
           />
           {execution_time && (
@@ -276,7 +276,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
               label={`${execution_time.toFixed(2)}s`}
               sx={{
                 height: 24,
-                backgroundColor: isDark ? alpha('#fff', 0.05) : alpha('#000', 0.04),
+                backgroundColor: theme.palette.action.disabledBackground,
                 '& .MuiChip-icon': { ml: 0.5, color: 'text.secondary' },
               }}
             />
@@ -287,7 +287,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
               label="Truncated"
               sx={{
                 height: 24,
-                backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06),
+                backgroundColor: theme.palette.action.hover,
                 color: 'text.secondary',
               }}
             />
@@ -312,8 +312,8 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
               width: 160,
               '& .MuiOutlinedInput-root': {
                 height: 32,
-                backgroundColor: isDark ? alpha('#fff', 0.03) : alpha('#000', 0.02),
-                '& fieldset': { borderColor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.1) },
+                backgroundColor: theme.palette.action.disabledBackground,
+                '& fieldset': { borderColor: theme.palette.border?.subtle },
               },
             }}
           />
@@ -325,7 +325,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
               onClick={handleCopyAsCSV}
               sx={{
                 color: copied ? 'text.primary' : 'text.secondary',
-                '&:hover': { backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06) },
+                '&:hover': { backgroundColor: theme.palette.action.hover },
               }}
             >
               {copied ? (
@@ -341,7 +341,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
               onClick={handleDownloadCSV}
               sx={{
                 color: 'text.secondary',
-                '&:hover': { backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06) },
+                '&:hover': { backgroundColor: theme.palette.action.hover },
               }}
             >
               <FileDownloadOutlinedIcon sx={{ fontSize: 18 }} />
@@ -354,7 +354,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                 onClick={onClose}
                 sx={{
                   color: 'text.secondary',
-                  '&:hover': { backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06) },
+                  '&:hover': { backgroundColor: theme.palette.action.hover },
                 }}
               >
                 <CloseRoundedIcon sx={{ fontSize: 18 }} />
@@ -383,16 +383,14 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                     width: columnWidths[column] || 150,
                     minWidth: 80,
                     maxWidth: 500,
-                    backgroundColor: isDark
-                      ? alpha(theme.palette.background.paper, 0.95)
-                      : theme.palette.background.paper,
+                    backgroundColor: theme.palette.background.default,
                     fontWeight: 600,
                     textTransform: 'uppercase',
                     letterSpacing: 0.5,
                     color: 'text.secondary',
                     whiteSpace: 'nowrap',
                     borderBottom: '2px solid',
-                    borderColor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.1),
+                    borderColor: theme.palette.border?.subtle,
                     position: 'relative',
                     userSelect: 'none',
                     ...(idx === 0 && { pl: 2 }),
@@ -420,7 +418,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                       width: 6,
                       cursor: 'col-resize',
                       '&:hover': {
-                        backgroundColor: isDark ? alpha('#fff', 0.2) : alpha('#000', 0.2),
+                        backgroundColor: theme.palette.action.selected,
                       },
                       ...(resizing === column && {
                         backgroundColor: 'primary.main',
@@ -437,10 +435,10 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                 key={rowIndex}
                 sx={{
                   '&:nth-of-type(even)': {
-                    backgroundColor: isDark ? alpha('#fff', 0.02) : alpha('#000', 0.02),
+                    backgroundColor: theme.palette.action.disabledBackground,
                   },
                   '&:hover': {
-                    backgroundColor: isDark ? alpha('#fff', 0.05) : alpha('#000', 0.04),
+                    backgroundColor: theme.palette.action.hover,
                   },
                   transition: 'background-color 0.15s ease',
                 }}
@@ -459,14 +457,14 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
                         py: 1,
-                        borderColor: isDark ? alpha('#fff', 0.05) : alpha('#000', 0.05),
+                        borderColor: theme.palette.border?.subtle,
                         cursor: 'pointer',
                         transition: 'background-color 0.1s ease',
                         ...(isCopied && {
-                          backgroundColor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.08),
+                          backgroundColor: theme.palette.action.selected,
                         }),
                         '&:hover': {
-                          backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06),
+                          backgroundColor: theme.palette.action.hover,
                         },
                         ...(colIndex === 0 && { pl: 2 }),
                       }}
@@ -478,7 +476,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                           sx={{
                             color: 'text.disabled',
                             fontStyle: 'italic',
-                            backgroundColor: isDark ? alpha('#fff', 0.05) : alpha('#000', 0.05),
+                            backgroundColor: theme.palette.action.disabledBackground,
                             px: 0.75,
                             py: 0.25,
                             borderRadius: 0.5,
@@ -521,13 +519,6 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
           position: 'relative',
           zIndex: 1,
           flexShrink: 0,
-          borderTop: '1px solid',
-          borderColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.08),
-          backgroundColor: theme.palette.background.paper,
-          '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
-          },
-          '& .MuiTablePagination-select': {
-          },
         }}
       />
 
@@ -542,8 +533,8 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
             width: 'fit-content',
             py: 0.5,
             px: 2,
-            backgroundColor: isDark ? alpha('#fff', 0.12) : alpha('#000', 0.8),
-            color: isDark ? 'text.primary' : '#fff',
+            backgroundColor: isDark ? theme.palette.background.elevated : theme.palette.text.primary,
+            color: isDark ? 'text.primary' : theme.palette.background.paper,
           },
           '& .MuiSnackbarContent-message': {
             flexGrow: 0,

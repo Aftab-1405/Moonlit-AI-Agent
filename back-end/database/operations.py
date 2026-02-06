@@ -298,7 +298,14 @@ def execute_sql_query(
                     pass
             
             cursor.execute(sql_query)
-            raw_rows = cursor.fetchall()
+
+            actual_max_rows = max_rows if max_rows else Config.MAX_QUERY_RESULTS
+            fetch_limit = actual_max_rows + 1
+            raw_rows = cursor.fetchmany(fetch_limit)
+
+            truncated = len(raw_rows) > actual_max_rows
+            if truncated:
+                raw_rows = raw_rows[:actual_max_rows]
             
             # Convert rows to simple lists for JSON serialization
             # This handles sqlite3.Row objects and other cursor row types
@@ -317,12 +324,8 @@ def execute_sql_query(
 
             column_names = adapter.get_column_names_from_cursor(cursor)
 
-            actual_max_rows = max_rows if max_rows else Config.MAX_QUERY_RESULTS
             row_count = len(rows)
-            truncated = False
-            if row_count > actual_max_rows:
-                rows = rows[:actual_max_rows]
-                truncated = True
+            total_rows = None if truncated else row_count
 
             result = {
                 'fields': column_names,
@@ -331,7 +334,7 @@ def execute_sql_query(
 
             message = f'Query executed in {execution_time}ms. '
             if truncated:
-                message += f'Truncated to {actual_max_rows} rows (total: {row_count}). '
+                message += f'Truncated to {row_count} rows. '
             else:
                 message += f'{row_count} rows. '
 
@@ -340,8 +343,8 @@ def execute_sql_query(
                 'status': 'success',
                 'result': result,
                 'message': message,
-                'row_count': len(rows),
-                'total_rows': row_count,
+                'row_count': row_count,
+                'total_rows': total_rows,
                 'truncated': truncated,
                 'execution_time_ms': execution_time,
                 'query_type': 'SELECT'

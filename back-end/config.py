@@ -169,6 +169,7 @@ class Config:
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'lax'
     SESSION_EXPIRE_SECONDS = int(os.getenv('SESSION_EXPIRE_SECONDS', 86400))  # 24 hours
+    SESSION_ACTIVITY_GRACE_SECONDS = int(os.getenv('SESSION_ACTIVITY_GRACE_SECONDS', 10))
 
 
 class DevelopmentConfig(Config):
@@ -222,6 +223,7 @@ class StagingConfig(Config):
     
     # Shorter session for staging tests
     SESSION_EXPIRE_SECONDS = int(os.getenv('SESSION_EXPIRE_SECONDS', 43200))  # 12 hours
+    SESSION_ACTIVITY_GRACE_SECONDS = int(os.getenv('SESSION_ACTIVITY_GRACE_SECONDS', 10))
 
 
 class ProductionConfig(Config):
@@ -256,6 +258,7 @@ class ProductionConfig(Config):
     # Tighter query limits for production
     MAX_QUERY_RESULTS = int(os.getenv('MAX_QUERY_RESULTS', 5000))
     QUERY_TIMEOUT_SECONDS = int(os.getenv('QUERY_TIMEOUT_SECONDS', 15))
+    SESSION_ACTIVITY_GRACE_SECONDS = int(os.getenv('SESSION_ACTIVITY_GRACE_SECONDS', 10))
     
     @classmethod
     def validate_production_settings(cls):
@@ -297,6 +300,7 @@ class TestingConfig(Config):
     # Test-friendly settings
     SESSION_COOKIE_SECURE = False  # Tests often run without HTTPS
     SESSION_EXPIRE_SECONDS = 3600  # 1 hour - short for tests
+    SESSION_ACTIVITY_GRACE_SECONDS = int(os.getenv('SESSION_ACTIVITY_GRACE_SECONDS', 10))
     
     # Fast timeouts for test speed
     QUERY_TIMEOUT_SECONDS = 5

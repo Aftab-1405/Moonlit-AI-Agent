@@ -141,9 +141,9 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
         },
       },
       tooltip: {
-        backgroundColor: isDark ? alpha('#fff', 0.95) : alpha('#000', 0.9),
-        titleColor: isDark ? '#000' : '#fff',
-        bodyColor: isDark ? '#000' : '#fff',
+        backgroundColor: isDark ? theme.palette.background.elevated : theme.palette.text.primary,
+        titleColor: isDark ? theme.palette.text.primary : theme.palette.background.paper,
+        bodyColor: isDark ? theme.palette.text.primary : theme.palette.background.paper,
         padding: 10,
         cornerRadius: 8,
         titleFont: { weight: 600 },
@@ -151,11 +151,11 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
     },
     scales: chartType === 'pie' || chartType === 'doughnut' ? {} : {
       x: {
-        grid: { color: isDark ? alpha('#fff', 0.06) : alpha('#000', 0.06) },
+        grid: { color: theme.palette.divider },
         ticks: { color: theme.palette.text.secondary, font: { size: 11 } },
       },
       y: {
-        grid: { color: isDark ? alpha('#fff', 0.06) : alpha('#000', 0.06) },
+        grid: { color: theme.palette.divider },
         ticks: { color: theme.palette.text.secondary, font: { size: 11 } },
         beginAtZero: true,
       },
@@ -203,7 +203,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
         position: fullscreen ? 'fixed' : 'relative',
         inset: fullscreen ? 0 : 'auto',
         zIndex: fullscreen ? 9999 : 'auto',
-        backgroundColor: fullscreen ? (isDark ? '#0a0a0a' : '#fff') : 'transparent',
+        backgroundColor: fullscreen ? theme.palette.background.default : 'transparent',
       }}>
         {/* Header - same structure as SQLResultsTable */}
         <Box
@@ -216,8 +216,8 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
             px: 2,
             py: embedded ? 1 : 1.5,
             borderBottom: '1px solid',
-            borderColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.08),
-            backgroundColor: isDark ? alpha('#fff', 0.02) : alpha('#000', 0.02),
+            borderColor: theme.palette.border?.subtle,
+            backgroundColor: theme.palette.action.hover,
           }}
         >
           {/* Left side - Title and selectors */}
@@ -230,7 +230,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
                   onClick={() => onViewModeChange('table')}
                   sx={{
                     color: 'text.secondary',
-                    '&:hover': { backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06) },
+                    '&:hover': { backgroundColor: theme.palette.action.hover },
                   }}
                 >
                   <ArrowBackIcon sx={{ fontSize: 20 }} />
@@ -275,7 +275,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
                 onClick={handleDownload}
                 sx={{
                   color: 'text.secondary',
-                  '&:hover': { backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06) },
+                  '&:hover': { backgroundColor: theme.palette.action.hover },
                 }}
               >
                 <FileDownloadOutlinedIcon sx={{ fontSize: 18 }} />
@@ -287,7 +287,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
                 onClick={() => setFullscreen(!fullscreen)}
                 sx={{
                   color: 'text.secondary',
-                  '&:hover': { backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06) },
+                  '&:hover': { backgroundColor: theme.palette.action.hover },
                 }}
               >
                 {fullscreen ? (
@@ -304,7 +304,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
                   onClick={onClose}
                   sx={{
                     color: 'text.secondary',
-                    '&:hover': { backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06) },
+                    '&:hover': { backgroundColor: theme.palette.action.hover },
                   }}
                 >
                   <CloseRoundedIcon sx={{ fontSize: 18 }} />
@@ -338,7 +338,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
             px: 2,
             minHeight: 52,
             borderTop: '1px solid',
-            borderColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.08),
+            borderColor: theme.palette.border?.subtle,
           }}
         >
           <Typography variant="labelSmall" color="text.secondary" sx={{ position: 'absolute', left: 16 }}>
@@ -358,7 +358,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
                 px: 1.5,
                 py: 0.5,
                 '&.Mui-selected': {
-                  backgroundColor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.08),
+                  backgroundColor: theme.palette.action.selected,
                 },
               },
             }}

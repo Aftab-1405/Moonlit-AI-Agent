@@ -69,6 +69,8 @@ export const USER = {
   CONTEXT_DELETE_ALL_SCHEMAS: '/api/v1/user/context/schemas',
   CONTEXT_DELETE_QUERIES: '/api/v1/user/context/queries',
   SETTINGS: '/api/v1/user/settings',
+  SESSION_CLOSE: '/api/v1/user/session/close',
+  SESSION_ACTIVE: '/api/v1/user/session/active',
 };
 
 // =============================================================================

@@ -113,8 +113,8 @@ function StepsGrid() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   boxShadow: isDark 
-                    ? `0 4px 16px ${alpha('#000', 0.5)}`
-                    : `0 4px 16px ${alpha('#000', 0.12)}`,
+                    ? `0 4px 16px ${alpha(theme.palette.common.black, 0.5)}`
+                    : `0 4px 16px ${alpha(theme.palette.common.black, 0.12)}`,
                   border: `3px solid ${theme.palette.background.default}`,
                 }}
               >

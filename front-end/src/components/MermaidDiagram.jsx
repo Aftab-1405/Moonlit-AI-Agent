@@ -208,11 +208,11 @@ function MermaidDiagram({ code }) {
     justifyContent: 'space-between',
     px: { xs: 1, sm: 2 },
     py: { xs: 0.5, sm: 0.75 },
-    backgroundColor: isDark ? alpha('#fff', 0.03) : alpha('#000', 0.03),
+    backgroundColor: theme.palette.action.hover,
     borderBottom: '1px solid',
-    borderColor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.08),
+    borderColor: theme.palette.border?.subtle,
     minHeight: { xs: 40, sm: 44 },
-  }), [isDark]);
+  }), [isDark, theme]);
 
   const diagramContainerStyles = useMemo(() => ({
     flex: 1,
@@ -248,9 +248,9 @@ function MermaidDiagram({ code }) {
         sx={{
           my: { xs: 1.5, sm: 2 },
           overflow: 'hidden',
-          bgcolor: isDark ? alpha('#000', 0.3) : alpha('#000', 0.02),
+          bgcolor: isDark ? theme.palette.background.elevated : alpha(theme.palette.text.primary, 0.02),
           border: '1px solid',
-          borderColor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.1),
+          borderColor: theme.palette.border?.subtle,
           borderRadius: { xs: '8px', sm: '12px' },
         }}
       >
@@ -372,7 +372,7 @@ function MermaidDiagram({ code }) {
           <Box sx={{
             width: 1,
             height: 16,
-            bgcolor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.1),
+            bgcolor: theme.palette.border?.subtle,
             mx: 0.5,
             display: { xs: 'none', sm: 'block' },
           }} />
@@ -464,7 +464,7 @@ function MermaidDiagram({ code }) {
             overflow: 'hidden',
             bgcolor: 'background.paper',
             border: '1px solid',
-            borderColor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.08),
+            borderColor: theme.palette.border?.subtle,
             borderRadius: { xs: '8px', sm: '12px' },
             minHeight: { xs: 180, sm: 200 },
             display: 'flex',
@@ -522,7 +522,7 @@ function MermaidDiagram({ code }) {
         overflow: 'hidden',
         bgcolor: 'background.paper',
         border: '1px solid',
-        borderColor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.08),
+        borderColor: theme.palette.border?.subtle,
         borderRadius: { xs: '8px', sm: '12px' },
         display: 'flex',
         flexDirection: 'column',

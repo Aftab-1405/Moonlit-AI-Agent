@@ -3,7 +3,7 @@ import { useTheme } from '@mui/material/styles';
 import { Box } from '@mui/material';
 
 /**
- * Moonlit Starfield v2.1 - Monochromatic Edition
+ * Moonlit Starfield v2.2 - Monochromatic Edition
  * 
  * Visual Design:
  * - Pure grayscale color palette matching monochromatic theme
@@ -26,24 +26,25 @@ import { Box } from '@mui/material';
 // CONFIGURATION - Tunable parameters
 // ============================================================================
 const CONFIG = {
-  // Star layers with parallax depth
+  // Star layers with parallax depth (speed in px/sec)
   layers: [
-    { count: 0.00008, sizeRange: [0.2, 0.4], opacityRange: [0.08, 0.15], speed: 0.005, twinkle: 0.1 },   // Distant dust
-    { count: 0.00005, sizeRange: [0.4, 0.7], opacityRange: [0.15, 0.28], speed: 0.012, twinkle: 0.2 },  // Far stars
-    { count: 0.00002, sizeRange: [0.7, 1.1], opacityRange: [0.28, 0.45], speed: 0.025, twinkle: 0.3 }, // Mid stars
-    { count: 0.000008, sizeRange: [1.1, 1.8], opacityRange: [0.4, 0.6], speed: 0.04, twinkle: 0.4 },  // Near bright stars
+    { count: 0.00008, sizeRange: [0.2, 0.4], opacityRange: [0.07, 0.14], speed: 0.35, twinkle: 0.1 },   // Distant dust
+    { count: 0.00005, sizeRange: [0.4, 0.7], opacityRange: [0.14, 0.26], speed: 0.75, twinkle: 0.2 },  // Far stars
+    { count: 0.00002, sizeRange: [0.7, 1.1], opacityRange: [0.24, 0.42], speed: 1.3, twinkle: 0.28 }, // Mid stars
+    { count: 0.000008, sizeRange: [1.1, 1.9], opacityRange: [0.36, 0.58], speed: 2.1, twinkle: 0.36 },  // Near bright stars
   ],
   // Star clusters (constellation-like groupings)
   clusters: { count: 3, starsPerCluster: [8, 15], radius: [60, 120] },
   // Nebula/aurora bands
-  nebulas: { count: 2, pulseSpeed: 0.0008 },
+  nebulas: { count: 2, pulseSpeed: 0.05 },
   // Meteors with particle trails
   meteors: { poolSize: 5, minDelay: 6000, maxDelay: 15000 },
   // Ambient glow
-  ambientGlow: { enabled: true, intensity: 0.03 },
+  ambientGlow: { enabled: true, intensity: 0.028 },
   // Performance
   maxDPR: 1.5,  // Cap device pixel ratio for performance
   frameSkipThreshold: 0.02,  // Skip frames below this opacity
+  targetFps: 60,
 };
 
 // ============================================================================
@@ -86,6 +87,23 @@ const TWO_PI = Math.PI * 2;
 const rand = (min, max) => min + Math.random() * (max - min);
 const randInt = (min, max) => Math.floor(rand(min, max + 1));
 const pickRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
+const hexToRgb = (hex) => {
+  const clean = hex.replace('#', '');
+  if (clean.length === 3) {
+    const r = parseInt(clean[0] + clean[0], 16);
+    const g = parseInt(clean[1] + clean[1], 16);
+    const b = parseInt(clean[2] + clean[2], 16);
+    return { r, g, b };
+  }
+  if (clean.length === 6) {
+    const r = parseInt(clean.slice(0, 2), 16);
+    const g = parseInt(clean.slice(2, 4), 16);
+    const b = parseInt(clean.slice(4, 6), 16);
+    return { r, g, b };
+  }
+  return { r: 16, g: 16, b: 18 };
+};
 
 // ============================================================================
 // STAR FIELD CLASS
@@ -150,28 +168,28 @@ class StarField {
       vx: (Math.random() - 0.5) * layer.speed,
       vy: (Math.random() - 0.5) * layer.speed,
       twinklePhase: Math.random() * TWO_PI,
-      twinkleSpeed: 0.002 + Math.random() * 0.006,
+      twinkleSpeed: 0.6 + Math.random() * 0.9,
       twinkleIntensity: layer.twinkle,
       shimmerPhase: Math.random() * TWO_PI,
-      shimmerSpeed: 0.001 + Math.random() * 0.002,
+      shimmerSpeed: 0.2 + Math.random() * 0.35,
       layer: layerIndex,
       glowSize: size * 3,
     };
   }
 
-  update(width, height) {
+  update(width, height, dt) {
     for (let i = 0; i < this.stars.length; i++) {
       const star = this.stars[i];
-      star.x += star.vx;
-      star.y += star.vy;
+      star.x += star.vx * dt;
+      star.y += star.vy * dt;
 
       if (star.x < -10) star.x = width + 10;
       else if (star.x > width + 10) star.x = -10;
       if (star.y < -10) star.y = height + 10;
       else if (star.y > height + 10) star.y = -10;
 
-      star.twinklePhase += star.twinkleSpeed;
-      star.shimmerPhase += star.shimmerSpeed;
+      star.twinklePhase += star.twinkleSpeed * dt;
+      star.shimmerPhase += star.shimmerSpeed * dt;
     }
   }
 }
@@ -194,26 +212,26 @@ class NebulaSystem {
         radiusX: rand(200, 400),
         radiusY: rand(150, 300),
         rotation: rand(0, Math.PI),
-        rotationSpeed: (Math.random() - 0.5) * 0.0001,
+        rotationSpeed: (Math.random() - 0.5) * 0.006,
         color,
         baseOpacity: rand(0.04, 0.08),
         vx: (Math.random() - 0.5) * 0.04,
         vy: (Math.random() - 0.5) * 0.04,
         pulsePhase: Math.random() * TWO_PI,
-        pulseSpeed: CONFIG.nebulas.pulseSpeed + Math.random() * 0.0005,
+        pulseSpeed: CONFIG.nebulas.pulseSpeed + Math.random() * 0.02,
         distortPhase: Math.random() * TWO_PI,
-        distortSpeed: 0.0003 + Math.random() * 0.0002,
+        distortSpeed: 0.015 + Math.random() * 0.01,
       });
     }
   }
 
-  update(width, height) {
+  update(width, height, dt) {
     for (const n of this.nebulas) {
-      n.x += n.vx;
-      n.y += n.vy;
-      n.rotation += n.rotationSpeed;
-      n.pulsePhase += n.pulseSpeed;
-      n.distortPhase += n.distortSpeed;
+      n.x += n.vx * dt;
+      n.y += n.vy * dt;
+      n.rotation += n.rotationSpeed * dt;
+      n.pulsePhase += n.pulseSpeed * dt;
+      n.distortPhase += n.distortSpeed * dt;
 
       const maxR = Math.max(n.radiusX, n.radiusY);
       if (n.x < -maxR) n.x = width + maxR;
@@ -279,7 +297,7 @@ class MeteorPool {
     let meteor = this.pool.pop();
     if (!meteor) meteor = this.createMeteor();
 
-    const speed = rand(12, 20);
+    const speed = rand(700, 1200);
     const angle = Math.PI / 4 + (Math.random() - 0.5) * 0.3;
 
     meteor.x = rand(-width * 0.1, width * 0.8);
@@ -289,7 +307,7 @@ class MeteorPool {
     meteor.speed = speed;
     meteor.length = rand(100, 180);
     meteor.life = 1.0;
-    meteor.decay = rand(0.008, 0.015);
+    meteor.decay = rand(0.6, 0.9);
     meteor.active = true;
 
     meteor.particles = [];
@@ -304,7 +322,7 @@ class MeteorPool {
     this.active.push(meteor);
   }
 
-  update(timestamp, width, height, globalOpacity) {
+  update(timestamp, width, height, globalOpacity, dt) {
     if (globalOpacity > 0.5 && timestamp - this.lastSpawnTime > this.nextDelay && this.active.length < 2) {
       this.spawn(width);
       this.lastSpawnTime = timestamp;
@@ -313,23 +331,23 @@ class MeteorPool {
 
     for (let i = this.active.length - 1; i >= 0; i--) {
       const m = this.active[i];
-      m.x += m.vx;
-      m.y += m.vy;
-      m.life -= m.decay;
+      m.x += m.vx * dt;
+      m.y += m.vy * dt;
+      m.life -= m.decay * dt;
 
       for (let j = 0; j < m.particles.length; j++) {
         const p = m.particles[j];
         if (p.life > 0) {
-          p.x += p.vx;
-          p.y += p.vy;
-          p.life -= 0.03;
-          p.vy += 0.05;
-        } else if (Math.random() < 0.15) {
-          p.x = m.x + rand(-2, 2);
-          p.y = m.y + rand(-2, 2);
-          p.vx = rand(-0.5, 0.5);
-          p.vy = rand(-0.3, 0.8);
-          p.life = rand(0.3, 0.7);
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          p.life -= 1.2 * dt;
+          p.vy += 2.2 * dt;
+        } else if (Math.random() < 0.12 * dt * 60) {
+          p.x = m.x + rand(-1.5, 1.5);
+          p.y = m.y + rand(-1.5, 1.5);
+          p.vx = rand(-0.3, 0.3);
+          p.vy = rand(-0.2, 0.6);
+          p.life = rand(0.25, 0.55);
         }
       }
 
@@ -362,19 +380,19 @@ class MeteorPool {
       ctx.moveTo(tailX, tailY);
       ctx.lineTo(m.x, m.y);
       ctx.strokeStyle = gradient;
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = 1.6 + (opacity * 1.6);
       ctx.lineCap = 'round';
       ctx.stroke();
 
       ctx.globalAlpha = opacity * 0.9;
       ctx.fillStyle = `rgb(${hr},${hg},${hb})`;
       ctx.beginPath();
-      ctx.arc(m.x, m.y, 2, 0, TWO_PI);
+      ctx.arc(m.x, m.y, 1.8 + opacity, 0, TWO_PI);
       ctx.fill();
 
-      ctx.globalAlpha = opacity * 0.3;
+      ctx.globalAlpha = opacity * 0.28;
       ctx.beginPath();
-      ctx.arc(m.x, m.y, 5, 0, TWO_PI);
+      ctx.arc(m.x, m.y, 4.5 + opacity * 1.5, 0, TWO_PI);
       ctx.fill();
 
       for (const p of m.particles) {
@@ -409,6 +427,14 @@ function StarfieldCanvas({ active = false }) {
     width: 0,
     height: 0,
     ctx: null,
+    bgCanvas: null,
+    bgCtx: null,
+    noiseCanvas: null,
+    noisePattern: null,
+    lastTime: 0,
+    lastFrameTime: 0,
+    dpr: 1,
+    reduceMotion: false,
   });
 
   const renderStars = useCallback((ctx, stars, globalOpacity) => {
@@ -472,7 +498,10 @@ function StarfieldCanvas({ active = false }) {
     if (!canvas) return;
 
     const state = stateRef.current;
-    const dpr = Math.min(window.devicePixelRatio || 1, CONFIG.maxDPR);
+      const dpr = Math.min(window.devicePixelRatio || 1, CONFIG.maxDPR);
+      state.dpr = dpr;
+      const frameInterval = 1000 / CONFIG.targetFps;
+      state.reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
 
     const initCanvas = () => {
       state.width = canvas.offsetWidth;
@@ -480,7 +509,66 @@ function StarfieldCanvas({ active = false }) {
       canvas.width = state.width * dpr;
       canvas.height = state.height * dpr;
       state.ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
-      state.ctx.scale(dpr, dpr);
+      state.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      if (!state.bgCanvas) {
+        state.bgCanvas = document.createElement('canvas');
+        state.bgCtx = state.bgCanvas.getContext('2d', { alpha: true });
+      }
+      if (!state.noiseCanvas) {
+        state.noiseCanvas = document.createElement('canvas');
+      }
+      state.bgCanvas.width = state.width;
+      state.bgCanvas.height = state.height;
+
+      const base = hexToRgb(theme.palette.background.default || '#0c0c0e');
+      const bright = {
+        r: clamp(base.r + 16, 0, 255),
+        g: clamp(base.g + 16, 0, 255),
+        b: clamp(base.b + 18, 0, 255),
+      };
+      const dim = {
+        r: clamp(base.r - 4, 0, 255),
+        g: clamp(base.g - 4, 0, 255),
+        b: clamp(base.b - 2, 0, 255),
+      };
+
+      const bg = state.bgCtx;
+      bg.clearRect(0, 0, state.width, state.height);
+      const grad = bg.createRadialGradient(
+        state.width * 0.15, state.height * 0.2, 0,
+        state.width * 0.15, state.height * 0.2, Math.max(state.width, state.height) * 0.9
+      );
+      grad.addColorStop(0, `rgb(${bright.r},${bright.g},${bright.b})`);
+      grad.addColorStop(0.6, `rgb(${base.r},${base.g},${base.b})`);
+      grad.addColorStop(1, `rgb(${dim.r},${dim.g},${dim.b})`);
+      bg.fillStyle = grad;
+      bg.fillRect(0, 0, state.width, state.height);
+
+      const vignette = bg.createRadialGradient(
+        state.width * 0.5, state.height * 0.5, Math.min(state.width, state.height) * 0.3,
+        state.width * 0.5, state.height * 0.5, Math.max(state.width, state.height) * 0.7
+      );
+      vignette.addColorStop(0, 'rgba(0,0,0,0)');
+      vignette.addColorStop(1, 'rgba(0,0,0,0.35)');
+      bg.fillStyle = vignette;
+      bg.fillRect(0, 0, state.width, state.height);
+
+      const noiseSize = 96;
+      state.noiseCanvas.width = noiseSize;
+      state.noiseCanvas.height = noiseSize;
+      const nctx = state.noiseCanvas.getContext('2d', { alpha: true });
+      const imageData = nctx.createImageData(noiseSize, noiseSize);
+      const data = imageData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        const value = 200 + Math.floor(Math.random() * 55);
+        data[i] = value;
+        data[i + 1] = value;
+        data[i + 2] = value;
+        data[i + 3] = Math.random() < 0.5 ? 12 : 0;
+      }
+      nctx.putImageData(imageData, 0, 0);
+      state.noisePattern = state.ctx.createPattern(state.noiseCanvas, 'repeat');
     };
 
     initCanvas();
@@ -501,6 +589,15 @@ function StarfieldCanvas({ active = false }) {
         return;
       }
 
+      if (timestamp - state.lastFrameTime < frameInterval) {
+        animationRef.current = requestAnimationFrame(animate);
+        return;
+      }
+      const dtMs = Math.min(timestamp - state.lastTime, 50);
+      const dt = dtMs / 1000;
+      state.lastTime = timestamp;
+      state.lastFrameTime = timestamp;
+
       const opacityDiff = state.targetOpacity - state.opacity;
       if (Math.abs(opacityDiff) > 0.003) {
         state.opacity += opacityDiff * 0.03;
@@ -516,16 +613,29 @@ function StarfieldCanvas({ active = false }) {
       const { ctx, width, height, opacity: globalOpacity } = state;
 
       ctx.clearRect(0, 0, width, height);
+      if (state.bgCanvas) {
+        ctx.globalAlpha = 1;
+        ctx.drawImage(state.bgCanvas, 0, 0, width, height);
+      }
+      if (state.noisePattern) {
+        ctx.save();
+        const noiseBase = state.reduceMotion ? 0.04 : 0.08;
+        const dprFactor = state.dpr >= 1.25 ? 0.7 : 1;
+        ctx.globalAlpha = noiseBase * dprFactor * globalOpacity;
+        ctx.fillStyle = state.noisePattern;
+        ctx.fillRect(0, 0, width, height);
+        ctx.restore();
+      }
 
       renderAmbientGlow(ctx, width, height, globalOpacity);
 
-      state.nebulaSystem.update(width, height);
+      state.nebulaSystem.update(width, height, dt);
       state.nebulaSystem.render(ctx, globalOpacity);
 
-      state.starField.update(width, height);
+      state.starField.update(width, height, dt);
       renderStars(ctx, state.starField.stars, globalOpacity);
 
-      state.meteorPool.update(timestamp, width, height, globalOpacity);
+      state.meteorPool.update(timestamp, width, height, globalOpacity, dt);
       state.meteorPool.render(ctx, globalOpacity);
 
       animationRef.current = requestAnimationFrame(animate);
@@ -566,7 +676,7 @@ function StarfieldCanvas({ active = false }) {
       clearTimeout(resizeTimeout);
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
-  }, [isDarkMode, renderStars, renderAmbientGlow]);
+  }, [isDarkMode, renderStars, renderAmbientGlow, theme]);
 
   useEffect(() => {
     stateRef.current.targetOpacity = active ? 1 : 0;

@@ -39,6 +39,7 @@ import {
 } from '@mui/material';
 import { useTheme as useMuiTheme, alpha } from '@mui/material/styles';
 import { useTheme as useAppTheme } from '../contexts/ThemeContext';
+import { sessionActive } from '../api';
 import { useDatabaseConnection } from '../contexts/DatabaseContext';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import MenuOutlinedIcon from '@mui/icons-material/MenuOutlined';
@@ -46,6 +47,7 @@ import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import EditNoteOutlinedIcon from '@mui/icons-material/EditNoteOutlined';
 import { useAuth } from '../contexts/AuthContext';
+import { USER } from '../api';
 import Sidebar from '../components/Sidebar';
 import ChatInput from '../components/ChatInput';
 import MessageList from '../components/MessageList';
@@ -340,14 +342,19 @@ function Chat() {
   // Tab/Browser close detection
   useEffect(() => {
     const handleTabClose = () => {
+      if (!isDbConnected) return;
       const connectionPersistence = settings.connectionPersistence ?? 0;
-      if (connectionPersistence === 0 && isDbConnected) {
-        const blob = new Blob([JSON.stringify({})], { type: 'application/json' });
-        // Use absolute URL for sendBeacon to ensure it works in all environments
-        // Must match the backend endpoint: /api/v1/disconnect_db
-        const disconnectUrl = `${window.location.origin}/api/v1/disconnect_db`;
-        navigator.sendBeacon(disconnectUrl, blob);
+      let sessionInstanceId = null;
+      try {
+        sessionInstanceId = sessionStorage.getItem('moonlit-session-instance-id');
+      } catch {
+        sessionInstanceId = null;
       }
+      const payload = { connectionPersistenceMinutes: connectionPersistence, sessionInstanceId };
+      const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+      // Use absolute URL for sendBeacon to ensure it works in all environments
+      const closeUrl = `${window.location.origin}${USER.SESSION_CLOSE}`;
+      navigator.sendBeacon(closeUrl, blob);
     };
 
     window.addEventListener('beforeunload', handleTabClose);
@@ -358,6 +365,32 @@ function Chat() {
       window.removeEventListener('pagehide', handleTabClose);
     };
   }, [isDbConnected, settings.connectionPersistence]);
+
+  // Session heartbeat to detect unexpected browser closes
+  useEffect(() => {
+    if (!isDbConnected) return;
+
+    let timerId = null;
+
+    const ping = () => {
+      let sessionInstanceId = null;
+      try {
+        sessionInstanceId = sessionStorage.getItem('moonlit-session-instance-id');
+      } catch {
+        sessionInstanceId = null;
+      }
+      sessionActive(sessionInstanceId).catch(() => {});
+    };
+
+    // Initial ping
+    ping();
+
+    timerId = setInterval(ping, 5000);
+
+    return () => {
+      if (timerId) clearInterval(timerId);
+    };
+  }, [isDbConnected]);
 
   // ===========================================================================
   // UI HANDLERS
@@ -510,7 +543,7 @@ function Chat() {
         onClose={handleMenuClose}
         anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
         transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-        PaperProps={{ sx: { minWidth: 180, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' } }}
+        PaperProps={{ sx: { minWidth: 180 } }}
       >
         <Box sx={{ px: 2, py: 1.5 }}>
           <Typography variant="subtitle2">{user?.displayName}</Typography>

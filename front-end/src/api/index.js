@@ -59,6 +59,7 @@ export { runQuery } from './query';
 export {
   getContext as getUserContext,
   saveSettings as saveUserSettings,
+  sessionActive,
 } from './user';
 
 export { getQuotaStatus } from './quota';

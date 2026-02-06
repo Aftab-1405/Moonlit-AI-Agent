@@ -118,9 +118,11 @@ class DatabaseSecurity:
             analysis['warnings'].append("Multiple SQL statements detected")
 
         # Comments, file ops and load ops
-        comment_warnings = DatabaseSecurity._detect_comments_and_file_ops(query, query_upper)
+        comment_warnings, file_ops_blocked = DatabaseSecurity._detect_comments_and_file_ops(query, query_upper)
         if comment_warnings:
             analysis['warnings'].extend(comment_warnings)
+        if file_ops_blocked:
+            analysis['is_safe'] = False
 
         return analysis
 
@@ -149,15 +151,18 @@ class DatabaseSecurity:
         return semicolon_count > 1 or (semicolon_count == 1 and not query.rstrip().endswith(';'))
 
     @staticmethod
-    def _detect_comments_and_file_ops(query: str, query_upper: str) -> List[str]:
+    def _detect_comments_and_file_ops(query: str, query_upper: str) -> tuple[List[str], bool]:
         warnings = []
+        should_block = False
         if '--' in query or '/*' in query:
             warnings.append("SQL comments detected")
         if 'OUTFILE' in query_upper or 'DUMPFILE' in query_upper:
             warnings.append("File operations are not allowed")
+            should_block = True
         if 'LOAD_FILE' in query_upper or 'LOAD DATA' in query_upper:
             warnings.append("File loading operations are not allowed")
-        return warnings
+            should_block = True
+        return warnings, should_block
     
     @staticmethod
     @lru_cache(maxsize=64)

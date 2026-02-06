@@ -7,9 +7,12 @@ These replace Flask's global session and g object patterns.
 
 import json
 import logging
+import time
 from typing import Optional
 from fastapi import Depends, HTTPException, Request, status
+from fastapi.concurrency import run_in_threadpool
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +86,39 @@ async def get_session_data(request: Request) -> Optional[dict]:
             _memory_session_expiry.pop(session_id, None)
     
     return None
+
+
+def _get_connection_persistence_minutes(session_data: dict) -> Optional[int]:
+    value = session_data.get("connectionPersistenceMinutes")
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+async def _expire_db_config(request: Request, db_config: dict, reason: str) -> None:
+    try:
+        user = getattr(request.state, "user", None)
+        user_id = user.get("uid") if isinstance(user, dict) else None
+    except Exception:
+        user_id = None
+
+    try:
+        from services.database_service import DatabaseService
+        await run_in_threadpool(DatabaseService.disconnect, db_config, user_id)
+    except Exception as e:
+        logger.warning(f"Failed to disconnect expired DB config: {e}")
+
+    try:
+        await update_session_data(request, {
+            "db_config": None,
+            "db_config_last_used_at": None,
+            "db_config_last_closed_at": None,
+        })
+    except Exception as e:
+        logger.warning(f"Failed to clear expired DB config from session: {e}")
 
 
 async def get_current_user(
@@ -177,6 +213,48 @@ async def get_db_config(request: Request) -> Optional[dict]:
     session_data = await get_session_data(request)
     if session_data and 'db_config' in session_data:
         db_config = session_data['db_config']
+        if not db_config:
+            return None
+
+        persistence_minutes = _get_connection_persistence_minutes(session_data)
+        closed_at = session_data.get("db_config_last_closed_at")
+        active_at = session_data.get("session_active_at")
+        now = time.time()
+
+        # If no explicit close event and heartbeat stopped, treat as implicit close
+        if closed_at is None and active_at is not None:
+            try:
+                if now - float(active_at) > Config.SESSION_ACTIVITY_GRACE_SECONDS:
+                    closed_at = float(active_at)
+                    await update_session_data(request, {
+                        "db_config_last_closed_at": closed_at,
+                    })
+            except (TypeError, ValueError):
+                pass
+
+        if closed_at is not None:
+            # Tab was closed; enforce persistence window on reopen
+            if not persistence_minutes or persistence_minutes <= 0:
+                await _expire_db_config(request, db_config, "tab_closed_no_persistence")
+                return None
+
+            if now - float(closed_at) > (persistence_minutes * 60):
+                await _expire_db_config(request, db_config, "tab_closed_expired")
+                return None
+
+            # Reopened within persistence window - clear closed marker
+            await update_session_data(request, {
+                "db_config_last_closed_at": None,
+                "db_config_last_used_at": now,
+                "session_active_at": now,
+            })
+        else:
+            # Active session - update last-used for observability
+            await update_session_data(request, {
+                "db_config_last_used_at": now,
+                "session_active_at": now,
+            })
+
         # Cache in request state for this request
         request.state.db_config = db_config
         return db_config
@@ -233,6 +311,9 @@ async def set_session_data(
     if not session_id:
         session_id = str(uuid.uuid4())
     
+    data = dict(data)
+    data.setdefault("session_active_at", time.time())
+    
     redis_client = await get_redis()
     
     if redis_client:
@@ -281,6 +362,7 @@ async def update_session_data(
     
     # Merge updates
     session_data.update(updates)
+    session_data["session_active_at"] = time.time()
     
     redis_client = await get_redis()
     

@@ -129,6 +129,17 @@ class SaveUserSettingsRequest(BaseModel):
     connectionPersistenceMinutes: Optional[Literal[0, 5, 15, 30, 60]] = None
 
 
+class CloseSessionRequest(BaseModel):
+    """Schema for /api/user/session/close"""
+    connectionPersistenceMinutes: Optional[Literal[0, 5, 15, 30, 60]] = None
+    sessionInstanceId: Optional[str] = Field(default=None, max_length=200)
+
+
+class SessionActiveRequest(BaseModel):
+    """Schema for /api/user/session/active"""
+    sessionInstanceId: Optional[str] = Field(default=None, max_length=200)
+
+
 # =============================================================================
 # NOTE: FastAPI handles validation automatically when you use Pydantic models
 # as function parameters. The model is validated before your route code runs.

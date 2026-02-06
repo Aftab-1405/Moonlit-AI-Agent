@@ -49,6 +49,33 @@ const MONACO_OPTIONS = {
   contextmenu: false,
 };
 
+// Custom Monaco theme definitions to match app theme colors
+const defineMonacoThemes = (monaco) => {
+  // Dark theme - transparent background
+  monaco.editor.defineTheme('moonlit-dark', {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [],
+    colors: {
+      'editor.background': '#0c0c0e',
+      'editor.lineHighlightBackground': '#ffffff08',
+      'editorGutter.background': '#0c0c0e',
+    },
+  });
+  
+  // Light theme - cream/beige background matching app theme
+  monaco.editor.defineTheme('moonlit-light', {
+    base: 'vs',
+    inherit: true,
+    rules: [],
+    colors: {
+      'editor.background': '#f5f2ee',
+      'editor.lineHighlightBackground': '#00000008',
+      'editorGutter.background': '#f5f2ee',
+    },
+  });
+};
+
 const TOOL_ACTIONS = {
   'get_connection_status': { running: 'Checking connection status', done: 'Checked connection status' },
   'get_database_list': { running: 'Listing available databases', done: 'Listed available databases' },
@@ -373,20 +400,17 @@ const ToolStep = memo(({ step }) => {
                     overflow: 'hidden',
                     height: queryHeight,
                     border: '1px solid',
-                    borderColor: isDark 
-                      ? alpha(theme.palette.text.primary, 0.1)
-                      : alpha(theme.palette.text.primary, 0.08),
-                    bgcolor: isDark 
-                      ? alpha(theme.palette.background.default, 0.5)
-                      : theme.palette.background.paper,
+                    borderColor: theme.palette.border?.subtle,
+                    bgcolor: theme.palette.background.default,
                   }}
                 >
                   <Editor
                     height="100%"
                     language="sql"
-                    theme={isDark ? 'vs-dark' : 'light'}
+                    theme={isDark ? 'moonlit-dark' : 'moonlit-light'}
                     value={parsedArgs.query}
                     options={MONACO_OPTIONS}
+                    beforeMount={defineMonacoThemes}
                     loading={
                       <Box sx={{ p: 1.5, color: 'text.secondary', fontSize: '0.8rem' }}>
                         Loading...

@@ -2,6 +2,7 @@
 """Database connection and query related API routes."""
 
 import logging
+import time
 from typing import Optional
 
 from fastapi import APIRouter, Request, Depends, HTTPException
@@ -115,7 +116,11 @@ async def connect_db(
     
     # Store db_config in session if connection successful
     if result.get('status') in ['connected', 'success'] and 'db_config' in result:
-        await update_session_data(request, {'db_config': result['db_config']})
+        await update_session_data(request, {
+            'db_config': result['db_config'],
+            'db_config_last_used_at': time.time(),
+            'db_config_last_closed_at': None,
+        })
     
     if result.get('status') == 'error':
         logger.error(f"Connection failed: {result.get('message')}")
@@ -139,7 +144,11 @@ async def disconnect_db(
     )
     
     # Clear db_config from session
-    await update_session_data(request, {'db_config': None})
+    await update_session_data(request, {
+        'db_config': None,
+        'db_config_last_used_at': None,
+        'db_config_last_closed_at': None,
+    })
     
     if result.get('status') == 'error':
         raise HTTPException(status_code=500, detail=result.get('message'))
@@ -224,7 +233,11 @@ async def switch_remote_database(
     
     # Update session with new db_config
     if result.get('status') == 'success' and 'db_config' in result:
-        await update_session_data(request, {'db_config': result['db_config']})
+        await update_session_data(request, {
+            'db_config': result['db_config'],
+            'db_config_last_used_at': time.time(),
+            'db_config_last_closed_at': None,
+        })
     
     if result.get('status') == 'error':
         raise HTTPException(status_code=400, detail=result.get('message'))
@@ -247,7 +260,11 @@ async def select_database(
     )
     
     if result.get('status') in ['connected', 'success'] and 'db_config' in result:
-        await update_session_data(request, {'db_config': result['db_config']})
+        await update_session_data(request, {
+            'db_config': result['db_config'],
+            'db_config_last_used_at': time.time(),
+            'db_config_last_closed_at': None,
+        })
     
     if result.get('status') == 'error':
         raise HTTPException(status_code=400, detail=result.get('message'))

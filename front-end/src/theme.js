@@ -63,35 +63,41 @@ const PALETTE_MODES = {
       disabledBackground: 'rgba(255, 255, 255, 0.14)',
     },
     scrollbar: { track: 'transparent', thumb: '#3b3b44', thumbHover: '#4b4b55' },
+    monaco: {
+      background: '#0c0c0e',
+      gutter: '#0c0c0e',
+      highlight: 'rgba(255, 255, 255, 0.04)',
+      lineHighlight: 'rgba(255, 255, 255, 0.03)',
+    },
   },
   light: {
     background: {
-      default: '#f6f5f3',
+      default: '#f5f2ee',
       paper: '#ffffff',
-      elevated: '#fbfaf8',
+      elevated: '#faf6f2',
     },
     text: {
-      primary: '#1b1b1b',
-      secondary: '#4d4d4d',
-      disabled: '#9c9c9c',
-      hint: '#7a7a7a',
+      primary: '#1a1a1a',
+      secondary: '#464646',
+      disabled: '#8f8f8f',
+      hint: '#6f6f6f',
     },
     border: {
-      default: '#e1dfdc',
-      subtle: '#f1f0ee',
-      hover: '#c7c5c1',
-      focus: '#1b1b1b',
+      default: '#ddd6cf',
+      subtle: '#eee8e2',
+      hover: '#c5bdb5',
+      focus: '#1a1a1a',
     },
     primary: {
-      main: '#1f1f1f',
-      light: '#343434',
-      dark: '#111111',
+      main: '#1a1a1a',
+      light: '#2e2e2e',
+      dark: '#0f0f0f',
       contrastText: '#ffffff',
     },
     secondary: {
-      main: '#7a7a7a',
-      light: '#9a9a9a',
-      dark: '#5a5a5a',
+      main: '#6f6f6f',
+      light: '#8c8c8c',
+      dark: '#565656',
       contrastText: '#ffffff',
     },
     error: { main: '#dc2626', light: '#ef4444', dark: '#b91c1c' },
@@ -100,13 +106,38 @@ const PALETTE_MODES = {
     success: { main: '#16a34a', light: '#22c55e', dark: '#15803d' },
     action: {
       active: 'rgba(0, 0, 0, 0.6)',
-      hover: 'rgba(0, 0, 0, 0.045)',
-      selected: 'rgba(0, 0, 0, 0.09)',
+      hover: 'rgba(0, 0, 0, 0.06)',
+      selected: 'rgba(0, 0, 0, 0.12)',
       disabled: 'rgba(0, 0, 0, 0.24)',
       disabledBackground: 'rgba(0, 0, 0, 0.12)',
     },
-    scrollbar: { track: 'transparent', thumb: '#c7c5c1', thumbHover: '#a9a7a4' },
+    scrollbar: { track: 'transparent', thumb: '#bdb6ad', thumbHover: '#a69f96' },
+    monaco: {
+      background: '#f5f2ee',
+      gutter: '#f5f2ee',
+      highlight: 'rgba(0, 0, 0, 0.04)',
+      lineHighlight: 'rgba(0, 0, 0, 0.02)',
+    },
   },
+};
+
+// ============================================
+// 2.1 COLOR HELPERS
+// ============================================
+
+const getReadableTextColor = (hex) => {
+  if (!hex || typeof hex !== 'string') return '#ffffff';
+  const clean = hex.replace('#', '');
+  const full = clean.length === 3
+    ? clean.split('').map((c) => c + c).join('')
+    : clean;
+  if (full.length !== 6) return '#ffffff';
+  const r = parseInt(full.slice(0, 2), 16) / 255;
+  const g = parseInt(full.slice(2, 4), 16) / 255;
+  const b = parseInt(full.slice(4, 6), 16) / 255;
+  const toLinear = (c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  const luminance = (0.2126 * toLinear(r)) + (0.7152 * toLinear(g)) + (0.0722 * toLinear(b));
+  return luminance > 0.45 ? '#111111' : '#ffffff';
 };
 
 // ============================================
@@ -265,7 +296,7 @@ export const getMoonlitGradient = (theme) => {
 
   const gradient = mode === 'dark'
     ? `linear-gradient(135deg, ${alpha(theme.palette.text.primary, 0.2)}, ${alpha(theme.palette.text.primary, 0.8)})`
-    : `linear-gradient(135deg, ${alpha(theme.palette.text.primary, 0.9)}, ${alpha(theme.palette.text.primary, 0.5)})`;
+    : `linear-gradient(135deg, ${alpha(theme.palette.text.primary, 0.6)}, ${alpha(theme.palette.text.primary, 0.3)})`;
 
   gradientCache.set(mode, gradient);
   return gradient;
@@ -310,14 +341,14 @@ export const getGlowButtonSx = (theme) => {
     color: theme.palette.primary.contrastText,
     border: 'none',
     boxShadow: isDark 
-      ? `0 4px 15px ${alpha('#000', 0.4)}`
-      : `0 4px 15px ${alpha('#000', 0.15)}`,
+      ? `0 4px 15px ${alpha(theme.palette.common.black, 0.4)}`
+      : `0 4px 15px ${alpha(theme.palette.common.black, 0.15)}`,
     transition: TRANSITIONS.smooth,
     '&:hover': {
       background: isDark ? theme.palette.primary.light : theme.palette.primary.dark,
       boxShadow: isDark
-        ? `0 6px 20px ${alpha('#000', 0.5)}`
-        : `0 6px 20px ${alpha('#000', 0.2)}`,
+        ? `0 6px 20px ${alpha(theme.palette.common.black, 0.5)}`
+        : `0 6px 20px ${alpha(theme.palette.common.black, 0.2)}`,
       transform: 'translateY(-2px)',
     },
     '&:active': {
@@ -357,7 +388,7 @@ const getComponentOverrides = (mode) => {
           backgroundColor: palette.background.default,
           backgroundImage: isDark
             ? 'radial-gradient(60% 60% at 20% 0%, rgba(255,255,255,0.05), transparent 60%), radial-gradient(60% 60% at 80% 100%, rgba(255,255,255,0.04), transparent 60%)'
-            : 'radial-gradient(60% 60% at 20% 0%, rgba(0,0,0,0.05), transparent 60%), radial-gradient(60% 60% at 80% 100%, rgba(0,0,0,0.04), transparent 60%)',
+            : 'radial-gradient(60% 60% at 20% 0%, rgba(0,0,0,0.04), transparent 60%), radial-gradient(60% 60% at 80% 100%, rgba(0,0,0,0.03), transparent 60%)',
           '--scrollbar-thumb': palette.scrollbar.thumb,
           '--scrollbar-thumb-hover': palette.scrollbar.thumbHover,
           scrollbarWidth: 'thin',
@@ -417,8 +448,126 @@ const getComponentOverrides = (mode) => {
           '&:hover': {
             backgroundColor: isDark ? palette.primary.light : palette.primary.dark,
             boxShadow: isDark 
-              ? `0 4px 12px ${alpha('#000', 0.4)}`
-              : `0 4px 12px ${alpha('#000', 0.15)}`,
+              ? `0 4px 12px ${alpha('#000000', 0.4)}`
+              : `0 4px 12px ${alpha('#000000', 0.15)}`,
+          },
+        },
+        containedPrimary: {
+          backgroundColor: palette.primary.main,
+          color: palette.primary.contrastText,
+          '&:hover': {
+            backgroundColor: isDark ? palette.primary.light : palette.primary.dark,
+          },
+        },
+        containedSecondary: {
+          backgroundColor: palette.secondary.main,
+          color: palette.secondary.contrastText,
+          '&:hover': {
+            backgroundColor: isDark ? palette.secondary.light : palette.secondary.dark,
+          },
+        },
+        containedSuccess: {
+          backgroundColor: palette.success.main,
+          color: getReadableTextColor(palette.success.main),
+          '&:hover': { backgroundColor: palette.success.dark },
+        },
+        containedWarning: {
+          backgroundColor: palette.warning.main,
+          color: getReadableTextColor(palette.warning.main),
+          '&:hover': { backgroundColor: palette.warning.dark },
+        },
+        containedError: {
+          backgroundColor: palette.error.main,
+          color: getReadableTextColor(palette.error.main),
+          '&:hover': { backgroundColor: palette.error.dark },
+        },
+        containedInfo: {
+          backgroundColor: palette.info.main,
+          color: getReadableTextColor(palette.info.main),
+          '&:hover': { backgroundColor: palette.info.dark },
+        },
+        outlinedPrimary: {
+          borderColor: alpha(palette.primary.main, isDark ? 0.35 : 0.4),
+          color: palette.primary.main,
+          '&:hover': {
+            borderColor: palette.primary.main,
+            backgroundColor: alpha(palette.primary.main, isDark ? 0.12 : 0.08),
+          },
+        },
+        outlinedSecondary: {
+          borderColor: alpha(palette.secondary.main, isDark ? 0.35 : 0.4),
+          color: palette.secondary.main,
+          '&:hover': {
+            borderColor: palette.secondary.main,
+            backgroundColor: alpha(palette.secondary.main, isDark ? 0.12 : 0.08),
+          },
+        },
+        outlinedSuccess: {
+          borderColor: alpha(palette.success.main, isDark ? 0.35 : 0.4),
+          color: palette.success.main,
+          '&:hover': {
+            borderColor: palette.success.main,
+            backgroundColor: alpha(palette.success.main, isDark ? 0.12 : 0.08),
+          },
+        },
+        outlinedWarning: {
+          borderColor: alpha(palette.warning.main, isDark ? 0.35 : 0.4),
+          color: palette.warning.main,
+          '&:hover': {
+            borderColor: palette.warning.main,
+            backgroundColor: alpha(palette.warning.main, isDark ? 0.12 : 0.08),
+          },
+        },
+        outlinedError: {
+          borderColor: alpha(palette.error.main, isDark ? 0.35 : 0.4),
+          color: palette.error.main,
+          '&:hover': {
+            borderColor: palette.error.main,
+            backgroundColor: alpha(palette.error.main, isDark ? 0.12 : 0.08),
+          },
+        },
+        outlinedInfo: {
+          borderColor: alpha(palette.info.main, isDark ? 0.35 : 0.4),
+          color: palette.info.main,
+          '&:hover': {
+            borderColor: palette.info.main,
+            backgroundColor: alpha(palette.info.main, isDark ? 0.12 : 0.08),
+          },
+        },
+        textPrimary: {
+          color: palette.primary.main,
+          '&:hover': {
+            backgroundColor: alpha(palette.primary.main, isDark ? 0.12 : 0.08),
+          },
+        },
+        textSecondary: {
+          color: palette.secondary.main,
+          '&:hover': {
+            backgroundColor: alpha(palette.secondary.main, isDark ? 0.12 : 0.08),
+          },
+        },
+        textSuccess: {
+          color: palette.success.main,
+          '&:hover': {
+            backgroundColor: alpha(palette.success.main, isDark ? 0.12 : 0.08),
+          },
+        },
+        textWarning: {
+          color: palette.warning.main,
+          '&:hover': {
+            backgroundColor: alpha(palette.warning.main, isDark ? 0.12 : 0.08),
+          },
+        },
+        textError: {
+          color: palette.error.main,
+          '&:hover': {
+            backgroundColor: alpha(palette.error.main, isDark ? 0.12 : 0.08),
+          },
+        },
+        textInfo: {
+          color: palette.info.main,
+          '&:hover': {
+            backgroundColor: alpha(palette.info.main, isDark ? 0.12 : 0.08),
           },
         },
         sizeSmall: { padding: '6px 16px', fontSize: '0.8125rem' },
@@ -446,7 +595,7 @@ const getComponentOverrides = (mode) => {
           backgroundColor: palette.background.paper,
           backgroundImage: isDark
             ? 'linear-gradient(180deg, rgba(255,255,255,0.02), transparent)'
-            : 'linear-gradient(180deg, rgba(0,0,0,0.02), transparent)',
+            : 'linear-gradient(180deg, rgba(0,0,0,0.015), transparent)',
         },
         elevation1: {
           boxShadow: isDark 
@@ -470,7 +619,7 @@ const getComponentOverrides = (mode) => {
           transition: TRANSITIONS.smooth,
           backgroundImage: isDark
             ? 'linear-gradient(180deg, rgba(255,255,255,0.02), transparent)'
-            : 'linear-gradient(180deg, rgba(0,0,0,0.02), transparent)',
+            : 'linear-gradient(180deg, rgba(0,0,0,0.015), transparent)',
           '&:hover': {
             borderColor: palette.border.hover,
           },
@@ -518,6 +667,54 @@ const getComponentOverrides = (mode) => {
         outlined: {
           borderColor: palette.border.default,
           '&:hover': { backgroundColor: palette.action.hover },
+        },
+        filledPrimary: {
+          backgroundColor: alpha(palette.primary.main, isDark ? 0.16 : 0.12),
+          color: palette.primary.main,
+        },
+        filledSecondary: {
+          backgroundColor: alpha(palette.secondary.main, isDark ? 0.16 : 0.12),
+          color: palette.secondary.main,
+        },
+        filledSuccess: {
+          backgroundColor: alpha(palette.success.main, isDark ? 0.16 : 0.12),
+          color: palette.success.main,
+        },
+        filledWarning: {
+          backgroundColor: alpha(palette.warning.main, isDark ? 0.16 : 0.12),
+          color: palette.warning.main,
+        },
+        filledError: {
+          backgroundColor: alpha(palette.error.main, isDark ? 0.16 : 0.12),
+          color: palette.error.main,
+        },
+        filledInfo: {
+          backgroundColor: alpha(palette.info.main, isDark ? 0.16 : 0.12),
+          color: palette.info.main,
+        },
+        outlinedPrimary: {
+          borderColor: alpha(palette.primary.main, isDark ? 0.35 : 0.4),
+          color: palette.primary.main,
+        },
+        outlinedSecondary: {
+          borderColor: alpha(palette.secondary.main, isDark ? 0.35 : 0.4),
+          color: palette.secondary.main,
+        },
+        outlinedSuccess: {
+          borderColor: alpha(palette.success.main, isDark ? 0.35 : 0.4),
+          color: palette.success.main,
+        },
+        outlinedWarning: {
+          borderColor: alpha(palette.warning.main, isDark ? 0.35 : 0.4),
+          color: palette.warning.main,
+        },
+        outlinedError: {
+          borderColor: alpha(palette.error.main, isDark ? 0.35 : 0.4),
+          color: palette.error.main,
+        },
+        outlinedInfo: {
+          borderColor: alpha(palette.info.main, isDark ? 0.35 : 0.4),
+          color: palette.info.main,
         },
       },
     },
@@ -594,15 +791,51 @@ const getComponentOverrides = (mode) => {
         },
       },
     },
+
+    MuiTablePagination: {
+      styleOverrides: {
+        root: {
+          backgroundColor: palette.background.default,
+          borderTop: `1px solid ${palette.border.subtle}`,
+        },
+        selectLabel: {
+          color: palette.text.secondary,
+        },
+        displayedRows: {
+          color: palette.text.secondary,
+        },
+        select: {
+          color: palette.text.primary,
+        },
+        actions: {
+          color: palette.text.primary,
+        },
+      },
+    },
     
     MuiMenu: {
       styleOverrides: {
         paper: {
           border: `1px solid ${palette.border.subtle}`,
+          backgroundColor: palette.background.elevated,
+          backgroundImage: 'none',
           boxShadow: isDark 
             ? '0 20px 25px -5px rgba(0, 0, 0, 0.6)'
             : '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
           borderRadius: 8,
+        },
+      },
+    },
+    
+    MuiPopover: {
+      styleOverrides: {
+        paper: {
+          backgroundColor: palette.background.elevated,
+          backgroundImage: 'none',
+          border: `1px solid ${palette.border.subtle}`,
+          boxShadow: isDark
+            ? '0 20px 25px -5px rgba(0, 0, 0, 0.6)'
+            : '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
         },
       },
     },
@@ -645,12 +878,12 @@ const getComponentOverrides = (mode) => {
     MuiLink: {
       styleOverrides: {
         root: {
-          color: palette.text.primary,
+          color: palette.primary.main,
           textDecoration: 'underline',
           textUnderlineOffset: '2px',
           transition: TRANSITIONS.default,
           '&:hover': { 
-            color: palette.text.secondary,
+            color: isDark ? palette.primary.light : palette.primary.dark,
           },
         },
       },
@@ -669,6 +902,126 @@ const getComponentOverrides = (mode) => {
       styleOverrides: {
         root: {
           borderColor: palette.border.subtle,
+        },
+      },
+    },
+
+    MuiAlert: {
+      styleOverrides: {
+        root: {
+          borderRadius: 8,
+          border: `1px solid ${palette.border.subtle}`,
+        },
+        standardSuccess: {
+          backgroundColor: alpha(palette.success.main, isDark ? 0.12 : 0.08),
+          color: palette.text.primary,
+          '& .MuiAlert-icon': { color: palette.success.main },
+        },
+        standardInfo: {
+          backgroundColor: alpha(palette.info.main, isDark ? 0.12 : 0.08),
+          color: palette.text.primary,
+          '& .MuiAlert-icon': { color: palette.info.main },
+        },
+        standardWarning: {
+          backgroundColor: alpha(palette.warning.main, isDark ? 0.12 : 0.08),
+          color: palette.text.primary,
+          '& .MuiAlert-icon': { color: palette.warning.main },
+        },
+        standardError: {
+          backgroundColor: alpha(palette.error.main, isDark ? 0.12 : 0.08),
+          color: palette.text.primary,
+          '& .MuiAlert-icon': { color: palette.error.main },
+        },
+      },
+    },
+
+    MuiSnackbarContent: {
+      styleOverrides: {
+        root: {
+          borderRadius: 8,
+          border: `1px solid ${palette.border.subtle}`,
+        },
+      },
+    },
+
+    MuiBadge: {
+      styleOverrides: {
+        badge: {
+          fontWeight: 600,
+          border: `1px solid ${alpha(palette.background.paper, isDark ? 0.2 : 0.4)}`,
+        },
+      },
+    },
+
+    MuiSwitch: {
+      styleOverrides: {
+        root: {
+          width: 44,
+          height: 26,
+          padding: 0,
+          display: 'flex',
+        },
+        switchBase: {
+          padding: 3,
+          '&.Mui-checked': {
+            transform: 'translateX(18px)',
+            color: palette.background.paper,
+            '& + .MuiSwitch-track': {
+              opacity: 1,
+              backgroundColor: palette.success.main,
+              borderColor: alpha(palette.success.main, isDark ? 0.4 : 0.5),
+            },
+          },
+          '&.Mui-disabled + .MuiSwitch-track': {
+            opacity: 0.5,
+          },
+        },
+        thumb: {
+          boxShadow: 'none',
+          width: 20,
+          height: 20,
+        },
+        track: {
+          opacity: 1,
+          borderRadius: 13,
+          backgroundColor: isDark ? alpha(palette.text.primary, 0.2) : alpha(palette.text.primary, 0.1),
+          border: `1px solid ${palette.border.default}`,
+        },
+      },
+    },
+
+    MuiCheckbox: {
+      styleOverrides: {
+        root: {
+          color: palette.text.secondary,
+          '&.Mui-checked': { color: palette.primary.main },
+          '&.MuiCheckbox-indeterminate': { color: palette.primary.main },
+        },
+      },
+    },
+
+    MuiRadio: {
+      styleOverrides: {
+        root: {
+          color: palette.text.secondary,
+          '&.Mui-checked': { color: palette.primary.main },
+          '&.MuiRadio-colorSecondary.Mui-checked': { color: palette.secondary.main },
+        },
+      },
+    },
+
+    MuiToggleButton: {
+      styleOverrides: {
+        root: {
+          borderColor: palette.border.default,
+          color: palette.text.secondary,
+          textTransform: 'none',
+          '&:hover': { backgroundColor: palette.action.hover },
+          '&.Mui-selected': {
+            color: palette.text.primary,
+            backgroundColor: palette.action.selected,
+            '&:hover': { backgroundColor: palette.action.selected },
+          },
         },
       },
     },

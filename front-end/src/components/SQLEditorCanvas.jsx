@@ -57,6 +57,33 @@ const MONACO_OPTIONS = {
   },
 };
 
+// Custom Monaco theme definitions to match app theme colors
+const defineMonacoThemes = (monaco) => {
+  // Dark theme - transparent background for overlay style
+  monaco.editor.defineTheme('moonlit-dark', {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [],
+    colors: {
+      'editor.background': '#00000000',
+      'editor.lineHighlightBackground': '#ffffff08',
+      'editorGutter.background': '#00000000',
+    },
+  });
+  
+  // Light theme - transparent with app's cream/beige showing through
+  monaco.editor.defineTheme('moonlit-light', {
+    base: 'vs',
+    inherit: true,
+    rules: [],
+    colors: {
+      'editor.background': '#00000000',
+      'editor.lineHighlightBackground': '#00000008',
+      'editorGutter.background': '#00000000',
+    },
+  });
+};
+
 // Glassmorphism styles helper
 const getGlassmorphismStyles = (theme, isDark) => ({
   background: isDark
@@ -200,19 +227,11 @@ function SQLEditorCanvas({
     editorRef.current = editor;
     editor.focus();
 
-    if (theme.palette.mode === 'dark') {
-      monaco.editor.defineTheme('transparent-dark', {
-        base: 'vs-dark',
-        inherit: true,
-        rules: [],
-        colors: {
-          'editor.background': '#00000000',
-          'editor.lineHighlightBackground': '#ffffff08',
-          'editorGutter.background': '#00000000',
-        }
-      });
-      monaco.editor.setTheme('transparent-dark');
-    }
+    // Define custom themes for both modes
+    defineMonacoThemes(monaco);
+    
+    // Set the appropriate theme based on current mode
+    monaco.editor.setTheme(theme.palette.mode === 'dark' ? 'moonlit-dark' : 'moonlit-light');
   }, [theme.palette.mode]);
 
   const handleRunQuery = useCallback(async () => {
@@ -308,17 +327,17 @@ function SQLEditorCanvas({
     px: 2,
     py: 1.25,
     borderBottom: '1px solid',
-    borderColor: isDark ? alpha('#fff', 0.06) : alpha('#000', 0.06),
+    borderColor: theme.palette.border?.subtle,
     backgroundColor: 'transparent',
     flexShrink: 0,
-  }), [isDark]);
+  }), [isDark, theme]);
 
   const tabsStyles = useMemo(() => ({
     minHeight: 44,
     '& .MuiTabs-indicator': {
       height: 2,
       borderRadius: '2px 2px 0 0',
-      backgroundColor: isDark ? '#FFFFFF' : '#000000',
+      backgroundColor: theme.palette.text.primary,
     },
     '& .MuiTab-root': {
       minHeight: 44,
@@ -332,10 +351,10 @@ function SQLEditorCanvas({
       '&.Mui-selected': { color: 'text.primary' },
       '&:hover': {
         color: 'text.primary',
-        backgroundColor: isDark ? alpha('#fff', 0.05) : alpha('#000', 0.04),
+        backgroundColor: theme.palette.action.hover,
       },
     },
-  }), [isDark]);
+  }), [isDark, theme]);
 
   const actionBarStyles = useMemo(() => ({
     display: 'flex',
@@ -345,10 +364,8 @@ function SQLEditorCanvas({
     px: 2,
     py: 1.5,
     borderTop: '1px solid',
-    borderColor: alpha(theme.palette.divider, isDark ? 0.1 : 0.15),
-    background: isDark
-      ? alpha(theme.palette.background.paper, 0.05)
-      : alpha(theme.palette.background.paper, 0.8),
+    borderColor: theme.palette.border?.subtle || alpha(theme.palette.divider, isDark ? 0.1 : 0.15),
+    backgroundColor: theme.palette.background.default,
     backdropFilter: 'blur(12px)',
     WebkitBackdropFilter: 'blur(12px)',
     flexShrink: 0,
@@ -411,7 +428,7 @@ function SQLEditorCanvas({
         <Editor
           height="100%"
           language="sql"
-          theme={isDark ? 'vs-dark' : 'light'}
+          theme={isDark ? 'moonlit-dark' : 'moonlit-light'}
           value={query}
           onChange={handleQueryChange}
           onMount={handleEditorDidMount}
@@ -466,9 +483,9 @@ function SQLEditorCanvas({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06),
+            backgroundColor: theme.palette.action.hover,
             border: '1px solid',
-            borderColor: isDark ? alpha('#fff', 0.12) : alpha('#000', 0.1),
+            borderColor: theme.palette.border?.subtle,
           }}
         >
           <TerminalRoundedIcon sx={{ fontSize: 18, color: 'text.primary' }} />
@@ -483,7 +500,7 @@ function SQLEditorCanvas({
             label={currentDatabase}
             sx={{
               height: 22,
-              backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06),
+              backgroundColor: theme.palette.action.hover,
               color: 'text.primary',
               '& .MuiChip-icon': { ml: 0.5, color: 'inherit' },
             }}
@@ -497,7 +514,7 @@ function SQLEditorCanvas({
           sx={{
             color: 'text.secondary',
             '&:hover': {
-              backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06),
+              backgroundColor: theme.palette.action.hover,
             },
           }}
         >
@@ -514,7 +531,7 @@ function SQLEditorCanvas({
         display: 'flex',
         justifyContent: 'center',
         borderBottom: '1px solid',
-        borderColor: isDark ? alpha('#fff', 0.05) : alpha('#000', 0.05),
+        borderColor: theme.palette.border?.subtle,
         backgroundColor: 'transparent',
         flexShrink: 0,
       }}
@@ -534,7 +551,7 @@ function SQLEditorCanvas({
                   sx={{
                     height: 18,
                     fontWeight: 600,
-                    backgroundColor: isDark ? alpha('#fff', 0.12) : alpha('#000', 0.08),
+                    backgroundColor: theme.palette.action.selected,
                     color: 'text.primary',
                   }}
                 />

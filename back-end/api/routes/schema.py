@@ -2,6 +2,7 @@
 """Schema and table related API routes."""
 
 import logging
+import time
 
 from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.concurrency import run_in_threadpool
@@ -45,7 +46,11 @@ async def select_schema(
     
     # Update session with new db_config containing schema
     if result.get('status') == 'success' and 'db_config' in result:
-        await update_session_data(request, {'db_config': result['db_config']})
+        await update_session_data(request, {
+            'db_config': result['db_config'],
+            'db_config_last_used_at': time.time(),
+            'db_config_last_closed_at': None,
+        })
     
     if result.get('status') == 'error':
         raise HTTPException(status_code=400, detail=result.get('message'))

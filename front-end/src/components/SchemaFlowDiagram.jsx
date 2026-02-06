@@ -497,7 +497,7 @@ function SchemaFlowDiagram({ database, tables, columns }) {
             flexDirection: 'row',
             gap: '4px',
             padding: '6px',
-            backgroundColor: isDark ? theme.palette.background.paper : '#ffffff',
+            backgroundColor: theme.palette.background.paper,
             borderRadius: '10px',
             border: `1px solid ${theme.palette.divider}`,
             boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
@@ -516,7 +516,7 @@ function SchemaFlowDiagram({ database, tables, columns }) {
           '.react-flow-controls-custom button': {
             width: '28px !important',
             height: '28px !important',
-            backgroundColor: `${isDark ? alpha('#fff', 0.06) : alpha('#000', 0.04)} !important`,
+            backgroundColor: `${theme.palette.action.hover} !important`,
             border: `1px solid ${theme.palette.divider} !important`,
             borderRadius: '8px !important',
             color: `${theme.palette.text.primary} !important`,
@@ -528,7 +528,7 @@ function SchemaFlowDiagram({ database, tables, columns }) {
             padding: '0 !important',
           },
           '.react-flow-controls-custom button:hover': {
-            backgroundColor: `${isDark ? alpha('#fff', 0.1) : alpha('#000', 0.08)} !important`,
+            backgroundColor: `${theme.palette.action.selected} !important`,
           },
           '.react-flow-controls-custom button svg': {
             fill: `${theme.palette.text.primary} !important`,
