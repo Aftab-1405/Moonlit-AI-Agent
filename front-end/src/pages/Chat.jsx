@@ -328,7 +328,7 @@ function Chat() {
       } catch {
         sessionInstanceId = null;
       }
-      sessionActive(sessionInstanceId).catch(() => {});
+      sessionActive(sessionInstanceId).catch(() => { });
     };
 
     // Initial ping
@@ -573,7 +573,23 @@ function Chat() {
               inset: 0,
             }}
           >
-            <Box sx={{ textAlign: 'center', mb: 2 }}>
+            <Box
+              sx={{
+                textAlign: 'center',
+                mb: 3,
+                animation: 'slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                '@keyframes slideUp': {
+                  from: {
+                    opacity: 0,
+                    transform: 'translateY(20px)'
+                  },
+                  to: {
+                    opacity: 1,
+                    transform: 'translateY(0)'
+                  },
+                },
+              }}
+            >
               <Typography
                 variant="h3"
                 sx={{
@@ -581,6 +597,7 @@ function Chat() {
                   fontSize: { xs: '2rem', sm: '2.5rem' },
                   color: 'text.primary',
                   letterSpacing: '-0.02em',
+                  mb: 1,
                 }}
               >
                 {user?.displayName ? (

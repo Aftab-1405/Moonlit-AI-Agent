@@ -474,13 +474,13 @@ function ChatInput({
                     height: 32,
                     borderRadius: '8px',
                     border: '1px solid',
-                    borderColor: reasoningEnabled 
+                    borderColor: reasoningEnabled
                       ? alpha(theme.palette.info.main, isDarkMode ? 0.5 : 0.4)
                       : 'transparent',
-                    backgroundColor: reasoningEnabled 
+                    backgroundColor: reasoningEnabled
                       ? alpha(theme.palette.info.main, isDarkMode ? 0.15 : 0.1)
                       : 'transparent',
-                    color: reasoningEnabled 
+                    color: reasoningEnabled
                       ? alpha(theme.palette.info.main, isDarkMode ? 0.9 : 0.8)
                       : alpha(theme.palette.text.secondary, 0.4),
                     transition: theme.transitions.create(
@@ -513,7 +513,7 @@ function ChatInput({
               fullWidth
               multiline
               maxRows={5}
-              placeholder="Ask anything..."
+              placeholder={isConnected ? "Ask about your database..." : "Ask anything..."}
               value={message}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
@@ -617,7 +617,7 @@ function ChatInput({
                 flexWrap: 'wrap',
               }}
             >
-              {suggestions.map((chip) => (
+              {suggestions.map((chip, index) => (
                 <Chip
                   key={chip.label}
                   icon={chip.icon}
@@ -626,13 +626,20 @@ function ChatInput({
                   size="small"
                   sx={{
                     borderRadius: '12px',
-                    border: '1px solid', // Explicit border style
-                    borderColor: alpha(theme.palette.text.primary, 0.2), // Increased for dark theme visibility
+                    border: '1px solid',
+                    borderColor: alpha(theme.palette.text.primary, 0.2),
                     color: 'text.secondary',
                     height: 30,
                     backgroundColor: 'transparent',
                     cursor: 'pointer',
-                    transition: 'transform 0.15s ease, border-color 0.15s ease',
+                    opacity: 0,
+                    animation: 'chipFadeIn 0.4s ease forwards',
+                    animationDelay: `${index * 0.08}s`,
+                    '@keyframes chipFadeIn': {
+                      from: { opacity: 0, transform: 'translateY(8px)' },
+                      to: { opacity: 1, transform: 'translateY(0)' },
+                    },
+                    transition: 'transform 0.15s ease, border-color 0.15s ease, background-color 0.15s ease',
                     '& .MuiChip-icon': {
                       color: 'inherit',
                       ml: 0.5,
@@ -656,10 +663,10 @@ function ChatInput({
               textAlign: 'center',
               mt: 1.5,
               color: 'text.secondary',
-              opacity: 0.4,
+              opacity: 0.5,
             }}
           >
-            AI-powered • Always verify SQL queries before running
+            Moonlit can make mistakes • Verify important info
           </Typography>
         </Box>
       </Collapse>
