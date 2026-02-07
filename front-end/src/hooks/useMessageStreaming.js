@@ -10,6 +10,12 @@
 import { useCallback, useRef } from 'react';
 import { sendMessage } from '../api';
 import logger from '../utils/logger';
+import {
+  createAssistantMessage,
+  createMessageId,
+  createUserMessage,
+  MESSAGE_STATUS,
+} from '../utils/chatMessages';
 
 // Throttle for streaming updates (~60fps)
 const UPDATE_THROTTLE_MS = 16;
@@ -63,6 +69,26 @@ function getErrorMessage(error) {
   return "Something went wrong. Please try again.";
 }
 
+function upsertAssistantMessage(prevMessages, assistantId, rawContent, status) {
+  const nextAssistant = createAssistantMessage({
+    id: assistantId,
+    rawContent,
+    status,
+  });
+  const messageIndex = prevMessages.findIndex((message) => message.id === assistantId);
+
+  if (messageIndex === -1) {
+    return [...prevMessages, nextAssistant];
+  }
+
+  const updated = [...prevMessages];
+  updated[messageIndex] = {
+    ...updated[messageIndex],
+    ...nextAssistant,
+  };
+  return updated;
+}
+
 /**
  * Hook for message streaming functionality
  * @param {Object} params - Hook parameters
@@ -87,11 +113,21 @@ export function useMessageStreaming({
   const abortControllerRef = useRef(null);
 
   const handleSendMessage = useCallback(async (message) => {
-    if (!message.trim()) return;
+    const prompt = message.trim();
+    if (!prompt) return;
+
+    const assistantMessageId = createMessageId('assistant');
 
     // Add user message and placeholder AI message
-    setMessages((prev) => [...prev, { sender: 'user', content: message }]);
-    setMessages((prev) => [...prev, { sender: 'ai', content: '', isWaiting: true }]);
+    setMessages((prev) => [
+      ...prev,
+      createUserMessage(prompt),
+      createAssistantMessage({
+        id: assistantMessageId,
+        rawContent: '',
+        status: MESSAGE_STATUS.WAITING,
+      }),
+    ]);
 
     // Get settings with defaults
     const enableReasoning = settings.enableReasoning ?? true;
@@ -103,7 +139,7 @@ export function useMessageStreaming({
 
     try {
       const response = await sendMessage({
-        prompt: message,
+        prompt,
         conversationId: currentConversationId,
         enableReasoning,
         reasoningEffort,
@@ -117,7 +153,7 @@ export function useMessageStreaming({
         setCurrentConversationId(newConversationId);
         navigate(`/chat/${newConversationId}`, { replace: true });
 
-        const tempTitle = message.substring(0, 50) + (message.length > 50 ? '...' : '');
+        const tempTitle = prompt.substring(0, 50) + (prompt.length > 50 ? '...' : '');
         setConversations((prev) => [
           { id: newConversationId, title: tempTitle, created_at: new Date().toISOString() },
           ...prev,
@@ -130,20 +166,9 @@ export function useMessageStreaming({
       let aiResponse = '';
       let lastUpdateTime = 0;
 
-      const updateMessage = () => {
+      const updateMessage = (status) => {
         setMessages((prev) => {
-          const updated = [...prev];
-          if (updated[updated.length - 1]?.sender === 'ai') {
-            updated[updated.length - 1] = {
-              ...updated[updated.length - 1],
-              content: aiResponse,
-              isStreaming: true,
-              isWaiting: false
-            };
-          } else {
-            updated.push({ sender: 'ai', content: aiResponse, isStreaming: true });
-          }
-          return updated;
+          return upsertAssistantMessage(prev, assistantMessageId, aiResponse, status);
         });
       };
 
@@ -157,40 +182,22 @@ export function useMessageStreaming({
 
         const now = Date.now();
         if (done || now - lastUpdateTime >= UPDATE_THROTTLE_MS) {
-          if (aiResponse) {
-            updateMessage();
+          if (aiResponse || done) {
+            updateMessage(done ? MESSAGE_STATUS.DONE : MESSAGE_STATUS.STREAMING);
           }
           lastUpdateTime = now;
           if (done) break;
         }
       }
 
-      // Mark streaming complete
-      setMessages((prev) => {
-        const updated = [...prev];
-        if (updated[updated.length - 1]?.sender === 'ai') {
-          updated[updated.length - 1] = {
-            ...updated[updated.length - 1],
-            isStreaming: false
-          };
-        }
-        return updated;
-      });
-
       fetchConversations();
     } catch (error) {
       if (error.name === 'AbortError') {
         // User stopped the stream
         setMessages((prev) => {
-          const updated = [...prev];
-          if (updated[updated.length - 1]?.sender === 'ai') {
-            updated[updated.length - 1] = {
-              ...updated[updated.length - 1],
-              isStreaming: false,
-              wasStopped: true
-            };
-          }
-          return updated;
+          const existingAssistant = prev.find((msg) => msg.id === assistantMessageId);
+          const rawContent = existingAssistant?.rawContent || '';
+          return upsertAssistantMessage(prev, assistantMessageId, rawContent, MESSAGE_STATUS.STOPPED);
         });
         return;
       }
@@ -200,24 +207,13 @@ export function useMessageStreaming({
       
       // Get user-friendly error message
       const errorMessage = getErrorMessage(error);
-      
-      // Handle error with specific message
+
       setMessages((prev) => {
-        const updated = [...prev];
-        if (updated[updated.length - 1]?.sender === 'ai' && updated[updated.length - 1]?.isWaiting) {
-          updated[updated.length - 1] = { 
-            sender: 'ai', 
-            content: errorMessage,
-            isError: true 
-          };
-        } else {
-          updated.push({ 
-            sender: 'ai', 
-            content: errorMessage,
-            isError: true 
-          });
-        }
-        return updated;
+        const existingAssistant = prev.find((msg) => msg.id === assistantMessageId);
+        const rawContent = existingAssistant?.rawContent
+          ? `${existingAssistant.rawContent}\n\n${errorMessage}`
+          : errorMessage;
+        return upsertAssistantMessage(prev, assistantMessageId, rawContent, MESSAGE_STATUS.ERROR);
       });
     } finally {
       abortControllerRef.current = null;

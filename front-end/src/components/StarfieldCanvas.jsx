@@ -2,112 +2,73 @@ import { useEffect, useRef, memo, useCallback } from 'react';
 import { useTheme } from '@mui/material/styles';
 import { Box } from '@mui/material';
 
-/**
- * Moonlit Starfield v2.2 - Monochromatic Edition
- * 
- * Visual Design:
- * - Pure grayscale color palette matching monochromatic theme
- * - Multi-layer parallax depth with 4 star layers
- * - Realistic star scintillation with subtle shimmer
- * - Constellation-like star clusters for natural grouping
- * - Animated nebula bands with flowing motion
- * - Comet trails with particle dispersion
- * - Subtle ambient glow effect
- * 
- * Performance Optimizations:
- * - Object pooling for meteors (zero allocation during runtime)
- * - Frame skipping based on opacity (no work when hidden)
- * - Batch rendering with minimal state changes
- * - IntersectionObserver for viewport-based rendering
- * - Capped DPR for performance
- */
-
-// ============================================================================
-// CONFIGURATION - Tunable parameters
-// ============================================================================
-const CONFIG = {
-  // Star layers with parallax depth (speed in px/sec)
-  layers: [
-    { count: 0.00008, sizeRange: [0.2, 0.4], opacityRange: [0.07, 0.14], speed: 0.35, twinkle: 0.1 },   // Distant dust
-    { count: 0.00005, sizeRange: [0.4, 0.7], opacityRange: [0.14, 0.26], speed: 0.75, twinkle: 0.2 },  // Far stars
-    { count: 0.00002, sizeRange: [0.7, 1.1], opacityRange: [0.24, 0.42], speed: 1.3, twinkle: 0.28 }, // Mid stars
-    { count: 0.000008, sizeRange: [1.1, 1.9], opacityRange: [0.36, 0.58], speed: 2.1, twinkle: 0.36 },  // Near bright stars
-  ],
-  // Star clusters (constellation-like groupings)
-  clusters: { count: 3, starsPerCluster: [8, 15], radius: [60, 120] },
-  // Nebula/aurora bands
-  nebulas: { count: 2, pulseSpeed: 0.05 },
-  // Meteors with particle trails
-  meteors: { poolSize: 5, minDelay: 6000, maxDelay: 15000 },
-  // Ambient glow
-  ambientGlow: { enabled: true, intensity: 0.028 },
-  // Performance
-  maxDPR: 1.5,  // Cap device pixel ratio for performance
-  frameSkipThreshold: 0.02,  // Skip frames below this opacity
-  targetFps: 60,
-};
-
-// ============================================================================
-// MONOCHROMATIC COLOR PALETTE - Pure grayscale
-// ============================================================================
-const COLORS = {
-  // Star colors - varying shades of gray/white
-  stars: [
-    [180, 180, 180],  // Cool gray
-    [200, 200, 200],  // Light gray
-    [220, 220, 220],  // Bright gray
-    [240, 240, 240],  // Near white
-    [250, 250, 250],  // Pure white
-    [190, 190, 190],  // Medium gray
-  ],
-  // Nebula colors - dark grays with subtle variation
-  nebulas: [
-    { r: 30, g: 30, b: 30, name: 'deepGray' },
-    { r: 40, g: 40, b: 40, name: 'darkGray' },
-    { r: 25, g: 25, b: 25, name: 'nearBlack' },
-    { r: 50, g: 50, b: 50, name: 'midGray' },
-  ],
-  // Meteor colors - white to light gray
-  meteor: {
-    head: [250, 250, 250],     // Pure white
-    trail: [180, 180, 180],    // Light gray
-  },
-  // Ambient glow - subtle white
-  glow: {
-    inner: [200, 200, 200],
-    mid: [160, 160, 160],
-    outer: [120, 120, 120],
-  },
-};
-
-// ============================================================================
-// UTILITY FUNCTIONS
-// ============================================================================
 const TWO_PI = Math.PI * 2;
 const rand = (min, max) => min + Math.random() * (max - min);
 const randInt = (min, max) => Math.floor(rand(min, max + 1));
 const pickRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
+
 const hexToRgb = (hex) => {
   const clean = hex.replace('#', '');
   if (clean.length === 3) {
-    const r = parseInt(clean[0] + clean[0], 16);
-    const g = parseInt(clean[1] + clean[1], 16);
-    const b = parseInt(clean[2] + clean[2], 16);
-    return { r, g, b };
+    return {
+      r: parseInt(clean[0] + clean[0], 16),
+      g: parseInt(clean[1] + clean[1], 16),
+      b: parseInt(clean[2] + clean[2], 16),
+    };
   }
   if (clean.length === 6) {
-    const r = parseInt(clean.slice(0, 2), 16);
-    const g = parseInt(clean.slice(2, 4), 16);
-    const b = parseInt(clean.slice(4, 6), 16);
-    return { r, g, b };
+    return {
+      r: parseInt(clean.slice(0, 2), 16),
+      g: parseInt(clean.slice(2, 4), 16),
+      b: parseInt(clean.slice(4, 6), 16),
+    };
   }
   return { r: 16, g: 16, b: 18 };
 };
 
-// ============================================================================
-// STAR FIELD CLASS
-// ============================================================================
+const CONFIG = {
+  layers: [
+    { count: 0.00009, sizeRange: [0.2, 0.5], opacityRange: [0.08, 0.16], speed: 0.4, twinkle: 0.12 },
+    { count: 0.00006, sizeRange: [0.5, 0.8], opacityRange: [0.16, 0.3], speed: 0.85, twinkle: 0.22 },
+    { count: 0.000025, sizeRange: [0.8, 1.2], opacityRange: [0.28, 0.48], speed: 1.5, twinkle: 0.3 },
+    { count: 0.00001, sizeRange: [1.2, 2.0], opacityRange: [0.4, 0.65], speed: 2.4, twinkle: 0.4 },
+  ],
+  clusters: { count: 4, starsPerCluster: [10, 18], radius: [70, 140] },
+  nebulas: { count: 3, pulseSpeed: 0.06 },
+  meteors: { poolSize: 6, minDelay: 5000, maxDelay: 12000 },
+  ambientGlow: { enabled: true, intensity: 0.035 },
+  maxDPR: 1.5,
+  frameSkipThreshold: 0.02,
+  targetFps: 60,
+};
+
+const COLORS = {
+  stars: [
+    [175, 175, 180],
+    [195, 195, 200],
+    [215, 215, 220],
+    [235, 235, 240],
+    [248, 248, 252],
+    [185, 185, 190],
+  ],
+  nebulas: [
+    { r: 28, g: 28, b: 32, name: 'deepCharcoal' },
+    { r: 38, g: 38, b: 42, name: 'darkSteel' },
+    { r: 22, g: 22, b: 26, name: 'nearBlack' },
+    { r: 48, g: 48, b: 52, name: 'midCharcoal' },
+  ],
+  meteor: {
+    head: [252, 252, 255],
+    trail: [175, 175, 180],
+  },
+  glow: {
+    inner: [205, 205, 210],
+    mid: [165, 165, 170],
+    outer: [125, 125, 130],
+  },
+};
+
 class StarField {
   constructor(width, height) {
     this.width = width;
@@ -120,7 +81,6 @@ class StarField {
     const { width, height } = this;
     const area = width * height;
 
-    // Create stars for each layer
     CONFIG.layers.forEach((layer, layerIndex) => {
       const count = Math.floor(area * layer.count);
       for (let i = 0; i < count; i++) {
@@ -128,7 +88,6 @@ class StarField {
       }
     });
 
-    // Create star clusters for natural grouping
     for (let c = 0; c < CONFIG.clusters.count; c++) {
       const centerX = rand(width * 0.1, width * 0.9);
       const centerY = rand(height * 0.1, height * 0.9);
@@ -145,7 +104,8 @@ class StarField {
           const layer = CONFIG.layers[randInt(1, 2)];
           this.stars.push({
             ...this.createStar(width, height, layer, randInt(1, 2)),
-            x, y,
+            x,
+            y,
             isCluster: true,
           });
         }
@@ -168,18 +128,20 @@ class StarField {
       vx: (Math.random() - 0.5) * layer.speed,
       vy: (Math.random() - 0.5) * layer.speed,
       twinklePhase: Math.random() * TWO_PI,
-      twinkleSpeed: 0.6 + Math.random() * 0.9,
+      twinkleSpeed: 0.5 + Math.random() * 1.0,
       twinkleIntensity: layer.twinkle,
       shimmerPhase: Math.random() * TWO_PI,
-      shimmerSpeed: 0.2 + Math.random() * 0.35,
+      shimmerSpeed: 0.18 + Math.random() * 0.4,
       layer: layerIndex,
-      glowSize: size * 3,
+      glowSize: size * 3.5,
     };
   }
 
   update(width, height, dt) {
-    for (let i = 0; i < this.stars.length; i++) {
-      const star = this.stars[i];
+    const stars = this.stars;
+    const len = stars.length;
+    for (let i = 0; i < len; i++) {
+      const star = stars[i];
       star.x += star.vx * dt;
       star.y += star.vy * dt;
 
@@ -194,9 +156,6 @@ class StarField {
   }
 }
 
-// ============================================================================
-// NEBULA SYSTEM - Flowing cloud bands
-// ============================================================================
 class NebulaSystem {
   constructor(width, height) {
     this.nebulas = [];
@@ -209,18 +168,18 @@ class NebulaSystem {
       this.nebulas.push({
         x: rand(0, width),
         y: rand(0, height),
-        radiusX: rand(200, 400),
-        radiusY: rand(150, 300),
+        radiusX: rand(250, 450),
+        radiusY: rand(180, 350),
         rotation: rand(0, Math.PI),
-        rotationSpeed: (Math.random() - 0.5) * 0.006,
+        rotationSpeed: (Math.random() - 0.5) * 0.007,
         color,
-        baseOpacity: rand(0.04, 0.08),
-        vx: (Math.random() - 0.5) * 0.04,
-        vy: (Math.random() - 0.5) * 0.04,
+        baseOpacity: rand(0.05, 0.1),
+        vx: (Math.random() - 0.5) * 0.05,
+        vy: (Math.random() - 0.5) * 0.05,
         pulsePhase: Math.random() * TWO_PI,
-        pulseSpeed: CONFIG.nebulas.pulseSpeed + Math.random() * 0.02,
+        pulseSpeed: CONFIG.nebulas.pulseSpeed + Math.random() * 0.025,
         distortPhase: Math.random() * TWO_PI,
-        distortSpeed: 0.015 + Math.random() * 0.01,
+        distortSpeed: 0.018 + Math.random() * 0.012,
       });
     }
   }
@@ -244,8 +203,8 @@ class NebulaSystem {
   render(ctx, globalOpacity) {
     ctx.save();
     for (const n of this.nebulas) {
-      const pulse = 0.8 + 0.2 * Math.sin(n.pulsePhase);
-      const distort = 1 + 0.1 * Math.sin(n.distortPhase);
+      const pulse = 0.75 + 0.25 * Math.sin(n.pulsePhase);
+      const distort = 1 + 0.12 * Math.sin(n.distortPhase);
       const opacity = n.baseOpacity * pulse * globalOpacity;
 
       ctx.save();
@@ -256,8 +215,8 @@ class NebulaSystem {
       const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, n.radiusX);
       const { r, g, b } = n.color;
       gradient.addColorStop(0, `rgba(${r},${g},${b},${opacity})`);
-      gradient.addColorStop(0.4, `rgba(${r},${g},${b},${opacity * 0.6})`);
-      gradient.addColorStop(0.7, `rgba(${r},${g},${b},${opacity * 0.25})`);
+      gradient.addColorStop(0.35, `rgba(${r},${g},${b},${opacity * 0.55})`);
+      gradient.addColorStop(0.65, `rgba(${r},${g},${b},${opacity * 0.2})`);
       gradient.addColorStop(1, `rgba(${r},${g},${b},0)`);
 
       ctx.beginPath();
@@ -270,9 +229,6 @@ class NebulaSystem {
   }
 }
 
-// ============================================================================
-// METEOR POOL - Zero-allocation object pooling
-// ============================================================================
 class MeteorPool {
   constructor() {
     this.pool = [];
@@ -287,9 +243,18 @@ class MeteorPool {
 
   createMeteor() {
     return {
-      x: 0, y: 0, vx: 0, vy: 0,
-      speed: 0, length: 0, life: 0, decay: 0,
-      particles: [], active: false,
+      x: 0,
+      y: 0,
+      vx: 0,
+      vy: 0,
+      speed: 0,
+      length: 0,
+      life: 0,
+      decay: 0,
+      particles: [],
+      active: false,
+      prevX: 0,
+      prevY: 0,
     };
   }
 
@@ -297,25 +262,31 @@ class MeteorPool {
     let meteor = this.pool.pop();
     if (!meteor) meteor = this.createMeteor();
 
-    const speed = rand(700, 1200);
-    const angle = Math.PI / 4 + (Math.random() - 0.5) * 0.3;
+    const speed = rand(800, 1100);
+    const angle = Math.PI / 4 + (Math.random() - 0.5) * 0.2;
 
-    meteor.x = rand(-width * 0.1, width * 0.8);
-    meteor.y = rand(-50, -20);
-    meteor.vx = Math.cos(angle) * speed * 0.35;
+    meteor.x = rand(-width * 0.1, width * 0.75);
+    meteor.y = rand(-80, -30);
+    meteor.prevX = meteor.x;
+    meteor.prevY = meteor.y;
+    meteor.vx = Math.cos(angle) * speed * 0.36;
     meteor.vy = Math.sin(angle) * speed;
     meteor.speed = speed;
-    meteor.length = rand(100, 180);
+    meteor.length = rand(140, 220);
     meteor.life = 1.0;
-    meteor.decay = rand(0.6, 0.9);
+    meteor.decay = rand(0.35, 0.55);
     meteor.active = true;
 
     meteor.particles = [];
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 12; i++) {
       meteor.particles.push({
-        x: meteor.x, y: meteor.y,
-        life: 0, size: rand(0.5, 1.5),
-        vx: 0, vy: 0,
+        x: meteor.x,
+        y: meteor.y,
+        life: 0,
+        size: rand(0.5, 1.4),
+        vx: 0,
+        vy: 0,
+        delay: i * 0.04,
       });
     }
 
@@ -329,25 +300,29 @@ class MeteorPool {
       this.nextDelay = rand(CONFIG.meteors.minDelay, CONFIG.meteors.maxDelay);
     }
 
+    const smoothDt = Math.min(dt, 0.033);
+
     for (let i = this.active.length - 1; i >= 0; i--) {
       const m = this.active[i];
-      m.x += m.vx * dt;
-      m.y += m.vy * dt;
-      m.life -= m.decay * dt;
+      m.prevX = m.x;
+      m.prevY = m.y;
+      m.x += m.vx * smoothDt;
+      m.y += m.vy * smoothDt;
+      m.life -= m.decay * smoothDt;
 
       for (let j = 0; j < m.particles.length; j++) {
         const p = m.particles[j];
         if (p.life > 0) {
-          p.x += p.vx * dt;
-          p.y += p.vy * dt;
-          p.life -= 1.2 * dt;
-          p.vy += 2.2 * dt;
-        } else if (Math.random() < 0.12 * dt * 60) {
-          p.x = m.x + rand(-1.5, 1.5);
-          p.y = m.y + rand(-1.5, 1.5);
-          p.vx = rand(-0.3, 0.3);
-          p.vy = rand(-0.2, 0.6);
-          p.life = rand(0.25, 0.55);
+          p.x += p.vx * smoothDt;
+          p.y += p.vy * smoothDt;
+          p.life -= 1.0 * smoothDt;
+          p.vy += 1.8 * smoothDt;
+        } else if (Math.random() < 0.08 * smoothDt * 60) {
+          p.x = m.x + rand(-1, 1);
+          p.y = m.y + rand(-1, 1);
+          p.vx = rand(-0.2, 0.2);
+          p.vy = rand(-0.15, 0.4);
+          p.life = rand(0.3, 0.7);
         }
       }
 
@@ -364,40 +339,41 @@ class MeteorPool {
     const [tr, tg, tb] = COLORS.meteor.trail;
 
     for (const m of this.active) {
-      const opacity = m.life * globalOpacity;
+      const opacity = m.life * m.life * globalOpacity;
       const invSpeed = 1 / m.speed;
       const tailX = m.x - m.vx * invSpeed * m.length * m.life;
       const tailY = m.y - m.vy * invSpeed * m.length * m.life;
 
       const gradient = ctx.createLinearGradient(tailX, tailY, m.x, m.y);
       gradient.addColorStop(0, `rgba(${tr},${tg},${tb},0)`);
-      gradient.addColorStop(0.3, `rgba(${tr},${tg},${tb},${opacity * 0.15})`);
-      gradient.addColorStop(0.6, `rgba(${hr},${hg},${hb},${opacity * 0.4})`);
-      gradient.addColorStop(0.85, `rgba(${hr},${hg},${hb},${opacity * 0.7})`);
+      gradient.addColorStop(0.2, `rgba(${tr},${tg},${tb},${opacity * 0.08})`);
+      gradient.addColorStop(0.5, `rgba(${hr},${hg},${hb},${opacity * 0.35})`);
+      gradient.addColorStop(0.75, `rgba(${hr},${hg},${hb},${opacity * 0.65})`);
       gradient.addColorStop(1, `rgba(${hr},${hg},${hb},${opacity * 0.9})`);
 
       ctx.beginPath();
       ctx.moveTo(tailX, tailY);
       ctx.lineTo(m.x, m.y);
       ctx.strokeStyle = gradient;
-      ctx.lineWidth = 1.6 + (opacity * 1.6);
+      ctx.lineWidth = 1.5 + opacity * 1.5;
       ctx.lineCap = 'round';
       ctx.stroke();
 
-      ctx.globalAlpha = opacity * 0.9;
+      ctx.globalAlpha = opacity * 0.95;
       ctx.fillStyle = `rgb(${hr},${hg},${hb})`;
       ctx.beginPath();
-      ctx.arc(m.x, m.y, 1.8 + opacity, 0, TWO_PI);
+      ctx.arc(m.x, m.y, 1.8 + opacity * 0.8, 0, TWO_PI);
       ctx.fill();
 
-      ctx.globalAlpha = opacity * 0.28;
+      ctx.globalAlpha = opacity * 0.25;
       ctx.beginPath();
-      ctx.arc(m.x, m.y, 4.5 + opacity * 1.5, 0, TWO_PI);
+      ctx.arc(m.x, m.y, 4 + opacity * 1.5, 0, TWO_PI);
       ctx.fill();
 
       for (const p of m.particles) {
         if (p.life > 0) {
-          ctx.globalAlpha = p.life * opacity * 0.6;
+          const pOpacity = p.life * p.life * opacity * 0.55;
+          ctx.globalAlpha = pOpacity;
           ctx.beginPath();
           ctx.arc(p.x, p.y, p.size * p.life, 0, TWO_PI);
           ctx.fill();
@@ -408,9 +384,6 @@ class MeteorPool {
   }
 }
 
-// ============================================================================
-// MAIN COMPONENT
-// ============================================================================
 function StarfieldCanvas({ active = false }) {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
@@ -438,30 +411,27 @@ function StarfieldCanvas({ active = false }) {
   });
 
   const renderStars = useCallback((ctx, stars, globalOpacity) => {
-    for (let i = 0; i < stars.length; i++) {
+    const len = stars.length;
+    for (let i = 0; i < len; i++) {
       const star = stars[i];
-
       const twinkle1 = Math.sin(star.twinklePhase);
       const twinkle2 = Math.sin(star.twinklePhase * 1.3 + 0.5);
-      const scintillation = 1 - star.twinkleIntensity +
-        star.twinkleIntensity * (0.5 + 0.25 * twinkle1 + 0.25 * twinkle2);
-
+      const scintillation = 1 - star.twinkleIntensity + star.twinkleIntensity * (0.5 + 0.25 * twinkle1 + 0.25 * twinkle2);
       const opacity = star.baseOpacity * scintillation * globalOpacity;
+
       if (opacity < 0.02) continue;
 
-      // Subtle brightness shimmer (monochrome)
       const shimmer = Math.sin(star.shimmerPhase);
-      const brightness = Math.round(star.color[0] + shimmer * 10);
-      const clamped = Math.max(0, Math.min(255, brightness));
+      const brightness = clamp(Math.round(star.color[0] + shimmer * 12), 0, 255);
 
       ctx.globalAlpha = opacity;
-      ctx.fillStyle = `rgb(${clamped},${clamped},${clamped})`;
+      ctx.fillStyle = `rgb(${brightness},${brightness},${brightness})`;
       ctx.beginPath();
       ctx.arc(star.x, star.y, star.size, 0, TWO_PI);
       ctx.fill();
 
-      if (star.layer >= 2 && opacity > 0.25) {
-        ctx.globalAlpha = opacity * 0.12;
+      if (star.layer >= 2 && opacity > 0.22) {
+        ctx.globalAlpha = opacity * 0.14;
         ctx.beginPath();
         ctx.arc(star.x, star.y, star.glowSize, 0, TWO_PI);
         ctx.fill();
@@ -473,18 +443,15 @@ function StarfieldCanvas({ active = false }) {
   const renderAmbientGlow = useCallback((ctx, width, height, globalOpacity) => {
     if (!CONFIG.ambientGlow.enabled) return;
 
-    const gradient = ctx.createRadialGradient(
-      width * 0.85, height * 0.15, 0,
-      width * 0.85, height * 0.15, Math.max(width, height) * 0.6
-    );
+    const gradient = ctx.createRadialGradient(width * 0.88, height * 0.12, 0, width * 0.88, height * 0.12, Math.max(width, height) * 0.65);
     const intensity = CONFIG.ambientGlow.intensity * globalOpacity;
     const [ir, ig, ib] = COLORS.glow.inner;
     const [mr, mg, mb] = COLORS.glow.mid;
     const [or, og, ob] = COLORS.glow.outer;
 
-    gradient.addColorStop(0, `rgba(${ir},${ig},${ib},${intensity * 1.5})`);
-    gradient.addColorStop(0.2, `rgba(${mr},${mg},${mb},${intensity})`);
-    gradient.addColorStop(0.5, `rgba(${or},${og},${ob},${intensity * 0.4})`);
+    gradient.addColorStop(0, `rgba(${ir},${ig},${ib},${intensity * 1.6})`);
+    gradient.addColorStop(0.18, `rgba(${mr},${mg},${mb},${intensity * 1.1})`);
+    gradient.addColorStop(0.45, `rgba(${or},${og},${ob},${intensity * 0.45})`);
     gradient.addColorStop(1, `rgba(${or},${og},${ob},0)`);
 
     ctx.fillStyle = gradient;
@@ -498,10 +465,10 @@ function StarfieldCanvas({ active = false }) {
     if (!canvas) return;
 
     const state = stateRef.current;
-      const dpr = Math.min(window.devicePixelRatio || 1, CONFIG.maxDPR);
-      state.dpr = dpr;
-      const frameInterval = 1000 / CONFIG.targetFps;
-      state.reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
+    const dpr = Math.min(window.devicePixelRatio || 1, CONFIG.maxDPR);
+    state.dpr = dpr;
+    const frameInterval = 1000 / CONFIG.targetFps;
+    state.reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
 
     const initCanvas = () => {
       state.width = canvas.offsetWidth;
@@ -523,49 +490,50 @@ function StarfieldCanvas({ active = false }) {
 
       const base = hexToRgb(theme.palette.background.default || '#0c0c0e');
       const bright = {
-        r: clamp(base.r + 16, 0, 255),
-        g: clamp(base.g + 16, 0, 255),
-        b: clamp(base.b + 18, 0, 255),
+        r: clamp(base.r + 18, 0, 255),
+        g: clamp(base.g + 18, 0, 255),
+        b: clamp(base.b + 20, 0, 255),
       };
       const dim = {
-        r: clamp(base.r - 4, 0, 255),
-        g: clamp(base.g - 4, 0, 255),
-        b: clamp(base.b - 2, 0, 255),
+        r: clamp(base.r - 5, 0, 255),
+        g: clamp(base.g - 5, 0, 255),
+        b: clamp(base.b - 3, 0, 255),
       };
 
       const bg = state.bgCtx;
       bg.clearRect(0, 0, state.width, state.height);
-      const grad = bg.createRadialGradient(
-        state.width * 0.15, state.height * 0.2, 0,
-        state.width * 0.15, state.height * 0.2, Math.max(state.width, state.height) * 0.9
-      );
+      const grad = bg.createRadialGradient(state.width * 0.12, state.height * 0.18, 0, state.width * 0.12, state.height * 0.18, Math.max(state.width, state.height) * 0.92);
       grad.addColorStop(0, `rgb(${bright.r},${bright.g},${bright.b})`);
-      grad.addColorStop(0.6, `rgb(${base.r},${base.g},${base.b})`);
+      grad.addColorStop(0.55, `rgb(${base.r},${base.g},${base.b})`);
       grad.addColorStop(1, `rgb(${dim.r},${dim.g},${dim.b})`);
       bg.fillStyle = grad;
       bg.fillRect(0, 0, state.width, state.height);
 
       const vignette = bg.createRadialGradient(
-        state.width * 0.5, state.height * 0.5, Math.min(state.width, state.height) * 0.3,
-        state.width * 0.5, state.height * 0.5, Math.max(state.width, state.height) * 0.7
+        state.width * 0.5,
+        state.height * 0.5,
+        Math.min(state.width, state.height) * 0.28,
+        state.width * 0.5,
+        state.height * 0.5,
+        Math.max(state.width, state.height) * 0.72
       );
       vignette.addColorStop(0, 'rgba(0,0,0,0)');
-      vignette.addColorStop(1, 'rgba(0,0,0,0.35)');
+      vignette.addColorStop(1, 'rgba(0,0,0,0.4)');
       bg.fillStyle = vignette;
       bg.fillRect(0, 0, state.width, state.height);
 
-      const noiseSize = 96;
+      const noiseSize = 100;
       state.noiseCanvas.width = noiseSize;
       state.noiseCanvas.height = noiseSize;
       const nctx = state.noiseCanvas.getContext('2d', { alpha: true });
       const imageData = nctx.createImageData(noiseSize, noiseSize);
       const data = imageData.data;
       for (let i = 0; i < data.length; i += 4) {
-        const value = 200 + Math.floor(Math.random() * 55);
+        const value = 195 + Math.floor(Math.random() * 60);
         data[i] = value;
         data[i + 1] = value;
         data[i + 2] = value;
-        data[i + 3] = Math.random() < 0.5 ? 12 : 0;
+        data[i + 3] = Math.random() < 0.55 ? 14 : 0;
       }
       nctx.putImageData(imageData, 0, 0);
       state.noisePattern = state.ctx.createPattern(state.noiseCanvas, 'repeat');
@@ -573,15 +541,9 @@ function StarfieldCanvas({ active = false }) {
 
     initCanvas();
 
-    if (!state.starField) {
-      state.starField = new StarField(state.width, state.height);
-    }
-    if (!state.nebulaSystem) {
-      state.nebulaSystem = new NebulaSystem(state.width, state.height);
-    }
-    if (!state.meteorPool) {
-      state.meteorPool = new MeteorPool();
-    }
+    if (!state.starField) state.starField = new StarField(state.width, state.height);
+    if (!state.nebulaSystem) state.nebulaSystem = new NebulaSystem(state.width, state.height);
+    if (!state.meteorPool) state.meteorPool = new MeteorPool();
 
     const animate = (timestamp) => {
       if (!state.isVisible) {
@@ -593,6 +555,7 @@ function StarfieldCanvas({ active = false }) {
         animationRef.current = requestAnimationFrame(animate);
         return;
       }
+
       const dtMs = Math.min(timestamp - state.lastTime, 50);
       const dt = dtMs / 1000;
       state.lastTime = timestamp;
@@ -600,7 +563,7 @@ function StarfieldCanvas({ active = false }) {
 
       const opacityDiff = state.targetOpacity - state.opacity;
       if (Math.abs(opacityDiff) > 0.003) {
-        state.opacity += opacityDiff * 0.03;
+        state.opacity += opacityDiff * 0.035;
       } else {
         state.opacity = state.targetOpacity;
       }
@@ -619,7 +582,7 @@ function StarfieldCanvas({ active = false }) {
       }
       if (state.noisePattern) {
         ctx.save();
-        const noiseBase = state.reduceMotion ? 0.04 : 0.08;
+        const noiseBase = state.reduceMotion ? 0.045 : 0.09;
         const dprFactor = state.dpr >= 1.25 ? 0.7 : 1;
         ctx.globalAlpha = noiseBase * dprFactor * globalOpacity;
         ctx.fillStyle = state.noisePattern;

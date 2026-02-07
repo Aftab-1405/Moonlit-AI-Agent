@@ -41,7 +41,7 @@ import { useTheme as useMuiTheme, alpha } from '@mui/material/styles';
 import { useTheme as useAppTheme } from '../contexts/ThemeContext';
 import { sessionActive } from '../api';
 import { useDatabaseConnection } from '../contexts/DatabaseContext';
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import MenuOutlinedIcon from '@mui/icons-material/MenuOutlined';
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
@@ -62,6 +62,7 @@ import QuotaDisplay from '../components/QuotaDisplay';
 
 // Custom hooks
 import {
+  useAutoScroll,
   useIdleDetection,
   useConversations,
   useMessageStreaming,
@@ -70,6 +71,7 @@ import {
 } from '../hooks';
 
 import { getMoonlitGradient } from '../theme';
+import { isMessageActive } from '../utils/chatMessages';
 
 // ============================================================================
 // CONSTANTS
@@ -189,12 +191,6 @@ function Chat() {
   });
 
   // ===========================================================================
-  // REFS
-  // ===========================================================================
-
-  const messagesContainerRef = useRef(null);
-
-  // ===========================================================================
   // IDLE DETECTION
   // ===========================================================================
 
@@ -205,12 +201,34 @@ function Chat() {
   // MEMOIZED DERIVED STATE
   // ===========================================================================
 
-  const isCurrentlyStreaming = useMemo(() =>
-    messages.length > 0 &&
-    messages[messages.length - 1]?.sender === 'ai' &&
-    (messages[messages.length - 1]?.isStreaming || messages[messages.length - 1]?.isWaiting),
-    [messages]
-  );
+  const isCurrentlyStreaming = useMemo(() => {
+    if (messages.length === 0) return false;
+    const lastMessage = messages[messages.length - 1];
+    const isAssistant = lastMessage?.role === 'assistant' || lastMessage?.sender === 'ai';
+    return isAssistant && isMessageActive(lastMessage);
+  }, [messages]);
+
+  const streamActivityKey = useMemo(() => {
+    const lastMessage = messages[messages.length - 1];
+    if (!lastMessage) return 'empty';
+
+    const messageId = lastMessage.id || 'no-id';
+    const status = lastMessage.status || (
+      lastMessage.isWaiting ? 'waiting' :
+        lastMessage.isStreaming ? 'streaming' :
+          lastMessage.isError ? 'error' :
+            lastMessage.wasStopped ? 'stopped' : 'done'
+    );
+    const rawLen = (lastMessage.rawContent || '').length;
+    const textLen = (lastMessage.text || lastMessage.content || '').length;
+    const stepsLen = Array.isArray(lastMessage.steps)
+      ? lastMessage.steps.length
+      : Array.isArray(lastMessage.tools)
+        ? lastMessage.tools.length
+        : 0;
+
+    return `${messageId}|${status}|${rawLen}|${textLen}|${stepsLen}|${messages.length}`;
+  }, [messages]);
 
   // ===========================================================================
   // MEMOIZED STYLE OBJECTS
@@ -257,82 +275,13 @@ function Chat() {
   const handleCloseSnackbar = useCallback(() => setSnackbar(s => ({ ...s, open: false })), []);
 
   // ===========================================================================
-  // AUTO-SCROLL - ResizeObserver based
+  // AUTO-SCROLL - Pinned-bottom stream follow
   // ===========================================================================
-
-  const userScrolledUpRef = useRef(false);
-  const resizeObserverRef = useRef(null);
-
-  // Track user scroll intent
-  useEffect(() => {
-    const container = messagesContainerRef.current;
-    if (!container) return;
-
-    const handleScroll = () => {
-      const { scrollTop, scrollHeight, clientHeight } = container;
-      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-      // User has scrolled up if more than 100px from bottom
-      userScrolledUpRef.current = distanceFromBottom > 100;
-    };
-
-    container.addEventListener('scroll', handleScroll, { passive: true });
-    return () => container.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  // Safe tracking of streaming state for event handlers
-  const isStreamingRef = useRef(false);
-  useEffect(() => {
-    isStreamingRef.current = isCurrentlyStreaming;
-  }, [isCurrentlyStreaming]);
-
-  // ResizeObserver for content growth detection
-  useEffect(() => {
-    const container = messagesContainerRef.current;
-    if (!container) return;
-
-    // Cleanup previous observer
-    if (resizeObserverRef.current) {
-      resizeObserverRef.current.disconnect();
-    }
-
-    const scrollToBottomIfNeeded = () => {
-      // ONLY scroll if we are actively streaming
-      // This prevents "jumping" when expanding accordions in history
-      if (isStreamingRef.current && !userScrolledUpRef.current && container) {
-        container.scrollTo({ top: container.scrollHeight, behavior: 'instant' });
-      }
-    };
-
-    // Create ResizeObserver to watch for content changes
-    resizeObserverRef.current = new ResizeObserver(() => {
-      scrollToBottomIfNeeded();
-    });
-
-    // Observe the first child (MessageList content) for size changes
-    const messageListContent = container.firstElementChild;
-    if (messageListContent) {
-      resizeObserverRef.current.observe(messageListContent);
-    }
-
-    return () => {
-      if (resizeObserverRef.current) {
-        resizeObserverRef.current.disconnect();
-      }
-    };
-  }, []); // Run once on mount
-
-  // Handle initial scroll on stream start and strict auto-scroll during stream
-  useEffect(() => {
-    if (isCurrentlyStreaming) {
-      userScrolledUpRef.current = false; // Reset on new message
-      if (messagesContainerRef.current) {
-        messagesContainerRef.current.scrollTo({
-          top: messagesContainerRef.current.scrollHeight,
-          behavior: 'instant'
-        });
-      }
-    }
-  }, [isCurrentlyStreaming]);
+  const { setScrollContainerRef } = useAutoScroll({
+    messageCount: messages.length,
+    isStreaming: isCurrentlyStreaming,
+    activityKey: streamActivityKey,
+  });
 
   // Set document title
   useEffect(() => {
@@ -673,7 +622,7 @@ function Chat() {
         {/* Messages state */}
         <Fade in={messages.length > 0} timeout={300} unmountOnExit style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-            <Box ref={messagesContainerRef} sx={{ flex: 1, overflow: 'auto' }}>
+            <Box ref={setScrollContainerRef} sx={{ flex: 1, overflow: 'auto' }}>
               <MessageList
                 messages={messages}
                 user={user}
@@ -682,18 +631,20 @@ function Chat() {
               />
             </Box>
 
-            <ChatInput
-              onSend={handleSendMessage}
-              onStop={handleStopStreaming}
-              isStreaming={isCurrentlyStreaming}
-              isConnected={isDbConnected}
-              dbType={dbType}
-              currentDatabase={currentDatabase}
-              availableDatabases={availableDatabases}
-              onDatabaseSwitch={handleDatabaseSwitch}
-              showSuggestions={false}
-              onOpenSqlEditor={handleOpenSqlEditor}
-            />
+            <Box sx={{ flexShrink: 0 }}>
+              <ChatInput
+                onSend={handleSendMessage}
+                onStop={handleStopStreaming}
+                isStreaming={isCurrentlyStreaming}
+                isConnected={isDbConnected}
+                dbType={dbType}
+                currentDatabase={currentDatabase}
+                availableDatabases={availableDatabases}
+                onDatabaseSwitch={handleDatabaseSwitch}
+                showSuggestions={false}
+                onOpenSqlEditor={handleOpenSqlEditor}
+              />
+            </Box>
           </Box>
         </Fade>
       </Box>

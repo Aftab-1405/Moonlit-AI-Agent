@@ -16,6 +16,7 @@ import {
   deleteConversation,
 } from '../api';
 import logger from '../utils/logger';
+import { normalizeConversationMessage } from '../utils/chatMessages';
 
 /**
  * Hook for managing conversations and messages
@@ -74,12 +75,9 @@ export function useConversations() {
       const data = await getConversation(convId, signal);
       if (data.status === 'success' && data.conversation) {
         setCurrentConversationId(convId);
-        const formattedMessages = (data.conversation.messages || []).map((msg) => ({
-          sender: msg.sender,
-          content: msg.content,
-          thinking: msg.thinking || undefined,
-          tools: msg.tools || undefined,
-        }));
+        const formattedMessages = (data.conversation.messages || []).map((msg, index) =>
+          normalizeConversationMessage(msg, index)
+        );
         setMessages(formattedMessages);
         lastLoadedConversationIdRef.current = convId;
       }

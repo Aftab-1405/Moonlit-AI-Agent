@@ -6,11 +6,7 @@ import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import { useState, useMemo, useRef, useEffect, useCallback, memo } from 'react';
 import { StepsAccordion } from './AIResponseSteps';
 import MarkdownRenderer from './MarkdownRenderer';
-import { useCharacterPacing } from '../hooks';
-
-// ============================================================================
-// CONSTANTS & ANIMATIONS
-// ============================================================================
+import { MESSAGE_STATUS, parseAssistantContent } from '../utils/chatMessages';
 
 const COPY_FEEDBACK_DURATION = 2000;
 
@@ -18,10 +14,6 @@ const spin = keyframes`
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 `;
-
-// ============================================================================
-// HOOKS
-// ============================================================================
 
 function useCopyToClipboard() {
   const [copied, setCopied] = useState(false);
@@ -62,10 +54,6 @@ function useCopyToClipboard() {
 
   return { copied, copyText, copyRich };
 }
-
-// ============================================================================
-// SUB-COMPONENTS
-// ============================================================================
 
 const CopyButton = memo(function CopyButton({ copied, onClick, className = 'copy-btn', sx = {} }) {
   return (
@@ -114,16 +102,27 @@ const UserMessage = memo(function UserMessage({ message, userAvatar, userName })
   );
 });
 
-const AIMessage = memo(function AIMessage({ message, thinking, tools, onRunQuery, onOpenSqlEditor, isStreaming, isWaiting }) {
+function parseJSON(value) {
+  if (!value || value === 'null') return null;
+  try {
+    return typeof value === 'string' ? JSON.parse(value) : value;
+  } catch {
+    return null;
+  }
+}
+
+const AIMessage = memo(function AIMessage({ id, text, steps, status, onRunQuery, onOpenSqlEditor }) {
   const { copied, copyRich } = useCopyToClipboard();
   const theme = useTheme();
   const contentRef = useRef(null);
   const sqlEditorTimeoutRef = useRef(null);
   const openedToolsRef = useRef(new Set());
-  const wasStreamingRef = useRef(false);
 
-  // Apply character pacing (120 chars/sec)
-  const pacedMessage = useCharacterPacing(message, isStreaming, 120);
+  const isStreaming = status === MESSAGE_STATUS.STREAMING;
+  const isWaiting = status === MESSAGE_STATUS.WAITING;
+
+  const displayText = text || '';
+  const displaySteps = useMemo(() => (Array.isArray(steps) ? steps : []), [steps]);
 
   useEffect(() => {
     return () => {
@@ -132,61 +131,40 @@ const AIMessage = memo(function AIMessage({ message, thinking, tools, onRunQuery
   }, []);
 
   useEffect(() => {
-    if (isStreaming) wasStreamingRef.current = true;
-  }, [isStreaming]);
+    if (!onOpenSqlEditor || isWaiting || isStreaming) return;
 
-  const getCleanContent = useCallback(() => message
-    .replace(/\[\[THINKING:start\]\]/g, '')
-    .replace(/\[\[THINKING:chunk:.*?\]\]/g, '')
-    .replace(/\[\[THINKING:end\]\]/g, '')
-    .replace(/\[\[TOOL:[^\]]*\]\]/g, ''), [message]);
+    displaySteps.forEach((step, idx) => {
+      if (step.type !== 'tool' || step.name !== 'execute_query' || step.status !== 'done') return;
+      const stepKey = `${id}-${step.id || idx}`;
+      if (openedToolsRef.current.has(stepKey)) return;
 
-  const segments = useMemo(() => parseMessageSegments(pacedMessage, thinking, tools), [pacedMessage, thinking, tools]);
+      const parsedArgs = parseJSON(step.args);
+      const parsedResult = parseJSON(step.result);
+      if (!parsedResult || parsedResult.success === false || parsedResult.error) return;
 
-  const textOnlySegments = useMemo(
-    () => segments.filter((segment) => segment.type === 'text' && segment.content.trim()),
-    [segments]
-  );
+      openedToolsRef.current.add(stepKey);
 
-  // Auto-open SQL editor logic (preserved from original)
-  useEffect(() => {
-    if (!onOpenSqlEditor || isStreaming || !wasStreamingRef.current) return;
+      const query = parsedArgs?.query || '';
+      const normalizedResults = {
+        columns: parsedResult?.columns || [],
+        result: parsedResult?.data || parsedResult?.preview || [],
+        row_count: parsedResult?.row_count || 0,
+        truncated: parsedResult?.truncated || false,
+      };
 
-    segments.forEach((segment, idx) => {
-      if (segment.type === 'tool' && segment.name === 'execute_query' && segment.status === 'done' && !openedToolsRef.current.has(idx)) {
-        openedToolsRef.current.add(idx);
-        let parsedArgs = null;
-        let parsedResult = null;
-        try {
-          parsedArgs = segment.args && segment.args !== 'null' ? JSON.parse(segment.args) : null;
-          parsedResult = segment.result && segment.result !== 'null' ? JSON.parse(segment.result) : null;
-        } catch { /* ignore parse errors */ }
-
-        if (parsedResult && parsedResult.success !== false && !parsedResult.error) {
-          const query = parsedArgs?.query || '';
-          const normalizedResults = {
-            columns: parsedResult?.columns || [],
-            result: parsedResult?.data || parsedResult?.preview || [],
-            row_count: parsedResult?.row_count || 0,
-            truncated: parsedResult?.truncated || false,
-          };
-
-          if (sqlEditorTimeoutRef.current) clearTimeout(sqlEditorTimeoutRef.current);
-          sqlEditorTimeoutRef.current = setTimeout(() => {
-            onOpenSqlEditor(query, normalizedResults);
-          }, 100);
-        }
-      }
+      if (sqlEditorTimeoutRef.current) clearTimeout(sqlEditorTimeoutRef.current);
+      sqlEditorTimeoutRef.current = setTimeout(() => {
+        onOpenSqlEditor(query, normalizedResults);
+      }, 100);
     });
-  }, [segments, isStreaming, onOpenSqlEditor]);
+  }, [displaySteps, id, isStreaming, isWaiting, onOpenSqlEditor]);
 
   const handleCopy = useCallback(() => {
     const container = contentRef.current;
     const htmlContent = container?.innerHTML;
-    const cleanContent = getCleanContent();
-    const plainTextContent = container?.innerText || cleanContent;
+    const plainTextContent = container?.innerText || displayText;
     copyRich(htmlContent, plainTextContent);
-  }, [getCleanContent, copyRich]);
+  }, [copyRich, displayText]);
 
   return (
     <Fade in timeout={300}>
@@ -201,21 +179,16 @@ const AIMessage = memo(function AIMessage({ message, thinking, tools, onRunQuery
             }}
           />
           <Box sx={{ flex: 1, minWidth: 0, pt: 0 }}>
-            {/* Render Steps */}
-            {segments.filter(s => s.type === 'thinking' || s.type === 'tool').length > 0 && (
-              <StepsAccordion steps={segments.filter(s => s.type === 'thinking' || s.type === 'tool')} isStreaming={isStreaming} />
+            {displaySteps.length > 0 && (
+              <StepsAccordion steps={displaySteps} isStreaming={isWaiting || isStreaming} />
             )}
 
-            {/* Render Text */}
-            {segments.filter(s => s.type === 'text' && s.content.trim()).map((segment, idx) => (
-              <MarkdownRenderer key={`text-${idx}`} content={segment.content} onRunQuery={onRunQuery} />
-            ))}
+            {displayText.trim() && (
+              <MarkdownRenderer content={displayText} onRunQuery={onRunQuery} />
+            )}
 
-            {/* Hidden content for copy */}
             <Box ref={contentRef} sx={{ display: 'none' }} aria-hidden>
-              {textOnlySegments.map((segment, idx) => (
-                <MarkdownRenderer key={`copy-${idx}`} content={segment.content} onRunQuery={onRunQuery} />
-              ))}
+              <MarkdownRenderer content={displayText} onRunQuery={onRunQuery} />
             </Box>
           </Box>
           <CopyButton copied={copied} onClick={handleCopy} sx={{ alignSelf: 'flex-start', mt: 0.5 }} />
@@ -225,221 +198,86 @@ const AIMessage = memo(function AIMessage({ message, thinking, tools, onRunQuery
   );
 });
 
-// ============================================================================
-// MAIN COMPONENT & UTILS
-// ============================================================================
+function normalizeAssistantMessage(message) {
+  const status = message.status || (
+    message.isWaiting ? MESSAGE_STATUS.WAITING :
+      message.isStreaming ? MESSAGE_STATUS.STREAMING :
+        message.isError ? MESSAGE_STATUS.ERROR :
+          message.wasStopped ? MESSAGE_STATUS.STOPPED :
+            MESSAGE_STATUS.DONE
+  );
+
+  if (Array.isArray(message.steps) && typeof message.text === 'string') {
+    return {
+      id: message.id,
+      text: message.text,
+      steps: message.steps,
+      status,
+    };
+  }
+
+  const fallbackContent = message.rawContent || message.content || '';
+  const parsed = parseAssistantContent(fallbackContent, message.thinking, message.tools);
+  return {
+    id: message.id,
+    text: message.text ?? parsed.text,
+    steps: parsed.steps,
+    status,
+  };
+}
 
 const MessageList = memo(function MessageList({ messages = [], user, onRunQuery, onOpenSqlEditor }) {
+  const normalizedMessages = useMemo(() => (
+    messages.map((message, index) => {
+      const role = message.role || (message.sender === 'user' ? 'user' : 'assistant');
+      const id = message.id || `message-${index}`;
+      if (role === 'user') {
+        return {
+          id,
+          role,
+          text: message.text ?? message.content ?? '',
+        };
+      }
+      return {
+        id,
+        role,
+        ...normalizeAssistantMessage(message),
+      };
+    })
+  ), [messages]);
+
   return (
     <Box sx={{
       flex: 1,
       py: 2,
-      // CRITICAL: prevents browser scroll anchoring from fighting with the typing animation
-      overflowAnchor: 'none'
+      pb: 2,
+      // Prevent browser scroll anchoring from fighting stream updates
+      overflowAnchor: 'none',
     }}>
-      {messages.map((msg, index) => (
-        msg.sender === 'user'
-          ? <UserMessage key={index} message={msg.content} userAvatar={user?.photoURL} userName={user?.displayName} />
-          : <AIMessage key={index} message={msg.content} thinking={msg.thinking} tools={msg.tools} onRunQuery={onRunQuery} onOpenSqlEditor={onOpenSqlEditor} isStreaming={msg.isStreaming} isWaiting={msg.isWaiting} />
+      {normalizedMessages.map((message) => (
+        message.role === 'user'
+          ? (
+            <UserMessage
+              key={message.id}
+              message={message.text}
+              userAvatar={user?.photoURL}
+              userName={user?.displayName}
+            />
+          )
+          : (
+            <AIMessage
+              key={message.id}
+              id={message.id}
+              text={message.text}
+              steps={message.steps}
+              status={message.status}
+              onRunQuery={onRunQuery}
+              onOpenSqlEditor={onOpenSqlEditor}
+            />
+          )
       ))}
     </Box>
   );
 });
-
-// --- PARSER UTILITIES (Preserved from your original code) ---
-
-function stripJsonFromText(text) {
-  if (!text || typeof text !== 'string') return text;
-  let result = text;
-  let changed = true;
-  while (changed && result.length > 0) {
-    changed = false;
-    const trimmed = result.trim();
-    if (trimmed.startsWith('{')) {
-      const endIdx = findJsonObjectEnd(trimmed, 0);
-      if (endIdx !== -1) {
-        try { JSON.parse(trimmed.slice(0, endIdx + 1)); result = trimmed.slice(endIdx + 1).trim(); changed = true; continue; } catch { /* ignore */ }
-      }
-    }
-    const lastBrace = trimmed.lastIndexOf('}');
-    if (lastBrace !== -1) {
-      const startIdx = findJsonObjectStart(trimmed, lastBrace);
-      if (startIdx !== -1 && startIdx > 0) {
-        try { JSON.parse(trimmed.slice(startIdx, lastBrace + 1)); result = trimmed.slice(0, startIdx).trim(); changed = true; } catch { /* ignore */ }
-      }
-    }
-  }
-  return result;
-}
-
-function findJsonObjectEnd(text, startIdx) {
-  if (text[startIdx] !== '{') return -1;
-  let depth = 0; let inString = false; let escapeNext = false;
-  for (let i = startIdx; i < text.length; i++) {
-    const char = text[i];
-    if (escapeNext) { escapeNext = false; continue; }
-    if (char === '\\' && inString) { escapeNext = true; continue; }
-    if (char === '"') { inString = !inString; continue; }
-    if (!inString) { if (char === '{') depth++; else if (char === '}') { depth--; if (depth === 0) return i; } }
-  }
-  return -1;
-}
-
-function findJsonObjectStart(text, endIdx) {
-  let depth = 0; let inString = false;
-  for (let i = endIdx; i >= 0; i--) {
-    const char = text[i];
-    if (char === '"') {
-      let backslashes = 0; for (let j = i - 1; j >= 0 && text[j] === '\\'; j--) backslashes++;
-      if (backslashes % 2 === 0) inString = !inString; continue;
-    }
-    if (!inString) { if (char === '}') depth++; else if (char === '{') { depth--; if (depth === 0) return i; } }
-  }
-  return -1;
-}
-
-function stripThinkingMarkers(text) {
-  if (!text) return text;
-  return text.replace(/\[\[THINKING:start\]\]/g, '').replace(/\[\[THINKING:chunk:.*?\]\]/g, '').replace(/\[\[THINKING:end\]\]/g, '');
-}
-
-function extractInlineThinking(text) {
-  if (!text) return { content: '', isComplete: false };
-  const chunks = Array.from(text.matchAll(/\[\[THINKING:chunk:(.*?)\]\]/gs)).map(match => match[1]);
-  const content = chunks.join('');
-  const isComplete = text.includes('[[THINKING:end]]');
-  return { content, isComplete };
-}
-
-function parseMessageSegments(text, thinkingField = null, toolsField = null) {
-  const segments = [];
-  if (thinkingField && thinkingField.trim()) {
-    segments.push({ type: 'thinking', content: thinkingField, isComplete: true });
-  }
-  const hasToolMarkers = text.includes('[[TOOL:');
-  const hasThinkingMarkers = text.includes('[[THINKING:');
-
-  // If there are inline TOOL markers, parse them (live streaming case)
-  if (hasToolMarkers) {
-    parseMarkersInline(text, segments, thinkingField);
-  } else {
-    // No inline tool markers - use stored toolsField (history case)
-    if (Array.isArray(toolsField) && toolsField.length > 0) {
-      toolsField.forEach(tool => {
-        segments.push({ type: 'tool', name: tool.name, status: tool.status || 'done', args: tool.args, result: tool.result });
-      });
-    }
-    
-    // Parse thinking markers if present, otherwise just use clean text
-    if (hasThinkingMarkers) {
-      if (!thinkingField) {
-        const { content, isComplete } = extractInlineThinking(text);
-        if (content || isComplete) {
-          segments.push({ type: 'thinking', content, isComplete });
-        }
-      }
-      // Strip thinking markers and add remaining text
-      const cleanText = stripThinkingMarkers(text).trim();
-      if (cleanText) segments.push({ type: 'text', content: cleanText });
-    } else {
-      const cleanText = text.trim();
-      if (cleanText) segments.push({ type: 'text', content: cleanText });
-    }
-  }
-  return segments;
-}
-
-function parseMarkersInline(text, segments, thinkingField) {
-  let currentIndex = 0;
-  while (currentIndex < text.length) {
-    const toolStart = text.indexOf('[[TOOL:', currentIndex);
-    const thinkingStart = text.indexOf('[[THINKING:start]]', currentIndex);
-    let nextMarkerStart = -1;
-    let markerType = null;
-
-    if (toolStart !== -1 && thinkingStart !== -1) {
-      nextMarkerStart = toolStart < thinkingStart ? toolStart : thinkingStart;
-      markerType = toolStart < thinkingStart ? 'tool' : 'thinking';
-    } else if (toolStart !== -1) {
-      nextMarkerStart = toolStart; markerType = 'tool';
-    } else if (thinkingStart !== -1) { nextMarkerStart = thinkingStart; markerType = 'thinking'; }
-
-    if (nextMarkerStart === -1) {
-      const remainingText = text.slice(currentIndex);
-      const cleanedText = stripThinkingMarkers(stripJsonFromText(remainingText));
-      if (cleanedText && cleanedText.trim()) segments.push({ type: 'text', content: cleanedText });
-      break;
-    }
-
-    if (nextMarkerStart > currentIndex) {
-      const textContent = text.slice(currentIndex, nextMarkerStart);
-      const cleanedText = stripThinkingMarkers(stripJsonFromText(textContent));
-      if (cleanedText && cleanedText.trim()) segments.push({ type: 'text', content: cleanedText });
-    }
-
-    if (markerType === 'thinking') {
-      currentIndex = nextMarkerStart + '[[THINKING:start]]'.length;
-      let thinkingContent = '';
-      let isThinkingComplete = false;
-      while (currentIndex < text.length) {
-        const chunkStart = text.indexOf('[[THINKING:chunk:', currentIndex);
-        const endStart = text.indexOf('[[THINKING:end]]', currentIndex);
-        if (endStart !== -1 && (chunkStart === -1 || endStart < chunkStart)) {
-          isThinkingComplete = true; currentIndex = endStart + '[[THINKING:end]]'.length; break;
-        }
-        if (chunkStart !== -1) {
-          const chunkEnd = text.indexOf(']]', chunkStart);
-          if (chunkEnd === -1) break;
-          thinkingContent += text.slice(chunkStart + 17, chunkEnd); currentIndex = chunkEnd + 2; continue;
-        }
-        break;
-      }
-      if (!isThinkingComplete && thinkingContent === '') {
-        const nextEnd = text.indexOf('[[THINKING:end]]', currentIndex);
-        currentIndex = nextEnd !== -1 ? nextEnd + '[[THINKING:end]]'.length : text.length;
-      }
-      if (!thinkingField || thinkingField.trim() === '') {
-        segments.push({ type: 'thinking', content: thinkingContent, isComplete: isThinkingComplete });
-      }
-    } else if (markerType === 'tool') {
-      const parsed = parseToolMarker(text, nextMarkerStart);
-      if (parsed) {
-        const newSeg = parsed.segment;
-        if (newSeg.status === 'done') {
-          const runningIdx = segments.findIndex(s => s.type === 'tool' && s.name === newSeg.name && s.status === 'running');
-          if (runningIdx !== -1) segments[runningIdx] = newSeg; else segments.push(newSeg);
-        } else segments.push(newSeg);
-        currentIndex = parsed.endIndex;
-      } else {
-        const failEnd = text.indexOf(']]', nextMarkerStart);
-        currentIndex = failEnd !== -1 ? failEnd + 2 : text.length;
-      }
-    }
-  }
-}
-
-function parseToolMarker(text, markerStart) {
-  const afterPrefix = markerStart + 7;
-  const nameEnd = text.indexOf(':', afterPrefix);
-  if (nameEnd === -1) return null;
-  const toolName = text.slice(afterPrefix, nameEnd);
-  const statusEnd = text.indexOf(':', nameEnd + 1);
-  if (statusEnd === -1) return null;
-  const status = text.slice(nameEnd + 1, statusEnd);
-  const argsStart = statusEnd + 1;
-  let argsEnd;
-  if (text.slice(argsStart, argsStart + 4) === 'null') argsEnd = argsStart + 3;
-  else if (text[argsStart] === '{') { argsEnd = findJsonObjectEnd(text, argsStart); if (argsEnd === -1) return null; }
-  else return null;
-  if (text[argsEnd + 1] !== ':') return null;
-  const resultStart = argsEnd + 2;
-  let resultEnd, resultValue;
-  if (text.slice(resultStart, resultStart + 2) === ']]') { resultEnd = resultStart - 1; resultValue = null; }
-  else if (text.slice(resultStart, resultStart + 4) === 'null') { resultEnd = resultStart + 3; resultValue = 'null'; }
-  else if (text[resultStart] === '{') { resultEnd = findJsonObjectEnd(text, resultStart); if (resultEnd === -1) return null; resultValue = text.slice(resultStart, resultEnd + 1); }
-  else return null;
-  const markerEnd = resultValue === null ? resultStart + 2 : resultEnd + 3;
-  return { segment: { type: 'tool', name: toolName, status, args: text.slice(argsStart, argsEnd + 1), result: resultValue }, endIndex: markerEnd };
-}
 
 export default MessageList;
