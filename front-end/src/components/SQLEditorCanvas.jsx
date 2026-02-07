@@ -204,7 +204,7 @@ function SQLEditorCanvas({
 
     // Define custom themes for both modes
     registerMonacoThemes(monaco, { transparent: true });
-    
+
     // Set the appropriate theme based on current mode
     monaco.editor.setTheme(getMonacoThemeName(theme.palette.mode, true));
   }, [theme.palette.mode]);
@@ -514,6 +514,8 @@ function SQLEditorCanvas({
           size="small"
           onClick={onClose}
           sx={{
+            width: 36,
+            height: 36,
             color: 'text.secondary',
             '&:hover': {
               backgroundColor: theme.palette.action.hover,
@@ -588,13 +590,13 @@ function SQLEditorCanvas({
       </Tooltip>
       <Tooltip title={copied ? 'Copied!' : 'Copy query'}>
         <span>
-          <IconButton size="small" onClick={handleCopy} disabled={!query.trim()}>
+          <IconButton size="small" onClick={handleCopy} disabled={!query.trim()} sx={{ width: 36, height: 36 }}>
             {copied ? <CheckRoundedIcon sx={{ fontSize: 18 }} /> : <ContentCopyRoundedIcon sx={{ fontSize: 18 }} />}
           </IconButton>
         </span>
       </Tooltip>
       <Tooltip title="Clear all">
-        <IconButton size="small" onClick={handleClear}>
+        <IconButton size="small" onClick={handleClear} sx={{ width: 36, height: 36 }}>
           <DeleteOutlineRoundedIcon sx={{ fontSize: 18 }} />
         </IconButton>
       </Tooltip>

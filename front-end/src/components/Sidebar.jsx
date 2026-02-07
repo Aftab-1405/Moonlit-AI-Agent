@@ -212,70 +212,56 @@ const SidebarNavItem = memo(function SidebarNavItem({
 
   return (
     <Tooltip title={isCollapsed ? tooltip : ''} placement="right" arrow>
-      <ListItem disablePadding sx={{ mb: 0.25 }}>
-        <ListItemButton
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          mb: 0.25,
+          px: 0.5,
+        }}
+      >
+        <IconButton
           onClick={onClick}
-          selected={isActive}
           disabled={disabled}
           aria-label={label}
+          size="small"
           sx={{
-            minHeight: 40,
-            px: isCollapsed ? 1 : 1.25,
-            justifyContent: isCollapsed ? 'center' : 'flex-start',
-            borderRadius: 1.5,
-            color: theme.palette.text.secondary,
-            transition: theme.transitions.create(['background-color', 'color', 'padding'], {
-              easing: SIDEBAR_WIDTH_EASING,
-              duration: SIDEBAR_WIDTH_DURATION,
-            }),
-            '&:hover': {
-              backgroundColor: theme.palette.action.hover,
-              color: theme.palette.text.primary,
-            },
-            '&.Mui-selected': {
-              backgroundColor: theme.palette.action.selected,
-              color: theme.palette.text.primary,
-            },
-            '&.Mui-selected:hover': {
-              backgroundColor: alpha(theme.palette.action.selected, 0.9),
-            },
+            color: isActive ? theme.palette.text.primary : theme.palette.text.secondary,
+            position: 'relative',
+            // Match footer IconButton sizing
+            width: 36,
+            height: 36,
+            flexShrink: 0,
           }}
         >
-          <ListItemIcon
+          {icon}
+          {showStatus && (
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 4,
+                right: 4,
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                backgroundColor: theme.palette.success.main,
+              }}
+            />
+          )}
+        </IconButton>
+        <Box sx={{ ml: 0.5, ...collapsedTextStyles }}>
+          <Typography
+            variant="body2"
+            noWrap
             sx={{
-              minWidth: 0,
-              mr: isCollapsed ? 0 : 1.5,
-              color: 'inherit',
-              justifyContent: 'center',
-              position: 'relative',
-              transition: theme.transitions.create('margin-right', {
-                easing: SIDEBAR_WIDTH_EASING,
-                duration: SIDEBAR_WIDTH_DURATION,
-              }),
+              fontWeight: isActive ? 500 : 450,
+              color: isActive ? theme.palette.text.primary : theme.palette.text.secondary,
             }}
           >
-            {icon}
-            {showStatus && (
-              <Box
-                sx={{
-                  position: 'absolute',
-                  top: -2,
-                  right: isCollapsed ? -4 : -6,
-                  width: 6,
-                  height: 6,
-                  borderRadius: '50%',
-                  backgroundColor: theme.palette.success.main,
-                }}
-              />
-            )}
-          </ListItemIcon>
-          <Box sx={collapsedTextStyles}>
-            <Typography variant="body2" noWrap sx={{ fontWeight: 450 }}>
-              {label}
-            </Typography>
-          </Box>
-        </ListItemButton>
-      </ListItem>
+            {label}
+          </Typography>
+        </Box>
+      </Box>
     </Tooltip>
   );
 });
@@ -375,13 +361,18 @@ function Sidebar({
   const isPopoverOpen = Boolean(dbPopoverAnchor);
   const isHistoryPopoverOpen = Boolean(historyPopoverAnchor);
 
+  // Text fade styles using GPU-accelerated properties only
+  // Avoids max-width which triggers layout recalculations
   const collapsedTextStyles = useMemo(() => ({
     opacity: isCollapsed ? 0 : 1,
-    maxWidth: isCollapsed ? 0 : 180,
-    transform: isCollapsed ? 'translateX(-6px)' : 'translateX(0)',
+    // Use clip-path for smooth hiding without layout shift
+    clipPath: isCollapsed ? 'inset(0 100% 0 0)' : 'inset(0 0 0 0)',
+    transform: isCollapsed ? 'translateX(-4px)' : 'translateX(0)',
     overflow: 'hidden',
     whiteSpace: 'nowrap',
-    transition: theme.transitions.create(['opacity', 'max-width', 'transform'], {
+    // Pointer events disabled when collapsed to prevent accidental clicks
+    pointerEvents: isCollapsed ? 'none' : 'auto',
+    transition: theme.transitions.create(['opacity', 'clip-path', 'transform'], {
       easing: SIDEBAR_WIDTH_EASING,
       duration: SIDEBAR_WIDTH_DURATION,
     }),
@@ -516,24 +507,27 @@ function Sidebar({
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <Box
         sx={{
-          px: isCollapsed ? 1 : 2,
+          // Fixed padding to prevent layout shift
+          px: 1.5,
           py: 1.5,
           minHeight: 56,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: isCollapsed ? 'center' : 'flex-start',
+          // Keep fixed justifyContent
+          justifyContent: 'flex-start',
         }}
       >
         <Box
           component="img"
           src="/product-logo.png"
           alt="Moonlit"
-          sx={{ width: 24, height: 24, flexShrink: 0, opacity: 0.95 }}
+          sx={{ width: 24, height: 24, flexShrink: 0, opacity: 0.95, ml: 0.25 }}
         />
         <Typography
           variant="subtitle1"
           sx={{
-            ml: isCollapsed ? 0 : 1.5,
+            // Fixed margin to prevent shift
+            ml: 1.5,
             fontWeight: 600,
             letterSpacing: '-0.01em',
             color: 'text.primary',
@@ -544,7 +538,8 @@ function Sidebar({
         </Typography>
       </Box>
 
-      <Box sx={{ px: isCollapsed ? 0.5 : 1.5, py: 0.75 }}>
+      {/* Fixed padding to prevent layout shift during toggle */}
+      <Box sx={{ px: 0.5, py: 0.75 }}>
         <List disablePadding>
           {navItems.map((item) => (
             <SidebarNavItem
@@ -606,20 +601,23 @@ function Sidebar({
         )}
       </Box>
 
+      {/* Footer - stacks vertically when collapsed to prevent overlap */}
       <Box
         sx={{
           borderTop: '1px solid',
           borderColor: 'divider',
           p: 1,
           display: 'flex',
+          // Column when collapsed (56px is too narrow for side-by-side)
+          // This change is instant, not transitioned, so no jitter
           flexDirection: isCollapsed ? 'column' : 'row',
           alignItems: 'center',
           justifyContent: isCollapsed ? 'center' : 'space-between',
-          gap: isCollapsed ? 1 : 0,
+          gap: isCollapsed ? 0.5 : 0,
         }}
       >
         <Tooltip title={isCollapsed ? (user?.displayName || 'Profile') : ''} placement="right" arrow>
-          <IconButton onClick={handleProfileClick} size="small" aria-label="Open profile menu">
+          <IconButton onClick={handleProfileClick} size="small" aria-label="Open profile menu" sx={{ width: 36, height: 36 }}>
             {user?.photoURL ? (
               <Avatar src={user.photoURL} sx={{ width: 24, height: 24 }} />
             ) : (
@@ -628,11 +626,12 @@ function Sidebar({
           </IconButton>
         </Tooltip>
 
-        <Tooltip title={isMobile ? 'Close sidebar' : (isCollapsed ? 'Expand sidebar' : 'Collapse sidebar')} placement="right" arrow>
+        <Tooltip title={isCollapsed ? 'Expand sidebar' : ''} placement="right" arrow>
           <IconButton
             onClick={isMobile ? onMobileClose : onToggleOpen}
             size="small"
             aria-label={isMobile ? 'Close sidebar' : (isCollapsed ? 'Expand sidebar' : 'Collapse sidebar')}
+            sx={{ width: 36, height: 36 }}
           >
             <KeyboardDoubleArrowLeftRoundedIcon
               sx={{

@@ -472,35 +472,11 @@ function ChatInput({
                   sx={{
                     width: 32,
                     height: 32,
-                    borderRadius: '8px',
-                    border: '1px solid',
-                    borderColor: reasoningEnabled
-                      ? alpha(theme.palette.info.main, isDarkMode ? 0.5 : 0.4)
-                      : 'transparent',
-                    backgroundColor: reasoningEnabled
-                      ? alpha(theme.palette.info.main, isDarkMode ? 0.15 : 0.1)
-                      : 'transparent',
                     color: reasoningEnabled
-                      ? alpha(theme.palette.info.main, isDarkMode ? 0.9 : 0.8)
+                      ? theme.palette.info.main
                       : alpha(theme.palette.text.secondary, 0.4),
-                    transition: theme.transitions.create(
-                      ['background-color', 'border-color', 'color', 'transform'],
-                      { duration: 150 }
-                    ),
-                    '&:hover': {
-                      backgroundColor: reasoningEnabled
-                        ? alpha(theme.palette.info.main, isDarkMode ? 0.2 : 0.15)
-                        : alpha(theme.palette.text.primary, 0.06),
-                      borderColor: reasoningEnabled
-                        ? alpha(theme.palette.info.main, isDarkMode ? 0.6 : 0.5)
-                        : alpha(theme.palette.text.primary, 0.15),
-                      color: reasoningEnabled
-                        ? theme.palette.info.main
-                        : theme.palette.text.primary,
-                    },
-                    '&:active': {
-                      transform: 'scale(0.95)',
-                    },
+                    transition: theme.transitions.create(['color'], { duration: 150 }),
+                    '&:hover': { backgroundColor: 'transparent' },
                   }}
                 >
                   <AccessTimeRoundedIcon sx={{ fontSize: 18 }} />
@@ -555,7 +531,7 @@ function ChatInput({
                   height: 32,
                   color: 'text.disabled',
                   flexShrink: 0,
-                  '&:hover': { color: 'text.secondary' },
+                  '&:hover': { backgroundColor: 'transparent' },
                 }}
               >
                 <KeyboardArrowDownRoundedIcon sx={{ fontSize: 18 }} />
@@ -571,26 +547,13 @@ function ChatInput({
                   disabled={!isStreaming && (!hasText || disabled)}
                   aria-label={isStreaming ? 'Stop generating response' : 'Send message'}
                   sx={{
-                    width: 36,
-                    height: 36,
+                    width: 32,
+                    height: 32,
                     color: (hasText || isStreaming)
                       ? (isStreaming ? theme.palette.error.main : theme.palette.text.primary)
                       : 'text.disabled',
-                    borderColor: (hasText || isStreaming)
-                      ? (isStreaming ? alpha(theme.palette.error.main, 0.5) : alpha(theme.palette.text.primary, 0.5))
-                      : undefined,
-                    transition: 'transform 0.2s ease',
                     flexShrink: 0,
-                    '&:hover': {
-                      backgroundColor: (hasText || isStreaming)
-                        ? (isStreaming
-                          ? alpha(theme.palette.error.main, 0.1)
-                          : alpha(theme.palette.text.primary, 0.1))
-                        : undefined,
-                      borderColor: (hasText || isStreaming)
-                        ? (isStreaming ? theme.palette.error.main : theme.palette.text.primary)
-                        : undefined,
-                    },
+                    '&:hover': { backgroundColor: 'transparent' },
                   }}
                 >
                   {isStreaming ? (
