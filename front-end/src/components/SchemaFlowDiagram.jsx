@@ -500,7 +500,7 @@ function SchemaFlowDiagram({ database, tables, columns }) {
             backgroundColor: theme.palette.background.paper,
             borderRadius: '10px',
             border: `1px solid ${theme.palette.divider}`,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+            boxShadow: `0 2px 8px ${alpha(theme.palette.common.black, isDark ? 0.45 : 0.12)}`,
             ...(isMobile 
               ? { bottom: '12px', right: '12px' }
               : { top: '12px', right: '12px' }

@@ -5,6 +5,9 @@ import { createTheme, responsiveFontSizes, alpha } from '@mui/material/styles';
 // ============================================
 
 const SHAPE = { borderRadius: 10 };
+const HEX_WHITE = '#ffffff';
+const HEX_BLACK = '#000000';
+const HEX_BLACK_20 = '#111111';
 
 const BREAKPOINTS = {
   values: { xs: 0, sm: 600, md: 900, lg: 1200, xl: 1536 },
@@ -56,18 +59,18 @@ const PALETTE_MODES = {
     info: { main: '#3b82f6', light: '#60a5fa', dark: '#2563eb' },
     success: { main: '#22c55e', light: '#4ade80', dark: '#16a34a' },
     action: {
-      active: 'rgba(255, 255, 255, 0.7)',
-      hover: 'rgba(255, 255, 255, 0.045)',
-      selected: 'rgba(255, 255, 255, 0.09)',
-      disabled: 'rgba(255, 255, 255, 0.28)',
-      disabledBackground: 'rgba(255, 255, 255, 0.14)',
+      active: alpha(HEX_WHITE, 0.7),
+      hover: alpha(HEX_WHITE, 0.045),
+      selected: alpha(HEX_WHITE, 0.09),
+      disabled: alpha(HEX_WHITE, 0.28),
+      disabledBackground: alpha(HEX_WHITE, 0.14),
     },
     scrollbar: { track: 'transparent', thumb: '#3b3b44', thumbHover: '#4b4b55' },
     monaco: {
       background: '#0c0c0e',
       gutter: '#0c0c0e',
-      highlight: 'rgba(255, 255, 255, 0.04)',
-      lineHighlight: 'rgba(255, 255, 255, 0.03)',
+      highlight: '#ffffff0a',
+      lineHighlight: '#ffffff08',
     },
   },
 
@@ -106,18 +109,18 @@ const PALETTE_MODES = {
     info: { main: '#2563eb', light: '#3b82f6', dark: '#1d4ed8' },
     success: { main: '#16a34a', light: '#22c55e', dark: '#15803d' },
     action: {
-      active: 'rgba(0, 0, 0, 0.6)',
-      hover: 'rgba(0, 0, 0, 0.06)',
-      selected: 'rgba(0, 0, 0, 0.12)',
-      disabled: 'rgba(0, 0, 0, 0.24)',
-      disabledBackground: 'rgba(0, 0, 0, 0.12)',
+      active: alpha(HEX_BLACK, 0.6),
+      hover: alpha(HEX_BLACK, 0.06),
+      selected: alpha(HEX_BLACK, 0.12),
+      disabled: alpha(HEX_BLACK, 0.24),
+      disabledBackground: alpha(HEX_BLACK, 0.12),
     },
     scrollbar: { track: 'transparent', thumb: '#bdb6ad', thumbHover: '#a69f96' },
     monaco: {
       background: '#f5f2ee',
       gutter: '#f5f2ee',
-      highlight: 'rgba(0, 0, 0, 0.04)',
-      lineHighlight: 'rgba(0, 0, 0, 0.02)',
+      highlight: '#0000000a',
+      lineHighlight: '#00000008',
     },
   },
 };
@@ -127,11 +130,11 @@ const PALETTE_MODES = {
 // ============================================
 
 const getReadableTextColor = (hex) => {
-  if (!hex || typeof hex !== 'string') return '#ffffff';
+  if (!hex || typeof hex !== 'string') return HEX_WHITE;
   const clean = hex.replace('#', '');
   const full =
     clean.length === 3 ? clean.split('').map((c) => c + c).join('') : clean;
-  if (full.length !== 6) return '#ffffff';
+  if (full.length !== 6) return HEX_WHITE;
 
   const r = parseInt(full.slice(0, 2), 16) / 255;
   const g = parseInt(full.slice(2, 4), 16) / 255;
@@ -140,7 +143,7 @@ const getReadableTextColor = (hex) => {
   const toLinear = (c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
   const luminance = 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
 
-  return luminance > 0.45 ? '#111111' : '#ffffff';
+  return luminance > 0.45 ? HEX_BLACK_20 : HEX_WHITE;
 };
 
 // ============================================
@@ -296,6 +299,36 @@ export const KEYFRAMES = {
 const gradientCache = new WeakMap();
 const accentEffectsCache = new WeakMap();
 const mermaidCache = new WeakMap();
+const MONACO_THEME_PREFIX = 'moonlit';
+const TRANSPARENT_MONACO_BG = '#00000000';
+
+export const getMonacoThemeName = (mode, transparent = false) =>
+  `${MONACO_THEME_PREFIX}-${mode}${transparent ? '-transparent' : ''}`;
+
+const createMonacoTheme = (mode, transparent = false) => {
+  const palette = PALETTE_MODES[mode];
+  return {
+    base: mode === 'dark' ? 'vs-dark' : 'vs',
+    inherit: true,
+    rules: [],
+    colors: {
+      'editor.background': transparent ? TRANSPARENT_MONACO_BG : palette.monaco.background,
+      'editor.lineHighlightBackground': palette.monaco.lineHighlight,
+      'editorGutter.background': transparent ? TRANSPARENT_MONACO_BG : palette.monaco.gutter,
+    },
+  };
+};
+
+export const registerMonacoThemes = (monaco, { transparent = false } = {}) => {
+  monaco.editor.defineTheme(
+    getMonacoThemeName('dark', transparent),
+    createMonacoTheme('dark', transparent)
+  );
+  monaco.editor.defineTheme(
+    getMonacoThemeName('light', transparent),
+    createMonacoTheme('light', transparent)
+  );
+};
 
 export const getMoonlitGradient = (theme) => {
   if (gradientCache.has(theme)) return gradientCache.get(theme);
@@ -316,16 +349,21 @@ export const getAccentEffects = (theme) => {
 
   const isDark = theme.palette.mode === 'dark';
   const main = theme.palette.text.primary;
+  const gradient = isDark
+    ? `linear-gradient(135deg, ${alpha(main, 0.6)}, ${main})`
+    : `linear-gradient(135deg, ${main}, ${alpha(main, 0.8)})`;
 
   const effects = isDark
     ? {
-        gradient: `linear-gradient(135deg, ${alpha(main, 0.6)}, ${main})`,
+        gradient,
+        textGradient: gradient,
         glow: `0 0 20px ${alpha(main, 0.1)}, 0 0 40px ${alpha(main, 0.05)}`,
         border: `1px solid ${alpha(main, 0.15)}`,
         background: alpha(main, 0.05),
       }
     : {
-        gradient: `linear-gradient(135deg, ${main}, ${alpha(main, 0.8)})`,
+        gradient,
+        textGradient: gradient,
         glow: `0 4px 20px ${alpha(main, 0.08)}`,
         border: `1px solid ${alpha(main, 0.1)}`,
         background: alpha(main, 0.03),
@@ -394,19 +432,24 @@ const getComponentOverrides = (mode) => {
     MuiCssBaseline: {
       styleOverrides: {
         ...KEYFRAMES,
+        '*, *::before, *::after': {
+          boxSizing: 'border-box',
+        },
         html: {
           colorScheme: mode,
           scrollBehavior: 'smooth',
         },
         body: {
+          margin: 0,
+          overflowX: 'hidden',
           fontFeatureSettings: '"liga" 1, "calt" 1',
           textRendering: 'optimizeLegibility',
           WebkitFontSmoothing: 'antialiased',
           MozOsxFontSmoothing: 'grayscale',
           backgroundColor: palette.background.default,
           backgroundImage: isDark
-            ? 'radial-gradient(60% 60% at 20% 0%, rgba(255,255,255,0.05), transparent 60%), radial-gradient(60% 60% at 80% 100%, rgba(255,255,255,0.04), transparent 60%)'
-            : 'radial-gradient(60% 60% at 20% 0%, rgba(0,0,0,0.04), transparent 60%), radial-gradient(60% 60% at 80% 100%, rgba(0,0,0,0.03), transparent 60%)',
+            ? `radial-gradient(60% 60% at 20% 0%, ${alpha(HEX_WHITE, 0.05)}, transparent 60%), radial-gradient(60% 60% at 80% 100%, ${alpha(HEX_WHITE, 0.04)}, transparent 60%)`
+            : `radial-gradient(60% 60% at 20% 0%, ${alpha(HEX_BLACK, 0.04)}, transparent 60%), radial-gradient(60% 60% at 80% 100%, ${alpha(HEX_BLACK, 0.03)}, transparent 60%)`,
 
           '--scrollbar-thumb': palette.scrollbar.thumb,
           '--scrollbar-thumb-hover': palette.scrollbar.thumbHover,
@@ -422,6 +465,9 @@ const getComponentOverrides = (mode) => {
             backgroundClip: 'content-box',
             '&:hover': { backgroundColor: 'var(--scrollbar-thumb-hover)' },
           },
+        },
+        '#root': {
+          minHeight: '100vh',
         },
         '@media (prefers-reduced-motion: reduce)': {
           '*': {
@@ -469,8 +515,8 @@ const getComponentOverrides = (mode) => {
           '&:hover': {
             backgroundColor: isDark ? palette.primary.light : palette.primary.dark,
             boxShadow: isDark
-              ? `0 4px 12px ${alpha('#000000', 0.4)}`
-              : `0 4px 12px ${alpha('#000000', 0.15)}`,
+              ? `0 4px 12px ${alpha(HEX_BLACK, 0.4)}`
+              : `0 4px 12px ${alpha(HEX_BLACK, 0.15)}`,
           },
         },
         containedPrimary: {
@@ -599,19 +645,19 @@ const getComponentOverrides = (mode) => {
           borderRadius: SHAPE.borderRadius,
           backgroundColor: palette.background.paper,
           backgroundImage: isDark
-            ? 'linear-gradient(180deg, rgba(255,255,255,0.02), transparent)'
-            : 'linear-gradient(180deg, rgba(0,0,0,0.015), transparent)',
+            ? `linear-gradient(180deg, ${alpha(HEX_WHITE, 0.02)}, transparent)`
+            : `linear-gradient(180deg, ${alpha(HEX_BLACK, 0.015)}, transparent)`,
         },
         elevation1: {
           boxShadow: isDark
-            ? '0 1px 3px 0 rgba(0, 0, 0, 0.5)'
-            : '0 1px 3px 0 rgba(0, 0, 0, 0.08)',
+            ? `0 1px 3px 0 ${alpha(HEX_BLACK, 0.5)}`
+            : `0 1px 3px 0 ${alpha(HEX_BLACK, 0.08)}`,
           border: `1px solid ${palette.border.subtle}`,
         },
         elevation2: {
           boxShadow: isDark
-            ? '0 4px 6px -1px rgba(0, 0, 0, 0.6)'
-            : '0 4px 6px -1px rgba(0, 0, 0, 0.08)',
+            ? `0 4px 6px -1px ${alpha(HEX_BLACK, 0.6)}`
+            : `0 4px 6px -1px ${alpha(HEX_BLACK, 0.08)}`,
         },
       },
     },
@@ -623,8 +669,8 @@ const getComponentOverrides = (mode) => {
           boxShadow: 'none',
           transition: TRANSITIONS.smooth,
           backgroundImage: isDark
-            ? 'linear-gradient(180deg, rgba(255,255,255,0.02), transparent)'
-            : 'linear-gradient(180deg, rgba(0,0,0,0.015), transparent)',
+            ? `linear-gradient(180deg, ${alpha(HEX_WHITE, 0.02)}, transparent)`
+            : `linear-gradient(180deg, ${alpha(HEX_BLACK, 0.015)}, transparent)`,
           '&:hover': { borderColor: palette.border.hover },
         },
       },
@@ -733,7 +779,7 @@ const getComponentOverrides = (mode) => {
           fontSize: '0.75rem',
           fontWeight: 500,
           padding: '8px 12px',
-          boxShadow: isDark ? 'none' : '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+          boxShadow: isDark ? 'none' : `0 4px 6px -1px ${alpha(HEX_BLACK, 0.1)}`,
           border: isDark ? `1px solid ${palette.border.default}` : 'none',
         },
         arrow: {
@@ -760,8 +806,8 @@ const getComponentOverrides = (mode) => {
           backgroundColor: palette.background.paper,
           border: `1px solid ${palette.border.subtle}`,
           backgroundImage: isDark
-            ? 'linear-gradient(180deg, rgba(255,255,255,0.02), transparent)'
-            : 'linear-gradient(180deg, rgba(0,0,0,0.02), transparent)',
+            ? `linear-gradient(180deg, ${alpha(HEX_WHITE, 0.02)}, transparent)`
+            : `linear-gradient(180deg, ${alpha(HEX_BLACK, 0.02)}, transparent)`,
         },
       },
     },
@@ -817,8 +863,8 @@ const getComponentOverrides = (mode) => {
           backgroundColor: palette.background.elevated,
           backgroundImage: 'none',
           boxShadow: isDark
-            ? '0 20px 25px -5px rgba(0, 0, 0, 0.6)'
-            : '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+            ? `0 20px 25px -5px ${alpha(HEX_BLACK, 0.6)}`
+            : `0 20px 25px -5px ${alpha(HEX_BLACK, 0.1)}`,
           borderRadius: 8,
         },
       },
@@ -831,8 +877,8 @@ const getComponentOverrides = (mode) => {
           backgroundImage: 'none',
           border: `1px solid ${palette.border.subtle}`,
           boxShadow: isDark
-            ? '0 20px 25px -5px rgba(0, 0, 0, 0.6)'
-            : '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+            ? `0 20px 25px -5px ${alpha(HEX_BLACK, 0.6)}`
+            : `0 20px 25px -5px ${alpha(HEX_BLACK, 0.1)}`,
         },
       },
     },
@@ -1076,6 +1122,7 @@ const createBaseTheme = (mode) => {
   theme.custom = {
     getGradient: () => getMoonlitGradient(theme),
     getEffects: () => getAccentEffects(theme),
+    getNaturalMoonlitEffects: () => getAccentEffects(theme),
     fonts: FONTS,
     transitions: TRANSITIONS,
   };

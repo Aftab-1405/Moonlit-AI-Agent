@@ -121,10 +121,10 @@ function Chat() {
   } = useConversations();
 
   // Sidebar width for SQL editor resize calculations
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const currentSidebarWidth = useMemo(() =>
-    sidebarCollapsed ? COLLAPSED_WIDTH : DRAWER_WIDTH,
-    [sidebarCollapsed]
+    sidebarOpen ? DRAWER_WIDTH : COLLAPSED_WIDTH,
+    [sidebarOpen]
   );
 
   // SQL Editor panel
@@ -350,7 +350,7 @@ function Chat() {
   }, []);
 
   const handleSidebarToggle = useCallback(() => {
-    setSidebarCollapsed(prev => !prev);
+    setSidebarOpen(prev => !prev);
   }, []);
 
   const handleMenuOpen = useCallback((e) => {
@@ -515,8 +515,8 @@ function Chat() {
         onNewChat={handleSidebarNewChat}
         onSelectConversation={handleSidebarSelectConversation}
         onOpenDbModal={handleSidebarOpenDbModal}
-        isCollapsed={sidebarCollapsed}
-        onToggleCollapse={handleSidebarToggle}
+        open={sidebarOpen}
+        onToggleOpen={handleSidebarToggle}
         onMenuOpen={handleSidebarMenuOpen}
         mobileOpen={mobileOpen}
         onMobileClose={handleDrawerToggle}
@@ -606,7 +606,7 @@ function Chat() {
                     <Box
                       component="span"
                       sx={{
-                        background: theme.custom?.getNaturalMoonlitEffects?.()?.textGradient || getMoonlitGradient(theme),
+                        background: getMoonlitGradient(theme),
                         backgroundClip: 'text',
                         WebkitBackgroundClip: 'text',
                         WebkitTextFillColor: 'transparent',

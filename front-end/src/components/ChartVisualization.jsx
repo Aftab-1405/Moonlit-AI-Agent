@@ -26,7 +26,7 @@ import {
   Tooltip as MuiTooltip,
   useTheme,
 } from '@mui/material';
-import { alpha } from '@mui/material/styles';
+import { alpha, lighten } from '@mui/material/styles';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import BarChartRoundedIcon from '@mui/icons-material/BarChartRounded';
 import ShowChartRoundedIcon from '@mui/icons-material/ShowChartRounded';
@@ -62,17 +62,17 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
   const chartRef = useRef(null);
   const containerRef = useRef(null);
 
-  // Chart.js default vibrant color palette (solid, no transparency)
+  // Theme-aligned chart palette
   const chartColors = useMemo(() => [
-    'rgb(54, 162, 235)',   // Blue
-    'rgb(255, 99, 132)',   // Red/Pink
-    'rgb(255, 206, 86)',   // Yellow
-    'rgb(75, 192, 192)',   // Teal
-    'rgb(59, 130, 246)',   // Blue
-    'rgb(255, 159, 64)',   // Orange
-    'rgb(46, 204, 113)',   // Green
-    'rgb(231, 76, 60)',    // Dark Red
-  ], []);
+    theme.palette.info.main,
+    theme.palette.error.main,
+    theme.palette.warning.main,
+    theme.palette.success.main,
+    theme.palette.primary.main,
+    theme.palette.secondary.main,
+    lighten(theme.palette.info.main, 0.12),
+    lighten(theme.palette.error.main, 0.08),
+  ], [theme.palette.error.main, theme.palette.info.main, theme.palette.primary.main, theme.palette.secondary.main, theme.palette.success.main, theme.palette.warning.main]);
 
   // Same colors for background (solid, visible)
   const chartColorsBg = chartColors;
@@ -377,7 +377,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
             borderColor: theme.palette.border?.subtle,
           }}
         >
-          <Typography variant="labelSmall" color="text.secondary" sx={{ position: 'absolute', left: 16 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ position: 'absolute', left: 16, fontWeight: 500 }}>
             {result.length > 50 ? `Showing 50 of ${result.length} data points` : `${result.length} data points`}
           </Typography>
 

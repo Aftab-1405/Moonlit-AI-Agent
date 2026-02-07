@@ -35,6 +35,7 @@ const fadeIn = keyframes`
 
 function PageLoader() {
   const theme = useTheme();
+  const glowColor = alpha(theme.palette.info.main, theme.palette.mode === 'dark' ? 0.35 : 0.22);
 
   return (
     <Box
@@ -55,7 +56,7 @@ function PageLoader() {
           backgroundClip: 'text',
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
-          filter: `drop-shadow(0 0 24px ${alpha('#818CF8', 0.3)})`,
+          filter: `drop-shadow(0 0 24px ${glowColor})`,
           animation: `${breathe} 2.5s ease-in-out infinite`,
         }}
       >

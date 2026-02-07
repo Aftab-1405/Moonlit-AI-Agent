@@ -23,6 +23,7 @@ import BarChartRoundedIcon from '@mui/icons-material/BarChartRounded';
 import TerminalRoundedIcon from '@mui/icons-material/TerminalRounded';
 import SQLResultsTable from './SQLResultsTable';
 import ChartVisualization from './ChartVisualization';
+import { registerMonacoThemes, getMonacoThemeName } from '../theme';
 
 // Centralized API layer
 import { runQuery } from '../api';
@@ -55,33 +56,6 @@ const MONACO_OPTIONS = {
   suggest: {
     showKeywords: true,
   },
-};
-
-// Custom Monaco theme definitions to match app theme colors
-const defineMonacoThemes = (monaco) => {
-  // Dark theme - transparent background for overlay style
-  monaco.editor.defineTheme('moonlit-dark', {
-    base: 'vs-dark',
-    inherit: true,
-    rules: [],
-    colors: {
-      'editor.background': '#00000000',
-      'editor.lineHighlightBackground': '#ffffff08',
-      'editorGutter.background': '#00000000',
-    },
-  });
-  
-  // Light theme - transparent with app's cream/beige showing through
-  monaco.editor.defineTheme('moonlit-light', {
-    base: 'vs',
-    inherit: true,
-    rules: [],
-    colors: {
-      'editor.background': '#00000000',
-      'editor.lineHighlightBackground': '#00000008',
-      'editorGutter.background': '#00000000',
-    },
-  });
 };
 
 // Glassmorphism styles helper
@@ -229,10 +203,10 @@ function SQLEditorCanvas({
     editor.focus();
 
     // Define custom themes for both modes
-    defineMonacoThemes(monaco);
+    registerMonacoThemes(monaco, { transparent: true });
     
     // Set the appropriate theme based on current mode
-    monaco.editor.setTheme(theme.palette.mode === 'dark' ? 'moonlit-dark' : 'moonlit-light');
+    monaco.editor.setTheme(getMonacoThemeName(theme.palette.mode, true));
   }, [theme.palette.mode]);
 
   const handleRunQuery = useCallback(async () => {
@@ -452,7 +426,7 @@ function SQLEditorCanvas({
         <Editor
           height="100%"
           language="sql"
-          theme={isDark ? 'moonlit-dark' : 'moonlit-light'}
+          theme={getMonacoThemeName(theme.palette.mode, true)}
           value={query}
           onChange={handleQueryChange}
           onMount={handleEditorDidMount}

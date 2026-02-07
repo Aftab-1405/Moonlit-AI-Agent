@@ -7,6 +7,7 @@ import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlin
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
 import Editor from '@monaco-editor/react';
+import { registerMonacoThemes, getMonacoThemeName } from '../theme';
 
 // =============================================================================
 // KEYFRAME ANIMATIONS
@@ -49,32 +50,7 @@ const MONACO_OPTIONS = {
   contextmenu: false,
 };
 
-// Custom Monaco theme definitions to match app theme colors
-const defineMonacoThemes = (monaco) => {
-  // Dark theme - transparent background
-  monaco.editor.defineTheme('moonlit-dark', {
-    base: 'vs-dark',
-    inherit: true,
-    rules: [],
-    colors: {
-      'editor.background': '#0c0c0e',
-      'editor.lineHighlightBackground': '#ffffff08',
-      'editorGutter.background': '#0c0c0e',
-    },
-  });
-  
-  // Light theme - cream/beige background matching app theme
-  monaco.editor.defineTheme('moonlit-light', {
-    base: 'vs',
-    inherit: true,
-    rules: [],
-    colors: {
-      'editor.background': '#f5f2ee',
-      'editor.lineHighlightBackground': '#00000008',
-      'editorGutter.background': '#f5f2ee',
-    },
-  });
-};
+const registerOpaqueMonacoThemes = (monaco) => registerMonacoThemes(monaco);
 
 const TOOL_ACTIONS = {
   'get_connection_status': { running: 'Checking connection status', done: 'Checked connection status' },
@@ -407,10 +383,10 @@ const ToolStep = memo(({ step }) => {
                   <Editor
                     height="100%"
                     language="sql"
-                    theme={isDark ? 'moonlit-dark' : 'moonlit-light'}
+                    theme={getMonacoThemeName(theme.palette.mode)}
                     value={parsedArgs.query}
                     options={MONACO_OPTIONS}
-                    beforeMount={defineMonacoThemes}
+                    beforeMount={registerOpaqueMonacoThemes}
                     loading={
                       <Box sx={{ p: 1.5, color: 'text.secondary', fontSize: '0.8rem' }}>
                         Loading...
@@ -505,6 +481,7 @@ export const StepsAccordion = memo(({ steps, isStreaming }) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   const prevStreamingRef = useRef(isStreaming);
+  const effectiveExpanded = isStreaming || expanded;
 
   const validSteps = useMemo(() =>
     Array.isArray(steps) ? steps.filter(s => s && s.type) : []
@@ -535,13 +512,6 @@ export const StepsAccordion = memo(({ steps, isStreaming }) => {
     )
   , [isStreaming, validSteps]);
 
-  // Auto-expand when streaming starts
-  useEffect(() => {
-    if (isStreaming) {
-      setExpanded(true);
-    }
-  }, [isStreaming]);
-
   // Auto-collapse only when streaming transitions from true -> false
   useEffect(() => {
     const wasStreaming = prevStreamingRef.current;
@@ -553,7 +523,10 @@ export const StepsAccordion = memo(({ steps, isStreaming }) => {
     prevStreamingRef.current = isStreaming;
   }, [isStreaming, validSteps.length]);
 
-  const handleToggle = useCallback(() => setExpanded(prev => !prev), []);
+  const handleToggle = useCallback(() => {
+    if (isStreaming) return;
+    setExpanded(prev => !prev);
+  }, [isStreaming]);
 
   if (validSteps.length === 0) return null;
 
@@ -602,14 +575,14 @@ export const StepsAccordion = memo(({ steps, isStreaming }) => {
           sx={{
             fontSize: 18,
             color: alpha(theme.palette.text.secondary, 0.35),
-            transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+            transform: effectiveExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
             transition: 'transform 0.2s ease, color 0.15s ease',
           }}
         />
       </ButtonBase>
 
       {/* Steps content */}
-      <Collapse in={expanded} timeout={150}>
+      <Collapse in={effectiveExpanded} timeout={150}>
         <Box sx={{ pt: 0.5 }}>
           {validSteps.map((step, idx) => {
             if (step.type === 'thinking') {

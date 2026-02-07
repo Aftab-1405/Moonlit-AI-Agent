@@ -33,6 +33,7 @@ import ViewColumnRoundedIcon from '@mui/icons-material/ViewColumnRounded';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import ErrorRoundedIcon from '@mui/icons-material/ErrorRounded';
 import Editor from '@monaco-editor/react';
+import { registerMonacoThemes, getMonacoThemeName } from '../theme';
 
 // Centralized API layer
 import { getUserContext } from '../api';
@@ -52,6 +53,8 @@ const formatTimeAgo = (isoString) => {
   const days = Math.floor(hours / 24);
   return `${days}d ago`;
 };
+
+const registerOpaqueMonacoThemes = (monaco) => registerMonacoThemes(monaco);
 
 // ============================================================================
 // REUSABLE COMPONENTS (Matching SettingsModal style)
@@ -81,7 +84,8 @@ function ContextCard({ children, sx = {} }) {
 }
 
 // Empty State Component
-function EmptyState({ icon: Icon, title, subtitle }) {
+function EmptyState({ icon: _Icon, title, subtitle }) {
+  const Icon = _Icon;
   return (
     <ContextCard sx={{ textAlign: 'center', py: 4 }}>
       <Icon sx={{ fontSize: 44, color: 'text.disabled', mb: 1.5 }} />
@@ -111,12 +115,6 @@ function UserDBContextManagerForAI() {
   const [error, setError] = useState(null);
 
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
-
-  // Fetch context data on mount
-  useEffect(() => {
-    fetchContext();
-  }, []);
 
   const fetchContext = useCallback(async () => {
     setLoading(true);
@@ -135,6 +133,11 @@ function UserDBContextManagerForAI() {
       setLoading(false);
     }
   }, []);
+
+  // Fetch context data on mount
+  useEffect(() => {
+    fetchContext();
+  }, [fetchContext]);
 
   const handleDelete = useCallback(async () => {
     const { type, target } = deleteDialog;
@@ -504,29 +507,9 @@ function UserDBContextManagerForAI() {
                         <Editor
                           height="100%"
                           language="sql"
-                          theme={isDark ? 'moonlit-dark' : 'moonlit-light'}
+                          theme={getMonacoThemeName(theme.palette.mode)}
                           value={query.query}
-                          beforeMount={(monaco) => {
-                            // Define custom themes matching app's color scheme
-                            monaco.editor.defineTheme('moonlit-dark', {
-                              base: 'vs-dark',
-                              inherit: true,
-                              rules: [],
-                              colors: {
-                                'editor.background': '#0c0c0e',
-                                'editorGutter.background': '#0c0c0e',
-                              },
-                            });
-                            monaco.editor.defineTheme('moonlit-light', {
-                              base: 'vs',
-                              inherit: true,
-                              rules: [],
-                              colors: {
-                                'editor.background': '#f5f2ee',
-                                'editorGutter.background': '#f5f2ee',
-                              },
-                            });
-                          }}
+                          beforeMount={registerOpaqueMonacoThemes}
                           options={{
                             readOnly: true,
                             minimap: { enabled: false },

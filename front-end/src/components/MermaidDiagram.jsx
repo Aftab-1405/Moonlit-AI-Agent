@@ -212,7 +212,7 @@ function MermaidDiagram({ code }) {
     borderBottom: '1px solid',
     borderColor: theme.palette.border?.subtle,
     minHeight: { xs: 40, sm: 44 },
-  }), [isDark, theme]);
+  }), [theme]);
 
   const diagramContainerStyles = useMemo(() => ({
     flex: 1,
@@ -256,7 +256,7 @@ function MermaidDiagram({ code }) {
       >
         <Box sx={headerStyles}>
           <Typography
-            variant="labelSmall"
+            variant="caption"
             sx={{
               color: 'text.secondary',
               textTransform: 'uppercase',
@@ -296,7 +296,7 @@ function MermaidDiagram({ code }) {
       <Box sx={headerStyles}>
         {/* Label - Hidden on mobile, visible on tablet+ */}
         <Typography
-          variant="labelSmall"
+          variant="caption"
           sx={{
             color: 'text.secondary',
             textTransform: 'uppercase',
@@ -344,7 +344,7 @@ function MermaidDiagram({ code }) {
 
             {/* Zoom percentage - Compact on mobile */}
             <Typography
-              variant="labelMedium"
+              variant="caption"
               sx={{
                 color: 'text.secondary',
                 minWidth: { xs: 32, sm: 35 },
