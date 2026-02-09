@@ -77,6 +77,10 @@ import { isMessageActive } from '../utils/chatMessages';
 import logger from '../utils/logger';
 const DRAWER_WIDTH = 260;
 const COLLAPSED_WIDTH = 56;
+const MOBILE_MEDIA_QUERY = '@media (max-width:599.95px)';
+const REDUCED_MOTION_QUERY = '@media (prefers-reduced-motion: reduce)';
+const BACKDROP_FILTER_FALLBACK_QUERY =
+  '@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)))';
 
 function Chat() {
 
@@ -220,6 +224,10 @@ function Chat() {
       }
     };
   }, [isDarkMode, theme, snackbar.severity]);
+  const snackbarAnchorOrigin = useMemo(() => ({
+    vertical: 'top',
+    horizontal: isNarrowLayout ? 'center' : 'right',
+  }), [isNarrowLayout]);
 
   const providerOptions = useMemo(() => llmOptions.providers ?? [], [llmOptions.providers]);
   const selectedProvider = useMemo(() => {
@@ -275,16 +283,30 @@ function Chat() {
         ...getMenuPaperStyles(theme),
         mt: 0.8,
         '& .MuiMenuItem-root': {
-          fontSize: 13,
+          fontSize: { xs: 14, sm: 13 },
           fontWeight: 500,
           borderRadius: 1.2,
           mx: 0.6,
           my: 0.2,
-          minHeight: 32,
+          minHeight: { xs: 40, sm: 32 },
         },
       },
     },
   }), [theme]);
+  const selectorChipBaseSx = useMemo(() => ({
+    display: 'flex',
+    alignItems: 'center',
+    gap: { xs: 0.55, sm: 0.8 },
+    px: { xs: 0.9, sm: 1 },
+    py: 0.45,
+    borderRadius: '14px',
+    border: '1px solid',
+    borderColor: alpha(theme.palette.divider, isDarkMode ? 0.2 : 0.38),
+    backgroundColor: isDarkMode
+      ? alpha(theme.palette.background.default, 0.42)
+      : alpha(theme.palette.background.default, 0.96),
+    flexShrink: 0,
+  }), [isDarkMode, theme]);
 
   const handleCloseDbModal = useCallback(() => setDbModalOpen(false), []);
   const handleCloseSettings = useCallback(() => setSettingsOpen(false), []);
@@ -578,7 +600,7 @@ function Chat() {
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: { xs: '32px minmax(0, 1fr) 32px', sm: 'auto' },
+              gridTemplateColumns: { xs: '44px minmax(0, 1fr) 44px', sm: 'auto' },
               alignItems: 'center',
               columnGap: { xs: 0.75, sm: 0 },
               width: { xs: '100%', sm: 'fit-content' },
@@ -591,6 +613,14 @@ function Chat() {
                 : `linear-gradient(155deg, ${alpha(theme.palette.background.default, 0.985)} 0%, ${alpha(theme.palette.background.default, 0.96)} 100%)`,
               backdropFilter: isDarkMode ? 'blur(14px)' : 'none',
               WebkitBackdropFilter: isDarkMode ? 'blur(14px)' : 'none',
+              [BACKDROP_FILTER_FALLBACK_QUERY]: {
+                backdropFilter: 'none',
+                WebkitBackdropFilter: 'none',
+              },
+              [MOBILE_MEDIA_QUERY]: {
+                backdropFilter: 'none',
+                WebkitBackdropFilter: 'none',
+              },
               boxShadow: 'none',
               px: { xs: 0.5, sm: 0.75 },
               py: { xs: 0.5, sm: 0.75 },
@@ -629,23 +659,14 @@ function Chat() {
                 },
               }}
             >
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: { xs: 0.55, sm: 0.8 },
-                px: { xs: 0.9, sm: 1 },
-                py: 0.45,
-                borderRadius: '14px',
-                border: '1px solid',
-                borderColor: alpha(theme.palette.divider, isDarkMode ? 0.2 : 0.38),
-                backgroundColor: isDarkMode
-                  ? alpha(theme.palette.background.default, 0.42)
-                  : alpha(theme.palette.background.default, 0.96),
-                flexShrink: 0,
-              }}
-            >
-              <HubOutlinedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+            <Box sx={selectorChipBaseSx}>
+              <HubOutlinedIcon
+                sx={{
+                  display: { xs: 'none', sm: 'inline-flex' },
+                  fontSize: 16,
+                  color: 'text.secondary',
+                }}
+              />
               <FormControl size="small" variant="standard" sx={{ minWidth: { xs: 94, sm: 122 } }}>
                 <Select
                   value={providerSelectValue}
@@ -655,7 +676,7 @@ function Chat() {
                   displayEmpty
                   MenuProps={selectMenuProps}
                   sx={{
-                    fontSize: 13,
+                    fontSize: { xs: 14, sm: 13 },
                     fontWeight: 600,
                     color: 'text.primary',
                     '& .MuiSelect-select': {
@@ -676,24 +697,19 @@ function Chat() {
 
             <Box
               sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: { xs: 0.55, sm: 0.8 },
-                px: { xs: 0.9, sm: 1 },
-                py: 0.45,
-                borderRadius: '14px',
-                border: '1px solid',
-                borderColor: alpha(theme.palette.divider, isDarkMode ? 0.2 : 0.38),
-                backgroundColor: isDarkMode
-                  ? alpha(theme.palette.background.default, 0.42)
-                  : alpha(theme.palette.background.default, 0.96),
+                ...selectorChipBaseSx,
                 minWidth: { xs: 142, sm: 225 },
                 maxWidth: { xs: '100%', sm: 320 },
                 flex: { xs: '0 0 auto', sm: '0 1 auto' },
-                flexShrink: 0,
               }}
             >
-              <SmartToyOutlinedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+              <SmartToyOutlinedIcon
+                sx={{
+                  display: { xs: 'none', sm: 'inline-flex' },
+                  fontSize: 16,
+                  color: 'text.secondary',
+                }}
+              />
               <FormControl size="small" variant="standard" sx={{ flex: 1, minWidth: 0 }}>
                 <Select
                   value={modelSelectValue}
@@ -703,7 +719,7 @@ function Chat() {
                   displayEmpty
                   MenuProps={selectMenuProps}
                   sx={{
-                    fontSize: 13,
+                    fontSize: { xs: 14, sm: 13 },
                     fontWeight: 600,
                     color: 'text.primary',
                     '& .MuiSelect-select': {
@@ -773,15 +789,8 @@ function Chat() {
                   textAlign: 'center',
                   mb: 3,
                   animation: 'slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards',
-                  '@keyframes slideUp': {
-                    from: {
-                      opacity: 0,
-                      transform: 'translateY(20px)'
-                    },
-                    to: {
-                      opacity: 1,
-                      transform: 'translateY(0)'
-                    },
+                  [REDUCED_MOTION_QUERY]: {
+                    animation: 'none',
                   },
                 }}
               >
@@ -851,6 +860,15 @@ function Chat() {
                   pb: 'max(env(safe-area-inset-bottom), 0px)',
                   background: `linear-gradient(to top, ${alpha(theme.palette.background.default, 0.94)} 70%, transparent)`,
                   backdropFilter: 'blur(6px)',
+                  WebkitBackdropFilter: 'blur(6px)',
+                  [BACKDROP_FILTER_FALLBACK_QUERY]: {
+                    backdropFilter: 'none',
+                    WebkitBackdropFilter: 'none',
+                  },
+                  [MOBILE_MEDIA_QUERY]: {
+                    backdropFilter: 'none',
+                    WebkitBackdropFilter: 'none',
+                  },
                 }}
               >
                 <ChatInput
@@ -929,7 +947,7 @@ function Chat() {
         open={snackbar.open}
         autoHideDuration={4000}
         onClose={handleCloseSnackbar}
-        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        anchorOrigin={snackbarAnchorOrigin}
         message={snackbar.message}
         ContentProps={snackbarContentProps}
       />
@@ -938,7 +956,7 @@ function Chat() {
         onClose={handleCloseQueryResults}
         maxWidth="xl"
         fullWidth
-        fullScreen={false}
+        fullScreen={isNarrowLayout}
         TransitionComponent={Grow}
         sx={{
           '& .MuiDialog-paper': {
