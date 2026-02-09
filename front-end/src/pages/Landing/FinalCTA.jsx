@@ -1,7 +1,7 @@
 import { Box, Container, Stack, Typography, Button } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
-import { Section } from './index';
+import { Section, REDUCED_MOTION_QUERY } from './index';
 
 function FinalCTA({ onGetStarted }) {
   const theme = useTheme();
@@ -18,7 +18,7 @@ function FinalCTA({ onGetStarted }) {
           width: '80%',
           height: '60%',
           background: `radial-gradient(ellipse at center, ${alpha(theme.palette.text.primary, isDark ? 0.04 : 0.03)}, transparent 70%)`,
-          filter: 'blur(100px)',
+          filter: { xs: 'blur(50px)', md: 'blur(100px)' },
           pointerEvents: 'none',
           opacity: 0.8,
         }}
@@ -73,14 +73,19 @@ function FinalCTA({ onGetStarted }) {
               transition: theme.transitions.create(['background-color', 'transform', 'box-shadow'], {
                 duration: 200,
               }),
-              '&:hover': {
-                backgroundColor: isDark 
-                  ? alpha(theme.palette.text.primary, 0.85)
-                  : alpha(theme.palette.text.primary, 0.9),
-                transform: 'translateY(-2px)',
-                boxShadow: isDark
-                  ? `0 6px 25px ${alpha(theme.palette.text.primary, 0.35)}`
-                  : `0 6px 25px ${alpha(theme.palette.text.primary, 0.2)}`,
+              [REDUCED_MOTION_QUERY]: {
+                transition: 'none',
+              },
+              '@media (hover: hover) and (pointer: fine)': {
+                '&:hover': {
+                  backgroundColor: isDark
+                    ? alpha(theme.palette.text.primary, 0.85)
+                    : alpha(theme.palette.text.primary, 0.9),
+                  transform: 'translateY(-2px)',
+                  boxShadow: isDark
+                    ? `0 6px 25px ${alpha(theme.palette.text.primary, 0.35)}`
+                    : `0 6px 25px ${alpha(theme.palette.text.primary, 0.2)}`,
+                },
               },
               '&:active': {
                 transform: 'scale(0.98)',

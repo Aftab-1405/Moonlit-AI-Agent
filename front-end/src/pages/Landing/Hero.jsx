@@ -2,7 +2,7 @@ import { Box, Container, Stack, Typography, Button } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
 import PlayCircleOutlinedIcon from '@mui/icons-material/PlayCircleOutlined';
-import { Section } from './index';
+import { Section, REDUCED_MOTION_QUERY } from './index';
 
 function Hero({ onGetStarted }) {
   const theme = useTheme();
@@ -16,17 +16,13 @@ function Hero({ onGetStarted }) {
             position: 'absolute',
             top: '-20%',
             left: '10%',
-            width: 400,
-            height: 400,
+            width: { xs: 240, md: 400 },
+            height: { xs: 240, md: 400 },
             borderRadius: '50%',
             background: `radial-gradient(circle, ${alpha(theme.palette.text.primary, isDark ? 0.04 : 0.03)}, transparent 70%)`,
-            filter: 'blur(80px)',
+            filter: { xs: 'blur(40px)', md: 'blur(80px)' },
             animation: 'float 8s ease-in-out infinite',
-            '@keyframes float': {
-              '0%, 100%': { transform: 'translateY(0) scale(1)' },
-              '50%': { transform: 'translateY(30px) scale(1.05)' },
-            },
-            '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
+            [REDUCED_MOTION_QUERY]: { animation: 'none' },
           }}
         />
         <Box
@@ -34,12 +30,13 @@ function Hero({ onGetStarted }) {
             position: 'absolute',
             top: '10%',
             right: '5%',
-            width: 300,
-            height: 300,
+            width: { xs: 180, md: 300 },
+            height: { xs: 180, md: 300 },
             borderRadius: '50%',
             background: `radial-gradient(circle, ${alpha(theme.palette.text.primary, isDark ? 0.03 : 0.02)}, transparent 70%)`,
-            filter: 'blur(60px)',
+            filter: { xs: 'blur(30px)', md: 'blur(60px)' },
             animation: 'float 10s ease-in-out infinite 1s',
+            [REDUCED_MOTION_QUERY]: { animation: 'none' },
           }}
         />
         <Box
@@ -48,12 +45,13 @@ function Hero({ onGetStarted }) {
             bottom: '10%',
             left: '50%',
             transform: 'translateX(-50%)',
-            width: 250,
-            height: 250,
+            width: { xs: 150, md: 250 },
+            height: { xs: 150, md: 250 },
             borderRadius: '50%',
             background: `radial-gradient(circle, ${alpha(theme.palette.text.primary, isDark ? 0.025 : 0.015)}, transparent 70%)`,
-            filter: 'blur(50px)',
+            filter: { xs: 'blur(25px)', md: 'blur(50px)' },
             animation: 'float 12s ease-in-out infinite 2s',
+            [REDUCED_MOTION_QUERY]: { animation: 'none' },
           }}
         />
       </Box>
@@ -76,10 +74,7 @@ function Hero({ onGetStarted }) {
               backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.06 : 0.04),
               border: `1px solid ${alpha(theme.palette.text.primary, 0.1)}`,
               animation: 'fadeIn 0.6s ease-out',
-              '@keyframes fadeIn': {
-                from: { opacity: 0, transform: 'translateY(8px)' },
-                to: { opacity: 1, transform: 'translateY(0)' },
-              },
+              [REDUCED_MOTION_QUERY]: { animation: 'none' },
             }}
           >
             <Typography 
@@ -150,14 +145,16 @@ function Hero({ onGetStarted }) {
                 transition: theme.transitions.create(['background-color', 'transform', 'box-shadow'], {
                   duration: 200,
                 }),
-                '&:hover': {
-                  backgroundColor: isDark 
-                  ? alpha(theme.palette.text.primary, 0.85)
-                  : alpha(theme.palette.text.primary, 0.9),
-                transform: 'translateY(-2px)',
-                boxShadow: isDark
-                    ? `0 6px 25px ${alpha(theme.palette.text.primary, 0.35)}`
-                    : `0 6px 25px ${alpha(theme.palette.text.primary, 0.2)}`,
+                '@media (hover: hover) and (pointer: fine)': {
+                  '&:hover': {
+                    backgroundColor: isDark
+                      ? alpha(theme.palette.text.primary, 0.85)
+                      : alpha(theme.palette.text.primary, 0.9),
+                    transform: 'translateY(-2px)',
+                    boxShadow: isDark
+                      ? `0 6px 25px ${alpha(theme.palette.text.primary, 0.35)}`
+                      : `0 6px 25px ${alpha(theme.palette.text.primary, 0.2)}`,
+                  },
                 },
                 '&:active': {
                   transform: 'scale(0.98)',
@@ -170,7 +167,12 @@ function Hero({ onGetStarted }) {
               size="large"
               variant="outlined"
               startIcon={<PlayCircleOutlinedIcon />}
-              onClick={() => document.getElementById('demo-section')?.scrollIntoView({ behavior: 'smooth' })}
+              onClick={() => {
+                const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+                document
+                  .getElementById('demo-section')
+                  ?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth' });
+              }}
               sx={{
                 px: 3,
                 py: 1.5,
@@ -181,10 +183,12 @@ function Hero({ onGetStarted }) {
                 transition: theme.transitions.create(['border-color', 'background-color', 'transform'], {
                   duration: 200,
                 }),
-                '&:hover': {
-                  borderColor: alpha(theme.palette.text.primary, 0.4),
-                  backgroundColor: alpha(theme.palette.text.primary, 0.04),
-                  transform: 'translateY(-2px)',
+                '@media (hover: hover) and (pointer: fine)': {
+                  '&:hover': {
+                    borderColor: alpha(theme.palette.text.primary, 0.4),
+                    backgroundColor: alpha(theme.palette.text.primary, 0.04),
+                    transform: 'translateY(-2px)',
+                  },
                 },
               }}
             >
@@ -212,8 +216,10 @@ function Hero({ onGetStarted }) {
               sx={{
                 opacity: 0.7,
                 transition: 'opacity 0.3s ease',
-                '&:hover': {
-                  opacity: 0.9,
+                '@media (hover: hover) and (pointer: fine)': {
+                  '&:hover': {
+                    opacity: 0.9,
+                  },
                 },
               }}
             >
@@ -233,8 +239,10 @@ function Hero({ onGetStarted }) {
                     alignItems: 'center',
                     justifyContent: 'center',
                     transition: 'transform 0.3s ease',
-                    '&:hover': {
-                      transform: 'scale(1.15)',
+                    '@media (hover: hover) and (pointer: fine)': {
+                      '&:hover': {
+                        transform: 'scale(1.15)',
+                      },
                     },
                   }}
                 >
@@ -242,6 +250,8 @@ function Hero({ onGetStarted }) {
                     component="img"
                     src={db.src}
                     alt={db.alt}
+                    loading="lazy"
+                    decoding="async"
                     sx={{
                       width: '100%',
                       height: '100%',

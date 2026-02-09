@@ -1,6 +1,6 @@
 import { Box, Container, Typography } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
-import { Section } from './index';
+import { Section, REDUCED_MOTION_QUERY } from './index';
 import { BORDER_RADIUS } from '../../styles/shared';
 
 function DemoSection() {
@@ -74,8 +74,13 @@ function DemoSection() {
             sx={{
               transition: 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
               transformStyle: 'preserve-3d',
-              '&:hover': {
-                transform: 'rotateX(2deg) rotateY(-2deg) scale(1.02)',
+              [REDUCED_MOTION_QUERY]: {
+                transition: 'none',
+              },
+              '@media (hover: hover) and (pointer: fine)': {
+                '&:hover': {
+                  transform: 'rotateX(2deg) rotateY(-2deg) scale(1.02)',
+                },
               },
             }}
           >
@@ -140,6 +145,7 @@ function DemoSection() {
               loop
               muted
               playsInline
+              preload="metadata"
               sx={{
                 width: '100%',
                 maxHeight: { xs: '45vh', md: '55vh' },
@@ -158,11 +164,11 @@ function DemoSection() {
           <Box
             sx={{
               position: 'absolute',
-              inset: -40,
+              inset: { xs: -20, md: -40 },
               background: `radial-gradient(ellipse at center, ${alpha(theme.palette.text.primary, isDark ? 0.03 : 0.02)}, transparent 70%)`,
               pointerEvents: 'none',
               zIndex: -1,
-              filter: 'blur(40px)',
+              filter: { xs: 'blur(20px)', md: 'blur(40px)' },
             }}
           />
         </Box>

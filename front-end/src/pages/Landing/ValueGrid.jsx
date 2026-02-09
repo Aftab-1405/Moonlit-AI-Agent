@@ -4,7 +4,7 @@ import { useTheme, alpha } from '@mui/material/styles';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import SpeedIcon from '@mui/icons-material/Speed';
 import VisibilityIcon from '@mui/icons-material/Visibility';
-import { Section } from './index';
+import { Section, REDUCED_MOTION_QUERY } from './index';
 
 function ValueGrid() {
   const theme = useTheme();
@@ -84,7 +84,7 @@ function ValueGrid() {
               sx={{
                 flex: { xs: '1 1 auto', md: '1 1 0' },
                 minWidth: 0,
-                p: 4,
+                p: { xs: 3, md: 4 },
                 backgroundColor: isDark 
                   ? alpha(theme.palette.text.primary, 0.03)
                   : alpha(theme.palette.text.primary, 0.02),
@@ -93,28 +93,30 @@ function ValueGrid() {
                 transition: theme.transitions.create(['border-color', 'background-color', 'transform'], {
                   duration: 250,
                 }),
-                animation: `fadeInUp 0.5s ease-out ${i * 0.12}s both`,
+                animation: { xs: 'none', md: `fadeInUp 0.5s ease-out ${i * 0.12}s both` },
                 '@keyframes fadeInUp': {
                   from: { opacity: 0, transform: 'translateY(24px)' },
                   to: { opacity: 1, transform: 'translateY(0)' },
                 },
-                '&:hover': {
-                  borderColor: alpha(theme.palette.text.primary, isDark ? 0.15 : 0.12),
-                  backgroundColor: isDark 
-                    ? alpha(theme.palette.text.primary, 0.04)
-                    : alpha(theme.palette.text.primary, 0.03),
-                  transform: 'translateY(-4px)',
-                  '& .icon-container': {
-                    transform: 'scale(1.05)',
+                [REDUCED_MOTION_QUERY]: {
+                  animation: 'none',
+                  transition: 'none',
+                },
+                '@media (hover: hover) and (pointer: fine)': {
+                  '&:hover': {
+                    borderColor: alpha(theme.palette.text.primary, isDark ? 0.15 : 0.12),
+                    backgroundColor: isDark
+                      ? alpha(theme.palette.text.primary, 0.04)
+                      : alpha(theme.palette.text.primary, 0.03),
+                    transform: 'translateY(-4px)',
+                    '& .icon-container': {
+                      transform: 'scale(1.05)',
+                    },
                   },
                 },
               }}
             >
-              <Stack 
-                direction="column"
-                spacing={2}
-                alignItems="center"
-              >
+              <Stack spacing={2} alignItems="center">
                 <Box
                   className="icon-container"
                   sx={{

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Box, Container, Typography, Stack } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
-import { Section } from './index';
+import { Section, REDUCED_MOTION_QUERY } from './index';
 
 function StepsGrid() {
   const theme = useTheme();
@@ -69,8 +69,8 @@ function StepsGrid() {
               sx={{
                 flex: { xs: '1 1 auto', md: '1 1 0' },
                 minWidth: 0,
-                p: 4,
-                pt: 5,
+                p: { xs: 3, md: 4 },
+                pt: { xs: 4.5, md: 5 },
                 position: 'relative',
                 backgroundColor: isDark 
                   ? alpha(theme.palette.text.primary, 0.03)
@@ -80,17 +80,23 @@ function StepsGrid() {
                 transition: theme.transitions.create(['border-color', 'background-color', 'transform'], {
                   duration: 250,
                 }),
-                animation: `fadeInUp 0.5s ease-out ${i * 0.12}s both`,
+                animation: { xs: 'none', md: `fadeInUp 0.5s ease-out ${i * 0.12}s both` },
                 '@keyframes fadeInUp': {
                   from: { opacity: 0, transform: 'translateY(24px)' },
                   to: { opacity: 1, transform: 'translateY(0)' },
                 },
-                '&:hover': {
-                  borderColor: alpha(theme.palette.text.primary, isDark ? 0.15 : 0.12),
-                  backgroundColor: isDark 
-                    ? alpha(theme.palette.text.primary, 0.04)
-                    : alpha(theme.palette.text.primary, 0.03),
-                  transform: 'translateY(-4px)',
+                [REDUCED_MOTION_QUERY]: {
+                  animation: 'none',
+                  transition: 'none',
+                },
+                '@media (hover: hover) and (pointer: fine)': {
+                  '&:hover': {
+                    borderColor: alpha(theme.palette.text.primary, isDark ? 0.15 : 0.12),
+                    backgroundColor: isDark
+                      ? alpha(theme.palette.text.primary, 0.04)
+                      : alpha(theme.palette.text.primary, 0.03),
+                    transform: 'translateY(-4px)',
+                  },
                 },
               }}
             >
