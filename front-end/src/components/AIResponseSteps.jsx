@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef, memo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, memo, lazy, Suspense } from 'react';
 import { Box, Typography, Collapse, useTheme, ButtonBase, Link, useMediaQuery } from '@mui/material';
 import { alpha, keyframes } from '@mui/material/styles';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
@@ -6,13 +6,14 @@ import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
 import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
-import Editor from '@monaco-editor/react';
 import { registerMonacoThemes, getMonacoThemeName, TRANSITIONS } from '../theme';
 import { TOOL_ACTIONS } from '../config/toolActions';
 
+const Editor = lazy(() => import('@monaco-editor/react'));
+
 const spin = keyframes`
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
 `;
 
 const slideIn = keyframes`
@@ -26,6 +27,7 @@ const pulse = keyframes`
 `;
 const TIMELINE_LINE_X = { xs: 10, sm: 11 };
 const TIMELINE_CONTENT_PL = { xs: 3.5, sm: 4 };
+let monacoThemesRegistered = false;
 
 const MONACO_OPTIONS = {
   readOnly: true,
@@ -50,7 +52,36 @@ const MONACO_OPTIONS = {
   contextmenu: false,
 };
 
-const registerOpaqueMonacoThemes = (monaco) => registerMonacoThemes(monaco);
+const registerOpaqueMonacoThemes = (monaco) => {
+  if (monacoThemesRegistered) return;
+  registerMonacoThemes(monaco);
+  monacoThemesRegistered = true;
+};
+
+const getTimelineNodeSx = ({
+  isDark,
+  color,
+  isCurrent = false,
+  shadowColor,
+  shadowAlphaDark = 0.12,
+  shadowAlphaLight = 0.16,
+  animation,
+}) => ({
+  position: 'absolute',
+  left: TIMELINE_LINE_X,
+  top: '50%',
+  transform: 'translate(-50%, -50%)',
+  fontSize: { xs: 15, sm: 17 },
+  zIndex: 1,
+  backgroundColor: 'background.paper',
+  borderRadius: '50%',
+  color,
+  boxShadow:
+    isCurrent && shadowColor
+      ? `0 0 0 4px ${alpha(shadowColor, isDark ? shadowAlphaDark : shadowAlphaLight)}`
+      : 'none',
+  ...(animation ? { animation } : {}),
+});
 
 function parseJSON(str) {
   if (!str || str === 'null' || str === '{}') return null;
@@ -125,13 +156,12 @@ function getDetailedResult(name, result) {
 
 
 
-const ThinkingStep = memo(({ step, isCurrent = false }) => {
+const ThinkingStep = memo(({ content = '', isComplete, isCurrent = false }) => {
   const [showMore, setShowMore] = useState(false);
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   
-  const isActive = !step.isComplete;
-  const content = step.content || '';
+  const isActive = !isComplete;
   const lines = content.split('\n');
   const isLong = lines.length > 6 || content.length > 400;
   const displayContent = showMore ? content : lines.slice(0, 6).join('\n');
@@ -148,23 +178,15 @@ const ThinkingStep = memo(({ step, isCurrent = false }) => {
       }}
     >
       <AccessTimeRoundedIcon
-        sx={{
-          position: 'absolute',
-          left: TIMELINE_LINE_X,
-          top: '50%',
-          transform: 'translate(-50%, -50%)',
-          fontSize: { xs: 15, sm: 17 },
+        sx={getTimelineNodeSx({
+          isDark,
           color: nodeColor,
-          zIndex: 1,
-          backgroundColor: 'background.paper',
-          borderRadius: '50%',
-          boxShadow: isCurrent
-            ? `0 0 0 4px ${alpha(theme.palette.info.main, isDark ? 0.14 : 0.16)}`
-            : 'none',
-          ...(isActive && {
-            animation: `${pulse} 2s ease-in-out infinite`,
-          }),
-        }}
+          isCurrent,
+          shadowColor: theme.palette.info.main,
+          shadowAlphaDark: 0.14,
+          shadowAlphaLight: 0.16,
+          animation: isActive ? `${pulse} 2s ease-in-out infinite` : undefined,
+        })}
       />
       <Box sx={{ flex: 1, minWidth: 0 }}>
         {content ? (
@@ -231,31 +253,20 @@ const ThinkingStep = memo(({ step, isCurrent = false }) => {
 });
 ThinkingStep.displayName = 'ThinkingStep';
 
-const ToolStep = memo(({ step, isCurrent = false }) => {
+const ToolStep = memo(({
+  stepName,
+  actionText,
+  parsedArgs,
+  parsedResult,
+  isError,
+  isRunning,
+  isCurrent = false,
+  isCompactMobile = false,
+}) => {
   const [expanded, setExpanded] = useState(false);
   const theme = useTheme();
-  const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isDark = theme.palette.mode === 'dark';
-
-  const { parsedArgs, parsedResult, isError, isRunning } = useMemo(() => {
-    const args = parseJSON(step.args);
-    const result = parseJSON(step.result);
-    const running = step.status === 'running';
-    return {
-      parsedArgs: args,
-      parsedResult: result,
-      isRunning: running,
-      isError: step.status === 'error' || isSemanticFailure(step.name, result),
-    };
-  }, [step]);
-
-  const actionText = useMemo(() => {
-    const config = TOOL_ACTIONS[step.name];
-    if (config) return isRunning ? config.running : config.done;
-    return formatToolName(step.name);
-  }, [step.name, isRunning]);
-
-  const hasDetails = parsedArgs?.query || parsedResult;
+  const hasDetails = Boolean(parsedArgs?.query || parsedResult);
 
   const queryHeight = useMemo(() => {
     const query = parsedArgs?.query;
@@ -286,26 +297,17 @@ const ToolStep = memo(({ step, isCurrent = false }) => {
       }}
       >
       <StatusIcon
-        sx={{
-          position: 'absolute',
-          left: TIMELINE_LINE_X,
-          top: '50%',
-          transform: 'translate(-50%, -50%)',
-          fontSize: { xs: 15, sm: 17 },
-          zIndex: 1,
-          backgroundColor: 'background.paper',
-          borderRadius: '50%',
+        sx={getTimelineNodeSx({
+          isDark,
           color: nodeColor,
-          boxShadow: isCurrent
-            ? `0 0 0 4px ${alpha(
-              isRunning ? theme.palette.primary.main : isError ? theme.palette.error.main : theme.palette.success.main,
-              isDark ? 0.12 : 0.16
-            )}`
-            : 'none',
-          ...(isRunning && {
-            animation: `${spin} 1s linear infinite`,
-          }),
-        }}
+          isCurrent,
+          shadowColor: isRunning
+            ? theme.palette.primary.main
+            : isError
+              ? theme.palette.error.main
+              : theme.palette.success.main,
+          animation: isRunning ? `${spin} 1s linear infinite` : undefined,
+        })}
       />
         <ButtonBase
         onClick={() => hasDetails && setExpanded(!expanded)}
@@ -335,7 +337,7 @@ const ToolStep = memo(({ step, isCurrent = false }) => {
         <Typography
           className="step-text"
           sx={{
-            color: alpha(theme.palette.text.primary, isDark ? 0.75 : 0.65),
+            color: alpha(theme.palette.text.primary, isDark ? 0.78 : 0.7),
             fontSize: { xs: '0.8rem', sm: '0.875rem' },
             fontFamily: theme.typography.fontFamily,
             fontWeight: 500,
@@ -400,19 +402,27 @@ const ToolStep = memo(({ step, isCurrent = false }) => {
                     bgcolor: theme.palette.background.default,
                   }}
                 >
-                  <Editor
-                    height="100%"
-                    language="sql"
-                    theme={getMonacoThemeName(theme.palette.mode)}
-                    value={parsedArgs.query}
-                    options={MONACO_OPTIONS}
-                    beforeMount={registerOpaqueMonacoThemes}
-                    loading={
+                  <Suspense
+                    fallback={
                       <Box sx={{ p: 1.5, color: 'text.secondary', fontSize: { xs: '0.72rem', sm: '0.8rem' } }}>
-                        Loading...
+                        Loading editor...
                       </Box>
                     }
-                  />
+                  >
+                    <Editor
+                      height="100%"
+                      language="sql"
+                      theme={getMonacoThemeName(theme.palette.mode)}
+                      value={parsedArgs.query}
+                      options={MONACO_OPTIONS}
+                      beforeMount={registerOpaqueMonacoThemes}
+                      loading={
+                        <Box sx={{ p: 1.5, color: 'text.secondary', fontSize: { xs: '0.72rem', sm: '0.8rem' } }}>
+                          Loading...
+                        </Box>
+                      }
+                    />
+                  </Suspense>
                 </Box>
               </Box>
             )}
@@ -441,7 +451,7 @@ const ToolStep = memo(({ step, isCurrent = false }) => {
                     lineHeight: 1.6,
                   }}
                 >
-                  {getDetailedResult(step.name, parsedResult)}
+                  {getDetailedResult(stepName, parsedResult)}
                 </Typography>
               </Box>
             )}
@@ -470,17 +480,10 @@ const DoneIndicator = memo(() => {
       }}
       >
         <CheckCircleOutlineRoundedIcon
-        sx={{
-          position: 'absolute',
-          left: TIMELINE_LINE_X,
-          top: { xs: 8, sm: 10 },
-          transform: 'translateX(-50%)',
-          fontSize: { xs: 15, sm: 17 },
-          zIndex: 1,
-          backgroundColor: 'background.paper',
-          borderRadius: '50%',
+        sx={getTimelineNodeSx({
+          isDark,
           color: alpha(theme.palette.success.main, isDark ? 0.6 : 0.5),
-        }}
+        })}
       />
       <Typography
         sx={{
@@ -500,6 +503,7 @@ DoneIndicator.displayName = 'DoneIndicator';
 export const StepsAccordion = memo(({ steps, isStreaming }) => {
   const [expanded, setExpanded] = useState(() => !!isStreaming);
   const theme = useTheme();
+  const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isDark = theme.palette.mode === 'dark';
   const prevStreamingRef = useRef(isStreaming);
   const effectiveExpanded = isStreaming || expanded;
@@ -507,48 +511,78 @@ export const StepsAccordion = memo(({ steps, isStreaming }) => {
   const validSteps = useMemo(() =>
     Array.isArray(steps) ? steps.filter(s => s && s.type) : []
   , [steps]);
+  const normalizedSteps = useMemo(() => (
+    validSteps
+      .map((step, idx) => {
+        if (step.type === 'thinking') {
+          return {
+            id: `thinking-${idx}`,
+            type: 'thinking',
+            content: step.content || '',
+            isComplete: Boolean(step.isComplete),
+          };
+        }
+        if (step.type === 'tool') {
+          const parsedArgs = parseJSON(step.args);
+          const parsedResult = parseJSON(step.result);
+          const isRunning = step.status === 'running';
+          const config = TOOL_ACTIONS[step.name];
+
+          return {
+            id: `tool-${idx}-${step.name}`,
+            type: 'tool',
+            name: step.name,
+            actionText: config ? (isRunning ? config.running : config.done) : formatToolName(step.name),
+            parsedArgs,
+            parsedResult,
+            isRunning,
+            isError: step.status === 'error' || isSemanticFailure(step.name, parsedResult),
+          };
+        }
+        return null;
+      })
+      .filter(Boolean)
+  ), [validSteps]);
   const summaryText = useMemo(() => {
-    if (validSteps.length === 0) return '';
-    const toolSteps = validSteps.filter(s => s.type === 'tool' && s.status !== 'running');
-    const actions = toolSteps.map(s => {
-      const config = TOOL_ACTIONS[s.name];
-      return config?.done || formatToolName(s.name);
-    });
+    if (normalizedSteps.length === 0) return '';
+    const actions = normalizedSteps
+      .filter(s => s.type === 'tool' && !s.isRunning)
+      .map(s => s.actionText);
     if (actions.length === 0) return 'Processing...';
     if (actions.length === 1) return actions[0];
     if (actions.length === 2) return actions.join(', ');
     return `${actions.slice(0, 2).join(', ')}, and more`;
-  }, [validSteps]);
+  }, [normalizedSteps]);
 
   const isAllComplete = useMemo(() => 
-    !isStreaming && validSteps.every(s => 
-      (s.type === 'thinking' && s.isComplete) || 
-      (s.type === 'tool' && s.status !== 'running')
+    !isStreaming && normalizedSteps.every(s => 
+      (s.type === 'thinking' && s.isComplete) ||
+      (s.type === 'tool' && !s.isRunning)
     )
-  , [isStreaming, validSteps]);
+  , [isStreaming, normalizedSteps]);
   const currentStepIndex = useMemo(() => {
-    const runningIdx = validSteps.findIndex((s) =>
+    const runningIdx = normalizedSteps.findIndex((s) =>
       (s.type === 'thinking' && !s.isComplete) ||
-      (s.type === 'tool' && s.status === 'running')
+      (s.type === 'tool' && s.isRunning)
     );
     return runningIdx;
-  }, [validSteps]);
+  }, [normalizedSteps]);
   useEffect(() => {
     const wasStreaming = prevStreamingRef.current;
-    if (wasStreaming && !isStreaming && validSteps.length > 0) {
+    if (wasStreaming && !isStreaming && normalizedSteps.length > 0) {
       const timer = setTimeout(() => setExpanded(false), 800);
       prevStreamingRef.current = isStreaming;
       return () => clearTimeout(timer);
     }
     prevStreamingRef.current = isStreaming;
-  }, [isStreaming, validSteps.length]);
+  }, [isStreaming, normalizedSteps.length]);
 
   const handleToggle = useCallback(() => {
     if (isStreaming) return;
     setExpanded(prev => !prev);
   }, [isStreaming]);
 
-  if (validSteps.length === 0) return null;
+  if (normalizedSteps.length === 0) return null;
 
   return (
     <Box
@@ -586,7 +620,7 @@ export const StepsAccordion = memo(({ steps, isStreaming }) => {
         <Typography
           className="summary-text"
           sx={{
-            color: alpha(theme.palette.text.secondary, isDark ? 0.65 : 0.55),
+            color: alpha(theme.palette.text.secondary, isDark ? 0.72 : 0.62),
             fontSize: { xs: '0.8rem', sm: '0.875rem' },
             fontFamily: theme.typography.fontFamily,
             fontWeight: 500,
@@ -631,12 +665,31 @@ export const StepsAccordion = memo(({ steps, isStreaming }) => {
             },
           }}
         >
-          {validSteps.map((step, idx) => {
+          {normalizedSteps.map((step, idx) => {
             if (step.type === 'thinking') {
-              return <ThinkingStep key={`thinking-${idx}`} step={step} isCurrent={idx === currentStepIndex} />;
+              return (
+                <ThinkingStep
+                  key={step.id}
+                  content={step.content}
+                  isComplete={step.isComplete}
+                  isCurrent={idx === currentStepIndex}
+                />
+              );
             }
             if (step.type === 'tool') {
-              return <ToolStep key={`tool-${idx}-${step.name}`} step={step} isCurrent={idx === currentStepIndex} />;
+              return (
+                <ToolStep
+                  key={step.id}
+                  stepName={step.name}
+                  actionText={step.actionText}
+                  parsedArgs={step.parsedArgs}
+                  parsedResult={step.parsedResult}
+                  isError={step.isError}
+                  isRunning={step.isRunning}
+                  isCurrent={idx === currentStepIndex}
+                  isCompactMobile={isCompactMobile}
+                />
+              );
             }
             return null;
           })}
