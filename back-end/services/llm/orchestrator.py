@@ -43,15 +43,18 @@ class ChatOrchestrator:
         Simple message without tools - used for basic chat.
         Returns a non-streaming response.
         """
-        client = LLMClient.get_client()
+        provider = LLMClient.get_provider()
+        client = provider.get_client()
+        model_name = LLMClient.get_model_name()
         messages = PromptBuilder.build_messages(history, message)
         
-        response = client.chat.completions.create(
-            model=LLMClient.get_model_name(),
-            messages=messages
+        response = provider.create_text_response(
+            client=client,
+            model_name=model_name,
+            messages=messages,
         )
         
-        return response.choices[0].message.content
+        return provider.extract_text(response)
     
     @staticmethod
     def stream_with_tools(
@@ -90,14 +93,15 @@ class ChatOrchestrator:
         # Initialize tool cache if not provided
         if tool_cache is None:
             tool_cache = {}
-        client = LLMClient.get_client(api_key)
+        provider = LLMClient.get_provider()
+        client = provider.get_client(api_key)
         model_name = LLMClient.get_model_name()
         
         # Build messages with history and style
         messages = PromptBuilder.build_messages(history, message, response_style)
         
         # Get tool definitions
-        tools = ToolExecutor.get_tool_definitions()
+        tools = ToolExecutor.get_tool_definitions(provider=provider)
         
         try:
             # Agentic loop: Keep calling the model until it stops making tool calls
@@ -105,20 +109,19 @@ class ChatOrchestrator:
             
             while tool_round < MAX_TOOL_ROUNDS:
                 tool_round += 1
-                logger.info(f"Tool round {tool_round}: Sending request to LLM ({model_name}) with {len(tools)} tools")
-                
-                response = client.chat.completions.create(
-                    model=model_name,
+                logger.info(
+                    f"Tool round {tool_round}: Sending request to LLM "
+                    f"({model_name}) via provider ({provider.provider_name}) with {len(tools)} tools"
+                )
+
+                response = provider.create_tool_planning_response(
+                    client=client,
+                    model_name=model_name,
                     messages=messages,
                     tools=tools,
-                    tool_choice="auto",
-                    parallel_tool_calls=False,  # Sequential tool execution for reliability
-                    temperature=0.1,  # Low temp for accurate tool usage
-                    top_p=0.1
                 )
-                
-                response_message = response.choices[0].message
-                tool_calls = response_message.tool_calls
+
+                tool_calls = provider.extract_tool_calls(response)
                 
                 # If no tool calls, we're done with the loop
                 if not tool_calls:
@@ -126,15 +129,15 @@ class ChatOrchestrator:
                     break
                 
                 # Add assistant response to messages
-                messages.append(response_message)
+                messages.append(provider.build_assistant_message(response))
                 
                 # Execute each tool call in this round
                 for tool_call in tool_calls:
-                    function_name = tool_call.function.name
+                    function_name = tool_call.name
                     
                     # Parse and validate arguments using Pydantic schemas
                     try:
-                        raw_args = json.loads(tool_call.function.arguments) if tool_call.function.arguments else {}
+                        raw_args = json.loads(tool_call.arguments) if tool_call.arguments else {}
                         function_args = ToolExecutor.validate_and_parse_args(function_name, raw_args)
                     except json.JSONDecodeError as e:
                         logger.error(f"JSON parse error for {function_name}: {e}")
@@ -218,39 +221,27 @@ class ChatOrchestrator:
             logger.info("Getting final response after all tool executions (streaming)")
             
             # Determine if we should use reasoning for this request
-            use_reasoning = enable_reasoning and LLMClient.is_reasoning_model()
-            
-            if use_reasoning:
-                # Use Cerebras SDK for reasoning models
-                stream = client.chat.completions.create(
-                    model=model_name,
-                    messages=messages,
-                    stream=True,
-                    reasoning_effort=reasoning_effort,
-                    max_completion_tokens=LLMClient.get_max_completion_tokens(),
-                    temperature=0.2,
-                    top_p=0.2
-                )
-            else:
-                # Final call without tools to get text response (non-reasoning)
-                stream = client.chat.completions.create(
-                    model=model_name,
-                    messages=messages,
-                    stream=True,
-                    max_tokens=LLMClient.get_max_tokens(),
-                    temperature=0.2,
-                    top_p=0.2
-                )
+            use_reasoning = enable_reasoning and provider.supports_reasoning(model_name)
+
+            stream = provider.create_streaming_response(
+                client=client,
+                model_name=model_name,
+                messages=messages,
+                use_reasoning=use_reasoning,
+                reasoning_effort=reasoning_effort,
+                max_tokens=LLMClient.get_max_tokens(),
+                max_completion_tokens=LLMClient.get_max_completion_tokens(),
+            )
             
             # Yield chunks as they arrive, handling reasoning tokens
             reasoning_started = False
             has_content = False
             
             for chunk in stream:
-                delta = chunk.choices[0].delta
-                
+                delta = provider.extract_stream_delta(chunk)
+
                 # Handle reasoning tokens (thinking)
-                reasoning_content = getattr(delta, 'reasoning', None)
+                reasoning_content = delta.reasoning
                 if use_reasoning and reasoning_content:
                     if not reasoning_started:
                         yield "[[THINKING:start]]"
@@ -258,7 +249,7 @@ class ChatOrchestrator:
                     yield f"[[THINKING:chunk:{reasoning_content}]]"
                 
                 # Handle content tokens
-                content = getattr(delta, 'content', None)
+                content = delta.content
                 if content:
                     has_content = True
                     if reasoning_started:

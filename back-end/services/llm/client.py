@@ -1,60 +1,75 @@
 """
 LLMClient - Connection and configuration management for LLM APIs.
 
-Handles Cerebras SDK client creation, model selection, and token limits.
+Handles provider resolution, model selection, and token limits.
 """
 
 import os
-import logging
-from cerebras.cloud.sdk import Cerebras
 
-logger = logging.getLogger(__name__)
+from .providers import get_provider, get_supported_provider_names
 
 # Default values (overridden by .env)
-DEFAULT_MODEL = "gpt-oss-120b"
 DEFAULT_MAX_TOKENS = 4096
 DEFAULT_MAX_COMPLETION_TOKENS = 8192
-
-# Models that support reasoning (Cerebras-specific)
-REASONING_MODELS = ['gpt-oss-120b', 'zai-glm-4.6']
 
 
 class LLMClient:
     """Connection and configuration management for LLM APIs."""
-    
+
     @staticmethod
-    def get_client(api_key: str = None) -> Cerebras:
+    def get_provider_name() -> str:
+        """Get configured provider name."""
+        return os.getenv("LLM_PROVIDER", "cerebras").strip().lower()
+
+    @staticmethod
+    def get_provider():
+        """Get active provider adapter."""
+        return get_provider(LLMClient.get_provider_name())
+
+    @staticmethod
+    def get_supported_providers() -> tuple[str, ...]:
+        """Get supported provider names."""
+        return get_supported_provider_names()
+
+    @staticmethod
+    def get_client(api_key: str = None):
         """
-        Creates and returns a Cerebras SDK client.
-        
+        Creates and returns the configured provider client.
+
         Args:
             api_key: Optional API key. If not provided, falls back to env var.
         """
-        key = api_key or os.getenv('LLM_API_KEY') or os.getenv('CEREBRAS_API_KEY')
-        
-        if not key:
-            # Try multi-key config
-            keys_raw = os.getenv('LLM_API_KEYS', '')
-            keys = [k.strip() for k in keys_raw.split(',') if k.strip()]
-            if keys:
-                key = keys[0]  # Use first key as fallback
-        
-        if not key:
-            logger.error("No LLM API key found in environment variables")
-            raise ValueError("LLM_API_KEY or LLM_API_KEYS is required")
-            
-        return Cerebras(api_key=key)
+        provider = LLMClient.get_provider()
+        return provider.get_client(api_key)
     
     @staticmethod
     def get_model_name() -> str:
-        """Gets the model name from environment or defaults."""
-        return os.getenv('LLM_MODEL', DEFAULT_MODEL)
+        """Gets the model name from provider-specific config or defaults."""
+        provider_name = LLMClient.get_provider_name()
+
+        # Prefer provider-specific model variables when available.
+        if provider_name == "gemini":
+            gemini_model = os.getenv("GEMINI_MODEL")
+            if gemini_model:
+                return gemini_model
+        elif provider_name == "cerebras":
+            cerebras_model = os.getenv("CEREBRAS_MODEL")
+            if cerebras_model:
+                return cerebras_model
+
+        configured_model = os.getenv("LLM_MODEL")
+        if configured_model:
+            return configured_model
+
+        provider = LLMClient.get_provider()
+        return provider.get_default_model()
     
     @staticmethod
     def is_reasoning_model() -> bool:
         """Check if current model supports reasoning."""
         model = LLMClient.get_model_name()
-        return model in REASONING_MODELS
+        provider = LLMClient.get_provider()
+        return provider.supports_reasoning(model)
     
     @staticmethod
     def get_max_tokens() -> int:

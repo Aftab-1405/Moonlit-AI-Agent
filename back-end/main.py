@@ -126,6 +126,7 @@ def create_app() -> FastAPI:
     # Configure LLM rate limiter (multi-key load balancing)
     app.state.llm_rate_limiter = create_rate_limiter(AppConfig)
     logger.info(
+        f"LLM provider: {AppConfig.LLM_PROVIDER}; "
         f"LLM rate limiter: {len(AppConfig.LLM_API_KEYS)} keys, "
         f"enabled={AppConfig.LLM_RATELIMIT_ENABLED}"
     )

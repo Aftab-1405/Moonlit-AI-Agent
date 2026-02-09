@@ -145,10 +145,14 @@ const AIMessage = memo(function AIMessage({ id, text, steps, status, onRunQuery,
       openedToolsRef.current.add(stepKey);
 
       const query = parsedArgs?.query || '';
+      const resultRows = Array.isArray(parsedResult?.data)
+        ? parsedResult.data
+        : (Array.isArray(parsedResult?.preview) ? parsedResult.preview : []);
       const normalizedResults = {
         columns: parsedResult?.columns || [],
-        result: parsedResult?.data || parsedResult?.preview || [],
+        result: resultRows,
         row_count: parsedResult?.row_count || 0,
+        total_rows: parsedResult?.total_rows || parsedResult?.row_count || 0,
         truncated: parsedResult?.truncated || false,
       };
 

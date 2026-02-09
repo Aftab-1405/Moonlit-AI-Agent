@@ -196,15 +196,20 @@ class TableColumnsResult(ToolResultBase):
 class QueryResult(ToolResultBase):
     """Structured result for query execution.
     
-    Note: Full data is NOT stored here. Results auto-populate SQLEditorCanvas
-    during streaming. Only summary info is persisted to reduce DB storage.
+    Full data is included for UI streaming (SQL editor/results panel).
+    LLM context should consume preview-only summaries to control token usage.
     """
+    data: List[Dict[str, Any]] = []     # Full rows for UI/canvas rendering
     row_count: int = 0              # Actual rows returned (after truncation)
     total_rows: int = 0             # Total rows in DB before truncation
     column_count: int = 0
     columns: List[str] = []
     truncated: bool = False
     preview: List[Dict[str, Any]] = []  # First 5 rows for LLM context (token-efficient)
+    preview_row_count: int = 0
+    preview_is_partial: bool = False
+    full_result_location: str = "SQL editor results pane/canvas"
+    preview_note: Optional[str] = None
 
 
 class RecentQueriesResult(ToolResultBase):
@@ -322,19 +327,32 @@ def structure_tool_result(tool_name: str, raw_result: Dict[str, Any]) -> Dict[st
             ).model_dump()
         
         elif tool_name == "execute_query":
-            # Only summary info stored - full data goes to SQLEditorCanvas during stream
+            # Include full data for UI panels, plus preview for token-efficient context.
             data = raw_result.get('data', [])
             columns = raw_result.get('columns', [])
             row_count = raw_result.get('row_count', len(data))
             total_rows = raw_result.get('total_rows', row_count)
+            preview_rows = data[:5]
+            preview_row_count = len(preview_rows)
+            preview_is_partial = max(row_count, total_rows) > preview_row_count
+            preview_note = (
+                "Preview only. Complete query results are available in the SQL editor results pane/canvas."
+                if preview_is_partial
+                else None
+            )
             
             return QueryResult(
+                data=data,
                 row_count=row_count,
                 total_rows=total_rows,
                 column_count=len(columns),
                 columns=columns,
                 truncated=raw_result.get('truncated', False),
-                preview=data[:5]  # 5 rows for LLM context summary
+                preview=preview_rows,  # 5 rows for LLM context summary
+                preview_row_count=preview_row_count,
+                preview_is_partial=preview_is_partial,
+                full_result_location="SQL editor results pane/canvas",
+                preview_note=preview_note
             ).model_dump()
         
         elif tool_name == "get_recent_queries":

@@ -23,10 +23,39 @@ class Config:
     if not SECRET_KEY or SECRET_KEY == 'your_secret_key_here':
         raise ValueError("SECRET_KEY environment variable must be set to a real value (not the placeholder)")
     
-    # LLM API Configuration (Cerebras)
-    # Multi-key support for load balancing
-    _llm_keys_raw = os.getenv('LLM_API_KEYS', '')
-    LLM_API_KEYS = [k.strip() for k in _llm_keys_raw.split(',') if k.strip()]
+    # LLM API Configuration (Provider-based)
+    # Provider options are implemented via adapters in services/llm/providers.
+    # Current built-in providers: cerebras, gemini
+    LLM_PROVIDER = os.getenv('LLM_PROVIDER', 'cerebras').strip().lower()
+
+    # Provider API keys (supports key rotation/load balancing).
+    # Resolution order:
+    # 1) <PROVIDER>_API_KEYS (e.g., GEMINI_API_KEYS, CEREBRAS_API_KEYS)
+    # 2) provider-specific single-key vars
+    # 3) LLM_API_KEYS (generic)
+    # 4) LLM_API_KEY (generic single-key)
+    _provider_keys_env = f'{LLM_PROVIDER.upper()}_API_KEYS'
+    _provider_keys_raw = os.getenv(_provider_keys_env, '')
+    LLM_API_KEYS = [k.strip() for k in _provider_keys_raw.split(',') if k.strip()]
+
+    if not LLM_API_KEYS and LLM_PROVIDER == 'cerebras':
+        _cerebras_key = os.getenv('CEREBRAS_API_KEY', '').strip()
+        if _cerebras_key:
+            LLM_API_KEYS = [_cerebras_key]
+
+    if not LLM_API_KEYS and LLM_PROVIDER == 'gemini':
+        _gemini_key = os.getenv('GEMINI_API_KEY', '').strip() or os.getenv('GOOGLE_API_KEY', '').strip()
+        if _gemini_key:
+            LLM_API_KEYS = [_gemini_key]
+
+    if not LLM_API_KEYS:
+        _generic_keys_raw = os.getenv('LLM_API_KEYS', '')
+        LLM_API_KEYS = [k.strip() for k in _generic_keys_raw.split(',') if k.strip()]
+
+    if not LLM_API_KEYS:
+        _generic_key = os.getenv('LLM_API_KEY', '').strip()
+        if _generic_key:
+            LLM_API_KEYS = [_generic_key]
     
     # LLM Rate Limiting
     LLM_RATELIMIT_ENABLED = os.getenv('LLM_RATELIMIT_ENABLED', 'True').lower() == 'true'

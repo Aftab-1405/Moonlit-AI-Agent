@@ -24,7 +24,11 @@ class LLMService:
     """
     
     # Client operations
+    # Legacy alias retained for backward compatibility.
     _get_cerebras_client = staticmethod(LLMClient.get_client)
+    _get_provider_client = staticmethod(LLMClient.get_client)
+    get_provider_name = staticmethod(LLMClient.get_provider_name)
+    get_supported_providers = staticmethod(LLMClient.get_supported_providers)
     get_model_name = staticmethod(LLMClient.get_model_name)
     is_reasoning_model = staticmethod(LLMClient.is_reasoning_model)
     get_max_tokens = staticmethod(LLMClient.get_max_tokens)

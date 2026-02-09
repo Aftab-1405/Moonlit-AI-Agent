@@ -75,7 +75,7 @@ def get_tool_connection(db_config: dict):
 # TOOL DEFINITIONS (Schemas)
 # =============================================================================
 
-# Raw tool definitions
+# Raw tool definitions in provider-neutral JSON schema format.
 _RAW_TOOL_DEFINITIONS = [
     {
         "name": "get_connection_status",
@@ -237,14 +237,29 @@ _RAW_TOOL_DEFINITIONS = [
     }
 ]
 
-# Export tools in Cerebras format
-ai_tools_list = [
-    {
-        "type": "function",
-        "function": tool
-    }
-    for tool in _RAW_TOOL_DEFINITIONS
-]
+def get_raw_tool_definitions() -> List[Dict]:
+    """
+    Return provider-neutral tool definitions.
+
+    Provider adapters are responsible for mapping these definitions to the
+    provider-specific request format.
+    """
+    return list(_RAW_TOOL_DEFINITIONS)
+
+
+def get_cerebras_tool_definitions() -> List[Dict]:
+    """Backward-compatible helper for Cerebras-style tool definitions."""
+    return [
+        {
+            "type": "function",
+            "function": tool
+        }
+        for tool in _RAW_TOOL_DEFINITIONS
+    ]
+
+
+# Backward compatibility for any legacy imports.
+ai_tools_list = get_cerebras_tool_definitions()
 
 
 # =============================================================================
