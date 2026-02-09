@@ -31,6 +31,13 @@ import { useTheme as useAppTheme } from '../contexts/ThemeContext';
 import { getSchemas, selectSchema } from '../api';
 import { getMenuPaperStyles } from '../styles/shared';
 import logger from '../utils/logger';
+
+const MOBILE_MEDIA_QUERY = '@media (max-width:599.95px)';
+const REDUCED_MOTION_QUERY = '@media (prefers-reduced-motion: reduce)';
+const HOVER_CAPABLE_QUERY = '@media (hover: hover) and (pointer: fine)';
+const BACKDROP_FILTER_FALLBACK_QUERY =
+  '@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)))';
+
 const MENU_HEADER_STYLES = { px: 2, py: 0.5, display: 'block', color: 'text.secondary' };
 const LIST_ITEM_ICON_STYLES = { minWidth: 28 };
 
@@ -89,7 +96,7 @@ function ChatInput({
   );
 
   const toolbarChipStyles = useMemo(() => ({
-    height: isCompactMobile ? 24 : 26,
+    height: isCompactMobile ? 28 : 26,
     borderRadius: '12px',
     border: '1px solid',
     borderColor: alpha(theme.palette.text.primary, 0.2), // Increased from 0.12 for dark theme visibility
@@ -97,15 +104,17 @@ function ChatInput({
     '& .MuiChip-label': {
       px: isCompactMobile ? 0.75 : 1,
     },
-    '&:hover': {
-      borderColor: alpha(theme.palette.text.primary, 0.35),
-      backgroundColor: alpha(theme.palette.text.primary, 0.08),
+    [HOVER_CAPABLE_QUERY]: {
+      '&:hover': {
+        borderColor: alpha(theme.palette.text.primary, 0.35),
+        backgroundColor: alpha(theme.palette.text.primary, 0.08),
+      },
     },
   }), [theme, isCompactMobile]);
   const menuPaperStyles = useMemo(() => getMenuPaperStyles(theme), [theme]);
   const inputPlaceholder = isConnected
     ? (isCompactMobile ? 'Ask about database...' : 'Ask about your database...')
-    : (isCompactMobile ? 'Ask anything...' : 'Ask anything...');
+    : 'Ask anything...';
 
   const handleCloseDbMenu = useCallback(() => setDbAnchor(null), []);
   const handleCloseSchemaMenu = useCallback(() => setSchemaAnchor(null), []);
@@ -324,7 +333,14 @@ function ChatInput({
             anchorEl={dbAnchor}
             open={Boolean(dbAnchor)}
             onClose={handleCloseDbMenu}
-            PaperProps={{ sx: { ...menuPaperStyles, minWidth: 180, maxHeight: 320 } }}
+            PaperProps={{
+              sx: {
+                ...menuPaperStyles,
+                minWidth: 180,
+                maxHeight: 320,
+                '& .MuiMenuItem-root': { minHeight: { xs: 40, sm: 36 } },
+              },
+            }}
           >
             <Typography variant="overline" sx={MENU_HEADER_STYLES}>
               Switch Database
@@ -346,7 +362,14 @@ function ChatInput({
             anchorEl={schemaAnchor}
             open={Boolean(schemaAnchor)}
             onClose={handleCloseSchemaMenu}
-            PaperProps={{ sx: { ...menuPaperStyles, minWidth: 160, maxHeight: 280 } }}
+            PaperProps={{
+              sx: {
+                ...menuPaperStyles,
+                minWidth: 160,
+                maxHeight: 280,
+                '& .MuiMenuItem-root': { minHeight: { xs: 40, sm: 36 } },
+              },
+            }}
           >
             <Typography variant="overline" sx={MENU_HEADER_STYLES}>
               PostgreSQL Schema
@@ -381,12 +404,22 @@ function ChatInput({
               backgroundColor: alpha(theme.palette.text.primary, 0.04),
               backdropFilter: 'blur(8px)',
               WebkitBackdropFilter: 'blur(8px)',
+              [BACKDROP_FILTER_FALLBACK_QUERY]: {
+                backdropFilter: 'none',
+                WebkitBackdropFilter: 'none',
+              },
+              [MOBILE_MEDIA_QUERY]: {
+                backdropFilter: 'none',
+                WebkitBackdropFilter: 'none',
+              },
               transition: theme.transitions.create(
                 ['border-color', 'background-color', 'box-shadow'],
                 { duration: theme.transitions.duration.short }
               ),
-              '&:hover': {
-                borderColor: alpha(theme.palette.text.primary, 0.15),
+              [HOVER_CAPABLE_QUERY]: {
+                '&:hover': {
+                  borderColor: alpha(theme.palette.text.primary, 0.15),
+                },
               },
             }}
           >
@@ -540,6 +573,10 @@ function ChatInput({
                     opacity: 0,
                     animation: 'chipFadeIn 0.4s ease forwards',
                     animationDelay: `${index * 0.08}s`,
+                    [REDUCED_MOTION_QUERY]: {
+                      opacity: 1,
+                      animation: 'none',
+                    },
                     '@keyframes chipFadeIn': {
                       from: { opacity: 0, transform: 'translateY(8px)' },
                       to: { opacity: 1, transform: 'translateY(0)' },
@@ -549,10 +586,12 @@ function ChatInput({
                       color: 'inherit',
                       ml: 0.5,
                     },
-                    '&:hover': {
-                      borderColor: alpha(theme.palette.text.primary, 0.35),
-                      backgroundColor: alpha(theme.palette.text.primary, 0.06),
-                      color: 'text.primary',
+                    [HOVER_CAPABLE_QUERY]: {
+                      '&:hover': {
+                        borderColor: alpha(theme.palette.text.primary, 0.35),
+                        backgroundColor: alpha(theme.palette.text.primary, 0.06),
+                        color: 'text.primary',
+                      },
                     },
                   }}
                 />
