@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Dialog,
   Box,
@@ -33,6 +33,10 @@ import { useTheme as useAppTheme } from '../contexts/ThemeContext';
 import UserDBContextManagerForAI from './UserDBContextManagerForAI';
 import { saveUserSettings } from '../api';
 import logger from '../utils/logger';
+
+const HOVER_CAPABLE_QUERY = '@media (hover: hover) and (pointer: fine)';
+const DYNAMIC_VIEWPORT_SUPPORT_QUERY = '@supports (height: 100dvh)';
+
 const SECTIONS = [
   { id: 'appearance', label: 'Appearance', icon: PaletteOutlinedIcon },
   { id: 'ai', label: 'AI', icon: PsychologyOutlinedIcon },
@@ -50,8 +54,10 @@ function SettingCard({ children, sx = {} }) {
         borderColor: 'divider',
         backgroundColor: alpha(theme.palette.background.paper, 0.5),
         transition: 'border-color 0.15s ease',
-        '&:hover': {
-          borderColor: alpha(theme.palette.text.primary, 0.15),
+        [HOVER_CAPABLE_QUERY]: {
+          '&:hover': {
+            borderColor: alpha(theme.palette.text.primary, 0.15),
+          },
         },
         ...sx,
       }}
@@ -106,10 +112,19 @@ function SettingsModal({ open, onClose }) {
   const theme = useMuiTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const activeSectionLabel = SECTIONS.find((section) => section.id === activeSection)?.label || 'Settings';
+  const isDarkTheme = settings.theme === 'dark';
+  const idleAnimationEnabled = isDarkTheme && (settings.idleAnimation ?? true);
+  const idleControlsDisabled = !isDarkTheme || !idleAnimationEnabled;
   const showSectionTitle = !isMobile;
-  const toggleStyles = {
-    '& .MuiToggleButton-root': { px: 1.5, py: 0.5 },
-  };
+  const toggleStyles = useMemo(() => ({
+    width: { xs: '100%', sm: 'auto' },
+    '& .MuiToggleButton-root': {
+      px: { xs: 1, sm: 1.5 },
+      py: { xs: 0.75, sm: 0.5 },
+      minHeight: { xs: 40, sm: 34 },
+      flex: { xs: 1, sm: 'unset' },
+    },
+  }), []);
   const NavContent = (
     <List sx={{ p: 1.5 }}>
       {SECTIONS.map((section) => (
@@ -177,13 +192,13 @@ function SettingsModal({ open, onClose }) {
                 <SettingCard>
                   <SettingItem
                     label="Idle Animation"
-                    description={settings.theme === 'dark' ? 'Show starfield effect when idle' : 'Only available in dark theme'}
-                    disabled={settings.theme !== 'dark'}
+                    description={isDarkTheme ? 'Show starfield effect when idle' : 'Only available in dark theme'}
+                    disabled={!isDarkTheme}
                   >
                     <Switch
-                      checked={settings.theme === 'dark' && (settings.idleAnimation ?? true)}
+                      checked={idleAnimationEnabled}
                       onChange={(e) => updateSetting('idleAnimation', e.target.checked)}
-                      disabled={settings.theme !== 'dark'}
+                      disabled={!isDarkTheme}
                     />
                   </SettingItem>
                 </SettingCard>
@@ -192,14 +207,14 @@ function SettingsModal({ open, onClose }) {
                   <SettingItem
                     label="Idle Intensity"
                     description="Control starfield brightness when idle"
-                    disabled={settings.theme !== 'dark' || !(settings.idleAnimation ?? true)}
+                    disabled={idleControlsDisabled}
                   >
                     <ToggleButtonGroup
                       value={settings.idleAnimationIntensity ?? 'medium'}
                       exclusive
                       onChange={(e, v) => v && updateSetting('idleAnimationIntensity', v)}
                       size="small"
-                      disabled={settings.theme !== 'dark' || !(settings.idleAnimation ?? true)}
+                      disabled={idleControlsDisabled}
                       sx={toggleStyles}
                     >
                       <ToggleButton value="low">Low</ToggleButton>
@@ -249,7 +264,7 @@ function SettingsModal({ open, onClose }) {
 
                 <SettingCard>
                   <SettingItem label="Response Style" description="How AI formats responses">
-                    <FormControl size="small" sx={{ minWidth: 110 }}>
+                    <FormControl size="small" sx={{ minWidth: { sm: 110 }, width: { xs: '100%', sm: 'auto' } }}>
                       <Select
                         value={settings.responseStyle ?? 'balanced'}
                         onChange={(e) => updateSetting('responseStyle', e.target.value)}
@@ -283,7 +298,7 @@ function SettingsModal({ open, onClose }) {
                 </SettingCard>
                 <SettingCard sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <SettingItem label="Query Timeout" description="Max wait time for results">
-                    <FormControl size="small" sx={{ minWidth: 100 }}>
+                    <FormControl size="small" sx={{ minWidth: { sm: 100 }, width: { xs: '100%', sm: 'auto' } }}>
                       <Select
                         value={settings.queryTimeout ?? 30}
                         onChange={(e) => updateSetting('queryTimeout', e.target.value)}
@@ -301,7 +316,7 @@ function SettingsModal({ open, onClose }) {
                     label="Max Rows"
                     description={settings.maxRows === 0 ? '⚠️ No limit - may slow down' : 'Limit results to prevent slowdown'}
                   >
-                    <FormControl size="small" sx={{ minWidth: 110 }}>
+                    <FormControl size="small" sx={{ minWidth: { sm: 110 }, width: { xs: '100%', sm: 'auto' } }}>
                       <Select
                         value={settings.maxRows ?? 1000}
                         onChange={(e) => updateSetting('maxRows', e.target.value)}
@@ -318,7 +333,7 @@ function SettingsModal({ open, onClose }) {
                 </SettingCard>
                 <SettingCard>
                   <SettingItem label="NULL Display" description="How to show NULL values">
-                    <FormControl size="small" sx={{ minWidth: 100 }}>
+                    <FormControl size="small" sx={{ minWidth: { sm: 100 }, width: { xs: '100%', sm: 'auto' } }}>
                       <Select
                         value={settings.nullDisplay ?? 'NULL'}
                         onChange={(e) => updateSetting('nullDisplay', e.target.value)}
@@ -340,7 +355,7 @@ function SettingsModal({ open, onClose }) {
                   </SettingItem>
 
                   <SettingItem label="Connection Persistence" description="Keep alive after closing tab">
-                    <FormControl size="small" sx={{ minWidth: 110 }}>
+                    <FormControl size="small" sx={{ minWidth: { sm: 110 }, width: { xs: '100%', sm: 'auto' } }}>
                       <Select
                         value={settings.connectionPersistence ?? 0}
                         onChange={(e) => {
@@ -360,7 +375,7 @@ function SettingsModal({ open, onClose }) {
                   </SettingItem>
 
                   <SettingItem label="Default Database Type" description="Pre-selected when connecting">
-                    <FormControl size="small" sx={{ minWidth: 120 }}>
+                    <FormControl size="small" sx={{ minWidth: { sm: 120 }, width: { xs: '100%', sm: 'auto' } }}>
                       <Select
                         value={settings.defaultDbType ?? 'postgresql'}
                         onChange={(e) => updateSetting('defaultDbType', e.target.value)}
@@ -406,9 +421,16 @@ function SettingsModal({ open, onClose }) {
           borderRadius: isMobile ? 0 : 3,
           backgroundImage: 'none',
           backgroundColor: theme.palette.background.paper,
-          height: isMobile ? '100%' : 'calc(100vh - 64px)',
-          maxHeight: isMobile ? '100%' : 720,
-          minHeight: isMobile ? '100%' : 400,
+          height: isMobile ? '100vh' : 'calc(100vh - 64px)',
+          maxHeight: isMobile ? '100vh' : 720,
+          minHeight: isMobile ? '100vh' : 400,
+          [DYNAMIC_VIEWPORT_SUPPORT_QUERY]: isMobile
+            ? {
+                height: '100dvh',
+                maxHeight: '100dvh',
+                minHeight: '100dvh',
+              }
+            : {},
           overflow: 'hidden',
         },
       }}
@@ -469,8 +491,12 @@ function SettingsModal({ open, onClose }) {
               sx: {
                 width: 240,
                 maxWidth: '85vw',
-                height: '100%',
+                height: '100vh',
+                [DYNAMIC_VIEWPORT_SUPPORT_QUERY]: {
+                  height: '100dvh',
+                },
                 overflowY: 'auto',
+                paddingBottom: 'env(safe-area-inset-bottom)',
                 backgroundColor: theme.palette.background.paper,
               },
             }}
@@ -488,6 +514,7 @@ function SettingsModal({ open, onClose }) {
             flex: 1,
             overflow: 'auto',
             p: { xs: 2, sm: 3 },
+            pb: { xs: 'max(env(safe-area-inset-bottom), 16px)', sm: 3 },
           }}
         >
           {renderContent()}
@@ -500,6 +527,7 @@ function SettingsModal({ open, onClose }) {
           justifyContent: 'space-between',
           px: { xs: 2, sm: 3 },
           py: 2,
+          paddingBottom: { xs: 'max(env(safe-area-inset-bottom), 12px)', sm: 2 },
           borderTop: 1,
           borderColor: 'divider',
         }}
@@ -509,10 +537,11 @@ function SettingsModal({ open, onClose }) {
           onClick={resetSettings}
           color="inherit"
           size="small"
+          sx={{ minHeight: { xs: 40, sm: 'auto' } }}
         >
           Reset All
         </Button>
-        <Button onClick={onClose} size="small">
+        <Button onClick={onClose} size="small" sx={{ minHeight: { xs: 40, sm: 'auto' } }}>
           Done
         </Button>
       </Box>
