@@ -182,6 +182,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
   const [connectionMode, setConnectionMode] = useState('credentials');
   const [connectionString, setConnectionString] = useState('');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [mobileSection, setMobileSection] = useState('connect');
 
   const [formData, setFormData] = useState({
     host: 'localhost',
@@ -203,6 +204,8 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
   const currentDbConfig = useMemo(() => DB_TYPES.find(d => d.value === dbType) || DB_TYPES[1], [dbType]);
   const isSQLite = dbType === 'sqlite';
   const supportsConnectionString = currentDbConfig.supportsConnectionString;
+  const hasDatabases = databases.length > 0;
+  const mobileHeaderTitle = mobileSection === 'databases' ? 'Available Databases' : 'Connection Details';
 
   useEffect(() => () => timeoutRefs.current.forEach(clearTimeout), []);
 
@@ -239,6 +242,12 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
       fetchDatabases();
     }
   }, [open, isConnected, databases.length, fetchDatabases]);
+
+  useEffect(() => {
+    if (!hasDatabases && mobileSection === 'databases') {
+      setMobileSection('connect');
+    }
+  }, [hasDatabases, mobileSection]);
 
   const safeSetTimeout = useCallback((cb, delay) => {
     const id = setTimeout(cb, delay);
@@ -547,6 +556,30 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
     </Box>
   );
 
+  const renderDatabaseSection = (sx = {}) => (
+    <Box
+      sx={{
+        width: { xs: '100%', sm: 280 },
+        flexShrink: 0,
+        p: { xs: 2, sm: 3 },
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        backgroundColor: alpha(theme.palette.background.default, 0.5),
+        ...sx,
+      }}
+    >
+      <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ mb: 2, display: 'block', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+        Available Databases
+      </Typography>
+      <DatabaseList
+        databases={databases}
+        currentDatabase={currentDatabase}
+        onSelect={handleSelectDatabase}
+        loading={loading}
+      />
+    </Box>
+  );
+
   return (
     <Dialog
       open={open}
@@ -603,7 +636,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
             sx={{ width: 28, height: 28, objectFit: 'contain' }}
           />
           <Typography variant="h6" fontWeight={600}>
-            {isMobile ? 'Connect' : 'Connect Database'}
+            {isMobile ? mobileHeaderTitle : 'Connect Database'}
           </Typography>
         </Box>
         <IconButton onClick={onClose} size="small" aria-label="Close dialog" sx={{ width: 44, height: 44 }}>
@@ -655,44 +688,76 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
           </Drawer>
         )}
         <Box sx={{ flex: 1, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, overflow: 'hidden' }}>
-          <Fade in key="form">
-            <Box
-              sx={{
-                flex: 1,
-                p: { xs: 2, sm: 3 },
-                overflowY: 'auto',
-                WebkitOverflowScrolling: 'touch',
-              }}
-            >
-              {renderConnectionForm()}
-            </Box>
-          </Fade>
-          {databases.length > 0 && (
+          {isMobile ? (
             <>
-              <Divider orientation={isMobile ? 'horizontal' : 'vertical'} flexItem />
-              <Fade in key="databases">
-                <Box
-                  sx={{
-                    width: { xs: '100%', sm: 280 },
-                    flexShrink: 0,
-                    p: { xs: 2, sm: 3 },
-                    maxHeight: { xs: '45%', sm: 'none' },
-                    overflowY: 'auto',
-                    WebkitOverflowScrolling: 'touch',
-                    backgroundColor: alpha(theme.palette.background.default, 0.5),
-                  }}
-                >
-                  <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ mb: 2, display: 'block', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                    Available Databases
-                  </Typography>
-                  <DatabaseList
-                    databases={databases}
-                    currentDatabase={currentDatabase}
-                    onSelect={handleSelectDatabase}
-                    loading={loading}
-                  />
+              {hasDatabases && (
+                <Box sx={{ px: 2, pt: 2, pb: 1.5, borderBottom: 1, borderColor: 'divider' }}>
+                  <ToggleButtonGroup
+                    value={mobileSection}
+                    exclusive
+                    onChange={(e, val) => val && setMobileSection(val)}
+                    fullWidth
+                    size="small"
+                    sx={{
+                      '& .MuiToggleButton-root': {
+                        gap: 1,
+                        py: 1,
+                        minHeight: 40,
+                      },
+                    }}
+                  >
+                    <ToggleButton value="connect">
+                      <LinkRoundedIcon sx={{ fontSize: 18 }} />
+                      <Typography variant="body2" fontWeight={500}>Connection</Typography>
+                    </ToggleButton>
+                    <ToggleButton value="databases">
+                      <StorageRoundedIcon sx={{ fontSize: 18 }} />
+                      <Typography variant="body2" fontWeight={500}>Databases</Typography>
+                    </ToggleButton>
+                  </ToggleButtonGroup>
+                </Box>
+              )}
+              <Fade in key={mobileSection}>
+                <Box sx={{ flex: 1, overflow: 'hidden' }}>
+                  {mobileSection === 'databases' && hasDatabases ? (
+                    renderDatabaseSection({ p: 2, backgroundColor: 'transparent' })
+                  ) : (
+                    <Box
+                      sx={{
+                        height: '100%',
+                        p: 2,
+                        overflowY: 'auto',
+                        WebkitOverflowScrolling: 'touch',
+                      }}
+                    >
+                      {renderConnectionForm()}
+                    </Box>
+                  )}
                 </Box>
               </Fade>
+            </>
+          ) : (
+            <>
+              <Fade in key="form">
+                <Box
+                  sx={{
+                    flex: 1,
+                    p: { xs: 2, sm: 3 },
+                    overflowY: 'auto',
+                    WebkitOverflowScrolling: 'touch',
+                  }}
+                >
+                  {renderConnectionForm()}
+                </Box>
+              </Fade>
+              {hasDatabases && (
+                <>
+                  <Divider orientation="vertical" flexItem />
+                  <Fade in key="databases">
+                    {renderDatabaseSection()}
+                  </Fade>
+                </>
+              )}
             </>
           )}
         </Box>
