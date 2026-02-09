@@ -28,12 +28,14 @@ export function useConversations() {
   const [messages, setMessages] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [currentConversationId, setCurrentConversationId] = useState(null);
+  const [isConversationsLoading, setIsConversationsLoading] = useState(false);
   const [isConversationLoading, setIsConversationLoading] = useState(false);
   const prevConversationIdRef = useRef(null);
   const lastLoadedConversationIdRef = useRef(null);
   const newlyCreatedConvIdRef = useRef(null);
   const abortControllerRef = useRef(null);
   const conversationLoadSeqRef = useRef(0);
+  const conversationsLoadSeqRef = useRef(0);
   const getAbortSignal = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -42,6 +44,9 @@ export function useConversations() {
     return abortControllerRef.current.signal;
   }, []);
   const fetchConversations = useCallback(async (signal) => {
+    const requestSeq = conversationsLoadSeqRef.current + 1;
+    conversationsLoadSeqRef.current = requestSeq;
+    setIsConversationsLoading(true);
     try {
       const data = await getConversations(signal);
       if (data.status === 'success') {
@@ -50,6 +55,10 @@ export function useConversations() {
     } catch (error) {
       if (error.name === 'AbortError') return; // Ignore abort errors
       logger.error('Failed to fetch conversations:', error);
+    } finally {
+      if (conversationsLoadSeqRef.current === requestSeq) {
+        setIsConversationsLoading(false);
+      }
     }
   }, []);
   const resetChatState = useCallback(() => {
@@ -149,6 +158,7 @@ export function useConversations() {
   return {
     messages,
     setMessages,
+    isConversationsLoading,
     isConversationLoading,
     conversations,
     setConversations,

@@ -102,6 +102,7 @@ function Chat() {
   const {
     messages,
     setMessages,
+    isConversationsLoading,
     isConversationLoading,
     conversations,
     setConversations,
@@ -478,6 +479,7 @@ function Chat() {
 
   const commonSidebarProps = useMemo(() => ({
     conversations,
+    isConversationsLoading,
     currentConversationId,
     onDeleteConversation: handleDeleteConversation,
     isConnected: isDbConnected,
@@ -487,7 +489,7 @@ function Chat() {
     onDatabaseSwitch: handleDatabaseSwitch,
     user,
   }), [
-    conversations, currentConversationId, handleDeleteConversation,
+    conversations, isConversationsLoading, currentConversationId, handleDeleteConversation,
     isDbConnected, currentDatabase, dbType, availableDatabases,
     handleDatabaseSwitch, user
   ]);

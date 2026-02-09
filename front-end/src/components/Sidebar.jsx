@@ -18,6 +18,7 @@ import {
   DialogContent,
   Chip,
   CircularProgress,
+  Skeleton,
   useMediaQuery,
 } from '@mui/material';
 import { styled, useTheme } from '@mui/material/styles';
@@ -321,8 +322,44 @@ const HistoryPopoverItem = memo(function HistoryPopoverItem({
     </ListItemButton>
   );
 });
+
+const HistoryListSkeleton = memo(function HistoryListSkeleton() {
+  const skeletonRows = [0, 1, 2, 3, 4];
+  return (
+    <Box sx={{ px: 1, pb: 1 }}>
+      {skeletonRows.map((row) => (
+        <Box
+          key={`history-skeleton-${row}`}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.25,
+            px: 1.25,
+            py: 1,
+            mb: 0.25,
+            minHeight: 44,
+            borderRadius: 1.5,
+          }}
+        >
+          <Skeleton variant="circular" width={16} height={16} />
+          <Skeleton
+            variant="rounded"
+            sx={{
+              width: `${92 - (row % 3) * 14}%`,
+              maxWidth: 170,
+              height: 14,
+              borderRadius: 999,
+            }}
+          />
+        </Box>
+      ))}
+    </Box>
+  );
+});
+
 function Sidebar({
   conversations = [],
+  isConversationsLoading = false,
   currentConversationId,
   onNewChat,
   onSelectConversation,
@@ -563,7 +600,9 @@ function Sidebar({
                 ...scrollbarStyles,
               }}
             >
-              {conversations.length === 0 ? (
+              {isConversationsLoading ? (
+                <HistoryListSkeleton />
+              ) : conversations.length === 0 ? (
                 <Box sx={{ p: 2, textAlign: 'center', opacity: 0.5 }}>
                   <Typography variant="caption" color="text.secondary">
                     No conversations yet
@@ -836,6 +875,7 @@ function areConversationMetaEqual(prev = [], next = []) {
 function arePropsEqual(prevProps, nextProps) {
   if (prevProps.currentConversationId !== nextProps.currentConversationId) return false;
   if (prevProps.isConnected !== nextProps.isConnected) return false;
+  if (prevProps.isConversationsLoading !== nextProps.isConversationsLoading) return false;
   if (prevProps.currentDatabase !== nextProps.currentDatabase) return false;
   if (prevProps.open !== nextProps.open) return false;
   if (prevProps.mobileOpen !== nextProps.mobileOpen) return false;
