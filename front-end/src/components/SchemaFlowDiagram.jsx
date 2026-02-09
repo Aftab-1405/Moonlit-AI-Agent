@@ -1,7 +1,5 @@
 import { useState, useCallback, useMemo, useEffect, memo } from 'react';
 import ReactFlow, {
-  Controls,
-  MiniMap,
   useNodesState,
   useEdgesState,
   Handle,
@@ -10,12 +8,15 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import Dagre from '@dagrejs/dagre';
-import { Box, Typography, useTheme, useMediaQuery, Chip, GlobalStyles } from '@mui/material';
+import { Box, Typography, useTheme, useMediaQuery } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 import KeyRoundedIcon from '@mui/icons-material/KeyRounded';
 import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
 import TableChartRoundedIcon from '@mui/icons-material/TableChartRounded';
+
+const MOBILE_BREAKPOINT_QUERY = 'sm';
+
 const CustomBezierEdge = ({
   id,
   sourceX,
@@ -48,7 +49,7 @@ const CustomBezierEdge = ({
 const DatabaseNode = memo(({ data }) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isMobile = data.isMobile;
 
   return (
     <Box
@@ -104,7 +105,7 @@ DatabaseNode.displayName = 'DatabaseNode';
 const TableNode = memo(({ data }) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isMobile = data.isMobile;
   const hasColumns = data.columnCount > 0;
 
   return (
@@ -163,19 +164,7 @@ const TableNode = memo(({ data }) => {
       </Typography>
       
       {hasColumns && (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto' }}>
-          <Chip
-            label={data.columnCount}
-            size="small"
-            sx={{
-              height: 18,
-              minWidth: 24,
-              fontSize: '0.65rem',
-              fontWeight: 600,
-              backgroundColor: alpha(theme.palette.text.primary, 0.08),
-              '& .MuiChip-label': { px: 0.75 },
-            }}
-          />
+        <Box sx={{ display: 'flex', alignItems: 'center', ml: 'auto' }}>
           <ChevronRightRoundedIcon
             sx={{
               fontSize: { xs: 16, sm: 14 },
@@ -195,7 +184,7 @@ TableNode.displayName = 'TableNode';
 const ColumnNode = memo(({ data }) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isMobile = data.isMobile;
   const isPK = data.isPrimaryKey;
 
   return (
@@ -308,8 +297,13 @@ const getLayoutedElements = (nodes, edges, direction = 'LR', isMobile = false) =
 function SchemaFlowDiagram({ database, tables, columns }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isMobile = useMediaQuery(theme.breakpoints.down(MOBILE_BREAKPOINT_QUERY));
   const [expandedTables, setExpandedTables] = useState(new Set());
+  const validTableIds = useMemo(() => new Set(tables.map((tableName) => `table-${tableName}`)), [tables]);
+  const activeExpandedTables = useMemo(
+    () => new Set([...expandedTables].filter((tableId) => validTableIds.has(tableId))),
+    [expandedTables, validTableIds]
+  );
 
   const toggleTable = useCallback((tableId) => {
     setExpandedTables((prev) => {
@@ -326,6 +320,7 @@ function SchemaFlowDiagram({ database, tables, columns }) {
     stroke: alpha(theme.palette.text.secondary, isDark ? 0.3 : 0.4),
     strokeWidth: isMobile ? 1.5 : 1,
   }), [isDark, isMobile, theme.palette.text.secondary]);
+
   const { initialNodes, initialEdges } = useMemo(() => {
     const nodes = [];
     const edges = [];
@@ -338,7 +333,10 @@ function SchemaFlowDiagram({ database, tables, columns }) {
     nodes.push({
       id: 'db',
       type: 'database',
-      data: { label: database },
+      data: {
+        label: database,
+        isMobile,
+      },
       position: { x: 0, y: 0 },
       width: dbNodeWidth,
       height: dbNodeHeight,
@@ -346,7 +344,7 @@ function SchemaFlowDiagram({ database, tables, columns }) {
     tables.forEach((tableName) => {
       const tableId = `table-${tableName}`;
       const tableColumns = columns[tableName] || [];
-      const isExpanded = expandedTables.has(tableId);
+      const isExpanded = activeExpandedTables.has(tableId);
 
       nodes.push({
         id: tableId,
@@ -357,6 +355,7 @@ function SchemaFlowDiagram({ database, tables, columns }) {
           columnCount: tableColumns.length,
           expanded: isExpanded,
           onToggle: toggleTable,
+          isMobile,
         },
         position: { x: 0, y: 0 },
         width: tableNodeWidth,
@@ -386,6 +385,7 @@ function SchemaFlowDiagram({ database, tables, columns }) {
               label: colName,
               type: colType,
               isPrimaryKey: isPK,
+              isMobile,
             },
             position: { x: 0, y: 0 },
             width: colNodeWidth,
@@ -407,7 +407,7 @@ function SchemaFlowDiagram({ database, tables, columns }) {
 
     const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(nodes, edges, 'LR', isMobile);
     return { initialNodes: layoutedNodes, initialEdges: layoutedEdges };
-  }, [database, tables, columns, expandedTables, toggleTable, edgeStyle, isMobile]);
+  }, [database, tables, columns, activeExpandedTables, toggleTable, edgeStyle, isMobile]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -451,66 +451,7 @@ function SchemaFlowDiagram({ database, tables, columns }) {
         zoomOnPinch={true}
         preventScrolling={true}
       >
-        <MiniMap
-          pannable
-          zoomable
-          nodeColor={() => alpha(theme.palette.text.primary, isDark ? 0.35 : 0.22)}
-          maskColor={alpha(theme.palette.background.default, isDark ? 0.6 : 0.45)}
-          style={{
-            background: alpha(theme.palette.background.paper, isDark ? 0.9 : 0.96),
-            border: `1px solid ${theme.palette.divider}`,
-          }}
-        />
-        <Controls
-          showInteractive={false}
-          position={isMobile ? 'bottom-right' : 'top-right'}
-          style={{
-            display: 'flex',
-            flexDirection: 'row',
-            gap: '4px',
-            padding: '6px',
-            backgroundColor: theme.palette.background.paper,
-            borderRadius: '10px',
-            border: `1px solid ${theme.palette.divider}`,
-            boxShadow: `0 2px 8px ${alpha(theme.palette.text.primary, isDark ? 0.25 : 0.12)}`,
-            ...(isMobile 
-              ? { bottom: '12px', right: '12px' }
-              : { top: '12px', right: '12px' }
-            ),
-          }}
-          className="react-flow-controls-custom"
-        />
       </ReactFlow>
-      <GlobalStyles
-        styles={{
-          '.react-flow-controls-custom button': {
-            width: '44px !important',
-            height: '44px !important',
-            backgroundColor: `${theme.palette.action.hover} !important`,
-            border: `1px solid ${theme.palette.divider} !important`,
-            borderRadius: '8px !important',
-            color: `${theme.palette.text.primary} !important`,
-            display: 'flex !important',
-            alignItems: 'center !important',
-            justifyContent: 'center !important',
-            cursor: 'pointer !important',
-            transition: 'all 0.15s ease !important',
-            padding: '0 !important',
-          },
-          '.react-flow-controls-custom button:hover': {
-            backgroundColor: `${theme.palette.action.selected} !important`,
-          },
-          '.react-flow-controls-custom button svg': {
-            fill: `${theme.palette.text.primary} !important`,
-            width: '18px !important',
-            height: '18px !important',
-          },
-          '.react-flow-controls-custom button:disabled': {
-            opacity: '0.4 !important',
-            cursor: 'not-allowed !important',
-          },
-        }}
-      />
     </Box>
   );
 }
