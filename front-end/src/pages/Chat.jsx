@@ -102,6 +102,7 @@ function Chat() {
   const {
     messages,
     setMessages,
+    isConversationLoading,
     conversations,
     setConversations,
     currentConversationId,
@@ -179,6 +180,8 @@ function Chat() {
     const isAssistant = lastMessage?.role === 'assistant' || lastMessage?.sender === 'ai';
     return isAssistant && isMessageActive(lastMessage);
   }, [messages]);
+  const showWelcomeState = messages.length === 0 && !isConversationLoading;
+  const showConversationPanel = messages.length > 0 || isConversationLoading;
 
   const streamActivityKey = useMemo(() => {
     const lastMessage = messages[messages.length - 1];
@@ -771,7 +774,7 @@ function Chat() {
         </Box>
 
         <Box sx={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-          <Fade in={messages.length === 0} timeout={300} unmountOnExit>
+          <Fade in={showWelcomeState} timeout={300} unmountOnExit>
             <Box
               sx={{
                 flex: 1,
@@ -840,11 +843,12 @@ function Chat() {
             </Box>
           </Fade>
 
-          <Fade in={messages.length > 0} timeout={300} unmountOnExit style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <Fade in={showConversationPanel} timeout={300} unmountOnExit style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
               <Box ref={setScrollContainerRef} sx={{ flex: 1, overflow: 'auto' }}>
                 <MessageList
                   messages={messages}
+                  isLoadingConversation={isConversationLoading}
                   user={user}
                   onRunQuery={handleRunQuery}
                   onOpenSqlEditor={handleOpenSqlEditor}

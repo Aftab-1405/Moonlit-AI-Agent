@@ -28,10 +28,12 @@ export function useConversations() {
   const [messages, setMessages] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [currentConversationId, setCurrentConversationId] = useState(null);
+  const [isConversationLoading, setIsConversationLoading] = useState(false);
   const prevConversationIdRef = useRef(null);
   const lastLoadedConversationIdRef = useRef(null);
   const newlyCreatedConvIdRef = useRef(null);
   const abortControllerRef = useRef(null);
+  const conversationLoadSeqRef = useRef(0);
   const getAbortSignal = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -53,9 +55,13 @@ export function useConversations() {
   const resetChatState = useCallback(() => {
     setMessages([]);
     setCurrentConversationId(null);
+    setIsConversationLoading(false);
   }, []);
   const handleSelectConversation = useCallback(async (convId) => {
     const signal = getAbortSignal();
+    const requestSeq = conversationLoadSeqRef.current + 1;
+    conversationLoadSeqRef.current = requestSeq;
+    setIsConversationLoading(true);
     try {
       const data = await getConversation(convId, signal);
       if (data.status === 'success' && data.conversation) {
@@ -69,10 +75,15 @@ export function useConversations() {
     } catch (error) {
       if (error.name === 'AbortError') return; // Ignore abort errors
       logger.error('Failed to load conversation:', error);
+    } finally {
+      if (conversationLoadSeqRef.current === requestSeq) {
+        setIsConversationLoading(false);
+      }
     }
   }, [getAbortSignal]);
   const handleNewChat = useCallback(async () => {
     navigate('/chat');
+    setIsConversationLoading(false);
     const signal = getAbortSignal();
     try {
       const data = await createConversation(signal);
@@ -138,6 +149,7 @@ export function useConversations() {
   return {
     messages,
     setMessages,
+    isConversationLoading,
     conversations,
     setConversations,
     currentConversationId,
