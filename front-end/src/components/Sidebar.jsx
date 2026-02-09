@@ -40,6 +40,10 @@ const EXPANDED_WIDTH = 260;
 const COLLAPSED_WIDTH = 56;
 const SIDEBAR_WIDTH_EASING = 'cubic-bezier(0.22, 1, 0.36, 1)';
 const SIDEBAR_WIDTH_DURATION = 240;
+const MOBILE_MEDIA_QUERY = '@media (max-width:899.95px)';
+const TOUCH_DEVICE_QUERY = '@media (hover: none)';
+const BACKDROP_FILTER_FALLBACK_QUERY =
+  '@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)))';
 const CONTENT_CONTAINER_STYLES = {
   position: 'relative',
   height: '100%',
@@ -56,6 +60,10 @@ const openedMixin = (theme) => ({
   willChange: 'width',
   overflowX: 'hidden',
   ...getGlassmorphismStyles(theme),
+  [BACKDROP_FILTER_FALLBACK_QUERY]: {
+    backdropFilter: 'none',
+    WebkitBackdropFilter: 'none',
+  },
 });
 
 const closedMixin = (theme) => ({
@@ -67,6 +75,10 @@ const closedMixin = (theme) => ({
   overflowX: 'hidden',
   width: COLLAPSED_WIDTH,
   ...getGlassmorphismStyles(theme),
+  [BACKDROP_FILTER_FALLBACK_QUERY]: {
+    backdropFilter: 'none',
+    WebkitBackdropFilter: 'none',
+  },
 });
 
 const StyledDrawer = styled(MuiDrawer, {
@@ -118,7 +130,7 @@ const ConversationItem = memo(function ConversationItem({
       <ListItemButton
         selected={isActive}
         onClick={handleClick}
-      sx={{
+        sx={{
           px: 1.25,
           py: 1,
           borderRadius: 1.5,
@@ -127,6 +139,9 @@ const ConversationItem = memo(function ConversationItem({
           backgroundColor: 'transparent',
           '& .delete-btn': { opacity: 0 },
           '&:hover .delete-btn': { opacity: 1 },
+          [TOUCH_DEVICE_QUERY]: {
+            '& .delete-btn': { opacity: 1 },
+          },
           '&:hover': {
             backgroundColor: theme.palette.action.hover,
             color: theme.palette.text.primary,
@@ -166,6 +181,8 @@ const ConversationItem = memo(function ConversationItem({
           sx={{
             ml: 0.5,
             p: 0.5,
+            minWidth: { xs: 36, sm: 'auto' },
+            minHeight: { xs: 36, sm: 'auto' },
             color: theme.palette.text.secondary,
             transition: 'opacity 0.15s ease',
           }}
@@ -270,7 +287,7 @@ const HistoryPopoverItem = memo(function HistoryPopoverItem({
     <ListItemButton
       selected={isActive}
       onClick={handleClick}
-      sx={{ borderRadius: 1, py: 0.75 }}
+      sx={{ borderRadius: 1, py: 0.75, minHeight: { xs: 40, sm: 34 } }}
     >
       <ListItemIcon sx={{ minWidth: 28 }}>
         {isActive ? (
@@ -353,9 +370,21 @@ function Sidebar({
   const mobileDrawerPaperStyles = useMemo(() => ({
     width: { xs: '90vw', sm: 320 },
     maxWidth: 320,
-    height: '100%',
+    height: '100dvh',
+    '@supports not (height: 100dvh)': {
+      height: '100vh',
+    },
+    paddingBottom: 'env(safe-area-inset-bottom)',
     borderRadius: 0,
     ...getGlassmorphismStyles(theme),
+    [BACKDROP_FILTER_FALLBACK_QUERY]: {
+      backdropFilter: 'none',
+      WebkitBackdropFilter: 'none',
+    },
+    [MOBILE_MEDIA_QUERY]: {
+      backdropFilter: 'none',
+      WebkitBackdropFilter: 'none',
+    },
   }), [theme]);
 
   const handleDatabaseSelect = useCallback((dbName) => {
@@ -620,7 +649,7 @@ function Sidebar({
               key={db}
               selected={db === currentDatabase}
               onClick={() => handleDatabaseSelect(db)}
-              sx={{ borderRadius: 1, py: 0.75 }}
+              sx={{ borderRadius: 1, py: 0.75, minHeight: { xs: 40, sm: 34 } }}
             >
               <ListItemIcon sx={{ minWidth: 28 }}>
                 {db === currentDatabase ? (
@@ -633,7 +662,10 @@ function Sidebar({
             </ListItemButton>
           ))}
           <Divider sx={{ my: 0.5 }} />
-          <ListItemButton onClick={handleOpenNewConnection} sx={{ borderRadius: 1, py: 0.75 }}>
+          <ListItemButton
+            onClick={handleOpenNewConnection}
+            sx={{ borderRadius: 1, py: 0.75, minHeight: { xs: 40, sm: 34 } }}
+          >
             <ListItemIcon sx={{ minWidth: 28 }}>
               <AddCircleOutlineRoundedIcon sx={{ fontSize: 16, color: theme.palette.text.primary }} />
             </ListItemIcon>
