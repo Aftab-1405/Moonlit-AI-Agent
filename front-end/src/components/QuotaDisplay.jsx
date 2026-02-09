@@ -19,7 +19,7 @@ const formatResetTime = (seconds) => {
   return `${Math.floor(seconds / 60)}m`;
 };
 
-function QuotaDisplay() {
+function QuotaDisplay({ embedded = false }) {
   const theme = useTheme();
 
   const [quota, setQuota] = useState(null);
@@ -112,21 +112,43 @@ function QuotaDisplay() {
       </Box>
     );
   }, [quota]);
-  const chipStyles = useMemo(() => ({
-    height: 24,
-    fontWeight: 600,
-    borderRadius: '12px',
-    cursor: 'default',
-    backgroundColor: alpha(theme.palette[statusColor].main, 0.08),
-    '& .MuiChip-icon': {
-      color: theme.palette[statusColor].main,
-      marginLeft: '6px',
-    },
-    '& .MuiChip-label': {
-      paddingLeft: '4px',
-      paddingRight: '8px',
-    },
-  }), [theme, statusColor]);
+  const chipStyles = useMemo(() => {
+    if (embedded) {
+      return {
+        height: 24,
+        fontWeight: 700,
+        borderRadius: '11px',
+        cursor: 'default',
+        color: theme.palette[statusColor].main,
+        backgroundColor: 'transparent',
+        border: `1px solid ${alpha(theme.palette[statusColor].main, theme.palette.mode === 'dark' ? 0.32 : 0.4)}`,
+        '& .MuiChip-icon': {
+          color: theme.palette[statusColor].main,
+          marginLeft: '6px',
+        },
+        '& .MuiChip-label': {
+          paddingLeft: '4px',
+          paddingRight: '8px',
+        },
+      };
+    }
+
+    return {
+      height: 24,
+      fontWeight: 600,
+      borderRadius: '12px',
+      cursor: 'default',
+      backgroundColor: alpha(theme.palette[statusColor].main, 0.08),
+      '& .MuiChip-icon': {
+        color: theme.palette[statusColor].main,
+        marginLeft: '6px',
+      },
+      '& .MuiChip-label': {
+        paddingLeft: '4px',
+        paddingRight: '8px',
+      },
+    };
+  }, [theme, statusColor, embedded]);
   if (isLoading || error || !enabled || !quota) {
     return null;
   }
@@ -137,7 +159,6 @@ function QuotaDisplay() {
         icon={<BoltIcon sx={{ fontSize: 14 }} />}
         label={`${remaining}/${limit}`}
         size="small"
-        color={statusColor}
         sx={chipStyles}
       />
     </Tooltip>

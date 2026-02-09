@@ -30,6 +30,9 @@ import {
   MenuItem,
   Divider,
   ListItemIcon,
+  FormControl,
+  Input,
+  Select,
   Snackbar,
   Dialog,
   Grow,
@@ -39,13 +42,15 @@ import {
 } from '@mui/material';
 import { useTheme as useMuiTheme, alpha } from '@mui/material/styles';
 import { useTheme as useAppTheme } from '../contexts/ThemeContext';
-import { sessionActive } from '../api';
+import { sessionActive, getLlmOptions } from '../api';
 import { useDatabaseConnection } from '../contexts/DatabaseContext';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import MenuOutlinedIcon from '@mui/icons-material/MenuOutlined';
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import EditNoteOutlinedIcon from '@mui/icons-material/EditNoteOutlined';
+import HubOutlinedIcon from '@mui/icons-material/HubOutlined';
+import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import { useAuth } from '../contexts/AuthContext';
 import { USER } from '../api';
 import Sidebar from '../components/Sidebar';
@@ -70,6 +75,7 @@ import {
 
 import { getMoonlitGradient } from '../theme';
 import { isMessageActive } from '../utils/chatMessages';
+import logger from '../utils/logger';
 const DRAWER_WIDTH = 260;
 const COLLAPSED_WIDTH = 56;
 const MOBILE_APPBAR_HEIGHT = 56;
@@ -79,7 +85,7 @@ function Chat() {
   const theme = useMuiTheme();
   const isDarkMode = theme.palette.mode === 'dark';
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const { settings } = useAppTheme();
+  const { settings, updateSetting } = useAppTheme();
   const { user, logout } = useAuth();
   const {
     isConnected: isDbConnected,
@@ -122,6 +128,12 @@ function Chat() {
   const [dbModalOpen, setDbModalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
+  const [llmOptions, setLlmOptions] = useState({
+    providers: [],
+    default_provider: null,
+    default_model: null,
+  });
+  const [llmOptionsLoading, setLlmOptionsLoading] = useState(true);
 
   const showSnackbar = useCallback((message, severity = 'info') => {
     setSnackbar({ open: true, message, severity });
@@ -217,6 +229,81 @@ function Chat() {
     };
   }, [isDarkMode, theme, snackbar.severity]);
 
+  const providerOptions = useMemo(() => llmOptions.providers ?? [], [llmOptions.providers]);
+  const selectedProvider = useMemo(() => {
+    if (!providerOptions.length) return settings.llmProvider ?? '';
+    if (settings.llmProvider && providerOptions.some((provider) => provider.name === settings.llmProvider)) {
+      return settings.llmProvider;
+    }
+    return llmOptions.default_provider || providerOptions[0].name;
+  }, [providerOptions, settings.llmProvider, llmOptions.default_provider]);
+
+  const selectedProviderOption = useMemo(() => {
+    return providerOptions.find((provider) => provider.name === selectedProvider) || null;
+  }, [providerOptions, selectedProvider]);
+
+  const modelOptions = useMemo(() => selectedProviderOption?.models || [], [selectedProviderOption]);
+  const selectedModel = useMemo(() => {
+    if (!modelOptions.length) return settings.llmModel ?? '';
+    if (settings.llmModel && modelOptions.includes(settings.llmModel)) {
+      return settings.llmModel;
+    }
+    return selectedProviderOption?.default_model || llmOptions.default_model || modelOptions[0];
+  }, [modelOptions, settings.llmModel, selectedProviderOption, llmOptions.default_model]);
+
+  const providerSelectValue = selectedProvider || '';
+  const modelSelectValue = selectedModel || '';
+
+  const handleProviderChange = useCallback((event) => {
+    const nextProvider = event.target.value;
+    updateSetting('llmProvider', nextProvider);
+
+    const providerOption = providerOptions.find((provider) => provider.name === nextProvider);
+    const nextModels = providerOption?.models || [];
+    const nextModel = nextModels.includes(settings.llmModel)
+      ? settings.llmModel
+      : (providerOption?.default_model || nextModels[0] || null);
+    updateSetting('llmModel', nextModel);
+  }, [providerOptions, settings.llmModel, updateSetting]);
+
+  const handleModelChange = useCallback((event) => {
+    updateSetting('llmModel', event.target.value);
+  }, [updateSetting]);
+
+  const handleSendMessageWithModel = useCallback((message) => {
+    return handleSendMessage(message, {
+      provider: selectedProvider || null,
+      model: selectedModel || null,
+    });
+  }, [handleSendMessage, selectedProvider, selectedModel]);
+
+  const selectMenuProps = useMemo(() => ({
+    PaperProps: {
+      sx: {
+        mt: 0.8,
+        borderRadius: 2,
+        border: '1px solid',
+        borderColor: alpha(theme.palette.divider, isDarkMode ? 0.24 : 0.45),
+        background: isDarkMode
+          ? `linear-gradient(165deg, ${alpha(theme.palette.background.paper, 0.92)} 0%, ${alpha(theme.palette.background.elevated, 0.9)} 100%)`
+          : `linear-gradient(165deg, ${alpha(theme.palette.background.elevated, 0.98)} 0%, ${alpha(theme.palette.background.default, 0.97)} 100%)`,
+        backdropFilter: 'blur(14px)',
+        WebkitBackdropFilter: 'blur(14px)',
+        boxShadow: isDarkMode
+          ? `0 14px 36px ${alpha(theme.palette.common.black, 0.34)}`
+          : `0 10px 24px ${alpha(theme.palette.text.primary, 0.12)}`,
+        '& .MuiMenuItem-root': {
+          fontSize: 13,
+          fontWeight: 500,
+          borderRadius: 1.2,
+          mx: 0.6,
+          my: 0.2,
+          minHeight: 32,
+        },
+      },
+    },
+  }), [theme, isDarkMode]);
+
   const handleCloseDbModal = useCallback(() => setDbModalOpen(false), []);
   const handleCloseSettings = useCallback(() => setSettingsOpen(false), []);
   const handleCloseSnackbar = useCallback(() => setSnackbar(s => ({ ...s, open: false })), []);
@@ -228,6 +315,61 @@ function Chat() {
   useEffect(() => {
     document.title = 'Moonlit - Chat';
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const controller = new AbortController();
+
+    const loadLlmOptions = async () => {
+      try {
+        const response = await getLlmOptions(controller.signal);
+        if (!isMounted || response?.status !== 'success') return;
+
+        const providers = response.providers || [];
+        setLlmOptions({
+          providers,
+          default_provider: response.default_provider || null,
+          default_model: response.default_model || null,
+        });
+
+        if (!providers.length) return;
+
+        const providerFromSettings = settings.llmProvider;
+        const validProvider = providerFromSettings && providers.some((provider) => provider.name === providerFromSettings)
+          ? providerFromSettings
+          : (response.default_provider || providers[0].name);
+
+        if (validProvider !== settings.llmProvider) {
+          updateSetting('llmProvider', validProvider);
+        }
+
+        const providerConfig = providers.find((provider) => provider.name === validProvider) || providers[0];
+        const candidateModels = providerConfig?.models || [];
+        const modelFromSettings = settings.llmModel;
+        const validModel = modelFromSettings && candidateModels.includes(modelFromSettings)
+          ? modelFromSettings
+          : (providerConfig?.default_model || response.default_model || candidateModels[0] || null);
+
+        if (validModel && validModel !== settings.llmModel) {
+          updateSetting('llmModel', validModel);
+        }
+      } catch (error) {
+        logger.warn('Failed to fetch LLM options:', error);
+      } finally {
+        if (isMounted) {
+          setLlmOptionsLoading(false);
+        }
+      }
+    };
+
+    loadLlmOptions();
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
+  // Only initialize from backend once on first load.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [updateSetting]);
   useEffect(() => {
     const handleTabClose = () => {
       if (!isDbConnected) return;
@@ -392,7 +534,9 @@ function Chat() {
           <IconButton color="inherit" edge="start" onClick={handleDrawerToggle}>
             <MenuOutlinedIcon sx={{ color: 'text.secondary' }} />
           </IconButton>
-          <QuotaDisplay />
+          <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+            Moonlit
+          </Typography>
           <IconButton onClick={handleNewChat} sx={{ color: 'text.primary' }}>
             <EditNoteOutlinedIcon />
           </IconButton>
@@ -455,117 +599,249 @@ function Chat() {
       >
         <Box
           sx={{
-            position: 'absolute',
-            top: 12,
-            right: 16,
-            zIndex: 10,
-            display: { xs: 'none', md: 'block' },
+            px: { xs: 1.25, sm: 2, md: 2.5 },
+            pt: { xs: 1.25, md: 1.5 },
+            pb: 0.8,
+            flexShrink: 0,
+            display: 'flex',
+            justifyContent: 'center',
           }}
         >
-          <QuotaDisplay />
-        </Box>
-        <Fade in={messages.length === 0} timeout={300} unmountOnExit>
           <Box
             sx={{
-              flex: 1,
               display: 'flex',
-              flexDirection: 'column',
               alignItems: 'center',
-              justifyContent: 'center',
-              px: 3,
-              position: 'absolute',
-              inset: 0,
+              gap: 0.85,
+              flexWrap: 'wrap',
+              width: 'fit-content',
+              maxWidth: '100%',
+              border: '1px solid',
+              borderColor: alpha(theme.palette.divider, isDarkMode ? 0.2 : 0.4),
+              borderRadius: '18px',
+              background: isDarkMode
+                ? `linear-gradient(155deg, ${alpha(theme.palette.background.paper, 0.62)} 0%, ${alpha(theme.palette.background.elevated, 0.44)} 100%)`
+                : `linear-gradient(155deg, ${alpha(theme.palette.background.default, 0.985)} 0%, ${alpha(theme.palette.background.default, 0.96)} 100%)`,
+              backdropFilter: isDarkMode ? 'blur(14px)' : 'none',
+              WebkitBackdropFilter: isDarkMode ? 'blur(14px)' : 'none',
+              boxShadow: isDarkMode
+                ? `0 10px 24px ${alpha(theme.palette.common.black, 0.22)}`
+                : `0 2px 8px ${alpha(theme.palette.text.primary, 0.08)}`,
+              px: 0.75,
+              py: 0.75,
             }}
           >
             <Box
               sx={{
-                textAlign: 'center',
-                mb: 3,
-                animation: 'slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards',
-                '@keyframes slideUp': {
-                  from: {
-                    opacity: 0,
-                    transform: 'translateY(20px)'
-                  },
-                  to: {
-                    opacity: 1,
-                    transform: 'translateY(0)'
-                  },
-                },
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.8,
+                px: 1,
+                py: 0.45,
+                borderRadius: '14px',
+                border: '1px solid',
+                borderColor: alpha(theme.palette.divider, isDarkMode ? 0.2 : 0.38),
+                backgroundColor: isDarkMode
+                  ? alpha(theme.palette.background.default, 0.42)
+                  : alpha(theme.palette.background.default, 0.96),
               }}
             >
-              <Typography
-                variant="h3"
+              <HubOutlinedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+              <FormControl size="small" variant="standard" sx={{ minWidth: { xs: 108, sm: 122 } }}>
+                <Select
+                  value={providerSelectValue}
+                  onChange={handleProviderChange}
+                  disabled={llmOptionsLoading || providerOptions.length === 0}
+                  input={<Input disableUnderline />}
+                  displayEmpty
+                  MenuProps={selectMenuProps}
+                  sx={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: 'text.primary',
+                    '& .MuiSelect-select': {
+                      py: 0,
+                      pr: 2.5,
+                      minHeight: 'unset',
+                    },
+                  }}
+                >
+                  {providerOptions.map((provider) => (
+                    <MenuItem key={provider.name} value={provider.name}>
+                      {provider.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.8,
+                px: 1,
+                py: 0.45,
+                borderRadius: '14px',
+                border: '1px solid',
+                borderColor: alpha(theme.palette.divider, isDarkMode ? 0.2 : 0.38),
+                backgroundColor: isDarkMode
+                  ? alpha(theme.palette.background.default, 0.42)
+                  : alpha(theme.palette.background.default, 0.96),
+                minWidth: { xs: 160, sm: 225 },
+                maxWidth: { xs: '100%', sm: 320 },
+                flex: { xs: '1 1 180px', sm: '0 1 auto' },
+              }}
+            >
+              <SmartToyOutlinedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+              <FormControl size="small" variant="standard" sx={{ flex: 1, minWidth: 0 }}>
+                <Select
+                  value={modelSelectValue}
+                  onChange={handleModelChange}
+                  disabled={llmOptionsLoading || modelOptions.length === 0}
+                  input={<Input disableUnderline />}
+                  displayEmpty
+                  MenuProps={selectMenuProps}
+                  sx={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: 'text.primary',
+                    '& .MuiSelect-select': {
+                      py: 0,
+                      pr: 2.5,
+                      minHeight: 'unset',
+                      textOverflow: 'ellipsis',
+                      overflow: 'hidden',
+                      whiteSpace: 'nowrap',
+                    },
+                  }}
+                >
+                  {modelOptions.map((model) => (
+                    <MenuItem key={model} value={model}>
+                      {model}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                px: 0.25,
+                ml: { xs: 0, sm: 0.2 },
+              }}
+            >
+              <QuotaDisplay embedded />
+            </Box>
+          </Box>
+        </Box>
+
+        <Box sx={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <Fade in={messages.length === 0} timeout={300} unmountOnExit>
+            <Box
+              sx={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                px: 3,
+                position: 'absolute',
+                inset: 0,
+              }}
+            >
+              <Box
                 sx={{
-                  fontWeight: 500,
-                  fontSize: { xs: '2rem', sm: '2.5rem' },
-                  color: 'text.primary',
-                  letterSpacing: '-0.02em',
-                  mb: 1,
+                  textAlign: 'center',
+                  mb: 3,
+                  animation: 'slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                  '@keyframes slideUp': {
+                    from: {
+                      opacity: 0,
+                      transform: 'translateY(20px)'
+                    },
+                    to: {
+                      opacity: 1,
+                      transform: 'translateY(0)'
+                    },
+                  },
                 }}
               >
-                {user?.displayName ? (
-                  <>
-                    Moonlit welcomes,{' '}
-                    <Box
-                      component="span"
-                      sx={{
-                        background: getMoonlitGradient(theme),
-                        backgroundClip: 'text',
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                        fontWeight: 600,
-                      }}
-                    >
-                      {user.displayName.split(' ')[0]}
-                    </Box>
-                  </>
-                ) : 'Moonlit'}
-              </Typography>
-            </Box>
+                <Typography
+                  variant="h3"
+                  sx={{
+                    fontWeight: 500,
+                    fontSize: { xs: '2rem', sm: '2.5rem' },
+                    color: 'text.primary',
+                    letterSpacing: '-0.02em',
+                    mb: 1,
+                  }}
+                >
+                  {user?.displayName ? (
+                    <>
+                      Moonlit welcomes,{' '}
+                      <Box
+                        component="span"
+                        sx={{
+                          background: getMoonlitGradient(theme),
+                          backgroundClip: 'text',
+                          WebkitBackgroundClip: 'text',
+                          WebkitTextFillColor: 'transparent',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {user.displayName.split(' ')[0]}
+                      </Box>
+                    </>
+                  ) : 'Moonlit'}
+                </Typography>
+              </Box>
 
-            <Box sx={{ width: '100%', maxWidth: 760 }}>
-              <ChatInput
-                onSend={handleSendMessage}
-                onStop={handleStopStreaming}
-                isStreaming={isCurrentlyStreaming}
-                isConnected={isDbConnected}
-                dbType={dbType}
-                currentDatabase={currentDatabase}
-                availableDatabases={availableDatabases}
-                onDatabaseSwitch={handleDatabaseSwitch}
-                onOpenSqlEditor={handleOpenSqlEditor}
-              />
+              <Box sx={{ width: '100%', maxWidth: 760 }}>
+                <ChatInput
+                  onSend={handleSendMessageWithModel}
+                  onStop={handleStopStreaming}
+                  isStreaming={isCurrentlyStreaming}
+                  isConnected={isDbConnected}
+                  dbType={dbType}
+                  currentDatabase={currentDatabase}
+                  availableDatabases={availableDatabases}
+                  onDatabaseSwitch={handleDatabaseSwitch}
+                  onOpenSqlEditor={handleOpenSqlEditor}
+                />
+              </Box>
             </Box>
-          </Box>
-        </Fade>
-        <Fade in={messages.length > 0} timeout={300} unmountOnExit style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-            <Box ref={setScrollContainerRef} sx={{ flex: 1, overflow: 'auto' }}>
-              <MessageList
-                messages={messages}
-                user={user}
-                onRunQuery={handleRunQuery}
-                onOpenSqlEditor={handleOpenSqlEditor}
-              />
-            </Box>
+          </Fade>
 
-            <Box sx={{ flexShrink: 0 }}>
-              <ChatInput
-                onSend={handleSendMessage}
-                onStop={handleStopStreaming}
-                isStreaming={isCurrentlyStreaming}
-                isConnected={isDbConnected}
-                dbType={dbType}
-                currentDatabase={currentDatabase}
-                availableDatabases={availableDatabases}
-                onDatabaseSwitch={handleDatabaseSwitch}
-                showSuggestions={false}
-                onOpenSqlEditor={handleOpenSqlEditor}
-              />
+          <Fade in={messages.length > 0} timeout={300} unmountOnExit style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+              <Box ref={setScrollContainerRef} sx={{ flex: 1, overflow: 'auto' }}>
+                <MessageList
+                  messages={messages}
+                  user={user}
+                  onRunQuery={handleRunQuery}
+                  onOpenSqlEditor={handleOpenSqlEditor}
+                />
+              </Box>
+
+              <Box sx={{ flexShrink: 0 }}>
+                <ChatInput
+                  onSend={handleSendMessageWithModel}
+                  onStop={handleStopStreaming}
+                  isStreaming={isCurrentlyStreaming}
+                  isConnected={isDbConnected}
+                  dbType={dbType}
+                  currentDatabase={currentDatabase}
+                  availableDatabases={availableDatabases}
+                  onDatabaseSwitch={handleDatabaseSwitch}
+                  showSuggestions={false}
+                  onOpenSqlEditor={handleOpenSqlEditor}
+                />
+              </Box>
             </Box>
-          </Box>
-        </Fade>
+          </Fade>
+        </Box>
       </Box>
       {!isMobile && (
         <Box

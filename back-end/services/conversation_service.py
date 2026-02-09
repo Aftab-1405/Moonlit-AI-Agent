@@ -63,7 +63,9 @@ class ConversationService:
         reasoning_effort: str = 'medium',
         response_style: str = 'balanced',
         max_rows: int = None,
-        api_key: str = None
+        api_key: str = None,
+        provider: str | None = None,
+        model: str | None = None,
     ) -> Generator:
         """
         Create a generator for streaming AI responses WITH tool support.
@@ -78,6 +80,8 @@ class ConversationService:
             response_style: 'concise', 'balanced', or 'detailed'
             max_rows: Max rows to return from queries
             api_key: Optional API key for LLM calls (from rate limiter)
+            provider: Optional provider override (e.g., gemini, cerebras)
+            model: Optional model override for selected provider
             
         Yields:
             Text chunks from AI response, tool status markers, or error messages
@@ -248,7 +252,9 @@ class ConversationService:
                 reasoning_effort=reasoning_effort,
                 response_style=response_style,
                 max_rows=max_rows,
-                api_key=api_key
+                api_key=api_key,
+                provider_name=provider,
+                model_name=model,
             )
             
             for chunk in responses:
@@ -360,13 +366,22 @@ class ConversationService:
                 logger.info(f"Skipped storing error response for conversation {conversation_id}")
     
     @staticmethod
-    def get_streaming_headers(conversation_id: str) -> dict:
+    def get_streaming_headers(
+        conversation_id: str,
+        provider: str | None = None,
+        model: str | None = None,
+    ) -> dict:
         """Get HTTP headers for streaming responses."""
-        return {
+        headers = {
             'X-Conversation-Id': conversation_id,
             'Cache-Control': 'no-cache, no-transform',
             'X-Accel-Buffering': 'no'
         }
+        if provider:
+            headers['X-LLM-Provider'] = provider
+        if model:
+            headers['X-LLM-Model'] = model
+        return headers
     
     @staticmethod
     def check_quota_error(error_message: str) -> bool:

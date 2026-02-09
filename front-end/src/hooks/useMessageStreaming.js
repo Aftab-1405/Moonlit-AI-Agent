@@ -103,7 +103,7 @@ export function useMessageStreaming({
 }) {
   const abortControllerRef = useRef(null);
 
-  const handleSendMessage = useCallback(async (message) => {
+  const handleSendMessage = useCallback(async (message, overrides = null) => {
     const prompt = message.trim();
     if (!prompt) return;
 
@@ -121,6 +121,10 @@ export function useMessageStreaming({
     const reasoningEffort = settings.reasoningEffort ?? 'medium';
     const responseStyle = settings.responseStyle ?? 'balanced';
     const maxRows = settings.maxRows ?? 1000;
+    // Read provider/model from immediate UI selection overrides first so model switches
+    // apply to the very next message even before settings persistence settles.
+    const provider = overrides?.provider ?? settings.llmProvider ?? null;
+    const model = overrides?.model ?? settings.llmModel ?? null;
 
     abortControllerRef.current = new AbortController();
 
@@ -132,6 +136,8 @@ export function useMessageStreaming({
         reasoningEffort,
         responseStyle,
         maxRows,
+        provider,
+        model,
       }, abortControllerRef.current.signal);
       const newConversationId = response.headers.get('X-Conversation-Id');
       if (newConversationId && !currentConversationId) {

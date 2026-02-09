@@ -2,18 +2,77 @@
 """Conversation/chat related API routes."""
 
 import logging
+import os
 from typing import Optional
 
 from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.concurrency import run_in_threadpool
 
+from config import Config
 from dependencies import get_current_user, get_db_config
 from services.conversation_service import ConversationService
+from services.llm.client import LLMClient
 from api.request_schemas import ChatRequest
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["conversation"])
+
+
+def _split_csv(raw: str) -> list[str]:
+    return [item.strip() for item in (raw or "").split(",") if item.strip()]
+
+
+def _dedupe(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for value in values:
+        if value and value not in seen:
+            seen.add(value)
+            ordered.append(value)
+    return ordered
+
+
+def _provider_has_dedicated_key(provider_name: str) -> bool:
+    provider = provider_name.strip().lower()
+    if provider == "cerebras":
+        return bool(_split_csv(os.getenv("CEREBRAS_API_KEYS", "")) or os.getenv("CEREBRAS_API_KEY", "").strip())
+    if provider == "gemini":
+        return bool(
+            _split_csv(os.getenv("GEMINI_API_KEYS", ""))
+            or os.getenv("GEMINI_API_KEY", "").strip()
+            or os.getenv("GOOGLE_API_KEY", "").strip()
+        )
+    return False
+
+
+def _get_provider_models(provider_name: str) -> list[str]:
+    provider = provider_name.strip().lower()
+    env_models = _split_csv(os.getenv(f"{provider.upper()}_MODELS", ""))
+    provider_model = os.getenv(f"{provider.upper()}_MODEL", "").strip()
+    default_model = LLMClient.get_provider(provider).get_default_model()
+    return _dedupe([provider_model, *env_models, default_model])
+
+
+def _build_provider_options() -> tuple[list[dict], str]:
+    supported = LLMClient.get_supported_providers()
+    options = []
+    for provider_name in supported:
+        models = _get_provider_models(provider_name)
+        options.append({
+            "name": provider_name,
+            "label": provider_name.capitalize(),
+            "models": models,
+            "default_model": models[0] if models else None,
+            "has_api_key": _provider_has_dedicated_key(provider_name),
+        })
+
+    selected_options = [
+        opt for opt in options
+        if opt["has_api_key"] or opt["name"] == Config.LLM_PROVIDER
+    ] or options
+    default_provider = Config.LLM_PROVIDER if any(opt["name"] == Config.LLM_PROVIDER for opt in selected_options) else selected_options[0]["name"]
+    return selected_options, default_provider
 
 
 @router.get('/index')
@@ -35,10 +94,29 @@ async def pass_user_prompt_to_llm(
     reasoning_effort = data.reasoning_effort
     response_style = data.response_style
     max_rows = data.max_rows
-    
+    provider = data.provider or Config.LLM_PROVIDER
+    model = data.model
+
     conversation_id = ConversationService.create_or_get_conversation_id(data.conversation_id)
     user_id = user.get('uid') or user
+
+    supported_providers = set(LLMClient.get_supported_providers())
+    if provider not in supported_providers:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "invalid_provider",
+                "message": f"Unsupported provider '{provider}'. Supported values: {sorted(supported_providers)}",
+            },
+        )
     
+    logger.info(
+        "LLM selection requested: provider=%s, model=%s, conversation_id=%s",
+        provider,
+        model or "(default)",
+        conversation_id,
+    )
+
     logger.debug(f'Received prompt for conversation: {conversation_id}')
 
     # Ownership check for existing conversation IDs
@@ -88,7 +166,9 @@ async def pass_user_prompt_to_llm(
                     reasoning_effort=reasoning_effort,
                     response_style=response_style,
                     max_rows=max_rows,
-                    api_key=api_key
+                    api_key=api_key if provider == Config.LLM_PROVIDER else None,
+                    provider=provider,
+                    model=model,
                 )
                 for chunk in generator:
                     yield chunk
@@ -96,7 +176,11 @@ async def pass_user_prompt_to_llm(
                 # Release rate limiter when streaming completes
                 llm_rate_limiter.release()
         
-        headers = ConversationService.get_streaming_headers(conversation_id)
+        headers = ConversationService.get_streaming_headers(
+            conversation_id,
+            provider=provider,
+            model=model,
+        )
         return StreamingResponse(
             async_generator(),
             media_type='text/plain',
@@ -109,6 +193,22 @@ async def pass_user_prompt_to_llm(
         if ConversationService.check_quota_error(str(e)):
             raise HTTPException(status_code=429, detail='Rate limit exceeded')
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get('/llm/options')
+async def get_llm_options(user: dict = Depends(get_current_user)):
+    """Return available provider/model options for the current deployment."""
+    _ = user  # keep route authenticated and avoid unused arg linting
+
+    provider_options, default_provider = _build_provider_options()
+    default_model = LLMClient.get_model_name(provider_name=default_provider)
+
+    return {
+        "status": "success",
+        "default_provider": default_provider,
+        "default_model": default_model,
+        "providers": provider_options,
+    }
 
 
 @router.get('/get_conversation/{conversation_id}')

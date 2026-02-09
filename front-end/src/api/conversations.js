@@ -65,6 +65,8 @@ export async function deleteConversation(id) {
  * @param {string} params.reasoningEffort - Reasoning effort level
  * @param {string} params.responseStyle - Response style preference
  * @param {number|null} params.maxRows - Max rows for query results
+ * @param {string|null} params.provider - LLM provider override
+ * @param {string|null} params.model - LLM model override
  * @param {AbortSignal} [signal] - Optional abort signal for cancellation
  * @returns {Promise<Response>} Raw response for streaming
  */
@@ -75,6 +77,8 @@ export async function sendMessage({
   reasoningEffort = 'medium',
   responseStyle = 'balanced',
   maxRows = 1000,
+  provider = null,
+  model = null,
 }, signal) {
   return postRaw(
     CONVERSATIONS.SEND_MESSAGE,
@@ -85,6 +89,8 @@ export async function sendMessage({
       reasoning_effort: reasoningEffort,
       response_style: responseStyle,
       max_rows: maxRows === 0 ? null : maxRows,
+      provider,
+      model,
     },
     { signal }
   );

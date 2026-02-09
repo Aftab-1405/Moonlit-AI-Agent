@@ -17,14 +17,16 @@ class LLMClient:
     """Connection and configuration management for LLM APIs."""
 
     @staticmethod
-    def get_provider_name() -> str:
+    def get_provider_name(provider_name: str | None = None) -> str:
         """Get configured provider name."""
+        if provider_name:
+            return provider_name.strip().lower()
         return os.getenv("LLM_PROVIDER", "cerebras").strip().lower()
 
     @staticmethod
-    def get_provider():
+    def get_provider(provider_name: str | None = None):
         """Get active provider adapter."""
-        return get_provider(LLMClient.get_provider_name())
+        return get_provider(LLMClient.get_provider_name(provider_name))
 
     @staticmethod
     def get_supported_providers() -> tuple[str, ...]:
@@ -43,9 +45,12 @@ class LLMClient:
         return provider.get_client(api_key)
     
     @staticmethod
-    def get_model_name() -> str:
+    def get_model_name(provider_name: str | None = None, requested_model: str | None = None) -> str:
         """Gets the model name from provider-specific config or defaults."""
-        provider_name = LLMClient.get_provider_name()
+        if requested_model and requested_model.strip():
+            return requested_model.strip()
+
+        provider_name = LLMClient.get_provider_name(provider_name)
 
         # Prefer provider-specific model variables when available.
         if provider_name == "gemini":
@@ -61,14 +66,15 @@ class LLMClient:
         if configured_model:
             return configured_model
 
-        provider = LLMClient.get_provider()
+        provider = LLMClient.get_provider(provider_name)
         return provider.get_default_model()
     
     @staticmethod
-    def is_reasoning_model() -> bool:
+    def is_reasoning_model(provider_name: str | None = None, model_name: str | None = None) -> bool:
         """Check if current model supports reasoning."""
-        model = LLMClient.get_model_name()
-        provider = LLMClient.get_provider()
+        provider_name = LLMClient.get_provider_name(provider_name)
+        model = LLMClient.get_model_name(provider_name=provider_name, requested_model=model_name)
+        provider = LLMClient.get_provider(provider_name)
         return provider.supports_reasoning(model)
     
     @staticmethod

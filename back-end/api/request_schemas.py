@@ -21,6 +21,8 @@ class ChatRequest(BaseModel):
     reasoning_effort: Literal['low', 'medium', 'high'] = Field(default='medium')
     response_style: Literal['concise', 'balanced', 'detailed'] = Field(default='balanced')
     max_rows: Optional[int] = Field(default=1000, ge=1, le=100000)  # None = no limit (use server config)
+    provider: Optional[str] = Field(default=None, max_length=50)
+    model: Optional[str] = Field(default=None, max_length=150)
     
     @field_validator('prompt')
     @classmethod
@@ -28,6 +30,22 @@ class ChatRequest(BaseModel):
         if not v or not v.strip():
             raise ValueError('Prompt cannot be empty')
         return v.strip()
+
+    @field_validator('provider')
+    @classmethod
+    def sanitize_provider(cls, v):
+        if v is None:
+            return None
+        provider = v.strip().lower()
+        return provider or None
+
+    @field_validator('model')
+    @classmethod
+    def sanitize_model(cls, v):
+        if v is None:
+            return None
+        model = v.strip()
+        return model or None
 
 
 # =============================================================================

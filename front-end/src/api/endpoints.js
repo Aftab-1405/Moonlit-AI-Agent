@@ -18,6 +18,10 @@ export const CONVERSATIONS = {
   SEND_MESSAGE: '/api/v1/pass_user_prompt_to_llm',
 };
 
+export const LLM = {
+  OPTIONS: '/api/v1/llm/options',
+};
+
 export const DATABASE = {
   STATUS: '/api/v1/db_status',
   CONNECT: '/api/v1/connect_db',
@@ -51,6 +55,7 @@ export const QUOTA = {
 export default {
   AUTH,
   CONVERSATIONS,
+  LLM,
   DATABASE,
   QUERY,
   USER,

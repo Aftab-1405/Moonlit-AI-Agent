@@ -37,20 +37,25 @@ class ChatOrchestrator:
     def send_message(
         conversation_id: str,
         message: str,
-        history: list = None
+        history: list = None,
+        provider_name: str | None = None,
+        model_name: str | None = None,
     ) -> str:
         """
         Simple message without tools - used for basic chat.
         Returns a non-streaming response.
         """
-        provider = LLMClient.get_provider()
+        provider = LLMClient.get_provider(provider_name)
         client = provider.get_client()
-        model_name = LLMClient.get_model_name()
+        selected_model = LLMClient.get_model_name(
+            provider_name=provider.provider_name,
+            requested_model=model_name,
+        )
         messages = PromptBuilder.build_messages(history, message)
         
         response = provider.create_text_response(
             client=client,
-            model_name=model_name,
+            model_name=selected_model,
             messages=messages,
         )
         
@@ -68,7 +73,9 @@ class ChatOrchestrator:
         response_style: str = 'balanced',
         max_rows: int = None,
         api_key: str = None,
-        tool_cache: Optional[Dict[str, Any]] = None
+        tool_cache: Optional[Dict[str, Any]] = None,
+        provider_name: str | None = None,
+        model_name: str | None = None,
     ) -> Generator[str, None, None]:
         """
         Sends a message to the LLM and handles tool calls in a streaming response.
@@ -93,9 +100,12 @@ class ChatOrchestrator:
         # Initialize tool cache if not provided
         if tool_cache is None:
             tool_cache = {}
-        provider = LLMClient.get_provider()
+        provider = LLMClient.get_provider(provider_name)
         client = provider.get_client(api_key)
-        model_name = LLMClient.get_model_name()
+        selected_model = LLMClient.get_model_name(
+            provider_name=provider.provider_name,
+            requested_model=model_name,
+        )
         
         # Build messages with history and style
         messages = PromptBuilder.build_messages(history, message, response_style)
@@ -111,12 +121,12 @@ class ChatOrchestrator:
                 tool_round += 1
                 logger.info(
                     f"Tool round {tool_round}: Sending request to LLM "
-                    f"({model_name}) via provider ({provider.provider_name}) with {len(tools)} tools"
+                    f"({selected_model}) via provider ({provider.provider_name}) with {len(tools)} tools"
                 )
 
                 response = provider.create_tool_planning_response(
                     client=client,
-                    model_name=model_name,
+                    model_name=selected_model,
                     messages=messages,
                     tools=tools,
                 )
@@ -221,11 +231,11 @@ class ChatOrchestrator:
             logger.info("Getting final response after all tool executions (streaming)")
             
             # Determine if we should use reasoning for this request
-            use_reasoning = enable_reasoning and provider.supports_reasoning(model_name)
+            use_reasoning = enable_reasoning and provider.supports_reasoning(selected_model)
 
             stream = provider.create_streaming_response(
                 client=client,
-                model_name=model_name,
+                model_name=selected_model,
                 messages=messages,
                 use_reasoning=use_reasoning,
                 reasoning_effort=reasoning_effort,

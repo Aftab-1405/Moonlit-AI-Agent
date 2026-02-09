@@ -67,25 +67,28 @@ export function useLocalStorage(key, initialValue) {
   });
   
   const setValue = useCallback((value) => {
-    try {
-      const valueToStore = value instanceof Function ? value(storedValue) : value;
-      setStoredValue(valueToStore);
+    setStoredValue((prevValue) => {
+      try {
+        const valueToStore = value instanceof Function ? value(prevValue) : value;
 
-      if (isBrowser()) {
-        if (valueToStore === undefined || valueToStore === null) {
-          window.localStorage.removeItem(key);
-        } else {
-          window.localStorage.setItem(key, JSON.stringify(valueToStore));
+        if (isBrowser()) {
+          if (valueToStore === undefined || valueToStore === null) {
+            window.localStorage.removeItem(key);
+          } else {
+            window.localStorage.setItem(key, JSON.stringify(valueToStore));
+          }
         }
+
+        return valueToStore;
+      } catch (error) {
+        logger.warn(`useLocalStorage: Error setting key "${key}":`, error);
+        if (error.name === 'QuotaExceededError') {
+          logger.error('localStorage quota exceeded. Consider clearing old data.');
+        }
+        return prevValue;
       }
-    } catch (error) {
-      logger.warn(`useLocalStorage: Error setting key "${key}":`, error);
-      
-      if (error.name === 'QuotaExceededError') {
-        logger.error('localStorage quota exceeded. Consider clearing old data.');
-      }
-    }
-  }, [key, storedValue]);
+    });
+  }, [key]);
   
   const removeValue = useCallback(() => {
     try {

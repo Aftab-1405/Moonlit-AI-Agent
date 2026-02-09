@@ -21,6 +21,8 @@ const defaultSettings = {
   enableReasoning: true,
   reasoningEffort: 'medium',
   responseStyle: 'balanced',
+  llmProvider: null,
+  llmModel: null,
 };
 
 const SettingsContext = createContext(null);
