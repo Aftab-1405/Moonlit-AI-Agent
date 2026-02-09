@@ -11,10 +11,6 @@
 
 import { z } from 'zod';
 
-// =============================================================================
-// SHARED RULES
-// =============================================================================
-
 const emailRule = z
   .string()
   .min(1, 'Email is required')
@@ -29,18 +25,10 @@ const passwordWithLengthRule = z
   .min(1, 'Password is required')
   .min(6, 'Password must be at least 6 characters');
 
-// =============================================================================
-// SIGN IN SCHEMA
-// =============================================================================
-
 export const signInSchema = z.object({
   email: emailRule,
   password: passwordRule,
 });
-
-// =============================================================================
-// SIGN UP SCHEMA
-// =============================================================================
 
 export const signUpSchema = z.object({
   displayName: z.string().optional(),
@@ -52,17 +40,9 @@ export const signUpSchema = z.object({
   path: ['confirmPassword'],
 });
 
-// =============================================================================
-// PASSWORD RESET SCHEMA
-// =============================================================================
-
 export const resetPasswordSchema = z.object({
   email: emailRule,
 });
-
-// =============================================================================
-// FIELD-LEVEL VALIDATION (for onBlur)
-// =============================================================================
 
 export const authFieldSchemas = {
   email: emailRule,

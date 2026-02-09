@@ -27,14 +27,8 @@ import CodeRoundedIcon from '@mui/icons-material/CodeRounded';
 import KeyboardArrowUpRoundedIcon from '@mui/icons-material/KeyboardArrowUpRounded';
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import { useTheme as useAppTheme } from '../contexts/ThemeContext';
-
-// Centralized API layer
 import { getSchemas, selectSchema } from '../api';
 import logger from '../utils/logger';
-
-// ============================================================================
-// STATIC STYLES - Moved outside to prevent recreation
-// ============================================================================
 const MENU_HEADER_STYLES = { px: 2, py: 0.5, display: 'block', color: 'text.secondary' };
 const LIST_ITEM_ICON_STYLES = { minWidth: 28 };
 
@@ -56,23 +50,13 @@ function ChatInput({
   const [isHidden, setIsHidden] = useState(false);
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
-
-  // Context for reasoning state
   const { settings, updateSetting } = useAppTheme();
   const reasoningEnabled = settings.enableReasoning ?? true;
-
-  // Schema state
   const [schemas, setSchemas] = useState([]);
   const [currentSchema, setCurrentSchema] = useState('public');
   const [schemaLoading, setSchemaLoading] = useState(false);
   const [schemaAnchor, setSchemaAnchor] = useState(null);
-
-  // Database menu anchor
   const [dbAnchor, setDbAnchor] = useState(null);
-
-  // ============================================================================
-  // MEMOIZED DERIVED VALUES
-  // ============================================================================
 
   const isPostgreSQL = useMemo(() =>
     dbType?.toLowerCase() === 'postgresql',
@@ -88,14 +72,10 @@ function ChatInput({
     isConnected && isPostgreSQL && schemas.length > 0,
     [isConnected, isPostgreSQL, schemas.length]
   );
-
-  // Show database chip if connected (for display), but only make it clickable if multiple DBs
   const showDatabaseSelector = useMemo(() =>
     isConnected && currentDatabase,
     [isConnected, currentDatabase]
   );
-
-  // Only allow switching if there are multiple databases (not for SQLite)
   const canSwitchDatabase = useMemo(() =>
     availableDatabases.length > 1 && !isSQLite,
     [availableDatabases.length, isSQLite]
@@ -105,10 +85,6 @@ function ChatInput({
     message.trim().length > 0,
     [message]
   );
-
-  // ============================================================================
-  // MEMOIZED STYLES
-  // ============================================================================
 
   const toolbarChipStyles = useMemo(() => ({
     height: 26,
@@ -122,16 +98,8 @@ function ChatInput({
     },
   }), [theme]);
 
-  // ============================================================================
-  // STABLE MENU CLOSE HANDLERS
-  // ============================================================================
-
   const handleCloseDbMenu = useCallback(() => setDbAnchor(null), []);
   const handleCloseSchemaMenu = useCallback(() => setSchemaAnchor(null), []);
-
-  // ============================================================================
-  // MEMOIZED HANDLERS
-  // ============================================================================
 
   const toggleHidden = useCallback(() => {
     setIsHidden(prev => !prev);
@@ -212,10 +180,6 @@ function ChatInput({
     onStop?.();
   }, [onStop]);
 
-  // ============================================================================
-  // MEMOIZED SUGGESTIONS
-  // ============================================================================
-
   const suggestions = useMemo(() => [
     {
       label: 'Check Connection',
@@ -238,10 +202,6 @@ function ChatInput({
     onSend?.(prompt);
   }, [onSend]);
 
-  // ============================================================================
-  // EFFECTS
-  // ============================================================================
-
   useEffect(() => {
     if (isConnected && currentDatabase && isPostgreSQL) {
       fetchSchemas();
@@ -251,10 +211,6 @@ function ChatInput({
     }
   }, [isConnected, currentDatabase, isPostgreSQL, fetchSchemas]);
 
-  // ============================================================================
-  // MEMOIZED HELPER
-  // ============================================================================
-
   const getMenuItemIcon = useCallback((isSelected, defaultIcon) =>
     isSelected
       ? <CheckRoundedIcon sx={{ fontSize: 16, color: 'success.main' }} />
@@ -262,13 +218,8 @@ function ChatInput({
     []
   );
 
-  // ============================================================================
-  // RENDER
-  // ============================================================================
-
   return (
     <Box sx={{ position: 'relative' }}>
-      {/* Floating show button when hidden */}
       <Collapse in={isHidden} timeout={200}>
         <Box
           sx={{
@@ -302,8 +253,6 @@ function ChatInput({
           </Tooltip>
         </Box>
       </Collapse>
-
-      {/* Main input section - collapsible */}
       <Collapse in={!isHidden} timeout={300}>
         <Box
           component="form"
@@ -313,7 +262,6 @@ function ChatInput({
             pb: { xs: 2, sm: 2.5 },
           }}
         >
-          {/* Toolbar - Compact row above input */}
           {(showDatabaseSelector || showSchemaSelector || onOpenSqlEditor) && (
             <Box
               sx={{
@@ -367,8 +315,6 @@ function ChatInput({
               )}
             </Box>
           )}
-
-          {/* Database Menu */}
           <Menu
             anchorEl={dbAnchor}
             open={Boolean(dbAnchor)}
@@ -391,8 +337,6 @@ function ChatInput({
               </MenuItem>
             ))}
           </Menu>
-
-          {/* Schema Menu */}
           <Menu
             anchorEl={schemaAnchor}
             open={Boolean(schemaAnchor)}
@@ -415,8 +359,6 @@ function ChatInput({
               </MenuItem>
             ))}
           </Menu>
-
-          {/* Input Container */}
           <Box
             sx={{
               maxWidth: 760,
@@ -443,7 +385,6 @@ function ChatInput({
               },
             }}
           >
-            {/* Left Actions */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, flexShrink: 0 }}>
               <Tooltip title="Attach file (coming soon)">
                 <span>
@@ -483,8 +424,6 @@ function ChatInput({
                 </IconButton>
               </Tooltip>
             </Box>
-
-            {/* Input Field */}
             <TextField
               fullWidth
               multiline
@@ -519,8 +458,6 @@ function ChatInput({
                 },
               }}
             />
-
-            {/* Hide button */}
             <Tooltip title="Hide input">
               <IconButton
                 size="small"
@@ -537,8 +474,6 @@ function ChatInput({
                 <KeyboardArrowDownRoundedIcon sx={{ fontSize: 18 }} />
               </IconButton>
             </Tooltip>
-
-            {/* Send/Stop Button */}
             <Tooltip title={isStreaming ? 'Stop generating' : (hasText ? 'Send message' : 'Type a message')}>
               <span>
                 <IconButton
@@ -565,8 +500,6 @@ function ChatInput({
               </span>
             </Tooltip>
           </Box>
-
-          {/* Suggestion Chips */}
           {showSuggestions && (
             <Box
               sx={{
@@ -617,8 +550,6 @@ function ChatInput({
               ))}
             </Box>
           )}
-
-          {/* Footer hint */}
           <Typography
             variant="caption"
             sx={{
@@ -636,10 +567,7 @@ function ChatInput({
     </Box>
   );
 }
-
-// Custom memo comparison for stable props
 function arePropsEqual(prevProps, nextProps) {
-  // Check primitives
   if (prevProps.isStreaming !== nextProps.isStreaming) return false;
   if (prevProps.disabled !== nextProps.disabled) return false;
   if (prevProps.isConnected !== nextProps.isConnected) return false;
@@ -650,12 +578,7 @@ function arePropsEqual(prevProps, nextProps) {
   if (prevProps.onStop !== nextProps.onStop) return false;
   if (prevProps.onOpenSqlEditor !== nextProps.onOpenSqlEditor) return false;
   if (prevProps.onDatabaseSwitch !== nextProps.onDatabaseSwitch) return false;
-
-  // Check array length
   if (prevProps.availableDatabases?.length !== nextProps.availableDatabases?.length) return false;
-
-  // Check function refs (these should be stable from parent)
-  // We assume parent provides stable callbacks via useCallback
   return true;
 }
 

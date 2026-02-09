@@ -13,14 +13,10 @@ import {
 import { initializeFirebase, getFirebaseAuth, getGoogleProvider, getGithubProvider } from '../config/firebase';
 import { setSession as setBackendSession, logout as logoutBackend } from '../api';
 import logger from '../utils/logger';
-
-// Detect if user is on mobile device (static helper)
 const isMobileDevice = () => {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
     (window.innerWidth <= 768);
 };
-
-// Error message mapping (static, outside component)
 const ERROR_MESSAGES = {
   'auth/email-already-in-use': 'Email already registered.',
   'auth/invalid-email': 'Invalid email address.',
@@ -53,8 +49,6 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [initialized, setInitialized] = useState(false);
-
-  // Initialize Firebase on mount
   useEffect(() => {
     const init = async () => {
       try {
@@ -63,7 +57,6 @@ export const AuthProvider = ({ children }) => {
 
         const auth = getFirebaseAuth();
         if (auth) {
-          // Check for redirect result (for mobile OAuth)
           try {
             await getRedirectResult(auth);
           } catch (redirectError) {
@@ -72,8 +65,6 @@ export const AuthProvider = ({ children }) => {
               setError(getErrorMessage(redirectError));
             }
           }
-
-          // Listen for auth state changes
           const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
               setUser({
@@ -82,8 +73,6 @@ export const AuthProvider = ({ children }) => {
                 displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0],
                 photoURL: firebaseUser.photoURL,
               });
-
-              // Set session on backend with verified ID token
               try {
                 const idToken = await firebaseUser.getIdToken();
                 await setBackendSession({
@@ -115,8 +104,6 @@ export const AuthProvider = ({ children }) => {
 
     init();
   }, []);
-
-  // Email/Password Sign Up
   const signUpWithEmail = useCallback(async (email, password, displayName = '') => {
     setError(null);
     try {
@@ -136,8 +123,6 @@ export const AuthProvider = ({ children }) => {
       throw err;
     }
   }, []);
-
-  // Email/Password Sign In
   const signInWithEmail = useCallback(async (email, password) => {
     setError(null);
     try {
@@ -152,8 +137,6 @@ export const AuthProvider = ({ children }) => {
       throw err;
     }
   }, []);
-
-  // Password Reset
   const resetPassword = useCallback(async (email) => {
     setError(null);
     try {
@@ -168,8 +151,6 @@ export const AuthProvider = ({ children }) => {
       throw err;
     }
   }, []);
-
-  // Google Sign In
   const signInWithGoogle = useCallback(async () => {
     setError(null);
     try {
@@ -193,8 +174,6 @@ export const AuthProvider = ({ children }) => {
       throw err;
     }
   }, []);
-
-  // GitHub Sign In
   const signInWithGitHub = useCallback(async () => {
     setError(null);
     try {
@@ -218,8 +197,6 @@ export const AuthProvider = ({ children }) => {
       throw err;
     }
   }, []);
-
-  // Sign Out
   const logout = useCallback(async () => {
     try {
       const auth = getFirebaseAuth();
@@ -233,11 +210,7 @@ export const AuthProvider = ({ children }) => {
       setError(getErrorMessage(err));
     }
   }, []);
-
-  // Clear error manually
   const clearError = useCallback(() => setError(null), []);
-
-  // Memoize context value
   const value = useMemo(() => ({
     user,
     loading,

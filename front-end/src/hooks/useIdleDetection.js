@@ -14,18 +14,13 @@ export function useIdleDetection(timeout = 12000) {
   const isIdleRef = useRef(false); // Track state without causing re-renders
 
   const resetTimer = useCallback(() => {
-    // Only update state if we were idle (avoid unnecessary re-renders)
     if (isIdleRef.current) {
       isIdleRef.current = false;
       setIsIdle(false);
     }
-
-    // Clear existing timer
     if (timerRef.current) {
       clearTimeout(timerRef.current);
     }
-
-    // Set new timer
     timerRef.current = setTimeout(() => {
       isIdleRef.current = true;
       setIsIdle(true);
@@ -33,7 +28,6 @@ export function useIdleDetection(timeout = 12000) {
   }, [timeout]);
 
   useEffect(() => {
-    // Events that indicate user activity
     const events = [
       'mousemove',
       'mousedown',
@@ -45,8 +39,6 @@ export function useIdleDetection(timeout = 12000) {
       'wheel',
       'resize',
     ];
-
-    // Throttle event handler for performance (especially for mousemove)
     let lastEventTime = 0;
     const throttleMs = 100; // Only process events every 100ms
 
@@ -57,18 +49,12 @@ export function useIdleDetection(timeout = 12000) {
         resetTimer();
       }
     };
-
-    // Add event listeners with passive option for scroll/touch performance
     events.forEach((event) => {
       const isPassive = ['scroll', 'wheel', 'touchstart', 'touchmove'].includes(event);
       window.addEventListener(event, handleActivity, { passive: isPassive });
     });
-
-    // Start initial timer
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Timer initialization is valid effect setup
     resetTimer();
-
-    // Cleanup
     return () => {
       if (timerRef.current) {
         clearTimeout(timerRef.current);

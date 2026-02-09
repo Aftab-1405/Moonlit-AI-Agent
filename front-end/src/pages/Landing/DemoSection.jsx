@@ -1,4 +1,3 @@
-// DemoSection component - Monochromatic design
 import { Box, Container, Typography } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import { Section } from './index';
@@ -70,7 +69,6 @@ function DemoSection() {
             perspective: '1000px',
           }}
         >
-          {/* Browser wrapper */}
           <Box
             sx={{
               transition: 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -80,7 +78,6 @@ function DemoSection() {
               },
             }}
           >
-            {/* Browser chrome - monochrome dots */}
             <Box
               sx={{
                 borderRadius: '12px 12px 0 0',
@@ -136,8 +133,6 @@ function DemoSection() {
                 moonlit.app/chat
               </Box>
             </Box>
-
-            {/* Video */}
             <Box
               component="video"
               autoPlay
@@ -159,8 +154,6 @@ function DemoSection() {
               Your browser does not support the video tag.
             </Box>
           </Box>
-
-          {/* Subtle glow effect - grayscale */}
           <Box
             sx={{
               position: 'absolute',

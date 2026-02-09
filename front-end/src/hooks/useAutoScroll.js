@@ -64,8 +64,6 @@ function useAutoScroll({ messageCount, isStreaming, activityKey = '' }) {
       scrollContainer.removeEventListener('scroll', handleScroll);
     };
   }, [scrollContainer]);
-
-  // When container mounts (for example first prompt), pin view at bottom once.
   useEffect(() => {
     if (!scrollContainer) return;
     if (shouldAutoFollow()) {
@@ -88,18 +86,12 @@ function useAutoScroll({ messageCount, isStreaming, activityKey = '' }) {
     }
     prevStreamingRef.current = isStreaming;
   }, [isStreaming, scheduleScrollToBottom]);
-
-  // Explicitly react to stream content changes (including markdown growth).
   useEffect(() => {
     if (!scrollContainer) return;
     if (shouldAutoFollow()) {
       scheduleScrollToBottom();
     }
   }, [activityKey, scheduleScrollToBottom, scrollContainer, shouldAutoFollow]);
-
-  // Observe message content height changes for markdown/code block reflows.
-  // Also observe the container so fresh-chat transitions cannot miss observer
-  // attachment when the first child is mounted slightly later.
   useEffect(() => {
     if (!scrollContainer || typeof ResizeObserver === 'undefined') return undefined;
 

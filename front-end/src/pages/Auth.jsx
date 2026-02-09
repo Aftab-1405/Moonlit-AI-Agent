@@ -33,8 +33,6 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
 import { useAuth } from '../contexts/AuthContext';
 import StarfieldCanvas from '../components/StarfieldCanvas';
-
-// Form validation
 import {
   useFormValidation,
   signInSchema,
@@ -43,8 +41,6 @@ import {
   authFieldSchemas,
 } from '../validation';
 import logger from '../utils/logger';
-
-// Tab Panel component
 function TabPanel({ children, value, index }) {
   return (
     <Box
@@ -75,8 +71,6 @@ function Auth() {
     error,
     clearError: clearAuthError,
   } = useAuth();
-
-  // Form state
   const [tabValue, setTabValue] = useState(0); // 0 = Sign In, 1 = Sign Up
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -89,13 +83,9 @@ function Auth() {
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('error');
-
-  // Forgot password dialog
   const [forgotDialogOpen, setForgotDialogOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
-
-  // Form validation
   const {
     errors: fieldErrors,
     validateField,
@@ -103,23 +93,17 @@ function Auth() {
     clearError: clearFieldError,
     resetErrors,
   } = useFormValidation(authFieldSchemas);
-
-  // Redirect if authenticated
   useEffect(() => {
     if (isAuthenticated) {
       navigate('/chat');
     }
   }, [isAuthenticated, navigate]);
-
-  // Clear errors when switching tabs
   useEffect(() => {
     setFormError('');
     setSuccessMessage('');
     resetErrors();
     clearAuthError?.();
   }, [tabValue, clearAuthError, resetErrors]);
-
-  // Watch for auth context errors and display them in snackbar
   useEffect(() => {
     if (error) {
       setSnackbarMessage(error);
@@ -127,20 +111,14 @@ function Auth() {
       setSnackbarOpen(true);
     }
   }, [error]);
-
-  // Handle snackbar close
   const handleSnackbarClose = (event, reason) => {
     if (reason === 'clickaway') return;
     setSnackbarOpen(false);
     clearAuthError?.();
   };
-
-  // Handle Email Sign In
   const handleEmailSignIn = async (e) => {
     e.preventDefault();
     setFormError('');
-
-    // Validate form
     if (!validateForm(signInSchema, { email, password })) {
       return;
     }
@@ -150,19 +128,14 @@ function Auth() {
       await signInWithEmail(email, password);
       navigate('/chat');
     } catch (error) {
-      // Error from Firebase is already handled and displayed via AuthContext
       logger.error('Sign in failed:', error);
     } finally {
       setFormLoading(false);
     }
   };
-
-  // Handle Email Sign Up
   const handleEmailSignUp = async (e) => {
     e.preventDefault();
     setFormError('');
-
-    // Validate form
     if (!validateForm(signUpSchema, { email, password, confirmPassword, displayName })) {
       return;
     }
@@ -173,36 +146,28 @@ function Auth() {
       setSuccessMessage('Account created successfully!');
       navigate('/chat');
     } catch (error) {
-      // Error from Firebase is already handled and displayed via AuthContext
       logger.error('Sign up failed:', error);
     } finally {
       setFormLoading(false);
     }
   };
-
-  // Handle Google Sign In
   const handleGoogleSignIn = async () => {
     try {
       await signInWithGoogle();
       navigate('/chat');
     } catch {
-      // Error is handled in AuthContext
+      // AuthContext surfaces OAuth errors.
     }
   };
-
-  // Handle GitHub Sign In
   const handleGitHubSignIn = async () => {
     try {
       await signInWithGitHub();
       navigate('/chat');
     } catch {
-      // Error is handled in AuthContext
+      // AuthContext surfaces OAuth errors.
     }
   };
-
-  // Handle Password Reset
   const handlePasswordReset = async () => {
-    // Validate email
     if (!validateForm(resetPasswordSchema, { email: resetEmail })) {
       return;
     }
@@ -214,14 +179,11 @@ function Auth() {
       setResetEmail('');
       setSuccessMessage('Password reset email sent! Check your inbox.');
     } catch (error) {
-      // Error from Firebase is already handled and displayed via AuthContext
       logger.error('Password reset failed:', error);
     } finally {
       setResetLoading(false);
     }
   };
-
-  // Loading state
   if (loading) {
     return (
       <Box
@@ -249,12 +211,9 @@ function Auth() {
         overflowY: 'auto', // Enable vertical scrolling
       }}
     >
-      {/* Fixed Starfield Background */}
       <Box sx={{ position: 'fixed', inset: 0, zIndex: 0 }}>
         <StarfieldCanvas active />
       </Box>
-
-      {/* Background Effects - Fixed position so they don't scroll */}
       <Box
         sx={{
           position: 'fixed',
@@ -281,8 +240,6 @@ function Auth() {
           zIndex: 0,
         }}
       />
-
-      {/* Content Container */}
       <Box
         sx={{
           minHeight: '100vh',
@@ -301,7 +258,6 @@ function Auth() {
             width: '100%',
           }}
         >
-          {/* Main Card */}
           <Paper
             elevation={0}
             sx={{
@@ -314,7 +270,6 @@ function Auth() {
             }}
           >
             <Stack spacing={2} alignItems="center">
-              {/* Brand Title */}
               <Typography
                 component="span"
                 sx={{
@@ -325,8 +280,6 @@ function Auth() {
               >
                 Moonlit
               </Typography>
-
-              {/* Title */}
               <Box textAlign="center">
                 <Typography
                   variant="h5"
@@ -343,8 +296,6 @@ function Auth() {
                     : 'Join Moonlit and unlock your data'}
                 </Typography>
               </Box>
-
-              {/* Tabs */}
               <Tabs
                 value={tabValue}
                 onChange={(e, v) => setTabValue(v)}
@@ -367,8 +318,6 @@ function Auth() {
                 <Tab label="Sign In" />
                 <Tab label="Sign Up" />
               </Tabs>
-
-              {/* Sign In Panel */}
               <TabPanel value={tabValue} index={0}>
                 <Stack spacing={1.5} component="form" onSubmit={handleEmailSignIn}>
                   <TextField
@@ -418,8 +367,6 @@ function Auth() {
                       ),
                     }}
                   />
-
-                  {/* Forgot Password Link */}
                   <Box sx={{ textAlign: 'right', mt: -0.5 }}>
                     <Link
                       component="button"
@@ -438,8 +385,6 @@ function Auth() {
                       Forgot password?
                     </Link>
                   </Box>
-
-                  {/* Sign In Button */}
                   <Button
                     fullWidth
                     type="submit"
@@ -459,8 +404,6 @@ function Auth() {
                   </Button>
                 </Stack>
               </TabPanel>
-
-              {/* Sign Up Panel */}
               <TabPanel value={tabValue} index={1}>
                 <Stack spacing={1.5} component="form" onSubmit={handleEmailSignUp}>
                   <TextField
@@ -544,8 +487,6 @@ function Auth() {
                       ),
                     }}
                   />
-
-                  {/* Sign Up Button */}
                   <Button
                     fullWidth
                     type="submit"
@@ -565,8 +506,6 @@ function Auth() {
                   </Button>
                 </Stack>
               </TabPanel>
-
-              {/* Divider */}
               <Divider sx={{ width: '100%' }}>
                 <Typography
                   variant="caption"
@@ -575,8 +514,6 @@ function Auth() {
                   or continue with
                 </Typography>
               </Divider>
-
-              {/* OAuth Buttons */}
               <Stack
                 direction="row"
                 spacing={1.5}
@@ -617,8 +554,6 @@ function Auth() {
                   GitHub
                 </Button>
               </Stack>
-
-              {/* Back to Home */}
               <Button
 
                 startIcon={<ArrowBackRoundedIcon sx={{ fontSize: 16 }} />}
@@ -633,8 +568,6 @@ function Auth() {
               </Button>
             </Stack>
           </Paper>
-
-          {/* Footer Text */}
           <Typography
             variant="caption"
             color="text.secondary"
@@ -648,8 +581,6 @@ function Auth() {
           </Typography>
         </Container>
       </Box>
-
-      {/* Forgot Password Dialog */}
       <Dialog
         open={forgotDialogOpen}
         onClose={() => {
@@ -699,8 +630,6 @@ function Auth() {
           </Button>
         </DialogActions>
       </Dialog>
-
-      {/* Error/Success Snackbar */}
       <Snackbar
         open={snackbarOpen}
         autoHideDuration={6000}

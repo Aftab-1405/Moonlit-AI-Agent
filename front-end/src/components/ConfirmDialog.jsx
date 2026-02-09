@@ -74,8 +74,6 @@ function ConfirmDialog({
         <Typography variant="body1" color="text.secondary" sx={{ mb: sqlQuery ? 2 : 0 }}>
           {message}
         </Typography>
-
-        {/* SQL query preview */}
         {sqlQuery && (
           <Box
             sx={{

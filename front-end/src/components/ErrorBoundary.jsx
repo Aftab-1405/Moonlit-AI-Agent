@@ -25,12 +25,10 @@ class ErrorBoundary extends Component {
   }
 
   static getDerivedStateFromError(error) {
-    // Update state so the next render shows the fallback UI
     return { hasError: true, error };
   }
 
   componentDidCatch(error, errorInfo) {
-    // Log error to console in development only
     if (import.meta.env.DEV) {
       console.error('[ErrorBoundary] Caught error:', error);
       console.error('[ErrorBoundary] Component stack:', errorInfo.componentStack);
@@ -39,7 +37,6 @@ class ErrorBoundary extends Component {
     this.setState({ errorInfo });
     
     // TODO: Send to error reporting service (Sentry, etc.)
-    // logErrorToService(error, errorInfo);
   }
 
   handleReload = () => {
@@ -56,15 +53,10 @@ class ErrorBoundary extends Component {
 
   render() {
     if (this.state.hasError) {
-      // Custom fallback UI
       const { fallback, minimal } = this.props;
-      
-      // If a custom fallback is provided, use it
       if (fallback) {
         return fallback;
       }
-      
-      // Minimal fallback for smaller sections
       if (minimal) {
         return (
           <Box
@@ -93,8 +85,6 @@ class ErrorBoundary extends Component {
           </Box>
         );
       }
-
-      // Full-page fallback
       return (
         <Box
           sx={{
@@ -135,8 +125,6 @@ class ErrorBoundary extends Component {
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
               We encountered an unexpected error. The issue has been noted and we're working on it.
             </Typography>
-
-            {/* Show error details in development */}
             {import.meta.env.DEV && this.state.error && (
               <Box
                 sx={{

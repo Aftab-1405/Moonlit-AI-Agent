@@ -32,8 +32,6 @@
 
 import { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
 import logger from '../utils/logger';
-
-// Centralized API layer
 import {
   getDbStatus,
   disconnectDb,
@@ -57,55 +55,28 @@ function getSessionInstanceId() {
   }
 }
 
-// =============================================================================
-// INITIAL STATE
-// =============================================================================
-
 const initialState = {
-  // Connection status
   isConnected: false,
   isLoading: false,
   error: null,
-
-  // Database details
   currentDatabase: null,
   dbType: null,
   isRemote: false,
   availableDatabases: [],
-
-  // Metadata
   lastConnectedAt: null,
 };
 
-// =============================================================================
-// ACTION TYPES
-// =============================================================================
-// Using constants prevents typos and enables autocomplete
-
 const ActionTypes = {
-  // Connection lifecycle
   CONNECT_START: 'CONNECT_START',
   CONNECT_SUCCESS: 'CONNECT_SUCCESS',
   CONNECT_FAILURE: 'CONNECT_FAILURE',
   DISCONNECT: 'DISCONNECT',
-
-  // Database operations
   SWITCH_DATABASE: 'SWITCH_DATABASE',
   SET_AVAILABLE_DATABASES: 'SET_AVAILABLE_DATABASES',
-
-  // Status sync (from backend)
   SYNC_STATUS: 'SYNC_STATUS',
-
-  // Error handling
   SET_ERROR: 'SET_ERROR',
   CLEAR_ERROR: 'CLEAR_ERROR',
 };
-
-// =============================================================================
-// REDUCER
-// =============================================================================
-// Pure function that takes current state and action, returns new state.
-// All state transitions are explicit and traceable.
 
 function databaseReducer(state, action) {
   switch (action.type) {
@@ -140,7 +111,6 @@ function databaseReducer(state, action) {
     case ActionTypes.DISCONNECT:
       return {
         ...initialState,
-        // Keep error if disconnect was due to an error
         error: action.payload?.error ?? null,
       };
 
@@ -158,8 +128,6 @@ function databaseReducer(state, action) {
       };
 
     case ActionTypes.SYNC_STATUS:
-      // Sync state from backend /db_status endpoint
-      // Note: Backend sends current_database (not database) for consistency
       return {
         ...state,
         isConnected: action.payload.connected ?? false,
@@ -188,15 +156,7 @@ function databaseReducer(state, action) {
   }
 }
 
-// =============================================================================
-// CONTEXT CREATION
-// =============================================================================
-
 const DatabaseContext = createContext(null);
-
-// =============================================================================
-// CUSTOM HOOK
-// =============================================================================
 
 /**
  * Hook to access database connection state and actions.
@@ -216,10 +176,6 @@ export function useDatabaseConnection() {
   return context;
 }
 
-// =============================================================================
-// PROVIDER COMPONENT
-// =============================================================================
-
 /**
  * Provides database connection state to the component tree.
  * Wrap your app with this provider to enable useDatabaseConnection hook.
@@ -231,12 +187,6 @@ export function useDatabaseConnection() {
  */
 export function DatabaseProvider({ children }) {
   const [state, dispatch] = useReducer(databaseReducer, initialState);
-
-  // ===========================================================================
-  // FETCH INITIAL STATUS
-  // ===========================================================================
-  // On mount, sync with backend to get current connection status.
-  // This handles the case where user refreshes the page while connected.
 
   useEffect(() => {
     const checkDbStatus = async () => {
@@ -255,11 +205,6 @@ export function DatabaseProvider({ children }) {
     checkDbStatus();
   }, []);
 
-  // ===========================================================================
-  // ACTION: CONNECT
-  // ===========================================================================
-  // Called after successful connection from DatabaseModal
-
   const connect = useCallback((connectionData) => {
     dispatch({
       type: ActionTypes.CONNECT_SUCCESS,
@@ -271,10 +216,6 @@ export function DatabaseProvider({ children }) {
       },
     });
   }, []);
-
-  // ===========================================================================
-  // ACTION: DISCONNECT
-  // ===========================================================================
 
   const disconnect = useCallback(async () => {
     try {
@@ -289,24 +230,14 @@ export function DatabaseProvider({ children }) {
     }
   }, []);
 
-  // ===========================================================================
-  // ACTION: RESET CONNECTION STATE (UI only, no API call)
-  // ===========================================================================
-  // Used when API was already called externally (e.g., from DatabaseModal)
-
   const resetConnectionState = useCallback(() => {
     dispatch({ type: ActionTypes.DISCONNECT, payload: {} });
   }, []);
-
-  // ===========================================================================
-  // ACTION: SWITCH DATABASE
-  // ===========================================================================
 
   const switchDatabase = useCallback(async (dbName) => {
     if (dbName === state.currentDatabase) return { success: true };
 
     try {
-      // Remote uses switchDatabaseApi, local uses selectDatabase (session-based)
       const data = state.isRemote
         ? await switchDatabaseApi(dbName)
         : await selectDatabase(dbName);
@@ -333,11 +264,6 @@ export function DatabaseProvider({ children }) {
     }
   }, [state.currentDatabase, state.isRemote]);
 
-  // ===========================================================================
-  // ACTION: REFRESH STATUS
-  // ===========================================================================
-  // Manually refresh connection status from backend
-
   const refreshStatus = useCallback(async () => {
     try {
       const data = await getDbStatus();
@@ -347,10 +273,6 @@ export function DatabaseProvider({ children }) {
     }
   }, []);
 
-  // ===========================================================================
-  // ACTION: SET/CLEAR ERROR
-  // ===========================================================================
-
   const setError = useCallback((error) => {
     dispatch({ type: ActionTypes.SET_ERROR, payload: { error } });
   }, []);
@@ -359,17 +281,8 @@ export function DatabaseProvider({ children }) {
     dispatch({ type: ActionTypes.CLEAR_ERROR });
   }, []);
 
-  // ===========================================================================
-  // CONTEXT VALUE
-  // ===========================================================================
-  // Memoization is handled by useCallback on actions.
-  // State changes will correctly trigger re-renders in consumers.
-
   const value = {
-    // State (read-only)
     ...state,
-
-    // Actions
     connect,
     disconnect,
     resetConnectionState,

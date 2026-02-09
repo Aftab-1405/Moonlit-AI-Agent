@@ -16,8 +16,6 @@ import {
   createUserMessage,
   MESSAGE_STATUS,
 } from '../utils/chatMessages';
-
-// Throttle for streaming updates (~60fps)
 const UPDATE_THROTTLE_MS = 16;
 
 /**
@@ -26,7 +24,6 @@ const UPDATE_THROTTLE_MS = 16;
  * @returns {string} User-friendly error message
  */
 function getErrorMessage(error) {
-  // Network/connectivity errors
   if (!navigator.onLine) {
     return "You appear to be offline. Please check your internet connection and try again.";
   }
@@ -34,8 +31,6 @@ function getErrorMessage(error) {
   if (error.name === 'TypeError' && error.message.includes('fetch')) {
     return "Unable to connect to the server. Please check your connection and try again.";
   }
-  
-  // API errors with status codes
   if (error.status) {
     switch (error.status) {
       case 401:
@@ -59,13 +54,9 @@ function getErrorMessage(error) {
         }
     }
   }
-  
-  // Timeout errors
   if (error.name === 'TimeoutError' || error.message?.includes('timeout')) {
     return "The request took too long. Please try again with a simpler query.";
   }
-  
-  // Generic fallback
   return "Something went wrong. Please try again.";
 }
 
@@ -117,8 +108,6 @@ export function useMessageStreaming({
     if (!prompt) return;
 
     const assistantMessageId = createMessageId('assistant');
-
-    // Add user message and placeholder AI message
     setMessages((prev) => [
       ...prev,
       createUserMessage(prompt),
@@ -128,8 +117,6 @@ export function useMessageStreaming({
         status: MESSAGE_STATUS.WAITING,
       }),
     ]);
-
-    // Get settings with defaults
     const enableReasoning = settings.enableReasoning ?? true;
     const reasoningEffort = settings.reasoningEffort ?? 'medium';
     const responseStyle = settings.responseStyle ?? 'balanced';
@@ -146,8 +133,6 @@ export function useMessageStreaming({
         responseStyle,
         maxRows,
       }, abortControllerRef.current.signal);
-
-      // Handle new conversation creation
       const newConversationId = response.headers.get('X-Conversation-Id');
       if (newConversationId && !currentConversationId) {
         setCurrentConversationId(newConversationId);
@@ -159,8 +144,6 @@ export function useMessageStreaming({
           ...prev,
         ]);
       }
-
-      // Stream response
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let aiResponse = '';
@@ -193,7 +176,6 @@ export function useMessageStreaming({
       fetchConversations();
     } catch (error) {
       if (error.name === 'AbortError') {
-        // User stopped the stream
         setMessages((prev) => {
           const existingAssistant = prev.find((msg) => msg.id === assistantMessageId);
           const rawContent = existingAssistant?.rawContent || '';
@@ -201,11 +183,7 @@ export function useMessageStreaming({
         });
         return;
       }
-      
-      // Log error for debugging (development only)
       logger.error('Message streaming error:', error);
-      
-      // Get user-friendly error message
       const errorMessage = getErrorMessage(error);
 
       setMessages((prev) => {

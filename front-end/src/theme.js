@@ -1,9 +1,5 @@
 import { createTheme, responsiveFontSizes, alpha } from '@mui/material/styles';
 
-// ============================================
-// 1. DESIGN TOKENS (Static Constants)
-// ============================================
-
 const SHAPE = { borderRadius: 10 };
 const HEX_WHITE = '#ffffff';
 const HEX_BLACK = '#000000';
@@ -18,10 +14,6 @@ const FONTS = {
   mono: '"JetBrains Mono", "Fira Code", "Monaco", monospace',
   sans: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
 };
-
-// ============================================
-// 2. MONOCHROMATIC COLOR SYSTEM
-// ============================================
 
 const PALETTE_MODES = {
   dark: {
@@ -125,10 +117,6 @@ const PALETTE_MODES = {
   },
 };
 
-// ============================================
-// 2.1 COLOR HELPERS
-// ============================================
-
 const getReadableTextColor = (hex) => {
   if (!hex || typeof hex !== 'string') return HEX_WHITE;
   const clean = hex.replace('#', '');
@@ -145,10 +133,6 @@ const getReadableTextColor = (hex) => {
 
   return luminance > 0.45 ? HEX_BLACK_20 : HEX_WHITE;
 };
-
-// ============================================
-// 3. TYPOGRAPHY SYSTEM
-// ============================================
 
 const createTypography = (palette) => ({
   fontFamily: FONTS.serif,
@@ -237,8 +221,6 @@ const createTypography = (palette) => ({
     fontSize: '0.875rem',
     letterSpacing: '0.02em',
   },
-
-  // Optional custom slots (use via theme.typography.mono / label)
   mono: {
     fontFamily: FONTS.mono,
     fontSize: '0.875rem',
@@ -253,10 +235,6 @@ const createTypography = (palette) => ({
     color: palette.text.hint,
   },
 });
-
-// ============================================
-// 4. ANIMATION PRESETS (EXPORTED)
-// ============================================
 
 export const TRANSITIONS = {
   default: 'all 200ms cubic-bezier(0.4, 0, 0.2, 1)',
@@ -291,10 +269,6 @@ export const KEYFRAMES = {
     to: { opacity: 1, transform: 'translateY(0)' },
   },
 };
-
-// ============================================
-// 5. UTILITY FUNCTIONS (Cached by theme instance)
-// ============================================
 
 const gradientCache = new WeakMap();
 const accentEffectsCache = new WeakMap();
@@ -419,10 +393,6 @@ export const getGradientTextSx = (theme) => ({
   WebkitBackgroundClip: 'text',
   WebkitTextFillColor: 'transparent',
 });
-
-// ============================================
-// 6. COMPONENT OVERRIDES
-// ============================================
 
 const getComponentOverrides = (mode) => {
   const palette = PALETTE_MODES[mode];
@@ -820,8 +790,6 @@ const getComponentOverrides = (mode) => {
         },
       },
     },
-
-    // ✅ merged (previously duplicated)
     MuiSnackbarContent: {
       styleOverrides: {
         root: {
@@ -1055,11 +1023,7 @@ const getComponentOverrides = (mode) => {
     },
   };
 };
-
-// ============================================
-// 7. MERMAID CONFIG (Cached by theme instance)
 //    NOTE: If mermaid content is untrusted/user-provided, consider securityLevel:'strict'.
-// ============================================
 
 export const getMermaidThemeConfig = (theme) => {
   if (mermaidCache.has(theme)) return mermaidCache.get(theme);
@@ -1099,10 +1063,6 @@ export const getMermaidThemeConfig = (theme) => {
   return config;
 };
 
-// ============================================
-// 8. THEME FACTORIES (Cached)
-// ============================================
-
 const createBaseTheme = (mode) => {
   const palette = {
     mode,
@@ -1117,8 +1077,6 @@ const createBaseTheme = (mode) => {
     typography: createTypography(palette),
     components: getComponentOverrides(mode),
   });
-
-  // Optional custom namespace (non-MUI)
   theme.custom = {
     getGradient: () => getMoonlitGradient(theme),
     getEffects: () => getAccentEffects(theme),
@@ -1141,20 +1099,10 @@ const getCachedTheme = (mode) => {
 
 export const createDarkTheme = () => getCachedTheme('dark');
 export const createLightTheme = () => getCachedTheme('light');
-
-// Handy singletons (so you can import without calling factories)
 export const darkTheme = createDarkTheme();
 export const lightTheme = createLightTheme();
 
-// ============================================
-// 9. BACKWARDS COMPATIBILITY ALIASES
-// ============================================
-
 export const getNaturalMoonlitEffects = getAccentEffects;
 export const getGlassCardSx = getGlassSx;
-
-// ============================================
-// 10. DEFAULT EXPORT
-// ============================================
 
 export default darkTheme;

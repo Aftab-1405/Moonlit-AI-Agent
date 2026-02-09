@@ -21,8 +21,6 @@ import {
   useMediaQuery,
 } from '@mui/material';
 import { styled, useTheme, alpha } from '@mui/material/styles';
-
-// Icons - Using outlined/transparent versions for Grok-style look
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import QuestionAnswerOutlinedIcon from '@mui/icons-material/QuestionAnswerOutlined';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
@@ -35,20 +33,12 @@ import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined
 import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
 import CloseIcon from '@mui/icons-material/Close';
 import SchemaFlowDiagram from './SchemaFlowDiagram';
-
-// Centralized API layer
 import { getUserContext } from '../api';
 import logger from '../utils/logger';
-
-// ============================================================================
-// CONSTANTS - Moved outside component to prevent recreation
-// ============================================================================
 const EXPANDED_WIDTH = 260;
 const COLLAPSED_WIDTH = 56;
 const SIDEBAR_WIDTH_EASING = 'cubic-bezier(0.22, 1, 0.36, 1)';
 const SIDEBAR_WIDTH_DURATION = 240;
-
-// Static styles that don't depend on theme
 const CONTENT_CONTAINER_STYLES = {
   position: 'relative',
   height: '100%',
@@ -56,10 +46,6 @@ const CONTENT_CONTAINER_STYLES = {
   display: 'flex',
   flexDirection: 'column',
 };
-
-// ============================================================================
-// MUI Mini Variant Drawer Pattern - Industry Standard
-// ============================================================================
 const getGlassmorphismStyles = (theme, isDarkMode) => ({
   background: isDarkMode
     ? theme.palette.background.default  // Same as main content area
@@ -113,10 +99,6 @@ const StyledDrawer = styled(MuiDrawer, {
     },
   }),
 }));
-
-// ============================================================================
-// MEMOIZED SUB-COMPONENTS - Extracted for performance
-// ============================================================================
 
 /**
  * Memoized conversation list item - prevents re-render when other conversations change
@@ -228,7 +210,6 @@ const SidebarNavItem = memo(function SidebarNavItem({
           sx={{
             color: isActive ? theme.palette.text.primary : theme.palette.text.secondary,
             position: 'relative',
-            // Match footer IconButton sizing
             width: 36,
             height: 36,
             flexShrink: 0,
@@ -325,10 +306,6 @@ const HistoryPopoverItem = memo(function HistoryPopoverItem({
     </ListItemButton>
   );
 });
-
-// ============================================================================
-// MAIN SIDEBAR COMPONENT
-// ============================================================================
 function Sidebar({
   conversations = [],
   currentConversationId,
@@ -360,17 +337,12 @@ function Sidebar({
 
   const isPopoverOpen = Boolean(dbPopoverAnchor);
   const isHistoryPopoverOpen = Boolean(historyPopoverAnchor);
-
-  // Text fade styles using GPU-accelerated properties only
-  // Avoids max-width which triggers layout recalculations
   const collapsedTextStyles = useMemo(() => ({
     opacity: isCollapsed ? 0 : 1,
-    // Use clip-path for smooth hiding without layout shift
     clipPath: isCollapsed ? 'inset(0 100% 0 0)' : 'inset(0 0 0 0)',
     transform: isCollapsed ? 'translateX(-4px)' : 'translateX(0)',
     overflow: 'hidden',
     whiteSpace: 'nowrap',
-    // Pointer events disabled when collapsed to prevent accidental clicks
     pointerEvents: isCollapsed ? 'none' : 'auto',
     transition: theme.transitions.create(['opacity', 'clip-path', 'transform'], {
       easing: SIDEBAR_WIDTH_EASING,
@@ -507,13 +479,11 @@ function Sidebar({
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <Box
         sx={{
-          // Fixed padding to prevent layout shift
           px: 1.5,
           py: 1.5,
           minHeight: 56,
           display: 'flex',
           alignItems: 'center',
-          // Keep fixed justifyContent
           justifyContent: 'flex-start',
         }}
       >
@@ -526,7 +496,6 @@ function Sidebar({
         <Typography
           variant="subtitle1"
           sx={{
-            // Fixed margin to prevent shift
             ml: 1.5,
             fontWeight: 600,
             letterSpacing: '-0.01em',
@@ -537,8 +506,6 @@ function Sidebar({
           Moonlit
         </Typography>
       </Box>
-
-      {/* Fixed padding to prevent layout shift during toggle */}
       <Box sx={{ px: 0.5, py: 0.75 }}>
         <List disablePadding>
           {navItems.map((item) => (
@@ -600,16 +567,12 @@ function Sidebar({
           </>
         )}
       </Box>
-
-      {/* Footer - stacks vertically when collapsed to prevent overlap */}
       <Box
         sx={{
           borderTop: '1px solid',
           borderColor: 'divider',
           p: 1,
           display: 'flex',
-          // Column when collapsed (56px is too narrow for side-by-side)
-          // This change is instant, not transitioned, so no jitter
           flexDirection: isCollapsed ? 'column' : 'row',
           alignItems: 'center',
           justifyContent: isCollapsed ? 'center' : 'space-between',
@@ -648,13 +611,8 @@ function Sidebar({
       </Box>
     </Box>
   );
-
-  // ============================================================================
-  // POPOVERS - Rendered outside sidebarContent to avoid memoization issues
-  // ============================================================================
   const popovers = (
     <>
-      {/* Database Switcher Popover */}
       <Popover
         open={isPopoverOpen}
         anchorEl={dbPopoverAnchor}
@@ -698,8 +656,6 @@ function Sidebar({
           </ListItemButton>
         </List>
       </Popover>
-
-      {/* History Popover */}
       <Popover
         open={isHistoryPopoverOpen}
         anchorEl={historyPopoverAnchor}
@@ -735,8 +691,6 @@ function Sidebar({
           )}
         </List>
       </Popover>
-
-      {/* Schema Mindmap Dialog */}
       <Dialog
         open={mindmapOpen}
         onClose={handleCloseMindmap}
@@ -810,10 +764,6 @@ function Sidebar({
       </Dialog>
     </>
   );
-
-  // ============================================================================
-  // RENDER
-  // ============================================================================
   if (isMobile) {
     return (
       <>
@@ -845,10 +795,6 @@ function Sidebar({
     </>
   );
 }
-
-// ============================================================================
-// CUSTOM MEMO COMPARISON - Prevents unnecessary re-renders
-// ============================================================================
 function areStringArraysEqual(prev = [], next = []) {
   if (prev === next) return true;
   if (prev.length !== next.length) return false;

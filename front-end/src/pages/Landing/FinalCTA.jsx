@@ -1,4 +1,3 @@
-// FinalCTA section component - Monochromatic design
 import { Box, Container, Stack, Typography, Button } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
@@ -10,7 +9,6 @@ function FinalCTA({ onGetStarted }) {
 
   return (
     <Section sx={{ flexDirection: 'column', py: { xs: 6, md: 8 } }}>
-      {/* Subtle radial gradient backdrop - grayscale */}
       <Box
         sx={{
           position: 'absolute',

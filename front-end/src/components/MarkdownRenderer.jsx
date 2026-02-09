@@ -10,19 +10,11 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus, vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import MermaidDiagram from './MermaidDiagram';
 
-// ============================================================================
-// CONSTANTS
-// ============================================================================
-
 const SQL_LANGUAGES = new Set([
   'sql', 'mysql', 'postgresql', 'sqlite', 'sqlserver', 'oracle', 'tsql', 'plsql'
 ]);
 
 const REMARK_PLUGINS = [remarkGfm];
-
-// ============================================================================
-// SUB-COMPONENTS
-// ============================================================================
 
 const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isDarkMode, theme }) {
   const [copied, setCopied] = useState(false);
@@ -34,8 +26,6 @@ const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isD
       if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
     };
   }, []);
-
-  // Defensive parsing: Handle cases where children is an array or incomplete during stream
   const language = className?.replace('language-', '') || '';
   const code = useMemo(() => {
     return Array.isArray(children) ? children.join('') : String(children || '').replace(/\n$/, '');
@@ -72,8 +62,6 @@ const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isD
     minWidth: 0, // CRITICAL: Prevents flexbox overflow issues during streaming
     width: '100%',
   }), [isDarkMode, theme]);
-
-  // Render Mermaid diagrams with dedicated component (AFTER all hooks)
   if (isMermaid) {
     return <MermaidDiagram code={code} />;
   }
@@ -161,10 +149,6 @@ const InlineCode = memo(function InlineCode({ children, theme, isDarkMode }) {
   );
 });
 
-// ============================================================================
-// MAIN COMPONENT
-// ============================================================================
-
 const MarkdownRenderer = memo(function MarkdownRenderer({ content, onRunQuery }) {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
@@ -195,10 +179,7 @@ const MarkdownRenderer = memo(function MarkdownRenderer({ content, onRunQuery })
       </Box>
     ),
   }), [onRunQuery, isDarkMode, theme]);
-
-  // Memoize container styles to prevent recreation on every render
   const containerSx = useMemo(() => ({
-    // GLOBAL STABILITY STYLES
     overflowWrap: 'anywhere', // CRITICAL: Breaks long strings (URLs/tokens) to prevent layout shifting
     wordBreak: 'break-word',
 
@@ -223,8 +204,6 @@ const MarkdownRenderer = memo(function MarkdownRenderer({ content, onRunQuery })
       borderTop: `1px solid ${theme.palette.border?.subtle || theme.palette.divider}`,
       my: 2,
     },
-
-    // Table Styles - prevent cramping with proper spacing and nowrap
     '& table': {
       overflowWrap: 'normal',  // Override global setting for tables
       wordBreak: 'normal',

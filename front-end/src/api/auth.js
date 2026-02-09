@@ -30,7 +30,6 @@ export async function getFirebaseConfig() {
  * @returns {Promise<Object>} Session response
  */
 export async function setSession(payload) {
-  // Accept either a string (idToken) or an object with idToken and optional user
   const body = typeof payload === 'string' ? { idToken: payload } : payload;
   return post(AUTH.SET_SESSION, body);
 }

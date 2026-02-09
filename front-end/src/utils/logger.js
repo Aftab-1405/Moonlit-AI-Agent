@@ -60,7 +60,6 @@ const logger = {
       console.error('[ERROR]', ...args);
     }
     // TODO: In production, send to error tracking service
-    // if (!IS_DEV) { sendToErrorService(args); }
   },
 
   /**

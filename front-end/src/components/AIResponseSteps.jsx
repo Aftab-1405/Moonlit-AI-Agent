@@ -9,10 +9,6 @@ import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
 import Editor from '@monaco-editor/react';
 import { registerMonacoThemes, getMonacoThemeName } from '../theme';
 
-// =============================================================================
-// KEYFRAME ANIMATIONS
-// =============================================================================
-
 const spin = keyframes`
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
@@ -22,10 +18,6 @@ const fadeIn = keyframes`
   from { opacity: 0; }
   to { opacity: 1; }
 `;
-
-// =============================================================================
-// STATIC CONFIGURATION
-// =============================================================================
 
 const MONACO_OPTIONS = {
   readOnly: true,
@@ -64,10 +56,6 @@ const TOOL_ACTIONS = {
   'get_table_constraints': { running: 'Fetching constraints', done: 'Fetched constraints' },
   'get_foreign_keys': { running: 'Fetching foreign keys', done: 'Fetched foreign keys' },
 };
-
-// =============================================================================
-// UTILITY FUNCTIONS
-// =============================================================================
 
 function parseJSON(str) {
   if (!str || str === 'null' || str === '{}') return null;
@@ -140,10 +128,6 @@ function getDetailedResult(name, result) {
   return details[name]?.() || 'Completed successfully';
 }
 
-// =============================================================================
-// THINKING STEP COMPONENT (Claude-style)
-// =============================================================================
-
 const ThinkingStep = memo(({ step }) => {
   const [showMore, setShowMore] = useState(false);
   const theme = useTheme();
@@ -167,7 +151,6 @@ const ThinkingStep = memo(({ step }) => {
           : alpha(theme.palette.text.primary, 0.06),
       }}
     >
-      {/* Icon and content */}
       <Box sx={{ display: 'flex', gap: 1.5 }}>
         <AccessTimeRoundedIcon
           sx={{
@@ -234,10 +217,6 @@ const ThinkingStep = memo(({ step }) => {
 });
 ThinkingStep.displayName = 'ThinkingStep';
 
-// =============================================================================
-// TOOL STEP COMPONENT (Claude-style)
-// =============================================================================
-
 const ToolStep = memo(({ step }) => {
   const [expanded, setExpanded] = useState(false);
   const theme = useTheme();
@@ -288,7 +267,6 @@ const ToolStep = memo(({ step }) => {
           : alpha(theme.palette.text.primary, 0.06),
       }}
     >
-      {/* Status row */}
       <ButtonBase
         onClick={() => hasDetails && setExpanded(!expanded)}
         disabled={!hasDetails}
@@ -350,12 +328,9 @@ const ToolStep = memo(({ step }) => {
           />
         )}
       </ButtonBase>
-
-      {/* Expanded details */}
       {hasDetails && (
         <Collapse in={expanded} timeout={150} unmountOnExit>
           <Box sx={{ pt: 1.5, pl: 4.25 }}>
-            {/* Query */}
             {parsedArgs?.query && (
               <Box sx={{ mb: 1.5 }}>
                 <Typography
@@ -396,8 +371,6 @@ const ToolStep = memo(({ step }) => {
                 </Box>
               </Box>
             )}
-
-            {/* Result */}
             {parsedResult && !isRunning && (
               <Box>
                 <Typography
@@ -432,10 +405,6 @@ const ToolStep = memo(({ step }) => {
   );
 });
 ToolStep.displayName = 'ToolStep';
-
-// =============================================================================
-// DONE INDICATOR
-// =============================================================================
 
 const DoneIndicator = memo(() => {
   const theme = useTheme();
@@ -472,10 +441,6 @@ const DoneIndicator = memo(() => {
 });
 DoneIndicator.displayName = 'DoneIndicator';
 
-// =============================================================================
-// MAIN COMPONENT - StepsAccordion (Claude-style)
-// =============================================================================
-
 export const StepsAccordion = memo(({ steps, isStreaming }) => {
   const [expanded, setExpanded] = useState(() => !!isStreaming);
   const theme = useTheme();
@@ -486,19 +451,13 @@ export const StepsAccordion = memo(({ steps, isStreaming }) => {
   const validSteps = useMemo(() =>
     Array.isArray(steps) ? steps.filter(s => s && s.type) : []
   , [steps]);
-
-  // Generate summary text from steps
   const summaryText = useMemo(() => {
     if (validSteps.length === 0) return '';
-    
-    // Get unique completed tool actions
     const toolSteps = validSteps.filter(s => s.type === 'tool' && s.status !== 'running');
     const actions = toolSteps.map(s => {
       const config = TOOL_ACTIONS[s.name];
       return config?.done || formatToolName(s.name);
     });
-    
-    // Create short summary
     if (actions.length === 0) return 'Processing...';
     if (actions.length === 1) return actions[0];
     if (actions.length === 2) return actions.join(', ');
@@ -511,8 +470,6 @@ export const StepsAccordion = memo(({ steps, isStreaming }) => {
       (s.type === 'tool' && s.status !== 'running')
     )
   , [isStreaming, validSteps]);
-
-  // Auto-collapse only when streaming transitions from true -> false
   useEffect(() => {
     const wasStreaming = prevStreamingRef.current;
     if (wasStreaming && !isStreaming && validSteps.length > 0) {
@@ -537,7 +494,6 @@ export const StepsAccordion = memo(({ steps, isStreaming }) => {
         animation: `${fadeIn} 0.2s ease-out`,
       }}
     >
-      {/* Header - Claude style with summary */}
       <ButtonBase
         onClick={handleToggle}
         sx={{
@@ -580,8 +536,6 @@ export const StepsAccordion = memo(({ steps, isStreaming }) => {
           }}
         />
       </ButtonBase>
-
-      {/* Steps content */}
       <Collapse in={effectiveExpanded} timeout={150}>
         <Box sx={{ pt: 0.5 }}>
           {validSteps.map((step, idx) => {
@@ -593,8 +547,6 @@ export const StepsAccordion = memo(({ steps, isStreaming }) => {
             }
             return null;
           })}
-          
-          {/* Done indicator */}
           {isAllComplete && <DoneIndicator />}
         </Box>
       </Collapse>

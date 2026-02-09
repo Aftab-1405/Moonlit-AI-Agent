@@ -37,8 +37,6 @@ import FullscreenExitRoundedIcon from '@mui/icons-material/FullscreenExitRounded
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-
-// Register Chart.js components
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -61,8 +59,6 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
   const isDark = theme.palette.mode === 'dark';
   const chartRef = useRef(null);
   const containerRef = useRef(null);
-
-  // Theme-aligned chart palette
   const chartColors = useMemo(() => [
     theme.palette.info.main,
     theme.palette.error.main,
@@ -73,13 +69,9 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
     lighten(theme.palette.info.main, 0.12),
     lighten(theme.palette.error.main, 0.08),
   ], [theme.palette.error.main, theme.palette.info.main, theme.palette.primary.main, theme.palette.secondary.main, theme.palette.success.main, theme.palette.warning.main]);
-
-  // Same colors for background (solid, visible)
   const chartColorsBg = chartColors;
 
   const { columns = [], result = [] } = data || {};
-
-  // Detect numeric and string columns
   const { numericColumns, stringColumns } = useMemo(() => {
     if (!result.length || !columns.length) return { numericColumns: [], stringColumns: [] };
 
@@ -97,8 +89,6 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
 
     return { numericColumns: numeric, stringColumns: strings };
   }, [columns, result]);
-
-  // Derive column values with robust fallback for mixed and numeric-only results
   const labelColumn = labelColumnOverride || stringColumns[0] || columns[0] || '';
   const valueColumn = valueColumnOverride || numericColumns[0] || '';
 
@@ -132,8 +122,6 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
       observer.disconnect();
     };
   }, []);
-
-  // Chart configuration
   const chartData = useMemo(() => {
     if (!labelColumn || !valueColumn || !result.length) return null;
 
@@ -230,7 +218,6 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
 
   return (
     <>
-      {/* Main container - matches SQLResultsTable structure exactly */}
       <Box
         ref={containerRef}
         sx={{
@@ -349,8 +336,6 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
             </Box>
           </Box>
         )}
-
-        {/* Chart Area - no padding to match TableContainer */}
         <Box
           className="chart-container"
           sx={{
@@ -363,8 +348,6 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
             <ChartComponent ref={chartRef} data={chartData} options={chartOptions} />
           )}
         </Box>
-
-        {/* Footer - chart type toggle centered */}
         <Box
           sx={{
             display: 'flex',
@@ -380,8 +363,6 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
           <Typography variant="caption" color="text.secondary" sx={{ position: 'absolute', left: 16, fontWeight: 500 }}>
             {result.length > 50 ? `Showing 50 of ${result.length} data points` : `${result.length} data points`}
           </Typography>
-
-          {/* Chart Type Toggle */}
           <ToggleButtonGroup
             value={chartType}
             exclusive
@@ -422,8 +403,6 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
           </ToggleButtonGroup>
         </Box>
       </Box>
-
-      {/* Fullscreen backdrop */}
       {fullscreen && (
         <Box
           onClick={() => setFullscreen(false)}

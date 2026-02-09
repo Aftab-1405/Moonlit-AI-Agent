@@ -15,10 +15,6 @@ import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 import KeyRoundedIcon from '@mui/icons-material/KeyRounded';
 import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
 import TableChartRoundedIcon from '@mui/icons-material/TableChartRounded';
-
-// ============================================================================
-// CUSTOM EDGE - Smooth bezier curves
-// ============================================================================
 const CustomBezierEdge = ({
   id,
   sourceX,
@@ -48,10 +44,6 @@ const CustomBezierEdge = ({
     />
   );
 };
-
-// ============================================================================
-// DATABASE NODE - Root node with modern card style
-// ============================================================================
 const DatabaseNode = memo(({ data }) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -108,10 +100,6 @@ const DatabaseNode = memo(({ data }) => {
   );
 });
 DatabaseNode.displayName = 'DatabaseNode';
-
-// ============================================================================
-// TABLE NODE - Expandable with column count badge
-// ============================================================================
 const TableNode = memo(({ data }) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -203,10 +191,6 @@ const TableNode = memo(({ data }) => {
   );
 });
 TableNode.displayName = 'TableNode';
-
-// ============================================================================
-// COLUMN NODE - Compact pill with type annotation
-// ============================================================================
 const ColumnNode = memo(({ data }) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -280,10 +264,6 @@ const ColumnNode = memo(({ data }) => {
   );
 });
 ColumnNode.displayName = 'ColumnNode';
-
-// ============================================================================
-// NODE & EDGE TYPE REGISTRY
-// ============================================================================
 const nodeTypes = {
   database: DatabaseNode,
   table: TableNode,
@@ -293,10 +273,6 @@ const nodeTypes = {
 const edgeTypes = {
   custom: CustomBezierEdge,
 };
-
-// ============================================================================
-// DAGRE LAYOUT ENGINE
-// ============================================================================
 const getLayoutedElements = (nodes, edges, direction = 'LR', isMobile = false) => {
   const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
   g.setGraph({ 
@@ -328,10 +304,6 @@ const getLayoutedElements = (nodes, edges, direction = 'LR', isMobile = false) =
 
   return { nodes: layoutedNodes, edges };
 };
-
-// ============================================================================
-// MAIN COMPONENT
-// ============================================================================
 function SchemaFlowDiagram({ database, tables, columns }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -349,27 +321,19 @@ function SchemaFlowDiagram({ database, tables, columns }) {
       return next;
     });
   }, []);
-
-  // Edge styling - subtle, consistent with theme
   const edgeStyle = useMemo(() => ({
     stroke: alpha(theme.palette.text.secondary, isDark ? 0.3 : 0.4),
     strokeWidth: isMobile ? 1.5 : 1,
   }), [isDark, isMobile, theme.palette.text.secondary]);
-
-  // Build nodes and edges
   const { initialNodes, initialEdges } = useMemo(() => {
     const nodes = [];
     const edges = [];
-
-    // Responsive node dimensions
     const dbNodeWidth = isMobile ? 150 : 130;
     const dbNodeHeight = isMobile ? 44 : 36;
     const tableNodeWidth = isMobile ? 140 : 120;
     const tableNodeHeight = isMobile ? 40 : 32;
     const colNodeWidth = isMobile ? 120 : 100;
     const colNodeHeight = isMobile ? 32 : 24;
-
-    // Database root node
     nodes.push({
       id: 'db',
       type: 'database',
@@ -378,8 +342,6 @@ function SchemaFlowDiagram({ database, tables, columns }) {
       width: dbNodeWidth,
       height: dbNodeHeight,
     });
-
-    // Table nodes
     tables.forEach((tableName) => {
       const tableId = `table-${tableName}`;
       const tableColumns = columns[tableName] || [];
@@ -409,8 +371,6 @@ function SchemaFlowDiagram({ database, tables, columns }) {
         sourcePosition: Position.Right,
         targetPosition: Position.Left,
       });
-
-      // Column nodes (only if expanded)
       if (isExpanded) {
         tableColumns.forEach((col) => {
           const colName = typeof col === 'object' ? col.name : col;
@@ -509,8 +469,6 @@ function SchemaFlowDiagram({ database, tables, columns }) {
           className="react-flow-controls-custom"
         />
       </ReactFlow>
-      
-      {/* MUI GlobalStyles for ReactFlow Controls */}
       <GlobalStyles
         styles={{
           '.react-flow-controls-custom button': {

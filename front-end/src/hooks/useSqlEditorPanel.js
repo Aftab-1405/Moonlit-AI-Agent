@@ -8,8 +8,6 @@
  */
 
 import { useState, useCallback } from 'react';
-
-// Constants
 const MIN_EDITOR_WIDTH = 320;
 const MAX_EDITOR_WIDTH_PERCENT = 0.6;
 const DEFAULT_EDITOR_WIDTH = 450;
@@ -25,20 +23,14 @@ export function useSqlEditorPanel({ sidebarWidth = 260 } = {}) {
   const [sqlEditorQuery, setSqlEditorQuery] = useState('');
   const [sqlEditorResults, setSqlEditorResults] = useState(null);
   const [sqlEditorWidth, setSqlEditorWidth] = useState(DEFAULT_EDITOR_WIDTH);
-
-  // Open SQL editor with optional initial content
   const handleOpenSqlEditor = useCallback((query = '', results = null) => {
     setSqlEditorQuery(query);
     setSqlEditorResults(results);
     setSqlEditorOpen(true);
   }, []);
-
-  // Close SQL editor
   const handleCloseSqlEditor = useCallback(() => {
     setSqlEditorOpen(false);
   }, []);
-
-  // Handle panel resize
   const handlePanelResize = useCallback((deltaX) => {
     setSqlEditorWidth((prev) => {
       const newWidth = prev - deltaX;
@@ -49,13 +41,10 @@ export function useSqlEditorPanel({ sidebarWidth = 260 } = {}) {
   }, [sidebarWidth]);
 
   return {
-    // State
     sqlEditorOpen,
     sqlEditorQuery,
     sqlEditorResults,
     sqlEditorWidth,
-    
-    // Handlers
     handleOpenSqlEditor,
     handleCloseSqlEditor,
     handlePanelResize,

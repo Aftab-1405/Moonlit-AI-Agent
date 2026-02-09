@@ -1,30 +1,13 @@
 /**
- * API Client - Base Fetch Wrapper
- * 
- * Provides a consistent interface for all API calls with:
- * - Automatic JSON parsing for responses
- * - Consistent error handling
- * - Request logging in development
- * - Default headers (Content-Type)
- * 
+ * Shared fetch wrapper for API requests.
  * @module api/client
  */
-
-// =============================================================================
-// CONFIGURATION
-// =============================================================================
 
 const IS_DEV = import.meta.env.DEV;
 
 import logger from '../utils/logger';
 
-// =============================================================================
-// ERROR CLASSES
-// =============================================================================
-
-/**
- * Custom API error with response details.
- */
+/** API error with HTTP status and optional response payload. */
 export class ApiError extends Error {
   constructor(message, status, data = null) {
     super(message);
@@ -34,10 +17,6 @@ export class ApiError extends Error {
   }
 }
 
-// =============================================================================
-// BASE CLIENT
-// =============================================================================
-
 /**
  * Base fetch wrapper with consistent error handling.
  * 
@@ -45,21 +24,17 @@ export class ApiError extends Error {
  * @param {RequestInit} options - Fetch options
  * @returns {Promise<any>} Parsed JSON response
  * @throws {ApiError} On non-2xx responses
- * 
- * @example
- * const data = await apiClient('/api/users', { method: 'GET' });
  */
 export async function apiClient(endpoint, options = {}) {
   const config = {
     ...options,
-    credentials: 'include', // Send cookies for session-based auth
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...options.headers,
     },
   };
 
-  // Log requests in development
   if (IS_DEV) {
     logger.api(config.method || 'GET', endpoint);
   }
@@ -67,7 +42,6 @@ export async function apiClient(endpoint, options = {}) {
   try {
     const response = await fetch(endpoint, config);
 
-    // Handle non-JSON responses (e.g., streaming)
     const contentType = response.headers.get('content-type');
     if (contentType && !contentType.includes('application/json')) {
       if (!response.ok) {
@@ -76,13 +50,11 @@ export async function apiClient(endpoint, options = {}) {
           response.status
         );
       }
-      return response; // Return raw response for streaming
+      return response;
     }
 
-    // Parse JSON response
     const data = await response.json();
 
-    // Check for API-level errors
     if (!response.ok) {
       throw new ApiError(
         data.message || `Request failed: ${response.statusText}`,
@@ -93,17 +65,14 @@ export async function apiClient(endpoint, options = {}) {
 
     return data;
   } catch (error) {
-    // Re-throw ApiError as-is
     if (error instanceof ApiError) {
       throw error;
     }
 
-    // Re-throw AbortError as-is (for request cancellation)
     if (error.name === 'AbortError') {
       throw error;
     }
 
-    // Wrap other errors
     throw new ApiError(
       error.message || 'Network error',
       0,
@@ -112,20 +81,12 @@ export async function apiClient(endpoint, options = {}) {
   }
 }
 
-// =============================================================================
-// CONVENIENCE METHODS
-// =============================================================================
-
-/**
- * GET request wrapper.
- */
+/** GET wrapper. */
 export function get(endpoint, options = {}) {
   return apiClient(endpoint, { ...options, method: 'GET' });
 }
 
-/**
- * POST request wrapper.
- */
+/** POST wrapper. */
 export function post(endpoint, body, options = {}) {
   return apiClient(endpoint, {
     ...options,
@@ -134,9 +95,7 @@ export function post(endpoint, body, options = {}) {
   });
 }
 
-/**
- * PUT request wrapper.
- */
+/** PUT wrapper. */
 export function put(endpoint, body, options = {}) {
   return apiClient(endpoint, {
     ...options,
@@ -145,21 +104,16 @@ export function put(endpoint, body, options = {}) {
   });
 }
 
-/**
- * DELETE request wrapper.
- */
+/** DELETE wrapper. */
 export function del(endpoint, options = {}) {
   return apiClient(endpoint, { ...options, method: 'DELETE' });
 }
 
-/**
- * POST request that returns raw Response (for streaming).
- * Does NOT auto-parse JSON.
- */
+/** POST wrapper that returns raw Response (for streaming). */
 export async function postRaw(endpoint, body, options = {}) {
   const config = {
     method: 'POST',
-    credentials: 'include', // Send cookies for session-based auth (matches apiClient)
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...options.headers,

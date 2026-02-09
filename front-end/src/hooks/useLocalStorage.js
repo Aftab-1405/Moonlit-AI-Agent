@@ -1,39 +1,10 @@
 /**
- * useLocalStorage - Type-Safe Reactive localStorage Hook
- * 
- * A custom React hook that provides a reactive interface to localStorage.
- * Changes to the stored value trigger re-renders automatically.
- * 
- * FEATURES:
- * - Reactive: Component re-renders when value changes
- * - Type-safe: Preserves types through JSON serialization
- * - SSR-safe: Gracefully handles server-side rendering (no window)
- * - Error-resistant: Handles malformed JSON and quota exceeded errors
- * - Sync across tabs: Listens to storage events from other tabs
- * 
- * USAGE:
- * ```jsx
- * const [theme, setTheme] = useLocalStorage('theme', 'dark');
- * 
- * // Read
- * console.log(theme); // 'dark'
- * 
- * // Update
- * setTheme('light');
- * 
- * // Update with function (like useState)
- * setTheme(prev => prev === 'dark' ? 'light' : 'dark');
- * ```
- * 
+ * Reactive localStorage hook with SSR safety and cross-tab sync.
  * @module useLocalStorage
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import logger from '../utils/logger';
-
-// =============================================================================
-// TYPE DEFINITIONS (JSDoc for vanilla JS)
-// =============================================================================
 
 /**
  * @template T
@@ -44,10 +15,6 @@ import logger from '../utils/logger';
  * @template T
  * @typedef {(value: SetStateAction<T>) => void} SetValue
  */
-
-// =============================================================================
-// HELPER FUNCTIONS
-// =============================================================================
 
 /**
  * Safely parse JSON, returning undefined on failure.
@@ -70,36 +37,15 @@ function isBrowser() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
 }
 
-// =============================================================================
-// HOOK IMPLEMENTATION
-// =============================================================================
-
 /**
- * React hook for reactive localStorage access.
+ * React hook for localStorage-backed state.
  * 
  * @template T
  * @param {string} key - localStorage key
  * @param {T} initialValue - Default value if key doesn't exist
  * @returns {[T, SetValue<T>, () => void]} [value, setValue, removeValue]
- * 
- * @example
- * // Basic usage
- * const [name, setName] = useLocalStorage('user-name', '');
- * 
- * @example
- * // With object
- * const [settings, setSettings] = useLocalStorage('settings', { theme: 'dark' });
- * 
- * @example
- * // Removing value
- * const [token, setToken, removeToken] = useLocalStorage('auth-token', null);
- * removeToken(); // Clears from localStorage and resets to initial
  */
 export function useLocalStorage(key, initialValue) {
-  // ---------------------------------------------------------------------------
-  // State Initialization
-  // ---------------------------------------------------------------------------
-  // Read from localStorage on mount, fallback to initialValue
   
   const [storedValue, setStoredValue] = useState(() => {
     if (!isBrowser()) {
@@ -120,20 +66,11 @@ export function useLocalStorage(key, initialValue) {
     }
   });
   
-  // ---------------------------------------------------------------------------
-  // Setter Function
-  // ---------------------------------------------------------------------------
-  // Supports both direct values and updater functions (like useState)
-  
   const setValue = useCallback((value) => {
     try {
-      // Handle function updates
       const valueToStore = value instanceof Function ? value(storedValue) : value;
-      
-      // Update React state
       setStoredValue(valueToStore);
-      
-      // Update localStorage
+
       if (isBrowser()) {
         if (valueToStore === undefined || valueToStore === null) {
           window.localStorage.removeItem(key);
@@ -144,17 +81,11 @@ export function useLocalStorage(key, initialValue) {
     } catch (error) {
       logger.warn(`useLocalStorage: Error setting key "${key}":`, error);
       
-      // Handle quota exceeded error
       if (error.name === 'QuotaExceededError') {
         logger.error('localStorage quota exceeded. Consider clearing old data.');
       }
     }
   }, [key, storedValue]);
-  
-  // ---------------------------------------------------------------------------
-  // Remove Function
-  // ---------------------------------------------------------------------------
-  // Utility to completely remove the key and reset to initial value
   
   const removeValue = useCallback(() => {
     try {
@@ -166,11 +97,6 @@ export function useLocalStorage(key, initialValue) {
       logger.warn(`useLocalStorage: Error removing key "${key}":`, error);
     }
   }, [key, initialValue]);
-  
-  // ---------------------------------------------------------------------------
-  // Cross-Tab Sync
-  // ---------------------------------------------------------------------------
-  // Listen for storage events from other tabs/windows
   
   useEffect(() => {
     if (!isBrowser()) {
@@ -184,7 +110,6 @@ export function useLocalStorage(key, initialValue) {
           setStoredValue(parsed);
         }
       } else if (event.key === key && event.newValue === null) {
-        // Key was removed in another tab
         setStoredValue(initialValue);
       }
     };

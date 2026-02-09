@@ -1,4 +1,3 @@
-// ValueGrid section component - 3 Column Horizontal Layout
 import { useMemo } from 'react';
 import { Box, Container, Typography, Stack } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
@@ -36,7 +35,6 @@ function ValueGrid() {
       }}
     >
       <Container maxWidth="lg">
-        {/* Section Header */}
         <Box textAlign="center" mb={6}>
           <Typography
             variant="caption"
@@ -72,8 +70,6 @@ function ValueGrid() {
             </Box>
           </Typography>
         </Box>
-
-        {/* Values - Horizontal Row using Flexbox */}
         <Box
           sx={{
             display: 'flex',
@@ -119,7 +115,6 @@ function ValueGrid() {
                 spacing={2}
                 alignItems="center"
               >
-                {/* Icon Container */}
                 <Box
                   className="icon-container"
                   sx={{
@@ -140,8 +135,6 @@ function ValueGrid() {
                 >
                   <v.Icon sx={{ fontSize: 26, color: 'text.primary', opacity: 0.8 }} />
                 </Box>
-
-                {/* Content */}
                 <Box sx={{ textAlign: 'center' }}>
                   <Typography 
                     variant="h6" 

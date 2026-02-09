@@ -33,22 +33,12 @@ import { useTheme as useAppTheme } from '../contexts/ThemeContext';
 import UserDBContextManagerForAI from './UserDBContextManagerForAI';
 import { saveUserSettings } from '../api';
 import logger from '../utils/logger';
-
-// ============================================================================
-// NAVIGATION SECTIONS CONFIG
-// ============================================================================
 const SECTIONS = [
   { id: 'appearance', label: 'Appearance', icon: PaletteOutlinedIcon },
   { id: 'ai', label: 'AI', icon: PsychologyOutlinedIcon },
   { id: 'database', label: 'Database', icon: StorageOutlinedIcon },
   { id: 'context', label: 'AI Context', icon: DataObjectOutlinedIcon },
 ];
-
-// ============================================================================
-// REUSABLE COMPONENTS
-// ============================================================================
-
-// Setting Card - Modern card container for individual settings
 function SettingCard({ children, sx = {} }) {
   const theme = useMuiTheme();
   return (
@@ -70,8 +60,6 @@ function SettingCard({ children, sx = {} }) {
     </Box>
   );
 }
-
-// Setting Item - Row within a card
 function SettingItem({ label, description, children, disabled = false }) {
   return (
     <Box
@@ -102,8 +90,6 @@ function SettingItem({ label, description, children, disabled = false }) {
     </Box>
   );
 }
-
-// Section Title
 function SectionTitle({ children }) {
   return (
     <Typography variant="h6" fontWeight={600} sx={{ mb: 2.5 }}>
@@ -111,10 +97,6 @@ function SectionTitle({ children }) {
     </Typography>
   );
 }
-
-// ============================================================================
-// MAIN COMPONENT
-// ============================================================================
 function SettingsModal({ open, onClose }) {
   const { settings, updateSetting, resetSettings } = useAppTheme();
   const [activeSection, setActiveSection] = useState('appearance');
@@ -122,13 +104,9 @@ function SettingsModal({ open, onClose }) {
   const theme = useMuiTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isDark = theme.palette.mode === 'dark';
-
-  // Toggle group styles
   const toggleStyles = {
     '& .MuiToggleButton-root': { px: 1.5, py: 0.5 },
   };
-
-  // Sidebar Navigation Component
   const NavContent = (
     <List sx={{ p: 1.5 }}>
       {SECTIONS.map((section) => (
@@ -165,8 +143,6 @@ function SettingsModal({ open, onClose }) {
       ))}
     </List>
   );
-
-  // Content Sections
   const renderContent = () => {
     switch (activeSection) {
       case 'appearance':
@@ -273,7 +249,6 @@ function SettingsModal({ open, onClose }) {
               <SectionTitle>Database Settings</SectionTitle>
               
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {/* Query Execution */}
                 <SettingCard>
                   <SettingItem label="Confirm Before Running" description="Show dialog before executing SQL">
                     <Switch
@@ -282,8 +257,6 @@ function SettingsModal({ open, onClose }) {
                     />
                   </SettingItem>
                 </SettingCard>
-
-                {/* Query Limits */}
                 <SettingCard sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <SettingItem label="Query Timeout" description="Max wait time for results">
                     <FormControl size="small" sx={{ minWidth: 100 }}>
@@ -319,8 +292,6 @@ function SettingsModal({ open, onClose }) {
                     </FormControl>
                   </SettingItem>
                 </SettingCard>
-
-                {/* Display Settings */}
                 <SettingCard>
                   <SettingItem label="NULL Display" description="How to show NULL values">
                     <FormControl size="small" sx={{ minWidth: 100 }}>
@@ -336,8 +307,6 @@ function SettingsModal({ open, onClose }) {
                     </FormControl>
                   </SettingItem>
                 </SettingCard>
-
-                {/* Connection Settings */}
                 <SettingCard sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <SettingItem label="Remember Connection" description="Auto-fill on next visit">
                     <Switch
@@ -413,7 +382,6 @@ function SettingsModal({ open, onClose }) {
           borderRadius: isMobile ? 0 : 3,
           backgroundImage: 'none',
           backgroundColor: theme.palette.background.paper,
-          // Responsive height: adapts to viewport, with reasonable max
           height: isMobile ? '100%' : 'calc(100vh - 64px)',
           maxHeight: isMobile ? '100%' : 720,
           minHeight: isMobile ? '100%' : 400,
@@ -421,7 +389,6 @@ function SettingsModal({ open, onClose }) {
         },
       }}
     >
-      {/* Header */}
       <Box
         sx={{
           display: 'flex',
@@ -451,10 +418,7 @@ function SettingsModal({ open, onClose }) {
           <CloseRoundedIcon />
         </IconButton>
       </Box>
-
-      {/* Main Content Area */}
       <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        {/* Desktop Sidebar */}
         {!isMobile && (
           <Box
             sx={{
@@ -468,8 +432,6 @@ function SettingsModal({ open, onClose }) {
             {NavContent}
           </Box>
         )}
-
-        {/* Mobile Drawer */}
         {isMobile && (
           <Drawer
             anchor="left"
@@ -490,8 +452,6 @@ function SettingsModal({ open, onClose }) {
             {NavContent}
           </Drawer>
         )}
-
-        {/* Content Area */}
         <Box
           sx={{
             flex: 1,
@@ -502,8 +462,6 @@ function SettingsModal({ open, onClose }) {
           {renderContent()}
         </Box>
       </Box>
-
-      {/* Footer */}
       <Box
         sx={{
           display: 'flex',

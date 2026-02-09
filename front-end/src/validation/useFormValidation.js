@@ -61,8 +61,6 @@ export function useFormValidation(fieldSchemas = {}) {
       setErrors(prev => ({ ...prev, [name]: message }));
       return false;
     }
-    
-    // Clear error if valid
     setErrors(prev => {
       const next = { ...prev };
       delete next[name];

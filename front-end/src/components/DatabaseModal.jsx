@@ -26,8 +26,6 @@ import {
 import { useTheme, alpha } from '@mui/material/styles';
 import { useSettings } from '../contexts/SettingsContext';
 import { useLocalStorage } from '../hooks';
-
-// Icons
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
@@ -38,8 +36,6 @@ import PowerSettingsNewRoundedIcon from '@mui/icons-material/PowerSettingsNewRou
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
-
-// API & Validation
 import {
   getDatabases,
   connectDb,
@@ -57,10 +53,6 @@ import {
 } from '../validation';
 import logger from '../utils/logger';
 
-// ============================================================================
-// CONSTANTS & CONFIG
-// ============================================================================
-
 const DB_TYPES = [
   { value: 'mysql', label: 'MySQL', defaultPort: 3306, supportsConnectionString: true, icon: '/logo-mysql.svg' },
   { value: 'postgresql', label: 'PostgreSQL', defaultPort: 5432, supportsConnectionString: true, icon: '/logo-postgresql.svg' },
@@ -72,12 +64,6 @@ const DB_TYPES = [
 const Transition = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="up" ref={ref} {...props} />;
 });
-
-// ============================================================================
-// REUSABLE COMPONENTS (Matching SettingsModal style)
-// ============================================================================
-
-// Form Card - Subtle bordered card for form sections
 function FormCard({ title, children, sx = {} }) {
   const theme = useTheme();
   return (
@@ -100,8 +86,6 @@ function FormCard({ title, children, sx = {} }) {
     </Box>
   );
 }
-
-// Visibility Toggle Adornment
 const VisibilityToggleAdornment = memo(({ show, onToggle }) => (
   <InputAdornment position="end">
     <IconButton 
@@ -114,8 +98,6 @@ const VisibilityToggleAdornment = memo(({ show, onToggle }) => (
     </IconButton>
   </InputAdornment>
 ));
-
-// Empty State Component
 function EmptyState({ icon: Icon, title, subtitle }) {
   return (
     <Box sx={{ textAlign: 'center', py: 6, px: 3 }}>
@@ -131,8 +113,6 @@ function EmptyState({ icon: Icon, title, subtitle }) {
     </Box>
   );
 }
-
-// Database List Component
 const DatabaseList = memo(({ databases, currentDatabase, onSelect, loading }) => {
   const theme = useTheme();
   
@@ -191,20 +171,12 @@ const DatabaseList = memo(({ databases, currentDatabase, onSelect, loading }) =>
   );
 });
 
-// ============================================================================
-// MAIN COMPONENT
-// ============================================================================
-
 function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const { settings } = useSettings();
-
-  // Settings
   const defaultDbType = settings.defaultDbType || 'postgresql';
   const rememberConnection = settings.rememberConnection ?? false;
-
-  // State
   const [savedConnection, setSavedConnection] = useLocalStorage('moonlit-saved-connection', null);
   const [dbType, setDbType] = useState(defaultDbType);
   const [connectionMode, setConnectionMode] = useState('credentials');
@@ -218,8 +190,6 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
     password: '',
     database: '',
   });
-
-  // UI State
   const [showPassword, setShowPassword] = useState(false);
   const [showConnectionString, setShowConnectionString] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -227,16 +197,12 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
   const [success, setSuccess] = useState(null);
   const [databases, setDatabases] = useState([]);
   const [isRemote, setIsRemote] = useState(false);
-
-  // Validation
   const { errors: fieldErrors, validateForm, clearError } = useFormValidation(dbFieldSchemas);
 
   const timeoutRefs = useRef([]);
   const currentDbConfig = useMemo(() => DB_TYPES.find(d => d.value === dbType) || DB_TYPES[1], [dbType]);
   const isSQLite = dbType === 'sqlite';
   const supportsConnectionString = currentDbConfig.supportsConnectionString;
-
-  // --- Effects ---
 
   useEffect(() => () => timeoutRefs.current.forEach(clearTimeout), []);
 
@@ -257,8 +223,6 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
         setDatabases(data.databases);
         if (data.is_remote) {
           setIsRemote(true);
-          // Use actual db_type from backend instead of hardcoding postgresql
-          // This ensures MySQL, SQL Server, Oracle remote connections work correctly
           if (data.db_type) {
             setDbType(data.db_type);
           }
@@ -275,8 +239,6 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
       fetchDatabases();
     }
   }, [open, isConnected, databases.length, fetchDatabases]);
-
-  // --- Handlers ---
 
   const safeSetTimeout = useCallback((cb, delay) => {
     const id = setTimeout(cb, delay);
@@ -394,8 +356,6 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
     }
   }, [onConnect]);
 
-  // --- Sidebar Navigation ---
-
   const NavContent = (
     <List sx={{ p: 1.5 }}>
       {DB_TYPES.map((type) => (
@@ -435,11 +395,8 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
     </List>
   );
 
-  // --- Render Connection Form ---
-
   const renderConnectionForm = () => (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-      {/* Connection Mode Toggle */}
       {!isSQLite && supportsConnectionString && (
         <FormCard>
           <ToggleButtonGroup
@@ -463,8 +420,6 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
           </ToggleButtonGroup>
         </FormCard>
       )}
-
-      {/* Connection Fields */}
       <FormCard title="Connection Details">
         {isSQLite ? (
           <TextField
@@ -573,8 +528,6 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
           </Stack>
         )}
       </FormCard>
-
-      {/* Alerts */}
       {error && <Alert severity="error" sx={{ borderRadius: 2 }}>{error}</Alert>}
       {success && <Alert severity="success" sx={{ borderRadius: 2 }}>{success}</Alert>}
     </Box>
@@ -600,7 +553,6 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
         }
       }}
     >
-      {/* Header */}
       <Box
         sx={{
           display: 'flex',
@@ -636,10 +588,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
           <CloseRoundedIcon />
         </IconButton>
       </Box>
-
-      {/* Main Content */}
       <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        {/* Desktop Sidebar */}
         {!isMobile && (
           <Box
             sx={{
@@ -654,8 +603,6 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
             {NavContent}
           </Box>
         )}
-
-        {/* Mobile Drawer */}
         {isMobile && (
           <Drawer
             anchor="left"
@@ -676,10 +623,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
             {NavContent}
           </Drawer>
         )}
-
-        {/* Content Area - Split View */}
         <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-          {/* Left: Form */}
           <Fade in key="form">
             <Box
               sx={{
@@ -691,8 +635,6 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
               {renderConnectionForm()}
             </Box>
           </Fade>
-
-          {/* Right: Database List (only if connected) */}
           {databases.length > 0 && (
             <>
               <Divider orientation="vertical" flexItem />
@@ -721,8 +663,6 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
           )}
         </Box>
       </Box>
-
-      {/* Footer */}
       <Box
         sx={{
           display: 'flex',

@@ -1,4 +1,3 @@
-// Hero section component - Monochromatic design
 import { Box, Container, Stack, Typography, Button } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
@@ -11,7 +10,6 @@ function Hero({ onGetStarted }) {
 
   return (
     <Section sx={{ py: { xs: 8, md: 6 } }}>
-      {/* Subtle floating orbs - grayscale */}
       <Box sx={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
         <Box
           sx={{
@@ -59,8 +57,6 @@ function Hero({ onGetStarted }) {
           }}
         />
       </Box>
-
-      {/* Radial gradient - subtle */}
       <Box 
         sx={{ 
           position: 'absolute', 
@@ -72,7 +68,6 @@ function Hero({ onGetStarted }) {
 
       <Container maxWidth="md" sx={{ zIndex: 2, textAlign: 'center' }}>
         <Stack spacing={2.5} alignItems="center">
-          {/* Badge - subtle monochrome */}
           <Box
             sx={{
               px: 2,
@@ -100,8 +95,6 @@ function Hero({ onGetStarted }) {
               ✨ AI-Powered Database Assistant
             </Typography>
           </Box>
-
-          {/* Main Heading */}
           <Typography
             component="h1"
             sx={{
@@ -125,8 +118,6 @@ function Hero({ onGetStarted }) {
               Start Asking Questions.
             </Box>
           </Typography>
-
-          {/* Value Proposition */}
           <Typography
             variant="body1"
             color="text.secondary"
@@ -140,8 +131,6 @@ function Hero({ onGetStarted }) {
             Connect to your database, ask in plain English, and get instant results.
             No SQL expertise required. Your data never leaves your infrastructure.
           </Typography>
-
-          {/* CTAs - Monochrome buttons */}
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ pt: 0.5 }}>
             <Button
               size="large"
@@ -202,8 +191,6 @@ function Hero({ onGetStarted }) {
               Watch Demo
             </Button>
           </Stack>
-
-          {/* Database Logos - Trust Signal */}
           <Stack spacing={1.5} alignItems="center" sx={{ pt: 2 }}>
             <Typography 
               variant="caption" 

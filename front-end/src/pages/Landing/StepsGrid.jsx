@@ -1,4 +1,3 @@
-// StepsGrid (How It Works) section component - Flexbox horizontal layout
 import { useMemo } from 'react';
 import { Box, Container, Typography, Stack } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
@@ -21,7 +20,6 @@ function StepsGrid() {
       }}
     >
       <Container maxWidth="lg">
-        {/* Section Header */}
         <Box textAlign="center" mb={6}>
           <Typography
             variant="caption"
@@ -57,8 +55,6 @@ function StepsGrid() {
             </Box>
           </Typography>
         </Box>
-
-        {/* Steps - Horizontal Row using Flexbox */}
         <Box
           sx={{
             display: 'flex',
@@ -98,7 +94,6 @@ function StepsGrid() {
                 },
               }}
             >
-              {/* Step Number Badge */}
               <Box
                 sx={{
                   position: 'absolute',
@@ -129,8 +124,6 @@ function StepsGrid() {
                   {s.num}
                 </Typography>
               </Box>
-
-              {/* Step Content */}
               <Stack spacing={1} alignItems="center" textAlign="center">
                 <Typography 
                   variant="h6" 
@@ -154,8 +147,6 @@ function StepsGrid() {
             </Box>
           ))}
         </Box>
-
-        {/* Decorative dots */}
         <Box
           sx={{
             display: { xs: 'none', md: 'flex' },

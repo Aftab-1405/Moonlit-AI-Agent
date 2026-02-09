@@ -34,11 +34,7 @@ export function useQueryExecution({
   });
   
   const queryResolverRef = useRef(null);
-  
-  // AbortController ref for cancelling in-flight queries
   const abortControllerRef = useRef(null);
-
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (abortControllerRef.current) {
@@ -46,13 +42,8 @@ export function useQueryExecution({
       }
     };
   }, []);
-
-  // Close query results
   const handleCloseQueryResults = useCallback(() => setQueryResults(null), []);
-
-  // Execute query against database
   const executeQuery = useCallback(async (sql, maxRows, queryTimeout) => {
-    // Cancel any previous query
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -90,8 +81,6 @@ export function useQueryExecution({
       showSnackbar('Failed to execute query', 'error');
     }
   }, [showSnackbar]);
-
-  // Run query with optional confirmation
   const handleRunQuery = useCallback((sql) => {
     if (!isDbConnected) {
       showSnackbar('Please connect to a database first', 'warning');
@@ -124,19 +113,14 @@ export function useQueryExecution({
 
     return executeQuery(sql, maxRows, queryTimeout);
   }, [isDbConnected, settings, executeQuery, setDbModalOpen, showSnackbar]);
-
-  // Handle confirm dialog close
   const handleConfirmDialogClose = useCallback(() => {
     confirmDialog.onCancel?.();
     setConfirmDialog({ open: false, sql: '', onConfirm: null, onCancel: null });
   }, [confirmDialog]);
 
   return {
-    // State
     queryResults,
     confirmDialog,
-    
-    // Handlers
     handleRunQuery,
     handleCloseQueryResults,
     handleConfirmDialogClose,

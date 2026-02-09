@@ -38,8 +38,6 @@ function ResizeHandle({ onResize, onResizeEnd, disabled = false }) {
     document.body.style.userSelect = '';
     onResizeEnd?.();
   }, [onResizeEnd]);
-
-  // Attach global mouse events for smooth dragging
   useEffect(() => {
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
@@ -48,8 +46,6 @@ function ResizeHandle({ onResize, onResizeEnd, disabled = false }) {
       document.removeEventListener('mouseup', handleMouseUp);
     };
   }, [handleMouseMove, handleMouseUp]);
-
-  // Hide completely when disabled
   if (disabled) return null;
 
   return (
@@ -70,7 +66,6 @@ function ResizeHandle({ onResize, onResizeEnd, disabled = false }) {
         '&:active': {
           backgroundColor: theme.palette.action.selected,
         },
-        // Visual indicator line
         '&::after': {
           content: '""',
           width: 2,

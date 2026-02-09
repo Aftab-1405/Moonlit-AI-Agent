@@ -10,8 +10,6 @@ import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import ZoomInRoundedIcon from '@mui/icons-material/ZoomInRounded';
 import ZoomOutRoundedIcon from '@mui/icons-material/ZoomOutRounded';
 import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded';
-
-// Import theme config from centralized theme.js
 import { getMermaidThemeConfig } from '../theme';
 import logger from '../utils/logger';
 
@@ -31,32 +29,22 @@ function MermaidDiagram({ code }) {
   const [zoom, setZoom] = useState(100);
   const [isStreaming, setIsStreaming] = useState(true);
   const [stableCode, setStableCode] = useState('');
-
-  // Pan state
   const [isPanning, setIsPanning] = useState(false);
   const [panPosition, setPanPosition] = useState({ x: 0, y: 0 });
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
-
-  // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
       if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
       if (renderTimeoutRef.current) clearTimeout(renderTimeoutRef.current);
     };
   }, []);
-
-  // Debounce code changes during streaming - wait for code to stabilize
   useEffect(() => {
     if (!code) return;
 
     setIsStreaming(true);
-
-    // Clear any pending render
     if (renderTimeoutRef.current) {
       clearTimeout(renderTimeoutRef.current);
     }
-
-    // Wait 500ms after last code change before attempting render
     renderTimeoutRef.current = setTimeout(() => {
       setIsStreaming(false);
       setStableCode(code);
@@ -68,11 +56,7 @@ function MermaidDiagram({ code }) {
       }
     };
   }, [code]);
-
-  // Get mermaid config from theme.js (centralized)
   const mermaidConfig = useMemo(() => getMermaidThemeConfig(theme), [theme]);
-
-  // Render diagram only when code is stable (not streaming)
   useEffect(() => {
     const renderDiagram = async () => {
       if (!stableCode || isStreaming) return;
@@ -81,7 +65,6 @@ function MermaidDiagram({ code }) {
       setError(null);
 
       try {
-        // Re-initialize mermaid with current theme
         mermaid.initialize(mermaidConfig);
 
         const parseResult = await mermaid.parse(stableCode, { suppressErrors: true });
@@ -179,8 +162,6 @@ function MermaidDiagram({ code }) {
   const handleMouseLeave = useCallback(() => {
     setIsPanning(false);
   }, []);
-
-  // Touch event handlers for mobile panning
   const handleTouchStart = useCallback((e) => {
     if (e.touches.length !== 1) return;
     const touch = e.touches[0];
@@ -200,8 +181,6 @@ function MermaidDiagram({ code }) {
   const handleTouchEnd = useCallback(() => {
     setIsPanning(false);
   }, []);
-
-  // Memoized styles
   const headerStyles = useMemo(() => ({
     display: 'flex',
     alignItems: 'center',
@@ -240,8 +219,6 @@ function MermaidDiagram({ code }) {
       pointerEvents: 'none',
     },
   }), [panPosition, zoom, isPanning, isDark, theme]);
-
-  // Error fallback
   if (error) {
     return (
       <Paper
@@ -288,13 +265,9 @@ function MermaidDiagram({ code }) {
       </Paper>
     );
   }
-
-  // Shared diagram content - used in both normal and fullscreen modes
   const diagramContent = (
     <>
-      {/* Header - Mobile optimized */}
       <Box sx={headerStyles}>
-        {/* Label - Hidden on mobile, visible on tablet+ */}
         <Typography
           variant="caption"
           sx={{
@@ -308,8 +281,6 @@ function MermaidDiagram({ code }) {
         >
           diagram
         </Typography>
-
-        {/* Controls - Responsive layout */}
         <Box sx={{
           display: 'flex',
           alignItems: 'center',
@@ -317,15 +288,12 @@ function MermaidDiagram({ code }) {
           flex: { xs: 1, sm: 'none' },
           justifyContent: { xs: 'space-between', sm: 'flex-end' },
         }}>
-          {/* Zoom controls group */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
             <Tooltip title="Zoom out">
               <IconButton size="small" onClick={handleZoomOut} disabled={zoom <= 25}>
                 <ZoomOutRoundedIcon sx={{ fontSize: { xs: 18, sm: 16 } }} />
               </IconButton>
             </Tooltip>
-
-            {/* Slider - Hidden on mobile */}
             <Box sx={{ width: 80, mx: 0.5, display: { xs: 'none', md: 'block' } }}>
               <Slider
                 value={zoom}
@@ -341,8 +309,6 @@ function MermaidDiagram({ code }) {
                 }}
               />
             </Box>
-
-            {/* Zoom percentage - Compact on mobile */}
             <Typography
               variant="caption"
               sx={{
@@ -367,8 +333,6 @@ function MermaidDiagram({ code }) {
               </IconButton>
             </Tooltip>
           </Box>
-
-          {/* Divider - Hidden on mobile */}
           <Box sx={{
             width: 1,
             height: 16,
@@ -376,8 +340,6 @@ function MermaidDiagram({ code }) {
             mx: 0.5,
             display: { xs: 'none', sm: 'block' },
           }} />
-
-          {/* Action buttons group */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
             <Tooltip title={copied ? 'Copied!' : 'Copy code'}>
               <IconButton size="small" onClick={handleCopy}>
@@ -401,8 +363,6 @@ function MermaidDiagram({ code }) {
           </Box>
         </Box>
       </Box>
-
-      {/* Diagram */}
       <Box
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
@@ -452,12 +412,9 @@ function MermaidDiagram({ code }) {
       </Box>
     </>
   );
-
-  // Fullscreen mode - rendered via Portal to escape stacking contexts
   if (fullscreen) {
     return (
       <>
-        {/* Placeholder to maintain layout */}
         <Paper
           sx={{
             my: { xs: 1.5, sm: 2 },
@@ -476,10 +433,7 @@ function MermaidDiagram({ code }) {
             Viewing in fullscreen...
           </Typography>
         </Paper>
-
-        {/* Fullscreen overlay - rendered at body level via Portal */}
         <Portal>
-          {/* Backdrop */}
           <Box
             onClick={toggleFullscreen}
             sx={{
@@ -490,7 +444,6 @@ function MermaidDiagram({ code }) {
               cursor: 'pointer',
             }}
           />
-          {/* Fullscreen content */}
           <Paper
             ref={containerRef}
             elevation={8}
@@ -511,8 +464,6 @@ function MermaidDiagram({ code }) {
       </>
     );
   }
-
-  // Normal mode
   return (
     <Paper
       ref={containerRef}

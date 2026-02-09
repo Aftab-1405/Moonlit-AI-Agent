@@ -10,8 +10,6 @@ import { Box, Typography, keyframes } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 
 import { getMoonlitGradient } from '../theme';
-
-// Breathing animation
 const breathe = keyframes`
   0%, 100% {
     opacity: 0.4;
@@ -22,8 +20,6 @@ const breathe = keyframes`
     transform: scale(1);
   }
 `;
-
-// Fade in container
 const fadeIn = keyframes`
   from {
     opacity: 0;

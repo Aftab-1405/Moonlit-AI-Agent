@@ -44,24 +44,18 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
   const cellCopyTimeoutRef = useRef(null);
   const resizeStartX = useRef(0);
   const resizeStartWidth = useRef(0);
-
-  // Get settings from SettingsContext
   const { settings } = useSettings();
   const nullDisplay = settings.nullDisplay ?? 'NULL';
 
   const { columns = [], result = [], row_count = 0, execution_time, truncated } = data || {};
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
-
-  // Cleanup timeouts on unmount
   useEffect(() => {
     return () => {
       if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
       if (cellCopyTimeoutRef.current) clearTimeout(cellCopyTimeoutRef.current);
     };
   }, []);
-
-  // Derive column widths - override or default 150
   const columnWidths = useMemo(() => {
     const widths = {};
     columns.forEach(col => {
@@ -69,8 +63,6 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
     });
     return widths;
   }, [columns, columnWidthOverrides]);
-
-  // Filter data based on search
   const filteredData = useMemo(() => {
     if (!searchQuery.trim()) return result;
     const query = searchQuery.toLowerCase();
@@ -82,8 +74,6 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
       })
     );
   }, [result, columns, searchQuery]);
-
-  // Sorting logic
   const sortedData = useMemo(() => {
     if (!orderBy) return filteredData;
 
@@ -117,8 +107,6 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
   }, []);
-
-  // Generate CSV content
   const generateCSV = useCallback(() => {
     if (!columns.length || !result.length) return '';
 
@@ -159,8 +147,6 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
     a.click();
     URL.revokeObjectURL(url);
   }, [generateCSV]);
-
-  // Cell click to copy
   const handleCellClick = useCallback((value, rowIndex, colIndex) => {
     const textValue = value === null ? '' : String(value);
     navigator.clipboard.writeText(textValue);
@@ -168,8 +154,6 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
     if (cellCopyTimeoutRef.current) clearTimeout(cellCopyTimeoutRef.current);
     cellCopyTimeoutRef.current = setTimeout(() => setCellCopied(null), 1500);
   }, []);
-
-  // Column resize handlers
   const handleResizeStart = useCallback((e, column) => {
     e.preventDefault();
     e.stopPropagation();
@@ -188,8 +172,6 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
   const handleResizeEnd = useCallback(() => {
     setResizing(null);
   }, []);
-
-  // Add/remove resize event listeners
   useEffect(() => {
     if (resizing) {
       document.addEventListener('mousemove', handleResizeMove);
@@ -204,8 +186,6 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
   if (!data || !columns.length) {
     return null;
   }
-
-  // Chart view - pass viewMode controls to ChartVisualization for consistent layout
   if (!embedded && viewMode === 'chart') {
     return (
       <ChartVisualization
@@ -356,8 +336,6 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
           </Box>
         </Box>
       )}
-
-      {/* Table with resizable columns */}
       <TableContainer
         sx={{
           flex: 1,
@@ -400,7 +378,6 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                   >
                     {column}
                   </TableSortLabel>
-                  {/* Resize handle */}
                   <Box
                     onMouseDown={(e) => handleResizeStart(e, column)}
                     sx={{
@@ -498,8 +475,6 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
           </TableBody>
         </Table>
       </TableContainer>
-
-      {/* Pagination */}
       <TablePagination
         component="div"
         count={searchQuery ? filteredData.length : row_count}
@@ -514,8 +489,6 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
           flexShrink: 0,
         }}
       />
-
-      {/* Cell copied feedback */}
       <Snackbar
         open={!!cellCopied}
         message="Cell copied!"

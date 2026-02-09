@@ -1,19 +1,7 @@
 /**
- * API Endpoints - Single Source of Truth
- * 
- * All API endpoint paths are defined here. This enables:
- * - Easy endpoint changes (modify once, update everywhere)
- * - Clear visibility of all API contracts
- * - Simple mocking for tests
- * 
- * Naming convention: DOMAIN_ACTION
- * 
+ * Centralized API endpoint paths.
  * @module api/endpoints
  */
-
-// =============================================================================
-// AUTH ENDPOINTS (no /api prefix - served by auth_bp)
-// =============================================================================
 
 export const AUTH = {
   FIREBASE_CONFIG: '/firebase-config',
@@ -22,10 +10,6 @@ export const AUTH = {
   LOGOUT: '/logout',
 };
 
-// =============================================================================
-// CONVERSATION ENDPOINTS
-// =============================================================================
-
 export const CONVERSATIONS = {
   LIST: '/api/v1/get_conversations',
   GET: (id) => `/api/v1/get_conversation/${id}`,
@@ -33,10 +17,6 @@ export const CONVERSATIONS = {
   DELETE: (id) => `/api/v1/delete_conversation/${id}`,
   SEND_MESSAGE: '/api/v1/pass_user_prompt_to_llm',
 };
-
-// =============================================================================
-// DATABASE ENDPOINTS
-// =============================================================================
 
 export const DATABASE = {
   STATUS: '/api/v1/db_status',
@@ -50,17 +30,9 @@ export const DATABASE = {
   SELECT_SCHEMA: '/api/v1/select_schema',
 };
 
-// =============================================================================
-// QUERY ENDPOINTS
-// =============================================================================
-
 export const QUERY = {
   RUN: '/api/v1/run_sql_query',
 };
-
-// =============================================================================
-// USER ENDPOINTS
-// =============================================================================
 
 export const USER = {
   CONTEXT: '/api/v1/user/context',
@@ -73,18 +45,9 @@ export const USER = {
   SESSION_ACTIVE: '/api/v1/user/session/active',
 };
 
-// =============================================================================
-// QUOTA ENDPOINTS
-// =============================================================================
-
 export const QUOTA = {
   STATUS: '/api/v1/quota/status',
 };
-
-// =============================================================================
-// LEGACY EXPORT (for backwards compatibility during migration)
-// =============================================================================
-
 export default {
   AUTH,
   CONVERSATIONS,

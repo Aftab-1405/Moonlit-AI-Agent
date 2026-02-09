@@ -2,13 +2,8 @@ import { lazy, Suspense } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import PageLoader from './components/PageLoader';
 import ProtectedRoute from './guards/ProtectedRoute';
-
-// Direct imports for light pages (instant load)
 import Landing from './pages/Landing';
 import Auth from './pages/Auth';
-
-// Lazy load Chat with minimum delay to show branding loader
-// 800ms ensures at least one breathing animation cycle completes
 const Chat = lazy(() => 
   Promise.all([
     import('./pages/Chat'),

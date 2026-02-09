@@ -2,8 +2,6 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, GithubAuthProvider } from 'firebase/auth';
 import { getFirebaseConfig } from '../api';
 import logger from '../utils/logger';
-
-// Firebase configuration - fetched from backend for security
 let firebaseApp = null;
 let auth = null;
 let googleProvider = null;
@@ -13,7 +11,6 @@ export const initializeFirebase = async () => {
   if (firebaseApp) return { auth, googleProvider, githubProvider };
 
   try {
-    // Fetch Firebase config from backend using centralized API client
     const data = await getFirebaseConfig();
     
     if (data.status !== 'success') {
@@ -21,18 +18,12 @@ export const initializeFirebase = async () => {
     }
 
     const firebaseConfig = data.config;
-    
-    // Initialize Firebase
     firebaseApp = initializeApp(firebaseConfig);
     auth = getAuth(firebaseApp);
-    
-    // Configure Google provider
     googleProvider = new GoogleAuthProvider();
     googleProvider.setCustomParameters({
       prompt: 'select_account'
     });
-
-    // Configure GitHub provider
     githubProvider = new GithubAuthProvider();
     githubProvider.addScope('read:user');
     githubProvider.addScope('user:email');

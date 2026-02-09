@@ -59,8 +59,6 @@ import StarfieldCanvas from '../components/StarfieldCanvas';
 import SQLEditorCanvas from '../components/SQLEditorCanvas';
 import ResizeHandle from '../components/ResizeHandle';
 import QuotaDisplay from '../components/QuotaDisplay';
-
-// Custom hooks
 import {
   useAutoScroll,
   useIdleDetection,
@@ -72,26 +70,17 @@ import {
 
 import { getMoonlitGradient } from '../theme';
 import { isMessageActive } from '../utils/chatMessages';
-
-// ============================================================================
-// CONSTANTS
-// ============================================================================
 const DRAWER_WIDTH = 260;
 const COLLAPSED_WIDTH = 56;
 const MOBILE_APPBAR_HEIGHT = 56;
 
 function Chat() {
-  // ===========================================================================
-  // HOOKS - External State & Navigation
-  // ===========================================================================
 
   const theme = useMuiTheme();
   const isDarkMode = theme.palette.mode === 'dark';
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const { settings } = useAppTheme();
   const { user, logout } = useAuth();
-
-  // Database connection state from context
   const {
     isConnected: isDbConnected,
     currentDatabase,
@@ -101,12 +90,6 @@ function Chat() {
     resetConnectionState,
     switchDatabase,
   } = useDatabaseConnection();
-
-  // ===========================================================================
-  // CUSTOM HOOKS - Extracted Logic
-  // ===========================================================================
-
-  // Conversation management
   const {
     messages,
     setMessages,
@@ -119,15 +102,11 @@ function Chat() {
     handleDeleteConversation,
     navigate,
   } = useConversations();
-
-  // Sidebar width for SQL editor resize calculations
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const currentSidebarWidth = useMemo(() =>
     sidebarOpen ? DRAWER_WIDTH : COLLAPSED_WIDTH,
     [sidebarOpen]
   );
-
-  // SQL Editor panel
   const {
     sqlEditorOpen,
     sqlEditorQuery,
@@ -138,27 +117,15 @@ function Chat() {
     handlePanelResize,
   } = useSqlEditorPanel({ sidebarWidth: currentSidebarWidth });
 
-  // ===========================================================================
-  // LOCAL STATE - UI Controls
-  // ===========================================================================
-
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const [dbModalOpen, setDbModalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
 
-  // ===========================================================================
-  // SNACKBAR HELPER
-  // ===========================================================================
-
   const showSnackbar = useCallback((message, severity = 'info') => {
     setSnackbar({ open: true, message, severity });
   }, []);
-
-  // ===========================================================================
-  // QUERY EXECUTION HOOK
-  // ===========================================================================
 
   const {
     queryResults,
@@ -173,10 +140,6 @@ function Chat() {
     showSnackbar,
   });
 
-  // ===========================================================================
-  // MESSAGE STREAMING HOOK
-  // ===========================================================================
-
   const {
     handleSendMessage,
     handleStopStreaming,
@@ -190,16 +153,8 @@ function Chat() {
     settings,
   });
 
-  // ===========================================================================
-  // IDLE DETECTION
-  // ===========================================================================
-
   const isIdle = useIdleDetection();
   const idleAnimationEnabled = settings.idleAnimation ?? true;
-
-  // ===========================================================================
-  // MEMOIZED DERIVED STATE
-  // ===========================================================================
 
   const isCurrentlyStreaming = useMemo(() => {
     if (messages.length === 0) return false;
@@ -229,10 +184,6 @@ function Chat() {
 
     return `${messageId}|${status}|${rawLen}|${textLen}|${stepsLen}|${messages.length}`;
   }, [messages]);
-
-  // ===========================================================================
-  // MEMOIZED STYLE OBJECTS
-  // ===========================================================================
 
   const glassmorphismStyles = useMemo(() => ({
     background: isDarkMode
@@ -266,29 +217,17 @@ function Chat() {
     };
   }, [isDarkMode, theme, snackbar.severity]);
 
-  // ===========================================================================
-  // STABLE CLOSE HANDLERS
-  // ===========================================================================
-
   const handleCloseDbModal = useCallback(() => setDbModalOpen(false), []);
   const handleCloseSettings = useCallback(() => setSettingsOpen(false), []);
   const handleCloseSnackbar = useCallback(() => setSnackbar(s => ({ ...s, open: false })), []);
-
-  // ===========================================================================
-  // AUTO-SCROLL - Pinned-bottom stream follow
-  // ===========================================================================
   const { setScrollContainerRef } = useAutoScroll({
     messageCount: messages.length,
     isStreaming: isCurrentlyStreaming,
     activityKey: streamActivityKey,
   });
-
-  // Set document title
   useEffect(() => {
     document.title = 'Moonlit - Chat';
   }, []);
-
-  // Tab/Browser close detection
   useEffect(() => {
     const handleTabClose = () => {
       if (!isDbConnected) return;
@@ -314,8 +253,6 @@ function Chat() {
       window.removeEventListener('pagehide', handleTabClose);
     };
   }, [isDbConnected, settings.connectionPersistence]);
-
-  // Session heartbeat to detect unexpected browser closes
   useEffect(() => {
     if (!isDbConnected) return;
 
@@ -330,8 +267,6 @@ function Chat() {
       }
       sessionActive(sessionInstanceId).catch(() => { });
     };
-
-    // Initial ping
     ping();
 
     timerId = setInterval(ping, 5000);
@@ -340,10 +275,6 @@ function Chat() {
       if (timerId) clearInterval(timerId);
     };
   }, [isDbConnected]);
-
-  // ===========================================================================
-  // UI HANDLERS
-  // ===========================================================================
 
   const handleDrawerToggle = useCallback(() => {
     setMobileOpen(prev => !prev);
@@ -371,10 +302,6 @@ function Chat() {
     setSettingsOpen(true);
   }, [handleMenuClose]);
 
-  // ===========================================================================
-  // DATABASE HANDLERS
-  // ===========================================================================
-
   const handleDbConnect = useCallback((data) => {
     if (data) {
       connectDb(data);
@@ -393,10 +320,6 @@ function Chat() {
       showSnackbar(result.error || 'Failed to switch', 'error');
     }
   }, [switchDatabase, showSnackbar]);
-
-  // ===========================================================================
-  // SIDEBAR PROPS & HANDLERS
-  // ===========================================================================
 
   const commonSidebarProps = useMemo(() => ({
     conversations,
@@ -434,10 +357,6 @@ function Chat() {
     handleMenuOpen(e);
   }, [handleMenuOpen]);
 
-  // ===========================================================================
-  // RENDER
-  // ===========================================================================
-
   return (
     <Box sx={{
       display: 'flex',
@@ -446,10 +365,7 @@ function Chat() {
       overflow: 'hidden',
       position: 'relative',
     }}>
-      {/* Animated Starfield Background */}
       <StarfieldCanvas active={isIdle && idleAnimationEnabled} />
-
-      {/* Immersive gradient overlay */}
       <Box
         sx={{
           position: 'absolute',
@@ -459,8 +375,6 @@ function Chat() {
           background: `radial-gradient(ellipse at top right, ${alpha(theme.palette.info.main, 0.04)} 0%, transparent 50%)`,
         }}
       />
-
-      {/* Mobile AppBar */}
       <AppBar
         position="fixed"
         sx={{
@@ -484,8 +398,6 @@ function Chat() {
           </IconButton>
         </Toolbar>
       </AppBar>
-
-      {/* User Menu */}
       <Menu
         anchorEl={anchorEl}
         open={Boolean(anchorEl)}
@@ -508,8 +420,6 @@ function Chat() {
           Sign out
         </MenuItem>
       </Menu>
-
-      {/* Unified Sidebar */}
       <Sidebar
         {...commonSidebarProps}
         onNewChat={handleSidebarNewChat}
@@ -521,8 +431,6 @@ function Chat() {
         mobileOpen={mobileOpen}
         onMobileClose={handleDrawerToggle}
       />
-
-      {/* Main Content */}
       <Box
         component="main"
         sx={{
@@ -539,14 +447,12 @@ function Chat() {
           position: 'relative',
           zIndex: 1,
           minWidth: 0,
-          // Synced with Sidebar's MUI mini variant drawer transition
           transition: theme.transitions.create(['width', 'margin'], {
             easing: theme.transitions.easing.sharp,
             duration: theme.transitions.duration.enteringScreen, // 225ms
           }),
         }}
       >
-        {/* Quota Display - Desktop only */}
         <Box
           sx={{
             position: 'absolute',
@@ -558,8 +464,6 @@ function Chat() {
         >
           <QuotaDisplay />
         </Box>
-
-        {/* Empty state */}
         <Fade in={messages.length === 0} timeout={300} unmountOnExit>
           <Box
             sx={{
@@ -635,8 +539,6 @@ function Chat() {
             </Box>
           </Box>
         </Fade>
-
-        {/* Messages state */}
         <Fade in={messages.length > 0} timeout={300} unmountOnExit style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
             <Box ref={setScrollContainerRef} sx={{ flex: 1, overflow: 'auto' }}>
@@ -665,8 +567,6 @@ function Chat() {
           </Box>
         </Fade>
       </Box>
-
-      {/* SQL Editor Panel - Desktop only */}
       {!isMobile && (
         <Box
           sx={{
@@ -687,8 +587,6 @@ function Chat() {
           />
         </Box>
       )}
-
-      {/* SQL Editor Mobile - Fullscreen slide-up */}
       {isMobile && (
         <Slide direction="up" in={sqlEditorOpen} mountOnEnter unmountOnExit>
           <Box
@@ -716,8 +614,6 @@ function Chat() {
           </Box>
         </Slide>
       )}
-
-      {/* Modals */}
       <DatabaseModal
         open={dbModalOpen}
         onClose={handleCloseDbModal}
@@ -734,8 +630,6 @@ function Chat() {
         message={snackbar.message}
         ContentProps={snackbarContentProps}
       />
-
-      {/* SQL Results Modal */}
       <Dialog
         open={Boolean(queryResults)}
         onClose={handleCloseQueryResults}
@@ -764,11 +658,7 @@ function Chat() {
       >
         {queryResults && <SQLResultsTable data={queryResults} onClose={handleCloseQueryResults} />}
       </Dialog>
-
-      {/* Settings Modal */}
       <SettingsModal open={settingsOpen} onClose={handleCloseSettings} />
-
-      {/* Query Confirmation Dialog */}
       <ConfirmDialog
         open={confirmDialog.open}
         onClose={handleConfirmDialogClose}

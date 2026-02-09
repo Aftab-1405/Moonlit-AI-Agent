@@ -11,10 +11,6 @@
 
 import { z } from 'zod';
 
-// =============================================================================
-// CREDENTIALS SCHEMA (MySQL, PostgreSQL, SQL Server, Oracle)
-// =============================================================================
-
 export const credentialsSchema = z.object({
   host: z
     .string()
@@ -35,10 +31,6 @@ export const credentialsSchema = z.object({
     .min(1, 'Password is required'),
 });
 
-// =============================================================================
-// CONNECTION STRING SCHEMA
-// =============================================================================
-
 export const connectionStringSchema = z.object({
   connectionString: z
     .string()
@@ -49,20 +41,12 @@ export const connectionStringSchema = z.object({
     ),
 });
 
-// =============================================================================
-// SQLITE SCHEMA
-// =============================================================================
-
 export const sqliteSchema = z.object({
   database: z
     .string()
     .min(1, 'Database file path is required')
     .regex(/\.(db|sqlite|sqlite3)$/i, 'File must be .db, .sqlite, or .sqlite3'),
 });
-
-// =============================================================================
-// FIELD-LEVEL VALIDATION (for onBlur)
-// =============================================================================
 
 export const dbFieldSchemas = {
   host: z

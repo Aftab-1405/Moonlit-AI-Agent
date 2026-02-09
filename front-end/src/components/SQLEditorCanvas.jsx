@@ -24,20 +24,12 @@ import TerminalRoundedIcon from '@mui/icons-material/TerminalRounded';
 import SQLResultsTable from './SQLResultsTable';
 import ChartVisualization from './ChartVisualization';
 import { registerMonacoThemes, getMonacoThemeName } from '../theme';
-
-// Centralized API layer
 import { runQuery } from '../api';
-
-// ============================================================================
-// STATIC DEFINITIONS - Outside component to prevent recreation
-// ============================================================================
 
 const fadeIn = keyframes`
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 `;
-
-// Static Monaco editor options
 const MONACO_OPTIONS = {
   minimap: { enabled: false },
   fontSize: 13,
@@ -57,8 +49,6 @@ const MONACO_OPTIONS = {
     showKeywords: true,
   },
 };
-
-// Glassmorphism styles helper
 const getGlassmorphismStyles = (theme, isDark) => ({
   background: isDark
     ? alpha(theme.palette.background.paper, 0.05)
@@ -102,10 +92,6 @@ const StyledPanel = styled(Box, {
   ...(!open && closedMixin(theme, isDark)),
 }));
 
-// ============================================================================
-// EXTRACTED COMPONENTS - Memoized and outside main component
-// ============================================================================
-
 const EmptyState = memo(function EmptyState({ icon: _Icon, title, subtitle, textColor }) {
   const Icon = _Icon;
   return (
@@ -146,10 +132,6 @@ const EmptyState = memo(function EmptyState({ icon: _Icon, title, subtitle, text
   );
 });
 
-// ============================================================================
-// MAIN COMPONENT
-// ============================================================================
-
 function SQLEditorCanvas({
   onClose,
   initialQuery = '',
@@ -172,18 +154,12 @@ function SQLEditorCanvas({
   const [activeTab, setActiveTab] = useState(0);
   const editorRef = useRef(null);
   const copyTimeoutRef = useRef(null);
-
-  // Memoized values
   const textColor = useMemo(() => theme.palette.text.primary, [theme.palette.text.primary]);
-
-  // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
       if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
     };
   }, []);
-
-  // Update query when component mounts with new data
   useEffect(() => {
     if (initialQuery) {
       setQuery(initialQuery);
@@ -201,11 +177,7 @@ function SQLEditorCanvas({
   const handleEditorDidMount = useCallback((editor, monaco) => {
     editorRef.current = editor;
     editor.focus();
-
-    // Define custom themes for both modes
     registerMonacoThemes(monaco, { transparent: true });
-
-    // Set the appropriate theme based on current mode
     monaco.editor.setTheme(getMonacoThemeName(theme.palette.mode, true));
   }, [theme.palette.mode]);
 
@@ -293,8 +265,6 @@ function SQLEditorCanvas({
   const handleCloseResults = useCallback(() => {
     setResults(null);
   }, []);
-
-  // Memoized styles
   const headerStyles = useMemo(() => ({
     display: 'flex',
     alignItems: 'center',
@@ -385,8 +355,6 @@ function SQLEditorCanvas({
     backgroundColor: alpha(theme.palette.background.paper, isDark ? 0.14 : 0.75),
     overflow: 'hidden',
   }), [theme, isDark]);
-
-  // Memoized tab content renderer
   const editorTabContent = useMemo(() => (
     <Box
       sx={{
@@ -469,11 +437,7 @@ function SQLEditorCanvas({
       )}
     </Box>
   ), [results, textColor, embeddedContentShellStyles, embeddedContentFrameStyles]);
-
-  // Tab content based on active tab
   const tabContent = activeTab === 0 ? editorTabContent : activeTab === 1 ? resultsTabContent : chartTabContent;
-
-  // Header component (shared between fullscreen and panel)
   const headerComponent = (
     <Box sx={headerStyles}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -527,8 +491,6 @@ function SQLEditorCanvas({
       </Tooltip>
     </Box>
   );
-
-  // Tab bar component (shared)
   const tabBarComponent = (
     <Box
       sx={{
@@ -572,8 +534,6 @@ function SQLEditorCanvas({
       </Tabs>
     </Box>
   );
-
-  // Action bar component (shared)
   const actionBarComponent = (
     <Box sx={actionBarStyles}>
       <Tooltip title={isRunning ? 'Running...' : 'Run Query (Ctrl+Enter)'}>
@@ -602,8 +562,6 @@ function SQLEditorCanvas({
       </Tooltip>
     </Box>
   );
-
-  // Fullscreen mode
   if (fullscreen) {
     return (
       <Box
@@ -622,8 +580,6 @@ function SQLEditorCanvas({
       </Box>
     );
   }
-
-  // Desktop panel mode
   return (
     <StyledPanel open={isOpen} panelWidth={panelWidth} isDark={isDark}>
       {headerComponent}

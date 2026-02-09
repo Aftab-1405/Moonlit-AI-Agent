@@ -12,11 +12,7 @@ import { alpha, useTheme } from '@mui/material/styles';
 import BoltIcon from '@mui/icons-material/Bolt';
 import { getQuotaStatus } from '../api';
 import logger from '../utils/logger';
-
-// Poll interval in milliseconds
 const POLL_INTERVAL = 10000;
-
-// Format reset time helper (static, no deps)
 const formatResetTime = (seconds) => {
   if (!seconds || seconds <= 0) return 'now';
   if (seconds < 60) return `${seconds}s`;
@@ -48,8 +44,6 @@ function QuotaDisplay() {
       setIsLoading(false);
     }
   }, []);
-
-  // Visibility-aware polling - pause when tab hidden
   useEffect(() => {
     const startPolling = () => {
       if (!intervalRef.current) {
@@ -72,8 +66,6 @@ function QuotaDisplay() {
         startPolling();
       }
     };
-
-    // Start polling if tab is visible
     if (!document.hidden) {
       startPolling();
     }
@@ -85,8 +77,6 @@ function QuotaDisplay() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [fetchQuota]);
-
-  // Memoize derived values
   const { remaining, limit, statusColor } = useMemo(() => {
     if (!quota?.minute) return { remaining: 0, limit: 1, statusColor: 'success' };
     
@@ -101,8 +91,6 @@ function QuotaDisplay() {
     
     return { remaining: rem, limit: lim, statusColor: color };
   }, [quota]);
-
-  // Memoize tooltip content
   const tooltipContent = useMemo(() => {
     if (!quota) return null;
     return (
@@ -124,8 +112,6 @@ function QuotaDisplay() {
       </Box>
     );
   }, [quota]);
-
-  // Memoize chip styles
   const chipStyles = useMemo(() => ({
     height: 24,
     fontWeight: 600,
@@ -141,8 +127,6 @@ function QuotaDisplay() {
       paddingRight: '8px',
     },
   }), [theme, statusColor]);
-
-  // Don't render if loading, error, disabled, or no quota data
   if (isLoading || error || !enabled || !quota) {
     return null;
   }

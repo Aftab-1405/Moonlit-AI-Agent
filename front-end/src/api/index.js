@@ -12,22 +12,14 @@
  * 
  * @module api
  */
-
-// Client utilities
 export { apiClient, get, post, put, del, postRaw, ApiError } from './client';
-
-// Endpoint constants
 export { AUTH, CONVERSATIONS, DATABASE, QUERY, USER, QUOTA } from './endpoints';
-
-// Domain modules
 export * as auth from './auth';
 export * as conversations from './conversations';
 export * as database from './database';
 export * as query from './query';
 export * as user from './user';
 export * as quota from './quota';
-
-// Named exports for common use cases
 export {
   getFirebaseConfig,
   setSession,

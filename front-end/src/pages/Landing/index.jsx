@@ -1,4 +1,3 @@
-// Landing page - main component with inline TrustStrip, Footer, and Section
 import { useEffect, useCallback, useMemo } from 'react';
 import { Box, Container, Stack, Typography, Link } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
@@ -8,22 +7,16 @@ import StorageOutlinedIcon from '@mui/icons-material/StorageOutlined';
 import CloudOffOutlinedIcon from '@mui/icons-material/CloudOffOutlined';
 import VerifiedUserOutlinedIcon from '@mui/icons-material/VerifiedUserOutlined';
 import { useAuth } from '../../contexts/AuthContext';
-
-// Section components
 import Hero from './Hero';
 import ValueGrid from './ValueGrid';
 import DemoSection from './DemoSection';
 import StepsGrid from './StepsGrid';
 import FinalCTA from './FinalCTA';
-
-// Barrel exports
 export { default as Hero } from './Hero';
 export { default as ValueGrid } from './ValueGrid';
 export { default as DemoSection } from './DemoSection';
 export { default as StepsGrid } from './StepsGrid';
 export { default as FinalCTA } from './FinalCTA';
-
-// ---------- Inline Section ----------
 export const Section = ({ children, sx = {}, id, fullHeight = true }) => (
   <Box
     id={id}
@@ -46,8 +39,6 @@ export const Section = ({ children, sx = {}, id, fullHeight = true }) => (
     {children}
   </Box>
 );
-
-// ---------- Inline TrustStrip ----------
 function TrustStrip() {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -97,8 +88,6 @@ function TrustStrip() {
     </Box>
   );
 }
-
-// ---------- Inline Footer ----------
 function Footer() {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -154,8 +143,6 @@ function Footer() {
     </Box>
   );
 }
-
-// ---------- Main Landing ----------
 export default function Landing() {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
