@@ -54,6 +54,9 @@ import {
 import { DB_TYPES } from '../config/databases';
 import logger from '../utils/logger';
 
+const HOVER_CAPABLE_QUERY = '@media (hover: hover) and (pointer: fine)';
+const DYNAMIC_VIEWPORT_SUPPORT_QUERY = '@supports (height: 100dvh)';
+
 const Transition = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="up" ref={ref} {...props} />;
 });
@@ -62,7 +65,7 @@ function FormCard({ title, children, sx = {} }) {
   return (
     <Box
       sx={{
-        p: 2.5,
+        p: { xs: 2, sm: 2.5 },
         borderRadius: 2,
         border: '1px solid',
         borderColor: 'divider',
@@ -137,12 +140,15 @@ const DatabaseList = memo(({ databases, currentDatabase, onSelect, loading }) =>
               cursor: loading ? 'not-allowed' : 'pointer',
               opacity: loading ? 0.6 : 1,
               transition: 'all 0.15s ease',
+              minHeight: { xs: 44, sm: 0 },
               display: 'flex',
               alignItems: 'center',
               gap: 1.5,
-              '&:hover': !loading && {
-                borderColor: isSelected ? 'primary.main' : alpha(theme.palette.text.primary, 0.2),
-                backgroundColor: isSelected ? alpha(theme.palette.primary.main, 0.12) : alpha(theme.palette.text.primary, 0.04),
+              [HOVER_CAPABLE_QUERY]: {
+                '&:hover': !loading && {
+                  borderColor: isSelected ? 'primary.main' : alpha(theme.palette.text.primary, 0.2),
+                  backgroundColor: isSelected ? alpha(theme.palette.primary.main, 0.12) : alpha(theme.palette.text.primary, 0.04),
+                },
               },
             }}
           >
@@ -390,7 +396,16 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
   );
 
   const renderConnectionForm = () => (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 2.5,
+        '& .MuiInputBase-input': {
+          fontSize: { xs: '16px', sm: '0.875rem' },
+        },
+      }}
+    >
       {!isSQLite && supportsConnectionString && (
         <FormCard>
           <ToggleButtonGroup
@@ -400,7 +415,11 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
             fullWidth
             size="small"
             sx={{
-              '& .MuiToggleButton-root': { py: 1, gap: 1 }
+              '& .MuiToggleButton-root': {
+                py: 1,
+                gap: 1,
+                minHeight: { xs: 40, sm: 36 },
+              },
             }}
           >
             <ToggleButton value="credentials">
@@ -541,9 +560,16 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
           borderRadius: isMobile ? 0 : 3,
           backgroundImage: 'none',
           backgroundColor: theme.palette.background.paper,
-          height: isMobile ? '100%' : 'calc(100vh - 64px)',
-          maxHeight: isMobile ? '100%' : 640,
-          minHeight: isMobile ? '100%' : 400,
+          height: isMobile ? '100vh' : 'calc(100vh - 64px)',
+          maxHeight: isMobile ? '100vh' : 640,
+          minHeight: isMobile ? '100vh' : 400,
+          [DYNAMIC_VIEWPORT_SUPPORT_QUERY]: isMobile
+            ? {
+                height: '100dvh',
+                maxHeight: '100dvh',
+                minHeight: '100dvh',
+              }
+            : {},
           overflow: 'hidden',
         }
       }}
@@ -610,7 +636,11 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
               sx: {
                 width: 220,
                 maxWidth: '85vw',
-                height: '100%',
+                height: '100vh',
+                [DYNAMIC_VIEWPORT_SUPPORT_QUERY]: {
+                  height: '100dvh',
+                },
+                paddingBottom: 'env(safe-area-inset-bottom)',
                 overflowY: 'auto',
                 backgroundColor: theme.palette.background.paper,
               },
@@ -631,6 +661,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
                 flex: 1,
                 p: { xs: 2, sm: 3 },
                 overflowY: 'auto',
+                WebkitOverflowScrolling: 'touch',
               }}
             >
               {renderConnectionForm()}
@@ -647,6 +678,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
                     p: { xs: 2, sm: 3 },
                     maxHeight: { xs: '45%', sm: 'none' },
                     overflowY: 'auto',
+                    WebkitOverflowScrolling: 'touch',
                     backgroundColor: alpha(theme.palette.background.default, 0.5),
                   }}
                 >
@@ -672,6 +704,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
           justifyContent: 'space-between',
           px: { xs: 2, sm: 3 },
           py: 2,
+          paddingBottom: { xs: 'max(env(safe-area-inset-bottom), 12px)', sm: 2 },
           borderTop: 1,
           borderColor: 'divider',
         }}
@@ -683,6 +716,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
             startIcon={<PowerSettingsNewRoundedIcon />}
             disabled={loading}
             size="small"
+            sx={{ minHeight: { xs: 40, sm: 'auto' } }}
           >
             Disconnect
           </Button>
@@ -695,6 +729,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
           disabled={loading || isConnected}
           startIcon={loading ? <CircularProgress size={18} color="inherit" /> : null}
           size="small"
+          sx={{ minHeight: { xs: 40, sm: 'auto' } }}
         >
           {loading ? 'Connecting...' : 'Connect'}
         </Button>
