@@ -5,11 +5,10 @@ import {
   IconButton,
   Button,
   Alert,
-  List,
   ListItemButton,
   ListItemIcon,
   ListItemText,
-  CircularProgress,
+  Skeleton,
   Divider,
   Dialog,
   DialogTitle,
@@ -37,6 +36,26 @@ import Editor from '@monaco-editor/react';
 import { registerMonacoThemes, getMonacoThemeName } from '../theme';
 import { getUserContext } from '../api';
 import { USER } from '../api/endpoints';
+
+const HOVER_CAPABLE_QUERY = '@media (hover: hover) and (pointer: fine)';
+const MONACO_QUERY_BASE_OPTIONS = {
+  readOnly: true,
+  minimap: { enabled: false },
+  fontSize: 12,
+  lineNumbers: 'off',
+  folding: false,
+  scrollBeyondLastLine: false,
+  automaticLayout: true,
+  wordWrap: 'on',
+  padding: { top: 12, bottom: 12 },
+  renderLineHighlight: 'none',
+  overviewRulerLanes: 0,
+  hideCursorInOverviewRuler: true,
+  overviewRulerBorder: false,
+  guides: { indentation: false },
+  contextmenu: false,
+};
+
 const formatTimeAgo = (isoString) => {
   if (!isoString) return 'Unknown';
   const diff = Date.now() - new Date(isoString).getTime();
@@ -61,8 +80,10 @@ function ContextCard({ children, sx = {} }) {
         borderColor: 'divider',
         backgroundColor: alpha(theme.palette.background.paper, 0.5),
         transition: 'border-color 0.15s ease',
-        '&:hover': {
-          borderColor: alpha(theme.palette.text.primary, 0.15),
+        [HOVER_CAPABLE_QUERY]: {
+          '&:hover': {
+            borderColor: alpha(theme.palette.text.primary, 0.15),
+          },
         },
         ...sx,
       }}
@@ -71,6 +92,61 @@ function ContextCard({ children, sx = {} }) {
     </Box>
   );
 }
+
+function ContextLoadingSkeleton({ isCompactMobile }) {
+  return (
+    <Box>
+      <Skeleton variant="rounded" height={66} sx={{ mb: 2.5, borderRadius: 2 }} />
+
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: { xs: 'stretch', sm: 'center' },
+          justifyContent: 'space-between',
+          flexDirection: { xs: 'column', sm: 'row' },
+          gap: { xs: 1, sm: 1.5 },
+          mb: 2.5,
+        }}
+      >
+        <Box sx={{ display: 'flex', width: { xs: '100%', sm: 'auto' }, gap: 1 }}>
+          <Skeleton variant="rounded" height={44} width={isCompactMobile ? '100%' : 124} sx={{ borderRadius: 1.25, flex: 1 }} />
+          <Skeleton variant="rounded" height={44} width={isCompactMobile ? '100%' : 124} sx={{ borderRadius: 1.25, flex: 1 }} />
+        </Box>
+        <Skeleton
+          variant="rounded"
+          height={44}
+          width={isCompactMobile ? '100%' : 116}
+          sx={{ borderRadius: 1.25, alignSelf: { xs: 'stretch', sm: 'center' } }}
+        />
+      </Box>
+
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+        {Array.from({ length: 3 }).map((_, index) => (
+          <ContextCard key={`context-loading-${index}`} sx={{ p: 0, overflow: 'hidden' }}>
+            <Box
+              sx={{
+                py: { xs: 1.25, sm: 1.5 },
+                px: 2,
+                minHeight: 52,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1.5,
+              }}
+            >
+              <Skeleton variant="circular" width={20} height={20} />
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Skeleton variant="text" width="42%" height={20} />
+                <Skeleton variant="text" width="66%" height={16} />
+              </Box>
+              <Skeleton variant="rounded" width={28} height={28} sx={{ borderRadius: 1 }} />
+            </Box>
+          </ContextCard>
+        ))}
+      </Box>
+    </Box>
+  );
+}
+
 function EmptyState({ icon: _Icon, title, subtitle }) {
   const Icon = _Icon;
   return (
@@ -99,6 +175,18 @@ function UserDBContextManagerForAI() {
 
   const theme = useTheme();
   const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const closeDeleteDialog = useCallback(() => {
+    setDeleteDialog({ open: false, type: null, target: null });
+  }, []);
+  const queryMonacoOptions = useMemo(() => ({
+    ...MONACO_QUERY_BASE_OPTIONS,
+    fontFamily: theme.typography.fontFamilyMono,
+    scrollbar: {
+      vertical: 'auto',
+      horizontal: 'hidden',
+      verticalScrollbarSize: isCompactMobile ? 4 : 6,
+    },
+  }), [theme.typography.fontFamilyMono, isCompactMobile]);
 
   const fetchContext = useCallback(async () => {
     setLoading(true);
@@ -123,7 +211,7 @@ function UserDBContextManagerForAI() {
 
   const handleDelete = useCallback(async () => {
     const { type, target } = deleteDialog;
-    setDeleteDialog({ open: false, type: null, target: null });
+    closeDeleteDialog();
 
     try {
       let url;
@@ -134,13 +222,14 @@ function UserDBContextManagerForAI() {
       } else if (type === 'queries') {
         url = USER.CONTEXT_DELETE_QUERIES;
       }
+      if (!url) return;
       const { del } = await import('../api');
       await del(url);
       fetchContext();
     } catch (err) {
       setError(err.message || 'Failed to delete');
     }
-  }, [deleteDialog, fetchContext]);
+  }, [deleteDialog, fetchContext, closeDeleteDialog]);
 
   const openDeleteDialog = useCallback((type, target = null) => {
     setDeleteDialog({ open: true, type, target });
@@ -181,11 +270,7 @@ function UserDBContextManagerForAI() {
     return {};
   }, [deleteDialog, schemas, queries]);
   if (loading) {
-    return (
-      <Box sx={{ py: 6, display: 'flex', justifyContent: 'center' }}>
-        <CircularProgress size={28} />
-      </Box>
-    );
+    return <ContextLoadingSkeleton isCompactMobile={isCompactMobile} />;
   }
 
   return (
@@ -288,11 +373,15 @@ function UserDBContextManagerForAI() {
             />
           ) : (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-              {schemas.map((schema) => (
-                <ContextCard key={schema.database} sx={{ p: 0, overflow: 'hidden' }}>
+              {schemas.map((schema) => {
+                const tableList = Array.isArray(schema.tables) ? schema.tables : [];
+                const columnsByTable = schema.columns && typeof schema.columns === 'object' ? schema.columns : {};
+                const tableCount = schema.table_count ?? tableList.length;
+                return (
+                  <ContextCard key={schema.database} sx={{ p: 0, overflow: 'hidden' }}>
                   <ListItemButton
                     onClick={() => toggleSchemaExpand(schema.database)}
-                    sx={{ py: 1.5, px: 2 }}
+                    sx={{ py: { xs: 1.25, sm: 1.5 }, px: 2, minHeight: 52 }}
                   >
                     <ListItemIcon sx={{ minWidth: 36 }}>
                       <StorageRoundedIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
@@ -305,7 +394,7 @@ function UserDBContextManagerForAI() {
                       }
                       secondary={
                         <Typography variant="caption" color="text.secondary">
-                          {schema.table_count} table{schema.table_count !== 1 ? 's' : ''} - {formatTimeAgo(schema.cached_at)}
+                          {tableCount} table{tableCount !== 1 ? 's' : ''} - {formatTimeAgo(schema.cached_at)}
                         </Typography>
                       }
                     />
@@ -313,7 +402,12 @@ function UserDBContextManagerForAI() {
                       <IconButton
                         size="small"
                         onClick={(e) => { e.stopPropagation(); openDeleteDialog('schema', schema.database); }}
-                        sx={{ color: 'text.disabled', '&:hover': { color: 'error.main' } }}
+                        sx={{
+                          width: 40,
+                          height: 40,
+                          color: 'text.disabled',
+                          [HOVER_CAPABLE_QUERY]: { '&:hover': { color: 'error.main' } },
+                        }}
                       >
                         <DeleteOutlineRoundedIcon sx={{ fontSize: 18 }} />
                       </IconButton>
@@ -344,7 +438,7 @@ function UserDBContextManagerForAI() {
                         Tables
                       </Typography>
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 2 }}>
-                        {schema.tables.slice(0, 15).map((table) => (
+                        {tableList.slice(0, 15).map((table) => (
                           <Chip
                             key={table}
                             size="small"
@@ -357,15 +451,15 @@ function UserDBContextManagerForAI() {
                             }}
                           />
                         ))}
-                        {schema.tables.length > 15 && (
+                        {tableList.length > 15 && (
                           <Chip
                             size="small"
-                            label={`+${schema.tables.length - 15} more`}
+                            label={`+${tableList.length - 15} more`}
                             sx={{ height: 24 }}
                           />
                         )}
                       </Box>
-                      {Object.entries(schema.columns || {}).slice(0, 2).map(([tableName, columns]) => (
+                      {Object.entries(columnsByTable).slice(0, 2).map(([tableName, columns]) => (
                         <Box key={tableName} sx={{ mb: 1 }}>
                           <Typography
                             variant="caption"
@@ -388,15 +482,16 @@ function UserDBContextManagerForAI() {
                           </Typography>
                         </Box>
                       ))}
-                      {Object.keys(schema.columns || {}).length > 2 && (
+                      {Object.keys(columnsByTable).length > 2 && (
                         <Typography variant="caption" color="text.disabled">
-                          ...and {Object.keys(schema.columns).length - 2} more tables
+                          ...and {Object.keys(columnsByTable).length - 2} more tables
                         </Typography>
                       )}
                     </Box>
                   </Collapse>
-                </ContextCard>
-              ))}
+                  </ContextCard>
+                );
+              })}
             </Box>
           )}
         </>
@@ -412,11 +507,11 @@ function UserDBContextManagerForAI() {
           ) : (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
               {queries.map((query, index) => (
-                <ContextCard key={index} sx={{ p: 0, overflow: 'hidden' }}>
+                <ContextCard key={`${query.executed_at || index}-${query.database || 'db'}`} sx={{ p: 0, overflow: 'hidden' }}>
                   <Box
                     onClick={() => toggleQueryExpand(index)}
                     sx={{
-                      p: 2,
+                      p: { xs: 1.5, sm: 2 },
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
@@ -448,7 +543,7 @@ function UserDBContextManagerForAI() {
                         <Chip
                           size="small"
                           icon={<StorageRoundedIcon sx={{ fontSize: 12 }} />}
-                          label={query.database}
+                          label={query.database || 'Unknown DB'}
                           sx={{
                             height: 22,
                             fontWeight: 500,
@@ -456,7 +551,7 @@ function UserDBContextManagerForAI() {
                           }}
                         />
                       <Typography variant="caption" color="text.secondary">
-                        {query.row_count} row{query.row_count !== 1 ? 's' : ''}
+                        {query.row_count ?? 0} row{(query.row_count ?? 0) !== 1 ? 's' : ''}
                       </Typography>
                       <Typography variant="caption" color="text.disabled">
                         - {formatTimeAgo(query.executed_at)}
@@ -482,34 +577,19 @@ function UserDBContextManagerForAI() {
                           overflow: 'hidden',
                           border: '1px solid',
                           borderColor: 'divider',
-                          height: Math.min(Math.max(80, (query.query.split('\n').length * 20) + 32), 200),
+                          height: Math.min(
+                            Math.max(80, (((query.query || '').split('\n').length || 1) * (isCompactMobile ? 18 : 20)) + 28),
+                            isCompactMobile ? 180 : 200
+                          ),
                         }}
                       >
                         <Editor
                           height="100%"
                           language="sql"
                           theme={getMonacoThemeName(theme.palette.mode)}
-                          value={query.query}
+                          value={query.query || ''}
                           beforeMount={registerOpaqueMonacoThemes}
-                          options={{
-                            readOnly: true,
-                            minimap: { enabled: false },
-                            fontSize: 12,
-                            fontFamily: theme.typography.fontFamilyMono,
-                            lineNumbers: 'off',
-                            folding: false,
-                            scrollBeyondLastLine: false,
-                            automaticLayout: true,
-                            wordWrap: 'on',
-                            padding: { top: 12, bottom: 12 },
-                            renderLineHighlight: 'none',
-                            scrollbar: { vertical: 'auto', horizontal: 'hidden', verticalScrollbarSize: 6 },
-                            overviewRulerLanes: 0,
-                            hideCursorInOverviewRuler: true,
-                            overviewRulerBorder: false,
-                            guides: { indentation: false },
-                            contextmenu: false,
-                          }}
+                          options={queryMonacoOptions}
                         />
                       </Box>
                     </Box>
@@ -522,7 +602,7 @@ function UserDBContextManagerForAI() {
       )}
       <Dialog
         open={deleteDialog.open}
-        onClose={() => setDeleteDialog({ open: false, type: null, target: null })}
+        onClose={closeDeleteDialog}
         maxWidth="xs"
         fullWidth
         PaperProps={{
@@ -561,15 +641,23 @@ function UserDBContextManagerForAI() {
             )}
           </Alert>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+        <DialogActions
+          sx={{
+            px: 3,
+            pb: 2.5,
+            flexDirection: { xs: 'column-reverse', sm: 'row' },
+            gap: { xs: 1, sm: 0.75 },
+          }}
+        >
           <Button
-            onClick={() => setDeleteDialog({ open: false, type: null, target: null })}
+            onClick={closeDeleteDialog}
             color="inherit"
+            fullWidth={isCompactMobile}
             sx={{ minHeight: 44 }}
           >
             Cancel
           </Button>
-          <Button onClick={handleDelete} color="error" sx={{ minHeight: 44 }}>
+          <Button onClick={handleDelete} color="error" fullWidth={isCompactMobile} sx={{ minHeight: 44 }}>
             Delete
           </Button>
         </DialogActions>
