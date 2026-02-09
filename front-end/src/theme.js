@@ -296,6 +296,9 @@ const accentEffectsCache = new WeakMap();
 const mermaidCache = new WeakMap();
 const MONACO_THEME_PREFIX = 'moonlit';
 const TRANSPARENT_MONACO_BG = '#00000000';
+const MOBILE_MEDIA_QUERY = '@media (max-width:599.95px)';
+const BACKDROP_FILTER_FALLBACK_QUERY =
+  '@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)))';
 
 export const getMonacoThemeName = (mode, transparent = false) =>
   `${MONACO_THEME_PREFIX}-${mode}${transparent ? '-transparent' : ''}`;
@@ -374,6 +377,10 @@ export const getGlassSx = (theme) => ({
   backdropFilter: theme.palette.glassmorphism.backdropFilter,
   WebkitBackdropFilter: theme.palette.glassmorphism.backdropFilter,
   border: `1px solid ${theme.palette.glassmorphism.borderColor}`,
+  [BACKDROP_FILTER_FALLBACK_QUERY]: {
+    backdropFilter: 'none',
+    WebkitBackdropFilter: 'none',
+  },
 });
 
 export const getGlowButtonSx = (theme) => {
@@ -415,6 +422,18 @@ export const getGradientTextSx = (theme) => ({
 const getComponentOverrides = (mode) => {
   const palette = PALETTE_MODES[mode];
   const isDark = mode === 'dark';
+  const disableBlurFallback = {
+    [BACKDROP_FILTER_FALLBACK_QUERY]: {
+      backdropFilter: 'none',
+      WebkitBackdropFilter: 'none',
+    },
+  };
+  const mobileBlurFallback = {
+    [MOBILE_MEDIA_QUERY]: {
+      backdropFilter: 'none',
+      WebkitBackdropFilter: 'none',
+    },
+  };
 
   return {
     MuiCssBaseline: {
@@ -447,19 +466,25 @@ const getComponentOverrides = (mode) => {
             ? `radial-gradient(60% 60% at 20% 0%, ${alpha(HEX_WHITE, 0.05)}, transparent 60%), radial-gradient(60% 60% at 80% 100%, ${alpha(HEX_WHITE, 0.04)}, transparent 60%)`
             : `radial-gradient(60% 60% at 20% 0%, ${alpha(HEX_BLACK, 0.04)}, transparent 60%), radial-gradient(60% 60% at 80% 100%, ${alpha(HEX_BLACK, 0.03)}, transparent 60%)`,
 
+          '--scrollbar-track': palette.scrollbar.track,
           '--scrollbar-thumb': palette.scrollbar.thumb,
           '--scrollbar-thumb-hover': palette.scrollbar.thumbHover,
           scrollbarWidth: 'thin',
-          scrollbarColor: 'var(--scrollbar-thumb) transparent',
+          scrollbarColor: 'var(--scrollbar-thumb) var(--scrollbar-track)',
 
           '&::-webkit-scrollbar': { width: 8, height: 8 },
-          '&::-webkit-scrollbar-track': { background: 'transparent' },
+          '&::-webkit-scrollbar-track': { background: 'var(--scrollbar-track)' },
           '&::-webkit-scrollbar-thumb': {
             backgroundColor: 'var(--scrollbar-thumb)',
             borderRadius: 4,
             border: '2px solid transparent',
             backgroundClip: 'content-box',
             '&:hover': { backgroundColor: 'var(--scrollbar-thumb-hover)' },
+          },
+          [MOBILE_MEDIA_QUERY]: {
+            '& input, & select, & textarea': {
+              fontSize: '16px',
+            },
           },
         },
         '#root': {
@@ -495,6 +520,10 @@ const getComponentOverrides = (mode) => {
           fontWeight: 500,
           transition: TRANSITIONS.default,
           borderWidth: 1,
+          [MOBILE_MEDIA_QUERY]: {
+            minHeight: 44,
+            padding: '10px 18px',
+          },
           '&:active': { transform: 'scale(0.98)' },
         },
         outlined: {
@@ -633,6 +662,10 @@ const getComponentOverrides = (mode) => {
         root: {
           borderRadius: 6,
           transition: TRANSITIONS.default,
+          [MOBILE_MEDIA_QUERY]: {
+            minWidth: 44,
+            minHeight: 44,
+          },
           '&:hover': { backgroundColor: palette.action.hover },
         },
       },
@@ -795,6 +828,8 @@ const getComponentOverrides = (mode) => {
           WebkitBackdropFilter: 'blur(12px)',
           borderBottom: `1px solid ${palette.border.subtle}`,
           boxShadow: 'none',
+          ...disableBlurFallback,
+          ...mobileBlurFallback,
         },
       },
     },
@@ -863,6 +898,8 @@ const getComponentOverrides = (mode) => {
           WebkitBackdropFilter: 'blur(14px)',
           boxShadow: 'none',
           borderRadius: 8,
+          ...disableBlurFallback,
+          ...mobileBlurFallback,
         },
       },
     },
@@ -876,6 +913,8 @@ const getComponentOverrides = (mode) => {
           backdropFilter: 'blur(14px)',
           WebkitBackdropFilter: 'blur(14px)',
           boxShadow: 'none',
+          ...disableBlurFallback,
+          ...mobileBlurFallback,
         },
       },
     },
@@ -887,6 +926,9 @@ const getComponentOverrides = (mode) => {
           margin: '2px 8px',
           padding: '10px 16px',
           transition: TRANSITIONS.default,
+          [MOBILE_MEDIA_QUERY]: {
+            minHeight: 44,
+          },
           '&:hover': { backgroundColor: palette.action.hover },
           '&.Mui-selected': {
             backgroundColor: palette.action.selected,
