@@ -12,6 +12,7 @@ import {
   ListItemText,
   Collapse,
   Fab,
+  useMediaQuery,
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
@@ -28,6 +29,7 @@ import KeyboardArrowUpRoundedIcon from '@mui/icons-material/KeyboardArrowUpRound
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import { useTheme as useAppTheme } from '../contexts/ThemeContext';
 import { getSchemas, selectSchema } from '../api';
+import { getMenuPaperStyles } from '../styles/shared';
 import logger from '../utils/logger';
 const MENU_HEADER_STYLES = { px: 2, py: 0.5, display: 'block', color: 'text.secondary' };
 const LIST_ITEM_ICON_STYLES = { minWidth: 28 };
@@ -49,7 +51,7 @@ function ChatInput({
   const [isFocused, setIsFocused] = useState(false);
   const [isHidden, setIsHidden] = useState(false);
   const theme = useTheme();
-  const isDarkMode = theme.palette.mode === 'dark';
+  const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { settings, updateSetting } = useAppTheme();
   const reasoningEnabled = settings.enableReasoning ?? true;
   const [schemas, setSchemas] = useState([]);
@@ -87,16 +89,23 @@ function ChatInput({
   );
 
   const toolbarChipStyles = useMemo(() => ({
-    height: 26,
+    height: isCompactMobile ? 24 : 26,
     borderRadius: '12px',
     border: '1px solid',
     borderColor: alpha(theme.palette.text.primary, 0.2), // Increased from 0.12 for dark theme visibility
     backgroundColor: alpha(theme.palette.text.primary, 0.04),
+    '& .MuiChip-label': {
+      px: isCompactMobile ? 0.75 : 1,
+    },
     '&:hover': {
       borderColor: alpha(theme.palette.text.primary, 0.35),
       backgroundColor: alpha(theme.palette.text.primary, 0.08),
     },
-  }), [theme]);
+  }), [theme, isCompactMobile]);
+  const menuPaperStyles = useMemo(() => getMenuPaperStyles(theme), [theme]);
+  const inputPlaceholder = isConnected
+    ? (isCompactMobile ? 'Ask about database...' : 'Ask about your database...')
+    : (isCompactMobile ? 'Ask anything...' : 'Ask anything...');
 
   const handleCloseDbMenu = useCallback(() => setDbAnchor(null), []);
   const handleCloseSchemaMenu = useCallback(() => setSchemaAnchor(null), []);
@@ -234,16 +243,12 @@ function ChatInput({
               onClick={toggleHidden}
               aria-label="Show message input"
               sx={{
-                backgroundColor: isDarkMode
-                  ? alpha(theme.palette.common.white, 0.08)
-                  : alpha(theme.palette.common.black, 0.05),
+                backgroundColor: theme.palette.action.hover,
                 border: '1px solid',
                 borderColor: theme.palette.divider,
                 boxShadow: 'none',
                 '&:hover': {
-                  backgroundColor: isDarkMode
-                    ? alpha(theme.palette.common.white, 0.12)
-                    : alpha(theme.palette.common.black, 0.08),
+                  backgroundColor: theme.palette.action.selected,
                   boxShadow: 'none',
                 },
               }}
@@ -258,8 +263,8 @@ function ChatInput({
           component="form"
           onSubmit={handleSubmit}
           sx={{
-            p: { xs: 2, sm: 3 },
-            pb: { xs: 2, sm: 2.5 },
+            p: { xs: 1, sm: 3 },
+            pb: { xs: 'max(env(safe-area-inset-bottom), 10px)', sm: 2.5 },
           }}
         >
           {(showDatabaseSelector || showSchemaSelector || onOpenSqlEditor) && (
@@ -319,7 +324,7 @@ function ChatInput({
             anchorEl={dbAnchor}
             open={Boolean(dbAnchor)}
             onClose={handleCloseDbMenu}
-            PaperProps={{ sx: { minWidth: 180, maxHeight: 320 } }}
+            PaperProps={{ sx: { ...menuPaperStyles, minWidth: 180, maxHeight: 320 } }}
           >
             <Typography variant="overline" sx={MENU_HEADER_STYLES}>
               Switch Database
@@ -341,7 +346,7 @@ function ChatInput({
             anchorEl={schemaAnchor}
             open={Boolean(schemaAnchor)}
             onClose={handleCloseSchemaMenu}
-            PaperProps={{ sx: { minWidth: 160, maxHeight: 280 } }}
+            PaperProps={{ sx: { ...menuPaperStyles, minWidth: 160, maxHeight: 280 } }}
           >
             <Typography variant="overline" sx={MENU_HEADER_STYLES}>
               PostgreSQL Schema
@@ -365,10 +370,10 @@ function ChatInput({
               mx: 'auto',
               display: 'flex',
               alignItems: 'center',
-              gap: 0.75,
-              px: { xs: 1.5, sm: 2 },
-              py: { xs: 1, sm: 1.25 },
-              borderRadius: '28px',
+              gap: { xs: 0.5, sm: 0.75 },
+              px: { xs: 1.1, sm: 2 },
+              py: { xs: 0.75, sm: 1.25 },
+              borderRadius: { xs: '20px', sm: '28px' },
               border: '1px solid',
               borderColor: isFocused
                 ? alpha(theme.palette.text.primary, 0.2)
@@ -386,23 +391,25 @@ function ChatInput({
             }}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, flexShrink: 0 }}>
-              <Tooltip title="Attach file (coming soon)">
-                <span>
-                  <IconButton
-                    size="small"
-                    disabled
-                    aria-label="Attach file (coming soon)"
-                    sx={{
-                      color: 'text.secondary',
-                      opacity: 0.4,
-                      width: 32,
-                      height: 32,
-                    }}
-                  >
-                    <AttachFileRoundedIcon sx={{ fontSize: 18 }} />
-                  </IconButton>
-                </span>
-              </Tooltip>
+              {!isCompactMobile && (
+                <Tooltip title="Attach file (coming soon)">
+                  <span>
+                    <IconButton
+                      size="small"
+                      disabled
+                      aria-label="Attach file (coming soon)"
+                      sx={{
+                        color: 'text.secondary',
+                        opacity: 0.4,
+                        width: 44,
+                        height: 44,
+                      }}
+                    >
+                      <AttachFileRoundedIcon sx={{ fontSize: 20 }} />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              )}
 
               <Tooltip title={reasoningEnabled ? 'Thinking enabled (click to disable)' : 'Thinking disabled (click to enable)'}>
                 <IconButton
@@ -411,8 +418,8 @@ function ChatInput({
                   aria-label={reasoningEnabled ? 'Disable AI thinking' : 'Enable AI thinking'}
                   aria-pressed={reasoningEnabled}
                   sx={{
-                    width: 32,
-                    height: 32,
+                    width: 44,
+                    height: 44,
                     color: reasoningEnabled
                       ? theme.palette.info.main
                       : alpha(theme.palette.text.secondary, 0.4),
@@ -427,8 +434,8 @@ function ChatInput({
             <TextField
               fullWidth
               multiline
-              maxRows={5}
-              placeholder={isConnected ? "Ask about your database..." : "Ask anything..."}
+              maxRows={isCompactMobile ? 4 : 5}
+              placeholder={inputPlaceholder}
               value={message}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
@@ -451,6 +458,7 @@ function ChatInput({
                 },
                 '& .MuiInputBase-input': {
                   py: 0,
+                  fontSize: { xs: '1rem', sm: '0.95rem' },
                   '&::placeholder': {
                     color: 'text.secondary',
                     opacity: 0.7,
@@ -464,10 +472,11 @@ function ChatInput({
                 onClick={toggleHidden}
                 aria-label="Hide message input"
                 sx={{
-                  width: 32,
-                  height: 32,
+                  width: 44,
+                  height: 44,
                   color: 'text.disabled',
                   flexShrink: 0,
+                  display: isCompactMobile ? 'none' : 'inline-flex',
                   '&:hover': { backgroundColor: 'transparent' },
                 }}
               >
@@ -482,8 +491,8 @@ function ChatInput({
                   disabled={!isStreaming && (!hasText || disabled)}
                   aria-label={isStreaming ? 'Stop generating response' : 'Send message'}
                   sx={{
-                    width: 32,
-                    height: 32,
+                    width: 44,
+                    height: 44,
                     color: (hasText || isStreaming)
                       ? (isStreaming ? theme.palette.error.main : theme.palette.text.primary)
                       : 'text.disabled',
@@ -492,9 +501,9 @@ function ChatInput({
                   }}
                 >
                   {isStreaming ? (
-                    <StopRoundedIcon sx={{ fontSize: 18 }} />
+                    <StopRoundedIcon sx={{ fontSize: 20 }} />
                   ) : (
-                    <SendRoundedIcon sx={{ fontSize: 18, ml: 0.25 }} />
+                    <SendRoundedIcon sx={{ fontSize: 20, ml: 0.25 }} />
                   )}
                 </IconButton>
               </span>
@@ -555,12 +564,14 @@ function ChatInput({
             sx={{
               display: 'block',
               textAlign: 'center',
-              mt: 1.5,
+              mt: { xs: 1, sm: 1.5 },
+              px: 1,
+              fontSize: { xs: '0.68rem', sm: '0.75rem' },
               color: 'text.secondary',
               opacity: 0.5,
             }}
           >
-            Moonlit can make mistakes • Verify important info
+            Moonlit can make mistakes. Verify important info.
           </Typography>
         </Box>
       </Collapse>
@@ -583,3 +594,4 @@ function arePropsEqual(prevProps, nextProps) {
 }
 
 export default memo(ChatInput, arePropsEqual);
+

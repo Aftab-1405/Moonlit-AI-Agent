@@ -86,8 +86,8 @@ function ValueGrid() {
                 minWidth: 0,
                 p: 4,
                 backgroundColor: isDark 
-                  ? alpha(theme.palette.common.white, 0.03)
-                  : alpha(theme.palette.common.black, 0.02),
+                  ? alpha(theme.palette.text.primary, 0.03)
+                  : alpha(theme.palette.text.primary, 0.02),
                 border: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06)}`,
                 borderRadius: 3,
                 transition: theme.transitions.create(['border-color', 'background-color', 'transform'], {
@@ -101,8 +101,8 @@ function ValueGrid() {
                 '&:hover': {
                   borderColor: alpha(theme.palette.text.primary, isDark ? 0.15 : 0.12),
                   backgroundColor: isDark 
-                    ? alpha(theme.palette.common.white, 0.04)
-                    : alpha(theme.palette.common.black, 0.03),
+                    ? alpha(theme.palette.text.primary, 0.04)
+                    : alpha(theme.palette.text.primary, 0.03),
                   transform: 'translateY(-4px)',
                   '& .icon-container': {
                     transform: 'scale(1.05)',
@@ -122,8 +122,8 @@ function ValueGrid() {
                     height: 56,
                     borderRadius: 2,
                     backgroundColor: isDark 
-                      ? alpha(theme.palette.common.white, 0.05)
-                      : alpha(theme.palette.common.black, 0.04),
+                      ? alpha(theme.palette.text.primary, 0.05)
+                      : alpha(theme.palette.text.primary, 0.04),
                     border: `1px solid ${alpha(theme.palette.text.primary, 0.1)}`,
                     display: 'flex',
                     alignItems: 'center',

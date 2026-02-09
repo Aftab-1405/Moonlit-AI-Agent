@@ -23,7 +23,11 @@ export const Section = ({ children, sx = {}, id, fullHeight = true }) => (
     component="section"
     sx={{
       width: '100%',
-      minHeight: fullHeight ? '100vh' : 'auto',
+      maxWidth: '100%',
+      minHeight: fullHeight ? '100dvh' : 'auto',
+      '@supports not (min-height: 100dvh)': {
+        minHeight: fullHeight ? '100vh' : 'auto',
+      },
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -31,6 +35,7 @@ export const Section = ({ children, sx = {}, id, fullHeight = true }) => (
       py: { xs: 6, sm: 8, md: 10, lg: 12 },
       px: { xs: 2, sm: 3, md: 4 },
       boxSizing: 'border-box',
+      overflowX: 'clip',
       scrollSnapAlign: 'start',
       scrollSnapStop: 'always',
       ...sx,
@@ -90,7 +95,6 @@ function TrustStrip() {
 }
 function Footer() {
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
 
   return (
     <Box
@@ -156,7 +160,10 @@ export default function Landing() {
   return (
     <Box
       sx={{
-        height: '100vh',
+        height: '100dvh',
+        '@supports not (height: 100dvh)': {
+          height: '100vh',
+        },
         overflowY: 'auto',
         overflowX: 'hidden',
         backgroundColor: 'background.default',

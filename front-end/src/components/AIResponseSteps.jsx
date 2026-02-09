@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef, memo } from 'react';
-import { Box, Typography, Collapse, useTheme, ButtonBase, Link } from '@mui/material';
+import { Box, Typography, Collapse, useTheme, ButtonBase, Link, useMediaQuery } from '@mui/material';
 import { alpha, keyframes } from '@mui/material/styles';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
@@ -7,17 +7,25 @@ import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlin
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
 import Editor from '@monaco-editor/react';
-import { registerMonacoThemes, getMonacoThemeName } from '../theme';
+import { registerMonacoThemes, getMonacoThemeName, TRANSITIONS } from '../theme';
+import { TOOL_ACTIONS } from '../config/toolActions';
 
 const spin = keyframes`
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 `;
 
-const fadeIn = keyframes`
-  from { opacity: 0; }
-  to { opacity: 1; }
+const slideIn = keyframes`
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 `;
+
+const pulse = keyframes`
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+`;
+const TIMELINE_LINE_X = { xs: 10, sm: 11 };
+const TIMELINE_CONTENT_PL = { xs: 3.5, sm: 4 };
 
 const MONACO_OPTIONS = {
   readOnly: true,
@@ -43,19 +51,6 @@ const MONACO_OPTIONS = {
 };
 
 const registerOpaqueMonacoThemes = (monaco) => registerMonacoThemes(monaco);
-
-const TOOL_ACTIONS = {
-  'get_connection_status': { running: 'Checking connection status', done: 'Checked connection status' },
-  'get_database_list': { running: 'Listing available databases', done: 'Listed available databases' },
-  'get_database_schema': { running: 'Fetching database schema', done: 'Fetched database schema' },
-  'get_table_columns': { running: 'Getting table structure', done: 'Got table structure' },
-  'execute_query': { running: 'Executing SQL query', done: 'Executed SQL query' },
-  'get_recent_queries': { running: 'Fetching query history', done: 'Fetched query history' },
-  'get_sample_data': { running: 'Getting sample data', done: 'Got sample data' },
-  'get_table_indexes': { running: 'Fetching indexes', done: 'Fetched indexes' },
-  'get_table_constraints': { running: 'Fetching constraints', done: 'Fetched constraints' },
-  'get_foreign_keys': { running: 'Fetching foreign keys', done: 'Fetched foreign keys' },
-};
 
 function parseJSON(str) {
   if (!str || str === 'null' || str === '{}') return null;
@@ -128,7 +123,9 @@ function getDetailedResult(name, result) {
   return details[name]?.() || 'Completed successfully';
 }
 
-const ThinkingStep = memo(({ step }) => {
+
+
+const ThinkingStep = memo(({ step, isCurrent = false }) => {
   const [showMore, setShowMore] = useState(false);
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -139,87 +136,105 @@ const ThinkingStep = memo(({ step }) => {
   const isLong = lines.length > 6 || content.length > 400;
   const displayContent = showMore ? content : lines.slice(0, 6).join('\n');
 
+  const nodeColor = alpha(theme.palette.info.main, isDark ? 0.7 : 0.6);
+
   return (
     <Box
       sx={{
-        animation: `${fadeIn} 0.2s ease-out`,
-        pl: 3,
-        py: 1.5,
-        borderLeft: '2px solid',
-        borderColor: isDark 
-          ? alpha(theme.palette.text.primary, 0.08)
-          : alpha(theme.palette.text.primary, 0.06),
+        animation: `${slideIn} 0.3s cubic-bezier(0.4, 0, 0.2, 1)`,
+        position: 'relative',
+        pl: TIMELINE_CONTENT_PL,
+        py: { xs: 1, sm: 1.5 },
       }}
     >
-      <Box sx={{ display: 'flex', gap: 1.5 }}>
-        <AccessTimeRoundedIcon
-          sx={{
-            fontSize: 18,
-            color: alpha(theme.palette.info.main, isDark ? 0.7 : 0.6),
-            mt: 0.25,
-            flexShrink: 0,
-          }}
-        />
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          {content ? (
-            <>
-              <Typography
-                component="div"
-                sx={{
-                  color: alpha(theme.palette.text.primary, isDark ? 0.85 : 0.8),
-                  fontSize: '0.9rem',
-                  lineHeight: 1.65,
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word',
-                  '& strong': { fontWeight: 600 },
-                  '& ul, & ol': { pl: 2.5, my: 1 },
-                  '& li': { mb: 0.5 },
-                }}
-              >
-                {displayContent}
-                {!showMore && isLong && '...'}
-              </Typography>
-              {isLong && (
-                <Link
-                  component="button"
-                  onClick={() => setShowMore(!showMore)}
-                  sx={{
-                    mt: 0.75,
-                    fontSize: '0.85rem',
-                    color: alpha(theme.palette.text.secondary, 0.6),
-                    textDecoration: 'none',
-                    cursor: 'pointer',
-                    '&:hover': {
-                      color: alpha(theme.palette.text.secondary, 0.8),
-                      textDecoration: 'underline',
-                    },
-                  }}
-                >
-                  {showMore ? 'Show less' : 'Show more'}
-                </Link>
-              )}
-            </>
-          ) : (
+      <AccessTimeRoundedIcon
+        sx={{
+          position: 'absolute',
+          left: TIMELINE_LINE_X,
+          top: '50%',
+          transform: 'translate(-50%, -50%)',
+          fontSize: { xs: 15, sm: 17 },
+          color: nodeColor,
+          zIndex: 1,
+          backgroundColor: 'background.paper',
+          borderRadius: '50%',
+          boxShadow: isCurrent
+            ? `0 0 0 4px ${alpha(theme.palette.info.main, isDark ? 0.14 : 0.16)}`
+            : 'none',
+          ...(isActive && {
+            animation: `${pulse} 2s ease-in-out infinite`,
+          }),
+        }}
+      />
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        {content ? (
+          <>
             <Typography
+              component="div"
               sx={{
-                color: alpha(theme.palette.text.secondary, 0.5),
-                fontSize: '0.9rem',
-                fontStyle: 'italic',
+                color: alpha(theme.palette.text.primary, isDark ? 0.85 : 0.8),
+                fontSize: { xs: '0.82rem', sm: '0.9rem' },
+                fontFamily: '"Merriweather", "Georgia", serif',
+                lineHeight: { xs: 1.6, sm: 1.75 },
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+                letterSpacing: '0.008em',
+                '& strong': { fontWeight: 600 },
+                '& ul, & ol': { pl: 2.5, my: 1 },
+                '& li': { mb: 0.5 },
               }}
             >
-              {isActive ? 'Thinking...' : 'Thought process'}
+              {displayContent}
+              {!showMore && isLong && '...'}
             </Typography>
-          )}
-        </Box>
+            {isLong && (
+              <Link
+                component="button"
+                onClick={() => setShowMore(!showMore)}
+                sx={{
+                  mt: 0.75,
+                  fontSize: { xs: '0.72rem', sm: '0.8rem' },
+                  fontFamily: theme.typography.fontFamily,
+                  fontWeight: 500,
+                  color: alpha(theme.palette.text.secondary, 0.55),
+                  textDecoration: 'none',
+                  cursor: 'pointer',
+                  transition: TRANSITIONS.default,
+                  '&:hover': {
+                    color: alpha(theme.palette.text.secondary, 0.85),
+                    textDecoration: 'underline',
+                  },
+                }}
+              >
+                {showMore ? 'Show less' : 'Show more'}
+              </Link>
+            )}
+          </>
+        ) : (
+          <Typography
+            sx={{
+              color: alpha(theme.palette.text.secondary, 0.5),
+              fontSize: { xs: '0.82rem', sm: '0.9rem' },
+              fontFamily: '"Merriweather", "Georgia", serif',
+              fontStyle: 'italic',
+              ...(isActive && {
+                animation: `${pulse} 2s ease-in-out infinite`,
+              }),
+            }}
+          >
+            {isActive ? 'Thinking...' : 'Thought process'}
+          </Typography>
+        )}
       </Box>
     </Box>
   );
 });
 ThinkingStep.displayName = 'ThinkingStep';
 
-const ToolStep = memo(({ step }) => {
+const ToolStep = memo(({ step, isCurrent = false }) => {
   const [expanded, setExpanded] = useState(false);
   const theme = useTheme();
+  const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isDark = theme.palette.mode === 'dark';
 
   const { parsedArgs, parsedResult, isError, isRunning } = useMemo(() => {
@@ -255,19 +270,44 @@ const ToolStep = memo(({ step }) => {
       ? ErrorOutlineRoundedIcon 
       : CheckCircleOutlineRoundedIcon;
 
+  const nodeColor = isRunning
+    ? alpha(theme.palette.primary.main, 0.7)
+    : isError
+      ? alpha(theme.palette.error.main, 0.6)
+      : alpha(theme.palette.success.main, isDark ? 0.6 : 0.5);
+
   return (
     <Box
       sx={{
-        animation: `${fadeIn} 0.2s ease-out`,
-        pl: 3,
-        py: 1,
-        borderLeft: '2px solid',
-        borderColor: isDark 
-          ? alpha(theme.palette.text.primary, 0.08)
-          : alpha(theme.palette.text.primary, 0.06),
+        animation: `${slideIn} 0.3s cubic-bezier(0.4, 0, 0.2, 1)`,
+        position: 'relative',
+        pl: TIMELINE_CONTENT_PL,
+        py: { xs: 0.75, sm: 1 },
       }}
-    >
-      <ButtonBase
+      >
+      <StatusIcon
+        sx={{
+          position: 'absolute',
+          left: TIMELINE_LINE_X,
+          top: '50%',
+          transform: 'translate(-50%, -50%)',
+          fontSize: { xs: 15, sm: 17 },
+          zIndex: 1,
+          backgroundColor: 'background.paper',
+          borderRadius: '50%',
+          color: nodeColor,
+          boxShadow: isCurrent
+            ? `0 0 0 4px ${alpha(
+              isRunning ? theme.palette.primary.main : isError ? theme.palette.error.main : theme.palette.success.main,
+              isDark ? 0.12 : 0.16
+            )}`
+            : 'none',
+          ...(isRunning && {
+            animation: `${spin} 1s linear infinite`,
+          }),
+        }}
+      />
+        <ButtonBase
         onClick={() => hasDetails && setExpanded(!expanded)}
         disabled={!hasDetails}
         sx={{
@@ -275,12 +315,14 @@ const ToolStep = memo(({ step }) => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'flex-start',
-          gap: 1.5,
-          py: 0.5,
+          gap: { xs: 1, sm: 1.5 },
+          py: { xs: 0.35, sm: 0.5 },
+          minHeight: 44,
           px: 0,
           cursor: hasDetails ? 'pointer' : 'default',
           borderRadius: 0,
           bgcolor: 'transparent',
+          transition: TRANSITIONS.default,
           '&:hover .step-text': hasDetails ? {
             color: alpha(theme.palette.text.primary, isDark ? 0.95 : 0.85),
           } : {},
@@ -290,27 +332,14 @@ const ToolStep = memo(({ step }) => {
         }}
         disableRipple
       >
-        <StatusIcon
-          sx={{
-            fontSize: 18,
-            flexShrink: 0,
-            color: isRunning
-              ? alpha(theme.palette.primary.main, 0.7)
-              : isError
-                ? alpha(theme.palette.error.main, 0.6)
-                : alpha(theme.palette.success.main, isDark ? 0.6 : 0.5),
-            ...(isRunning && {
-              animation: `${spin} 1s linear infinite`,
-            }),
-          }}
-        />
         <Typography
           className="step-text"
           sx={{
             color: alpha(theme.palette.text.primary, isDark ? 0.75 : 0.65),
-            fontSize: '0.9rem',
+            fontSize: { xs: '0.8rem', sm: '0.875rem' },
+            fontFamily: theme.typography.fontFamily,
             fontWeight: 500,
-            transition: 'color 0.15s ease',
+            transition: TRANSITIONS.default,
           }}
         >
           {actionText}
@@ -319,27 +348,43 @@ const ToolStep = memo(({ step }) => {
           <KeyboardArrowDownIcon
             className="step-arrow"
             sx={{
-              fontSize: 16,
+              fontSize: { xs: 14, sm: 16 },
               color: alpha(theme.palette.text.secondary, 0.35),
               transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
-              transition: 'transform 0.2s ease, color 0.15s ease',
+              transition: TRANSITIONS.default,
               ml: 'auto',
             }}
           />
         )}
       </ButtonBase>
       {hasDetails && (
-        <Collapse in={expanded} timeout={150} unmountOnExit>
-          <Box sx={{ pt: 1.5, pl: 4.25 }}>
+        <Collapse in={expanded} timeout={200} unmountOnExit>
+          <Box
+            sx={{
+              mt: 0.75,
+              ml: 0,
+              p: { xs: 1, sm: 1.5 },
+              borderRadius: { xs: '8px', sm: '10px' },
+              bgcolor: isDark
+                ? alpha(theme.palette.background.elevated, 0.6)
+                : alpha(theme.palette.background.elevated, 0.8),
+              border: '1px solid',
+              borderColor: theme.palette.border.subtle,
+              backgroundImage: isDark
+                ? `linear-gradient(180deg, ${alpha(theme.palette.text.primary, 0.02)}, transparent)`
+                : `linear-gradient(180deg, ${alpha(theme.palette.text.primary, 0.015)}, transparent)`,
+            }}
+          >
             {parsedArgs?.query && (
-              <Box sx={{ mb: 1.5 }}>
+              <Box sx={{ mb: parsedResult && !isRunning ? 1.5 : 0 }}>
                 <Typography
                   sx={{
-                    color: alpha(theme.palette.text.secondary, 0.5),
-                    fontSize: '0.75rem',
+                    fontFamily: theme.typography.fontFamilyMono,
+                    fontSize: { xs: '0.62rem', sm: '0.6875rem' },
                     fontWeight: 500,
-                    textTransform: 'uppercase',
                     letterSpacing: '0.05em',
+                    textTransform: 'uppercase',
+                    color: theme.palette.text?.hint,
                     mb: 0.75,
                   }}
                 >
@@ -347,11 +392,11 @@ const ToolStep = memo(({ step }) => {
                 </Typography>
                 <Box
                   sx={{
-                    borderRadius: 2,
+                    borderRadius: '8px',
                     overflow: 'hidden',
-                    height: queryHeight,
+                    height: isCompactMobile ? Math.min(queryHeight, 220) : queryHeight,
                     border: '1px solid',
-                    borderColor: theme.palette.border?.subtle,
+                    borderColor: theme.palette.border.subtle,
                     bgcolor: theme.palette.background.default,
                   }}
                 >
@@ -363,7 +408,7 @@ const ToolStep = memo(({ step }) => {
                     options={MONACO_OPTIONS}
                     beforeMount={registerOpaqueMonacoThemes}
                     loading={
-                      <Box sx={{ p: 1.5, color: 'text.secondary', fontSize: '0.8rem' }}>
+                      <Box sx={{ p: 1.5, color: 'text.secondary', fontSize: { xs: '0.72rem', sm: '0.8rem' } }}>
                         Loading...
                       </Box>
                     }
@@ -375,11 +420,12 @@ const ToolStep = memo(({ step }) => {
               <Box>
                 <Typography
                   sx={{
-                    color: alpha(theme.palette.text.secondary, 0.5),
-                    fontSize: '0.75rem',
+                    fontFamily: theme.typography.fontFamilyMono,
+                    fontSize: { xs: '0.62rem', sm: '0.6875rem' },
                     fontWeight: 500,
-                    textTransform: 'uppercase',
                     letterSpacing: '0.05em',
+                    textTransform: 'uppercase',
+                    color: theme.palette.text?.hint,
                     mb: 0.5,
                   }}
                 >
@@ -388,10 +434,11 @@ const ToolStep = memo(({ step }) => {
                 <Typography
                   sx={{
                     color: isError
-                      ? alpha(theme.palette.error.main, 0.8)
-                      : alpha(theme.palette.text.secondary, 0.7),
-                    fontSize: '0.875rem',
-                    lineHeight: 1.5,
+                      ? alpha(theme.palette.error.main, 0.85)
+                      : alpha(theme.palette.text.secondary, 0.75),
+                    fontSize: { xs: '0.8rem', sm: '0.875rem' },
+                    fontFamily: theme.typography.fontFamily,
+                    lineHeight: 1.6,
                   }}
                 >
                   {getDetailedResult(step.name, parsedResult)}
@@ -415,22 +462,31 @@ const DoneIndicator = memo(() => {
       sx={{
         display: 'flex',
         alignItems: 'center',
-        gap: 1.5,
-        pl: 3,
-        py: 1,
-        animation: `${fadeIn} 0.3s ease-out`,
+        gap: { xs: 1, sm: 1.5 },
+        position: 'relative',
+        pl: TIMELINE_CONTENT_PL,
+        py: { xs: 0.75, sm: 1 },
+        animation: `${slideIn} 0.3s cubic-bezier(0.4, 0, 0.2, 1)`,
       }}
-    >
-      <CheckCircleOutlineRoundedIcon
+      >
+        <CheckCircleOutlineRoundedIcon
         sx={{
-          fontSize: 18,
+          position: 'absolute',
+          left: TIMELINE_LINE_X,
+          top: { xs: 8, sm: 10 },
+          transform: 'translateX(-50%)',
+          fontSize: { xs: 15, sm: 17 },
+          zIndex: 1,
+          backgroundColor: 'background.paper',
+          borderRadius: '50%',
           color: alpha(theme.palette.success.main, isDark ? 0.6 : 0.5),
         }}
       />
       <Typography
         sx={{
           color: alpha(theme.palette.text.primary, isDark ? 0.7 : 0.6),
-          fontSize: '0.9rem',
+          fontSize: { xs: '0.8rem', sm: '0.875rem' },
+          fontFamily: theme.typography.fontFamily,
           fontWeight: 500,
         }}
       >
@@ -470,6 +526,13 @@ export const StepsAccordion = memo(({ steps, isStreaming }) => {
       (s.type === 'tool' && s.status !== 'running')
     )
   , [isStreaming, validSteps]);
+  const currentStepIndex = useMemo(() => {
+    const runningIdx = validSteps.findIndex((s) =>
+      (s.type === 'thinking' && !s.isComplete) ||
+      (s.type === 'tool' && s.status === 'running')
+    );
+    return runningIdx;
+  }, [validSteps]);
   useEffect(() => {
     const wasStreaming = prevStreamingRef.current;
     if (wasStreaming && !isStreaming && validSteps.length > 0) {
@@ -490,8 +553,10 @@ export const StepsAccordion = memo(({ steps, isStreaming }) => {
   return (
     <Box
       sx={{
+        width: '100%',
+        textAlign: 'left',
         mb: 2,
-        animation: `${fadeIn} 0.2s ease-out`,
+        animation: `${slideIn} 0.3s cubic-bezier(0.4, 0, 0.2, 1)`,
       }}
     >
       <ButtonBase
@@ -499,13 +564,16 @@ export const StepsAccordion = memo(({ steps, isStreaming }) => {
         sx={{
           width: '100%',
           display: 'flex',
-          alignItems: 'center',
-          gap: 1,
-          py: 0.5,
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: { xs: 0.75, sm: 1 },
+          py: { xs: 0.35, sm: 0.5 },
+          minHeight: 44,
           px: 0,
           borderRadius: 0,
-          justifyContent: 'flex-start',
           bgcolor: 'transparent',
+          textAlign: 'left',
+          transition: TRANSITIONS.default,
           '&:hover .summary-text': {
             color: alpha(theme.palette.text.primary, isDark ? 0.9 : 0.8),
           },
@@ -519,9 +587,16 @@ export const StepsAccordion = memo(({ steps, isStreaming }) => {
           className="summary-text"
           sx={{
             color: alpha(theme.palette.text.secondary, isDark ? 0.65 : 0.55),
-            fontSize: '0.9rem',
+            fontSize: { xs: '0.8rem', sm: '0.875rem' },
+            fontFamily: theme.typography.fontFamily,
             fontWeight: 500,
-            transition: 'color 0.15s ease',
+            width: '100%',
+            minWidth: 0,
+            textAlign: 'left',
+            whiteSpace: 'normal',
+            overflowWrap: 'anywhere',
+            lineHeight: 1.35,
+            transition: TRANSITIONS.default,
           }}
         >
           {summaryText}
@@ -529,21 +604,39 @@ export const StepsAccordion = memo(({ steps, isStreaming }) => {
         <KeyboardArrowDownIcon
           className="summary-arrow"
           sx={{
-            fontSize: 18,
+            fontSize: { xs: 16, sm: 18 },
+            alignSelf: 'flex-start',
+            mt: '1px',
+            flexShrink: 0,
+            ml: 0.5,
             color: alpha(theme.palette.text.secondary, 0.35),
             transform: effectiveExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-            transition: 'transform 0.2s ease, color 0.15s ease',
+            transition: TRANSITIONS.default,
           }}
         />
       </ButtonBase>
-      <Collapse in={effectiveExpanded} timeout={150}>
-        <Box sx={{ pt: 0.5 }}>
+      <Collapse in={effectiveExpanded} timeout={200}>
+        <Box
+          sx={{
+            pt: 0.5,
+            position: 'relative',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              left: TIMELINE_LINE_X,
+              top: 8,
+              bottom: 8,
+              width: '1px',
+              backgroundColor: alpha(theme.palette.border.subtle, isDark ? 0.95 : 1),
+            },
+          }}
+        >
           {validSteps.map((step, idx) => {
             if (step.type === 'thinking') {
-              return <ThinkingStep key={`thinking-${idx}`} step={step} />;
+              return <ThinkingStep key={`thinking-${idx}`} step={step} isCurrent={idx === currentStepIndex} />;
             }
             if (step.type === 'tool') {
-              return <ToolStep key={`tool-${idx}-${step.name}`} step={step} />;
+              return <ToolStep key={`tool-${idx}-${step.name}`} step={step} isCurrent={idx === currentStepIndex} />;
             }
             return null;
           })}
@@ -554,3 +647,4 @@ export const StepsAccordion = memo(({ steps, isStreaming }) => {
   );
 });
 StepsAccordion.displayName = 'StepsAccordion';
+

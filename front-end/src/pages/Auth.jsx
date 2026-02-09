@@ -78,8 +78,6 @@ function Auth() {
   const [displayName, setDisplayName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
-  const [formError, setFormError] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('error');
@@ -99,8 +97,6 @@ function Auth() {
     }
   }, [isAuthenticated, navigate]);
   useEffect(() => {
-    setFormError('');
-    setSuccessMessage('');
     resetErrors();
     clearAuthError?.();
   }, [tabValue, clearAuthError, resetErrors]);
@@ -118,7 +114,6 @@ function Auth() {
   };
   const handleEmailSignIn = async (e) => {
     e.preventDefault();
-    setFormError('');
     if (!validateForm(signInSchema, { email, password })) {
       return;
     }
@@ -135,7 +130,6 @@ function Auth() {
   };
   const handleEmailSignUp = async (e) => {
     e.preventDefault();
-    setFormError('');
     if (!validateForm(signUpSchema, { email, password, confirmPassword, displayName })) {
       return;
     }
@@ -143,7 +137,6 @@ function Auth() {
     setFormLoading(true);
     try {
       await signUpWithEmail(email, password, displayName);
-      setSuccessMessage('Account created successfully!');
       navigate('/chat');
     } catch (error) {
       logger.error('Sign up failed:', error);
@@ -177,7 +170,6 @@ function Auth() {
       await resetPassword(resetEmail);
       setForgotDialogOpen(false);
       setResetEmail('');
-      setSuccessMessage('Password reset email sent! Check your inbox.');
     } catch (error) {
       logger.error('Password reset failed:', error);
     } finally {
@@ -265,7 +257,8 @@ function Auth() {
               background: alpha(theme.palette.background.paper, 0.03),
               backdropFilter: 'blur(20px)',
               WebkitBackdropFilter: 'blur(20px)',
-              border: `1px solid ${alpha(theme.palette.common.white, 0.08)}`,
+              border: '1px solid',
+              borderColor: 'divider',
               borderRadius: { xs: 2, sm: 3 },
             }}
           >
@@ -526,11 +519,11 @@ function Auth() {
                   onClick={handleGoogleSignIn}
                   sx={{
                     py: 0.875,
-                    borderColor: alpha(theme.palette.common.white, 0.15),
-                    backgroundColor: alpha(theme.palette.common.white, 0.02),
+                    borderColor: 'divider',
+                    backgroundColor: theme.palette.action.hover,
                     '&:hover': {
                       borderColor: alpha(theme.palette.text.primary, 0.3),
-                      backgroundColor: alpha(theme.palette.text.primary, 0.05),
+                      backgroundColor: theme.palette.action.selected,
                     },
                   }}
                 >
@@ -543,11 +536,11 @@ function Auth() {
                   onClick={handleGitHubSignIn}
                   sx={{
                     py: 0.875,
-                    borderColor: alpha(theme.palette.common.white, 0.15),
-                    backgroundColor: alpha(theme.palette.common.white, 0.02),
+                    borderColor: 'divider',
+                    backgroundColor: theme.palette.action.hover,
                     '&:hover': {
-                      borderColor: alpha(theme.palette.common.white, 0.25),
-                      backgroundColor: alpha(theme.palette.common.white, 0.08),
+                      borderColor: alpha(theme.palette.text.primary, 0.3),
+                      backgroundColor: theme.palette.action.selected,
                     },
                   }}
                 >

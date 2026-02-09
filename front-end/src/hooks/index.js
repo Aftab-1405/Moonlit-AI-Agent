@@ -12,3 +12,4 @@ export { useLocalStorage } from './useLocalStorage';
 export { useMessageStreaming } from './useMessageStreaming';
 export { useQueryExecution } from './useQueryExecution';
 export { useSqlEditorPanel } from './useSqlEditorPanel';
+export { useResponsive } from './useResponsive';

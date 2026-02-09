@@ -18,6 +18,7 @@ import {
   Chip,
   Collapse,
   useTheme,
+  useMediaQuery,
   ToggleButtonGroup,
   ToggleButton,
 } from '@mui/material';
@@ -97,6 +98,7 @@ function UserDBContextManagerForAI() {
   const [error, setError] = useState(null);
 
   const theme = useTheme();
+  const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const fetchContext = useCallback(async () => {
     setLoading(true);
@@ -194,10 +196,12 @@ function UserDBContextManagerForAI() {
         sx={{
           mb: 2.5,
           borderRadius: 2,
+          py: { xs: 0.25, sm: 0.5 },
+          px: { xs: 0.25, sm: 0.5 },
           '& .MuiAlert-message': { width: '100%' },
         }}
       >
-        <Typography variant="body2">
+        <Typography variant="body2" sx={{ fontSize: { xs: '0.82rem', sm: '0.875rem' }, lineHeight: 1.45 }}>
           This is the AI's memory of your database structure. Delete only if your schema has changed.
         </Typography>
       </Alert>
@@ -207,16 +211,30 @@ function UserDBContextManagerForAI() {
           {error}
         </Alert>
       )}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: { xs: 'stretch', sm: 'center' },
+          justifyContent: 'space-between',
+          flexDirection: { xs: 'column', sm: 'row' },
+          gap: { xs: 1, sm: 1.5 },
+          mb: 2.5,
+        }}
+      >
         <ToggleButtonGroup
           value={activeView}
           exclusive
           onChange={(e, v) => v && setActiveView(v)}
           size="small"
+          fullWidth={isCompactMobile}
           sx={{
+            width: { xs: '100%', sm: 'auto' },
+            flexShrink: 0,
             '& .MuiToggleButton-root': {
               px: 2,
               py: 0.75,
+              minHeight: 44,
+              flex: { xs: 1, sm: '0 0 auto' },
               textTransform: 'none',
               fontWeight: 500,
               gap: 1,
@@ -245,6 +263,16 @@ function UserDBContextManagerForAI() {
             color="error"
             startIcon={<DeleteOutlineRoundedIcon sx={{ fontSize: 16 }} />}
             onClick={() => openDeleteDialog(activeView === 'schemas' ? 'all-schemas' : 'queries')}
+            fullWidth={false}
+            sx={{
+              minHeight: 44,
+              width: { xs: '100%', sm: 'fit-content' },
+              minWidth: { sm: 108 },
+              ml: { sm: 1 },
+              alignSelf: { xs: 'stretch', sm: 'center' },
+              flexShrink: 0,
+              whiteSpace: 'nowrap',
+            }}
           >
             Clear All
           </Button>
@@ -277,7 +305,7 @@ function UserDBContextManagerForAI() {
                       }
                       secondary={
                         <Typography variant="caption" color="text.secondary">
-                          {schema.table_count} table{schema.table_count !== 1 ? 's' : ''} • {formatTimeAgo(schema.cached_at)}
+                          {schema.table_count} table{schema.table_count !== 1 ? 's' : ''} - {formatTimeAgo(schema.cached_at)}
                         </Typography>
                       }
                     />
@@ -427,12 +455,12 @@ function UserDBContextManagerForAI() {
                             '& .MuiChip-icon': { color: 'inherit' },
                           }}
                         />
-                        <Typography variant="caption" color="text.secondary">
-                          {query.row_count} row{query.row_count !== 1 ? 's' : ''}
-                        </Typography>
-                        <Typography variant="caption" color="text.disabled">
-                          • {formatTimeAgo(query.executed_at)}
-                        </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {query.row_count} row{query.row_count !== 1 ? 's' : ''}
+                      </Typography>
+                      <Typography variant="caption" color="text.disabled">
+                        - {formatTimeAgo(query.executed_at)}
+                      </Typography>
                       </Box>
                     </Box>
                     <KeyboardArrowDownIcon
@@ -467,7 +495,7 @@ function UserDBContextManagerForAI() {
                             readOnly: true,
                             minimap: { enabled: false },
                             fontSize: 12,
-                            fontFamily: '"JetBrains Mono", monospace',
+                            fontFamily: theme.typography.fontFamilyMono,
                             lineNumbers: 'off',
                             folding: false,
                             scrollBeyondLastLine: false,
@@ -537,10 +565,11 @@ function UserDBContextManagerForAI() {
           <Button
             onClick={() => setDeleteDialog({ open: false, type: null, target: null })}
             color="inherit"
+            sx={{ minHeight: 44 }}
           >
             Cancel
           </Button>
-          <Button onClick={handleDelete} color="error">
+          <Button onClick={handleDelete} color="error" sx={{ minHeight: 44 }}>
             Delete
           </Button>
         </DialogActions>
@@ -550,3 +579,4 @@ function UserDBContextManagerForAI() {
 }
 
 export default memo(UserDBContextManagerForAI);
+

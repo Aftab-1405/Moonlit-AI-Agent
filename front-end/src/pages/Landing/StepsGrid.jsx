@@ -73,8 +73,8 @@ function StepsGrid() {
                 pt: 5,
                 position: 'relative',
                 backgroundColor: isDark 
-                  ? alpha(theme.palette.common.white, 0.03)
-                  : alpha(theme.palette.common.black, 0.02),
+                  ? alpha(theme.palette.text.primary, 0.03)
+                  : alpha(theme.palette.text.primary, 0.02),
                 border: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06)}`,
                 borderRadius: 3,
                 transition: theme.transitions.create(['border-color', 'background-color', 'transform'], {
@@ -88,8 +88,8 @@ function StepsGrid() {
                 '&:hover': {
                   borderColor: alpha(theme.palette.text.primary, isDark ? 0.15 : 0.12),
                   backgroundColor: isDark 
-                    ? alpha(theme.palette.common.white, 0.04)
-                    : alpha(theme.palette.common.black, 0.03),
+                    ? alpha(theme.palette.text.primary, 0.04)
+                    : alpha(theme.palette.text.primary, 0.03),
                   transform: 'translateY(-4px)',
                 },
               }}
@@ -108,8 +108,8 @@ function StepsGrid() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   boxShadow: isDark 
-                    ? `0 4px 16px ${alpha(theme.palette.common.black, 0.5)}`
-                    : `0 4px 16px ${alpha(theme.palette.common.black, 0.12)}`,
+                    ? `0 4px 16px ${alpha(theme.palette.text.primary, 0.35)}`
+                    : `0 4px 16px ${alpha(theme.palette.text.primary, 0.12)}`,
                   border: `3px solid ${theme.palette.background.default}`,
                 }}
               >

@@ -58,10 +58,10 @@ const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isD
     overflow: 'hidden',
     backgroundColor: theme.palette.background.elevated,
     border: '1px solid',
-    borderColor: theme.palette.border?.subtle || theme.palette.divider,
+    borderColor: theme.palette.border.subtle,
     minWidth: 0, // CRITICAL: Prevents flexbox overflow issues during streaming
     width: '100%',
-  }), [isDarkMode, theme]);
+  }), [theme]);
   if (isMermaid) {
     return <MermaidDiagram code={code} />;
   }
@@ -128,18 +128,20 @@ const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isD
   );
 });
 
-const InlineCode = memo(function InlineCode({ children, theme, isDarkMode }) {
+const InlineCode = memo(function InlineCode({ children, theme }) {
   return (
     <Typography
       component="code"
       sx={{
-        fontFamily: '"JetBrains Mono", monospace',
+        fontFamily: theme.typography.fontFamilyMono,
         fontSize: '0.85em',
-        backgroundColor: alpha(theme.palette.text.primary, isDarkMode ? 0.14 : 0.05),
-        color: theme.palette.text.primary,
+        backgroundColor: theme.palette.code.background,
+        color: theme.palette.code.text,
         px: 0.6,
         py: 0.2,
         borderRadius: 1,
+        border: '1px solid',
+        borderColor: theme.palette.code.border,
         fontWeight: 500,
         wordBreak: 'break-word', // CRITICAL: Prevents inline code from causing horizontal overflow
       }}
@@ -170,12 +172,12 @@ const MarkdownRenderer = memo(function MarkdownRenderer({ content, onRunQuery })
           </CodeBlock>
         );
       }
-      return <InlineCode theme={theme} isDarkMode={isDarkMode} {...props}>{children}</InlineCode>;
+      return <InlineCode theme={theme} {...props}>{children}</InlineCode>;
     },
     pre: ({ children }) => <>{children}</>,
     table: ({ children }) => (
       <Box sx={{ overflowX: 'auto', my: 2, borderRadius: '12px', border: `1px solid ${theme.palette.divider}` }}>
-        <table style={{ minWidth: 'max-content', width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>{children}</table>
+        <table style={{ minWidth: 'max-content', width: '100%', borderCollapse: 'collapse' }}>{children}</table>
       </Box>
     ),
   }), [onRunQuery, isDarkMode, theme]);
@@ -188,8 +190,14 @@ const MarkdownRenderer = memo(function MarkdownRenderer({ content, onRunQuery })
     '& ul, & ol': { pl: 3, my: 1.5 },
     '& li': { mb: 0.5 },
     '& a': { color: 'primary.main', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } },
+    '& img': {
+      maxWidth: '100%',
+      height: 'auto',
+      display: 'block',
+      borderRadius: 1,
+    },
     '& blockquote': {
-      borderLeft: `3px solid ${theme.palette.border?.default || theme.palette.divider}`,
+      borderLeft: `3px solid ${theme.palette.border.default}`,
       margin: 0,
       my: 2,
       pl: 2,
@@ -201,27 +209,28 @@ const MarkdownRenderer = memo(function MarkdownRenderer({ content, onRunQuery })
     },
     '& hr': {
       border: 'none',
-      borderTop: `1px solid ${theme.palette.border?.subtle || theme.palette.divider}`,
+      borderTop: `1px solid ${theme.palette.border.subtle}`,
       my: 2,
     },
     '& table': {
       overflowWrap: 'normal',  // Override global setting for tables
       wordBreak: 'normal',
+      fontSize: { xs: '0.78rem', sm: '0.875rem' },
     },
     '& th': {
       bgcolor: theme.palette.action.hover,
       fontWeight: 600,
       textAlign: 'left',
-      px: 2,
-      py: 1.25,
+      px: { xs: 1.25, sm: 2 },
+      py: { xs: 1, sm: 1.25 },
       borderBottom: `1px solid ${theme.palette.divider}`,
       whiteSpace: 'nowrap',
-      fontSize: '0.8125rem',
+      fontSize: { xs: '0.75rem', sm: '0.8125rem' },
     },
     '& td': {
-      px: 2,
-      py: 1.25,
-      borderBottom: `1px solid ${theme.palette.border?.subtle || theme.palette.divider}`,
+      px: { xs: 1.25, sm: 2 },
+      py: { xs: 1, sm: 1.25 },
+      borderBottom: `1px solid ${theme.palette.border.subtle}`,
       whiteSpace: 'nowrap',
     },
     '& tr:last-child td': { borderBottom: 'none' },

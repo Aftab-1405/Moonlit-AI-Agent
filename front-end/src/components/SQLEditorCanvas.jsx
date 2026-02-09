@@ -8,6 +8,7 @@ import {
   CircularProgress,
   Tab,
   Tabs,
+  useMediaQuery,
 } from '@mui/material';
 import { styled, useTheme as useMuiTheme, alpha, keyframes } from '@mui/material/styles';
 import { useTheme as useAppTheme } from '../contexts/ThemeContext';
@@ -24,6 +25,7 @@ import TerminalRoundedIcon from '@mui/icons-material/TerminalRounded';
 import SQLResultsTable from './SQLResultsTable';
 import ChartVisualization from './ChartVisualization';
 import { registerMonacoThemes, getMonacoThemeName } from '../theme';
+import { getGlassmorphismStyles } from '../styles/shared';
 import { runQuery } from '../api';
 
 const fadeIn = keyframes`
@@ -38,6 +40,7 @@ const MONACO_OPTIONS = {
   scrollBeyondLastLine: false,
   automaticLayout: true,
   wordWrap: 'on',
+  wrappingIndent: 'same',
   padding: { top: 16, bottom: 16 },
   renderLineHighlight: 'line',
   lineHeight: 22,
@@ -49,47 +52,37 @@ const MONACO_OPTIONS = {
     showKeywords: true,
   },
 };
-const getGlassmorphismStyles = (theme, isDark) => ({
-  background: isDark
-    ? alpha(theme.palette.background.paper, 0.05)
-    : theme.palette.background.default,
-  backdropFilter: 'blur(12px)',
-  WebkitBackdropFilter: 'blur(12px)',
-  borderLeft: '1px solid',
-  borderColor: theme.palette.divider,
-});
-
-const openedMixin = (theme, width, isDark) => ({
+const openedMixin = (theme, width) => ({
   width: typeof width === 'number' ? width : width,
   transition: theme.transitions.create('width', {
     easing: theme.transitions.easing.sharp,
     duration: theme.transitions.duration.enteringScreen,
   }),
   overflowX: 'hidden',
-  ...getGlassmorphismStyles(theme, isDark),
+  ...getGlassmorphismStyles(theme),
 });
 
-const closedMixin = (theme, isDark) => ({
+const closedMixin = (theme) => ({
   transition: theme.transitions.create('width', {
     easing: theme.transitions.easing.sharp,
     duration: theme.transitions.duration.leavingScreen,
   }),
   overflowX: 'hidden',
   width: 0,
-  ...getGlassmorphismStyles(theme, isDark),
+  ...getGlassmorphismStyles(theme),
 });
 
 const StyledPanel = styled(Box, {
-  shouldForwardProp: (prop) => !['open', 'panelWidth', 'isDark'].includes(prop),
-})(({ theme, open, panelWidth, isDark }) => ({
+  shouldForwardProp: (prop) => !['open', 'panelWidth'].includes(prop),
+})(({ theme, open, panelWidth }) => ({
   display: 'flex',
   flexDirection: 'column',
   height: '100%',
   flexShrink: 0,
   whiteSpace: 'nowrap',
   boxSizing: 'border-box',
-  ...(open && openedMixin(theme, panelWidth, isDark)),
-  ...(!open && closedMixin(theme, isDark)),
+  ...(open && openedMixin(theme, panelWidth)),
+  ...(!open && closedMixin(theme)),
 }));
 
 const EmptyState = memo(function EmptyState({ icon: _Icon, title, subtitle, textColor }) {
@@ -145,6 +138,7 @@ function SQLEditorCanvas({
   const theme = useMuiTheme();
   const { settings } = useAppTheme();
   const isDark = theme.palette.mode === 'dark';
+  const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState(initialResults);
@@ -269,10 +263,10 @@ function SQLEditorCanvas({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    px: 2,
-    py: 1.25,
+    px: { xs: 1.25, sm: 2 },
+    py: { xs: 1, sm: 1.25 },
     borderBottom: '1px solid',
-    borderColor: theme.palette.border?.subtle,
+    borderColor: theme.palette.border.subtle,
     backgroundColor: 'transparent',
     flexShrink: 0,
   }), [theme]);
@@ -286,11 +280,12 @@ function SQLEditorCanvas({
     },
     '& .MuiTab-root': {
       minHeight: 44,
-      minWidth: 100,
-      px: 2.5,
+      minWidth: isCompactMobile ? 82 : 100,
+      px: isCompactMobile ? 1.5 : 2.5,
       py: 0,
       fontWeight: 500,
       textTransform: 'none',
+      fontSize: isCompactMobile ? '0.8rem' : '0.875rem',
       color: 'text.secondary',
       transition: 'transform 0.2s ease',
       '&.Mui-selected': { color: 'text.primary' },
@@ -299,26 +294,26 @@ function SQLEditorCanvas({
         backgroundColor: theme.palette.action.hover,
       },
     },
-  }), [theme]);
+  }), [theme, isCompactMobile]);
 
   const actionBarStyles = useMemo(() => ({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 1,
-    px: 2,
-    py: 1.5,
+    gap: isCompactMobile ? 0.6 : 1,
+    px: { xs: 1.25, sm: 2 },
+    py: { xs: 1, sm: 1.5 },
     borderTop: '1px solid',
-    borderColor: theme.palette.border?.subtle || alpha(theme.palette.divider, isDark ? 0.1 : 0.15),
+    borderColor: theme.palette.border.subtle,
     backgroundColor: theme.palette.background.default,
     backdropFilter: 'blur(12px)',
     WebkitBackdropFilter: 'blur(12px)',
     flexShrink: 0,
-  }), [isDark, theme]);
+  }), [theme, isCompactMobile]);
 
   const runButtonStyles = useMemo(() => ({
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
     color: isRunning ? 'text.secondary' : 'text.primary',
     backgroundColor: alpha(textColor, isDark ? 0.1 : 0.08),
     border: '1px solid',
@@ -337,9 +332,9 @@ function SQLEditorCanvas({
     height: '100%',
     minHeight: 0,
     boxSizing: 'border-box',
-    px: { xs: 1, sm: 1.5 },
-    pt: { xs: 1, sm: 1.5 },
-    pb: { xs: 1, sm: 1.5 },
+    px: { xs: 0.5, sm: 1.5 },
+    pt: { xs: 0.5, sm: 1.5 },
+    pb: { xs: 0.5, sm: 1.5 },
     overflow: 'auto',
     backgroundColor: 'transparent',
   }), []);
@@ -351,7 +346,7 @@ function SQLEditorCanvas({
     minHeight: 0,
     borderRadius: 2,
     border: '1px solid',
-    borderColor: theme.palette.border?.subtle || alpha(theme.palette.divider, isDark ? 0.16 : 0.2),
+    borderColor: theme.palette.border.subtle,
     backgroundColor: alpha(theme.palette.background.paper, isDark ? 0.14 : 0.75),
     overflow: 'hidden',
   }), [theme, isDark]);
@@ -375,7 +370,7 @@ function SQLEditorCanvas({
             animation: `${fadeIn} 0.2s ease-out`,
           }}
         >
-          <Typography variant="body2" color="error.main" sx={{ fontFamily: 'monospace' }}>
+          <Typography variant="body2" color="error.main" sx={{ fontFamily: theme.typography.fontFamilyMono }}>
             ⚠ {error}
           </Typography>
         </Box>
@@ -451,12 +446,12 @@ function SQLEditorCanvas({
             justifyContent: 'center',
             backgroundColor: theme.palette.action.hover,
             border: '1px solid',
-            borderColor: theme.palette.border?.subtle,
+            borderColor: theme.palette.border.subtle,
           }}
         >
           <TerminalRoundedIcon sx={{ fontSize: 18, color: 'text.primary' }} />
         </Box>
-        <Typography variant="subtitle2" fontWeight={600}>
+        <Typography variant="subtitle2" fontWeight={600} sx={{ fontSize: { xs: '0.9rem', sm: '0.95rem' } }}>
           SQL Editor
         </Typography>
         {currentDatabase && (
@@ -465,6 +460,7 @@ function SQLEditorCanvas({
             icon={<StorageRoundedIcon sx={{ fontSize: 12 }} />}
             label={currentDatabase}
             sx={{
+              display: { xs: 'none', sm: 'inline-flex' },
               height: 22,
               backgroundColor: theme.palette.action.hover,
               color: 'text.primary',
@@ -478,8 +474,8 @@ function SQLEditorCanvas({
           size="small"
           onClick={onClose}
           sx={{
-            width: 36,
-            height: 36,
+            width: 44,
+            height: 44,
             color: 'text.secondary',
             '&:hover': {
               backgroundColor: theme.palette.action.hover,
@@ -496,13 +492,21 @@ function SQLEditorCanvas({
       sx={{
         display: 'flex',
         justifyContent: 'center',
+        px: { xs: 0.5, sm: 0 },
         borderBottom: '1px solid',
-        borderColor: theme.palette.border?.subtle,
+        borderColor: theme.palette.border.subtle,
         backgroundColor: 'transparent',
         flexShrink: 0,
       }}
     >
-      <Tabs value={activeTab} onChange={handleTabChange} centered sx={tabsStyles}>
+      <Tabs
+        value={activeTab}
+        onChange={handleTabChange}
+        centered={!isCompactMobile}
+        variant={isCompactMobile ? 'scrollable' : 'standard'}
+        allowScrollButtonsMobile
+        sx={tabsStyles}
+      >
         <Tab icon={<TerminalRoundedIcon sx={{ fontSize: 16 }} />} iconPosition="start" label="Editor" />
         <Tab
           icon={<TableChartOutlinedIcon sx={{ fontSize: 16 }} />}
@@ -550,13 +554,13 @@ function SQLEditorCanvas({
       </Tooltip>
       <Tooltip title={copied ? 'Copied!' : 'Copy query'}>
         <span>
-          <IconButton size="small" onClick={handleCopy} disabled={!query.trim()} sx={{ width: 36, height: 36 }}>
+          <IconButton size="small" onClick={handleCopy} disabled={!query.trim()} sx={{ width: 44, height: 44 }}>
             {copied ? <CheckRoundedIcon sx={{ fontSize: 18 }} /> : <ContentCopyRoundedIcon sx={{ fontSize: 18 }} />}
           </IconButton>
         </span>
       </Tooltip>
       <Tooltip title="Clear all">
-        <IconButton size="small" onClick={handleClear} sx={{ width: 36, height: 36 }}>
+        <IconButton size="small" onClick={handleClear} sx={{ width: 44, height: 44 }}>
           <DeleteOutlineRoundedIcon sx={{ fontSize: 18 }} />
         </IconButton>
       </Tooltip>
@@ -568,7 +572,10 @@ function SQLEditorCanvas({
         sx={{
           display: 'flex',
           flexDirection: 'column',
-          height: '100%',
+          height: '100dvh',
+          '@supports not (height: 100dvh)': {
+            height: '100vh',
+          },
           width: '100%',
           bgcolor: 'background.default',
         }}
@@ -581,7 +588,7 @@ function SQLEditorCanvas({
     );
   }
   return (
-    <StyledPanel open={isOpen} panelWidth={panelWidth} isDark={isDark}>
+    <StyledPanel open={isOpen} panelWidth={panelWidth}>
       {headerComponent}
       {tabBarComponent}
       <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: 'transparent' }}>
@@ -593,3 +600,4 @@ function SQLEditorCanvas({
 }
 
 export default memo(SQLEditorCanvas);
+

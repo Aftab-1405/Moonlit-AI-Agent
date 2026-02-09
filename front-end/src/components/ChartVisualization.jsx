@@ -25,6 +25,7 @@ import {
   InputLabel,
   Tooltip as MuiTooltip,
   useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import { alpha, lighten } from '@mui/material/styles';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
@@ -57,6 +58,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
   const [fullscreen, setFullscreen] = useState(false);
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
+  const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const chartRef = useRef(null);
   const containerRef = useRef(null);
   const chartColors = useMemo(() => [
@@ -156,7 +158,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
     plugins: {
       legend: {
         display: chartType === 'pie' || chartType === 'doughnut',
-        position: 'right',
+        position: isCompactMobile ? 'bottom' : 'right',
         labels: {
           color: theme.palette.text.secondary,
           font: { size: 11 },
@@ -165,9 +167,9 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
         },
       },
       tooltip: {
-        backgroundColor: isDark ? theme.palette.background.elevated : theme.palette.text.primary,
-        titleColor: isDark ? theme.palette.text.primary : theme.palette.background.paper,
-        bodyColor: isDark ? theme.palette.text.primary : theme.palette.background.paper,
+        backgroundColor: theme.palette.background.elevated,
+        titleColor: theme.palette.text.primary,
+        bodyColor: theme.palette.text.primary,
         padding: 10,
         cornerRadius: 8,
         titleFont: { weight: 600 },
@@ -184,7 +186,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
         beginAtZero: true,
       },
     },
-  }), [chartType, theme, isDark, embedded]);
+  }), [chartType, theme, embedded, isCompactMobile]);
 
   const handleDownload = useCallback(() => {
     if (chartRef.current) {
@@ -242,7 +244,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
               px: 2,
               py: 1.5,
               borderBottom: '1px solid',
-              borderColor: theme.palette.border?.subtle,
+              borderColor: theme.palette.border.subtle,
               backgroundColor: theme.palette.action.hover,
             }}
           >
@@ -253,6 +255,8 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
                     size="small"
                     onClick={() => onViewModeChange('table')}
                     sx={{
+                      width: 44,
+                      height: 44,
                       color: 'text.secondary',
                       '&:hover': { backgroundColor: theme.palette.action.hover },
                     }}
@@ -296,6 +300,8 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
                   size="small"
                   onClick={handleDownload}
                   sx={{
+                    width: 44,
+                    height: 44,
                     color: 'text.secondary',
                     '&:hover': { backgroundColor: theme.palette.action.hover },
                   }}
@@ -308,6 +314,8 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
                   size="small"
                   onClick={() => setFullscreen(!fullscreen)}
                   sx={{
+                    width: 44,
+                    height: 44,
                     color: 'text.secondary',
                     '&:hover': { backgroundColor: theme.palette.action.hover },
                   }}
@@ -325,6 +333,8 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
                     size="small"
                     onClick={onClose}
                     sx={{
+                      width: 44,
+                      height: 44,
                       color: 'text.secondary',
                       '&:hover': { backgroundColor: theme.palette.action.hover },
                     }}
@@ -357,7 +367,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
             px: 2,
             minHeight: 52,
             borderTop: '1px solid',
-            borderColor: theme.palette.border?.subtle,
+            borderColor: theme.palette.border.subtle,
           }}
         >
           <Typography variant="caption" color="text.secondary" sx={{ position: 'absolute', left: 16, fontWeight: 500 }}>
@@ -412,7 +422,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: alpha(theme.palette.common.black, isDark ? 0.9 : 0.7),
+            backgroundColor: alpha(theme.palette.background.default, isDark ? 0.9 : 0.7),
             zIndex: 9998,
           }}
         />

@@ -189,7 +189,7 @@ function MermaidDiagram({ code }) {
     py: { xs: 0.5, sm: 0.75 },
     backgroundColor: theme.palette.action.hover,
     borderBottom: '1px solid',
-    borderColor: theme.palette.border?.subtle,
+    borderColor: theme.palette.border.subtle,
     minHeight: { xs: 40, sm: 44 },
   }), [theme]);
 
@@ -209,15 +209,15 @@ function MermaidDiagram({ code }) {
   }), [fullscreen, isPanning]);
 
   const svgContainerStyles = useMemo(() => ({
-    transform: `translate(${panPosition.x}px, ${panPosition.y}px) scale(${zoom / 100})`,
+      transform: `translate(${panPosition.x}px, ${panPosition.y}px) scale(${zoom / 100})`,
     transformOrigin: 'center center',
     transition: isPanning ? 'none' : 'transform 0.2s ease',
-    '& svg': {
-      maxWidth: '100%',
-      height: 'auto',
-      filter: isDark ? 'none' : `drop-shadow(0 2px 8px ${alpha(theme.palette.common.black, 0.08)})`,
-      pointerEvents: 'none',
-    },
+      '& svg': {
+        maxWidth: '100%',
+        height: 'auto',
+        filter: isDark ? 'none' : `drop-shadow(0 2px 8px ${alpha(theme.palette.text.primary, 0.08)})`,
+        pointerEvents: 'none',
+      },
   }), [panPosition, zoom, isPanning, isDark, theme]);
   if (error) {
     return (
@@ -227,7 +227,7 @@ function MermaidDiagram({ code }) {
           overflow: 'hidden',
           bgcolor: isDark ? theme.palette.background.elevated : alpha(theme.palette.text.primary, 0.02),
           border: '1px solid',
-          borderColor: theme.palette.border?.subtle,
+          borderColor: theme.palette.border.subtle,
           borderRadius: { xs: '8px', sm: '12px' },
         }}
       >
@@ -290,7 +290,7 @@ function MermaidDiagram({ code }) {
         }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
             <Tooltip title="Zoom out">
-              <IconButton size="small" onClick={handleZoomOut} disabled={zoom <= 25}>
+              <IconButton size="small" onClick={handleZoomOut} disabled={zoom <= 25} sx={{ width: 44, height: 44 }}>
                 <ZoomOutRoundedIcon sx={{ fontSize: { xs: 18, sm: 16 } }} />
               </IconButton>
             </Tooltip>
@@ -322,13 +322,13 @@ function MermaidDiagram({ code }) {
             </Typography>
 
             <Tooltip title="Zoom in">
-              <IconButton size="small" onClick={handleZoomIn} disabled={zoom >= 300}>
+              <IconButton size="small" onClick={handleZoomIn} disabled={zoom >= 300} sx={{ width: 44, height: 44 }}>
                 <ZoomInRoundedIcon sx={{ fontSize: { xs: 18, sm: 16 } }} />
               </IconButton>
             </Tooltip>
 
             <Tooltip title="Reset zoom">
-              <IconButton size="small" onClick={handleResetZoom}>
+              <IconButton size="small" onClick={handleResetZoom} sx={{ width: 44, height: 44 }}>
                 <RestartAltRoundedIcon sx={{ fontSize: { xs: 18, sm: 16 } }} />
               </IconButton>
             </Tooltip>
@@ -336,27 +336,27 @@ function MermaidDiagram({ code }) {
           <Box sx={{
             width: 1,
             height: 16,
-            bgcolor: theme.palette.border?.subtle,
+            bgcolor: theme.palette.border.subtle,
             mx: 0.5,
             display: { xs: 'none', sm: 'block' },
           }} />
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
             <Tooltip title={copied ? 'Copied!' : 'Copy code'}>
-              <IconButton size="small" onClick={handleCopy}>
+              <IconButton size="small" onClick={handleCopy} sx={{ width: 44, height: 44 }}>
                 {copied ? <CheckRoundedIcon sx={{ fontSize: { xs: 16, sm: 14 } }} /> : <ContentCopyRoundedIcon sx={{ fontSize: { xs: 16, sm: 14 } }} />}
               </IconButton>
             </Tooltip>
 
             <Tooltip title="Download SVG">
               <span>
-                <IconButton size="small" onClick={handleDownload} disabled={!svg}>
+                <IconButton size="small" onClick={handleDownload} disabled={!svg} sx={{ width: 44, height: 44 }}>
                   <FileDownloadOutlinedIcon sx={{ fontSize: { xs: 16, sm: 14 } }} />
                 </IconButton>
               </span>
             </Tooltip>
 
             <Tooltip title={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
-              <IconButton size="small" onClick={toggleFullscreen}>
+              <IconButton size="small" onClick={toggleFullscreen} sx={{ width: 44, height: 44 }}>
                 {fullscreen ? <FullscreenExitRoundedIcon sx={{ fontSize: { xs: 18, sm: 16 } }} /> : <FullscreenRoundedIcon sx={{ fontSize: { xs: 18, sm: 16 } }} />}
               </IconButton>
             </Tooltip>
@@ -421,7 +421,7 @@ function MermaidDiagram({ code }) {
             overflow: 'hidden',
             bgcolor: 'background.paper',
             border: '1px solid',
-            borderColor: theme.palette.border?.subtle,
+            borderColor: theme.palette.border.subtle,
             borderRadius: { xs: '8px', sm: '12px' },
             minHeight: { xs: 180, sm: 200 },
             display: 'flex',
@@ -439,7 +439,7 @@ function MermaidDiagram({ code }) {
             sx={{
               position: 'fixed',
               inset: 0,
-              backgroundColor: alpha(theme.palette.common.black, isDark ? 0.95 : 0.9),
+              backgroundColor: alpha(theme.palette.background.default, isDark ? 0.95 : 0.9),
               zIndex: theme.zIndex.modal + 100,
               cursor: 'pointer',
             }}
@@ -473,7 +473,7 @@ function MermaidDiagram({ code }) {
         overflow: 'hidden',
         bgcolor: 'background.paper',
         border: '1px solid',
-        borderColor: theme.palette.border?.subtle,
+        borderColor: theme.palette.border.subtle,
         borderRadius: { xs: '8px', sm: '12px' },
         display: 'flex',
         flexDirection: 'column',

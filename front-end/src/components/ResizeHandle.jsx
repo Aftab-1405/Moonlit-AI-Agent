@@ -1,6 +1,6 @@
 import { useCallback, useRef, useEffect, memo } from 'react';
 import { Box } from '@mui/material';
-import { useTheme as useMuiTheme, alpha } from '@mui/material/styles';
+import { useTheme as useMuiTheme } from '@mui/material/styles';
 
 /**
  * ResizeHandle - Draggable vertical divider for resizing panels
@@ -11,7 +11,6 @@ import { useTheme as useMuiTheme, alpha } from '@mui/material/styles';
  */
 function ResizeHandle({ onResize, onResizeEnd, disabled = false }) {
   const theme = useMuiTheme();
-  const isDark = theme.palette.mode === 'dark';
   const isDragging = useRef(false);
   const startX = useRef(0);
 

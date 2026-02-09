@@ -16,8 +16,9 @@ import {
   TextField,
   InputAdornment,
   Snackbar,
+  useMediaQuery,
 } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
+import { useTheme, alpha } from '@mui/material/styles';
 import { useSettings } from '../contexts/SettingsContext';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
@@ -50,6 +51,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
   const { columns = [], result = [], row_count = 0, execution_time, truncated } = data || {};
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
+  const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
   useEffect(() => {
     return () => {
       if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
@@ -59,10 +61,10 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
   const columnWidths = useMemo(() => {
     const widths = {};
     columns.forEach(col => {
-      widths[col] = columnWidthOverrides[col] || 150;
+      widths[col] = columnWidthOverrides[col] || (isCompactMobile ? 120 : 150);
     });
     return widths;
-  }, [columns, columnWidthOverrides]);
+  }, [columns, columnWidthOverrides, isCompactMobile]);
   const filteredData = useMemo(() => {
     if (!searchQuery.trim()) return result;
     const query = searchQuery.toLowerCase();
@@ -211,20 +213,35 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
             alignItems: 'center',
             justifyContent: 'space-between',
             flexWrap: 'wrap',
-            gap: 1,
-            px: 2,
-            py: 1.5,
+            gap: { xs: 0.75, sm: 1 },
+            px: { xs: 1.25, sm: 2 },
+            py: { xs: 1, sm: 1.5 },
             borderBottom: '1px solid',
-            borderColor: theme.palette.border?.subtle,
+            borderColor: theme.palette.border.subtle,
             backgroundColor: theme.palette.action.hover,
           }}
         >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: { xs: 0.5, sm: 1 },
+              minWidth: 0,
+              flexWrap: { xs: 'nowrap', sm: 'wrap' },
+              overflowX: { xs: 'auto', sm: 'visible' },
+              WebkitOverflowScrolling: 'touch',
+              '&::-webkit-scrollbar': {
+                display: 'none',
+              },
+            }}
+          >
             <Tooltip title="Chart View">
               <IconButton
                 size="small"
                 onClick={() => setViewMode('chart')}
                 sx={{
+                  width: 44,
+                  height: 44,
                   color: 'text.secondary',
                   '&:hover': { backgroundColor: theme.palette.action.hover },
                 }}
@@ -240,7 +257,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                 backgroundColor: theme.palette.action.hover,
                 color: 'text.primary',
                 border: '1px solid',
-                borderColor: theme.palette.border?.subtle,
+                borderColor: theme.palette.border.subtle,
               }}
             />
             {execution_time && (
@@ -282,11 +299,11 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                 ),
               }}
               sx={{
-                width: 160,
+                width: { xs: 120, sm: 160 },
                 '& .MuiOutlinedInput-root': {
                   height: 32,
                   backgroundColor: theme.palette.action.disabledBackground,
-                  '& fieldset': { borderColor: theme.palette.border?.subtle },
+                  '& fieldset': { borderColor: theme.palette.border.subtle },
                 },
               }}
             />
@@ -296,6 +313,8 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                 size="small"
                 onClick={handleCopyAsCSV}
                 sx={{
+                  width: 44,
+                  height: 44,
                   color: copied ? 'text.primary' : 'text.secondary',
                   '&:hover': { backgroundColor: theme.palette.action.hover },
                 }}
@@ -312,6 +331,8 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                 size="small"
                 onClick={handleDownloadCSV}
                 sx={{
+                  width: 44,
+                  height: 44,
                   color: 'text.secondary',
                   '&:hover': { backgroundColor: theme.palette.action.hover },
                 }}
@@ -325,6 +346,8 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                   size="small"
                   onClick={onClose}
                   sx={{
+                    width: 44,
+                    height: 44,
                     color: 'text.secondary',
                     '&:hover': { backgroundColor: theme.palette.action.hover },
                   }}
@@ -336,15 +359,46 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
           </Box>
         </Box>
       )}
-      <TableContainer
+      <Box
         sx={{
+          position: 'relative',
           flex: 1,
           minHeight: embedded ? 0 : 250,
+          overflow: 'hidden',
+          '&::before, &::after': isCompactMobile ? {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            bottom: 0,
+            width: 10,
+            zIndex: 2,
+            pointerEvents: 'none',
+          } : {},
+          '&::before': isCompactMobile ? {
+            left: 0,
+            background: `linear-gradient(to right, ${alpha(theme.palette.background.paper, 0.95)}, transparent)`,
+          } : {},
+          '&::after': isCompactMobile ? {
+            right: 0,
+            background: `linear-gradient(to left, ${alpha(theme.palette.background.paper, 0.95)}, transparent)`,
+          } : {},
+        }}
+      >
+      <TableContainer
+        sx={{
+          height: '100%',
           cursor: resizing ? 'col-resize' : 'default',
           overflow: 'auto',
         }}
       >
-        <Table stickyHeader size="small" sx={{ tableLayout: 'fixed' }}>
+        <Table
+          stickyHeader
+          size="small"
+          sx={{
+            tableLayout: isCompactMobile ? 'auto' : 'fixed',
+            minWidth: isCompactMobile ? 'max-content' : '100%',
+          }}
+        >
           <TableHead>
             <TableRow>
               {columns.map((column, idx) => (
@@ -352,19 +406,20 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                   key={column}
                   sx={{
                     width: columnWidths[column] || 150,
-                    minWidth: 80,
+                    minWidth: isCompactMobile ? 68 : 80,
                     maxWidth: 500,
                     backgroundColor: theme.palette.background.default,
                     fontWeight: 600,
                     textTransform: 'uppercase',
                     letterSpacing: 0.5,
+                    fontSize: isCompactMobile ? '0.68rem' : '0.75rem',
                     color: 'text.secondary',
                     whiteSpace: 'nowrap',
                     borderBottom: '2px solid',
-                    borderColor: theme.palette.border?.subtle,
+                    borderColor: theme.palette.border.subtle,
                     position: 'relative',
                     userSelect: 'none',
-                    ...(idx === 0 && { pl: 2 }),
+                    ...(idx === 0 && { pl: isCompactMobile ? 1.2 : 2 }),
                   }}
                 >
                   <TableSortLabel
@@ -381,6 +436,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                   <Box
                     onMouseDown={(e) => handleResizeStart(e, column)}
                     sx={{
+                      display: isCompactMobile ? 'none' : 'block',
                       position: 'absolute',
                       right: 0,
                       top: 0,
@@ -426,8 +482,10 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
-                        py: 1,
-                        borderColor: theme.palette.border?.subtle,
+                        py: isCompactMobile ? 0.75 : 1,
+                        px: isCompactMobile ? 1 : 1.5,
+                        fontSize: isCompactMobile ? '0.78rem' : '0.875rem',
+                        borderColor: theme.palette.border.subtle,
                         cursor: 'pointer',
                         transition: 'background-color 0.1s ease',
                         ...(isCopied && {
@@ -436,7 +494,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                         '&:hover': {
                           backgroundColor: theme.palette.action.hover,
                         },
-                        ...(colIndex === 0 && { pl: 2 }),
+                        ...(colIndex === 0 && { pl: isCompactMobile ? 1.2 : 2 }),
                       }}
                     >
                       {row[column] === null ? (
@@ -458,7 +516,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                         <Typography
                           component="span"
                           sx={{
-                            fontFamily: '"JetBrains Mono", monospace',
+                            fontFamily: theme.typography.fontFamilyMono,
                             color: 'text.primary',
                           }}
                         >
@@ -475,6 +533,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
           </TableBody>
         </Table>
       </TableContainer>
+      </Box>
       <TablePagination
         component="div"
         count={searchQuery ? filteredData.length : row_count}
@@ -487,6 +546,17 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
           position: 'relative',
           zIndex: 1,
           flexShrink: 0,
+          '& .MuiTablePagination-toolbar': {
+            px: { xs: 1, sm: 2 },
+            minHeight: { xs: 52, sm: 56 },
+          },
+          '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+            fontSize: { xs: '0.72rem', sm: '0.8125rem' },
+            m: 0,
+          },
+          '& .MuiTablePagination-actions': {
+            marginLeft: { xs: 0.25, sm: 1 },
+          },
         }}
       />
       <Snackbar

@@ -6,7 +6,7 @@ const HEX_BLACK = '#000000';
 const HEX_BLACK_20 = '#111111';
 
 const BREAKPOINTS = {
-  values: { xs: 0, sm: 600, md: 900, lg: 1200, xl: 1536 },
+  values: { xs: 0, sm: 600, md: 960, lg: 1200, xl: 1536 },
 };
 
 const FONTS = {
@@ -19,8 +19,8 @@ const PALETTE_MODES = {
   dark: {
     background: {
       default: '#0c0c0e',
-      paper: '#151518',
-      elevated: '#1c1c20',
+      paper: '#111114',
+      elevated: '#15151a',
     },
     text: {
       primary: '#f2f2f2',
@@ -58,6 +58,16 @@ const PALETTE_MODES = {
       disabledBackground: alpha(HEX_WHITE, 0.14),
     },
     scrollbar: { track: 'transparent', thumb: '#3b3b44', thumbHover: '#4b4b55' },
+    code: {
+      background: alpha(HEX_WHITE, 0.12),
+      text: '#f2f2f2',
+      border: alpha(HEX_WHITE, 0.1),
+    },
+    glassmorphism: {
+      background: alpha('#0c0c0e', 0.96),
+      backdropFilter: 'blur(12px)',
+      borderColor: alpha('#1e1e24', 0.9),
+    },
     monaco: {
       background: '#0c0c0e',
       gutter: '#0c0c0e',
@@ -69,8 +79,8 @@ const PALETTE_MODES = {
   light: {
     background: {
       default: '#f5f2ee',
-      paper: '#ffffff',
-      elevated: '#faf6f2',
+      paper: '#f8f4ef',
+      elevated: '#fbf7f2',
     },
     text: {
       primary: '#1a1a1a',
@@ -108,6 +118,16 @@ const PALETTE_MODES = {
       disabledBackground: alpha(HEX_BLACK, 0.12),
     },
     scrollbar: { track: 'transparent', thumb: '#bdb6ad', thumbHover: '#a69f96' },
+    code: {
+      background: alpha(HEX_BLACK, 0.05),
+      text: '#1a1a1a',
+      border: alpha(HEX_BLACK, 0.08),
+    },
+    glassmorphism: {
+      background: alpha('#faf6f2', 0.96),
+      backdropFilter: 'blur(12px)',
+      borderColor: alpha('#ddd6cf', 0.95),
+    },
     monaco: {
       background: '#f5f2ee',
       gutter: '#f5f2ee',
@@ -136,6 +156,7 @@ const getReadableTextColor = (hex) => {
 
 const createTypography = (palette) => ({
   fontFamily: FONTS.serif,
+  fontFamilyMono: FONTS.mono,
   fontWeightLight: 300,
   fontWeightRegular: 400,
   fontWeightMedium: 500,
@@ -349,13 +370,10 @@ export const getAccentEffects = (theme) => {
 };
 
 export const getGlassSx = (theme) => ({
-  backgroundColor: alpha(
-    theme.palette.background.paper,
-    theme.palette.mode === 'dark' ? 0.6 : 0.8
-  ),
-  backdropFilter: 'blur(12px)',
-  WebkitBackdropFilter: 'blur(12px)',
-  border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+  backgroundColor: theme.palette.glassmorphism.background,
+  backdropFilter: theme.palette.glassmorphism.backdropFilter,
+  WebkitBackdropFilter: theme.palette.glassmorphism.backdropFilter,
+  border: `1px solid ${theme.palette.glassmorphism.borderColor}`,
 });
 
 export const getGlowButtonSx = (theme) => {
@@ -408,10 +426,18 @@ const getComponentOverrides = (mode) => {
         html: {
           colorScheme: mode,
           scrollBehavior: 'smooth',
+          WebkitTextSizeAdjust: '100%',
+          textSizeAdjust: '100%',
+          minHeight: '100%',
         },
         body: {
           margin: 0,
           overflowX: 'hidden',
+          minHeight: '100dvh',
+          '@supports not (min-height: 100dvh)': {
+            minHeight: '100vh',
+          },
+          fontSize: '1rem',
           fontFeatureSettings: '"liga" 1, "calt" 1',
           textRendering: 'optimizeLegibility',
           WebkitFontSmoothing: 'antialiased',
@@ -437,7 +463,10 @@ const getComponentOverrides = (mode) => {
           },
         },
         '#root': {
-          minHeight: '100vh',
+          minHeight: '100dvh',
+          '@supports not (min-height: 100dvh)': {
+            minHeight: '100vh',
+          },
         },
         '@media (prefers-reduced-motion: reduce)': {
           '*': {
@@ -827,12 +856,12 @@ const getComponentOverrides = (mode) => {
     MuiMenu: {
       styleOverrides: {
         paper: {
-          border: `1px solid ${palette.border.subtle}`,
-          backgroundColor: palette.background.elevated,
+          border: `1px solid ${alpha(palette.border.subtle, isDark ? 0.9 : 0.95)}`,
+          backgroundColor: alpha(palette.background.elevated, isDark ? 0.96 : 0.98),
           backgroundImage: 'none',
-          boxShadow: isDark
-            ? `0 20px 25px -5px ${alpha(HEX_BLACK, 0.6)}`
-            : `0 20px 25px -5px ${alpha(HEX_BLACK, 0.1)}`,
+          backdropFilter: 'blur(14px)',
+          WebkitBackdropFilter: 'blur(14px)',
+          boxShadow: 'none',
           borderRadius: 8,
         },
       },
@@ -841,12 +870,12 @@ const getComponentOverrides = (mode) => {
     MuiPopover: {
       styleOverrides: {
         paper: {
-          backgroundColor: palette.background.elevated,
+          backgroundColor: alpha(palette.background.elevated, isDark ? 0.96 : 0.98),
           backgroundImage: 'none',
-          border: `1px solid ${palette.border.subtle}`,
-          boxShadow: isDark
-            ? `0 20px 25px -5px ${alpha(HEX_BLACK, 0.6)}`
-            : `0 20px 25px -5px ${alpha(HEX_BLACK, 0.1)}`,
+          border: `1px solid ${alpha(palette.border.subtle, isDark ? 0.9 : 0.95)}`,
+          backdropFilter: 'blur(14px)',
+          WebkitBackdropFilter: 'blur(14px)',
+          boxShadow: 'none',
         },
       },
     },
@@ -1083,6 +1112,12 @@ const createBaseTheme = (mode) => {
     getNaturalMoonlitEffects: () => getAccentEffects(theme),
     fonts: FONTS,
     transitions: TRANSITIONS,
+    alpha: {
+      subtle: 0.05,
+      light: 0.1,
+      medium: 0.2,
+      strong: 0.4,
+    },
   };
 
   return theme;

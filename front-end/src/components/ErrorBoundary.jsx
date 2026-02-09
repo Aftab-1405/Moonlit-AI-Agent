@@ -99,9 +99,9 @@ class ErrorBoundary extends Component {
           <Paper
             elevation={0}
             sx={{
-              maxWidth: 480,
+              maxWidth: 560,
               width: '100%',
-              p: 4,
+              p: { xs: 2.5, sm: 4 },
               textAlign: 'center',
               border: '1px solid',
               borderColor: 'divider',
@@ -142,9 +142,9 @@ class ErrorBoundary extends Component {
                   component="pre"
                   sx={{
                     fontFamily: 'monospace',
-                    fontSize: '0.75rem',
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
+                    fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                    whiteSpace: 'pre',
+                    overflowX: 'auto',
                     m: 0,
                   }}
                 >

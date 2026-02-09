@@ -65,9 +65,10 @@ function SettingItem({ label, description, children, disabled = false }) {
     <Box
       sx={{
         display: 'flex',
-        alignItems: 'center',
+        alignItems: { xs: 'flex-start', sm: 'center' },
+        flexDirection: { xs: 'column', sm: 'row' },
         justifyContent: 'space-between',
-        gap: 2,
+        gap: { xs: 1.25, sm: 2 },
         opacity: disabled ? 0.5 : 1,
         py: 1,
         '&:first-of-type': { pt: 0 },
@@ -84,13 +85,14 @@ function SettingItem({ label, description, children, disabled = false }) {
           </Typography>
         )}
       </Box>
-      <Box sx={{ flexShrink: 0 }}>
+      <Box sx={{ flexShrink: 0, width: { xs: '100%', sm: 'auto' } }}>
         {children}
       </Box>
     </Box>
   );
 }
-function SectionTitle({ children }) {
+function SectionTitle({ children, visible = true }) {
+  if (!visible) return null;
   return (
     <Typography variant="h6" fontWeight={600} sx={{ mb: 2.5 }}>
       {children}
@@ -103,7 +105,8 @@ function SettingsModal({ open, onClose }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const theme = useMuiTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const isDark = theme.palette.mode === 'dark';
+  const activeSectionLabel = SECTIONS.find((section) => section.id === activeSection)?.label || 'Settings';
+  const showSectionTitle = !isMobile;
   const toggleStyles = {
     '& .MuiToggleButton-root': { px: 1.5, py: 0.5 },
   };
@@ -149,7 +152,7 @@ function SettingsModal({ open, onClose }) {
         return (
           <Fade in key="appearance">
             <Box>
-              <SectionTitle>Appearance</SectionTitle>
+              <SectionTitle visible={showSectionTitle}>Appearance</SectionTitle>
               
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <SettingCard>
@@ -184,6 +187,27 @@ function SettingsModal({ open, onClose }) {
                     />
                   </SettingItem>
                 </SettingCard>
+
+                <SettingCard>
+                  <SettingItem
+                    label="Idle Intensity"
+                    description="Control starfield brightness when idle"
+                    disabled={settings.theme !== 'dark' || !(settings.idleAnimation ?? true)}
+                  >
+                    <ToggleButtonGroup
+                      value={settings.idleAnimationIntensity ?? 'medium'}
+                      exclusive
+                      onChange={(e, v) => v && updateSetting('idleAnimationIntensity', v)}
+                      size="small"
+                      disabled={settings.theme !== 'dark' || !(settings.idleAnimation ?? true)}
+                      sx={toggleStyles}
+                    >
+                      <ToggleButton value="low">Low</ToggleButton>
+                      <ToggleButton value="medium">Med</ToggleButton>
+                      <ToggleButton value="high">High</ToggleButton>
+                    </ToggleButtonGroup>
+                  </SettingItem>
+                </SettingCard>
               </Box>
             </Box>
           </Fade>
@@ -193,7 +217,7 @@ function SettingsModal({ open, onClose }) {
         return (
           <Fade in key="ai">
             <Box>
-              <SectionTitle>AI Settings</SectionTitle>
+              <SectionTitle visible={showSectionTitle}>AI Settings</SectionTitle>
               
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <SettingCard>
@@ -246,7 +270,7 @@ function SettingsModal({ open, onClose }) {
         return (
           <Fade in key="database">
             <Box>
-              <SectionTitle>Database Settings</SectionTitle>
+              <SectionTitle visible={showSectionTitle}>Database Settings</SectionTitle>
               
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <SettingCard>
@@ -359,7 +383,7 @@ function SettingsModal({ open, onClose }) {
         return (
           <Fade in key="context">
             <Box>
-              <SectionTitle>AI Context</SectionTitle>
+              <SectionTitle visible={showSectionTitle}>AI Context</SectionTitle>
               <UserDBContextManagerForAI />
             </Box>
           </Fade>
@@ -405,16 +429,18 @@ function SettingsModal({ open, onClose }) {
             <IconButton
               size="small"
               onClick={() => setMobileNavOpen(true)}
-              sx={{ mr: 0.5 }}
+              sx={{ mr: 0.5, width: 44, height: 44 }}
             >
               <MenuRoundedIcon />
             </IconButton>
           )}
-          <Typography variant="h6" fontWeight={600}>
-            Settings
-          </Typography>
+          {isMobile && (
+            <Typography variant="h6" fontWeight={600}>
+              {activeSectionLabel}
+            </Typography>
+          )}
         </Box>
-        <IconButton onClick={onClose} size="small">
+        <IconButton onClick={onClose} size="small" sx={{ width: 44, height: 44 }}>
           <CloseRoundedIcon />
         </IconButton>
       </Box>
@@ -437,9 +463,14 @@ function SettingsModal({ open, onClose }) {
             anchor="left"
             open={mobileNavOpen}
             onClose={() => setMobileNavOpen(false)}
+            ModalProps={{ keepMounted: true }}
+            sx={{ zIndex: (muiTheme) => muiTheme.zIndex.modal + 2 }}
             PaperProps={{
               sx: {
                 width: 240,
+                maxWidth: '85vw',
+                height: '100%',
+                overflowY: 'auto',
                 backgroundColor: theme.palette.background.paper,
               },
             }}

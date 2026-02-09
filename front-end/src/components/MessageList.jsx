@@ -1,4 +1,4 @@
-import { Box, Typography, Avatar, IconButton, Tooltip, useTheme } from '@mui/material';
+import { Box, Typography, Avatar, IconButton, Tooltip, Button, useTheme, useMediaQuery } from '@mui/material';
 import { alpha, keyframes } from '@mui/material/styles';
 import Fade from '@mui/material/Fade';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
@@ -79,22 +79,25 @@ const CopyButton = memo(function CopyButton({ copied, onClick, className = 'copy
 const UserMessage = memo(function UserMessage({ message, userAvatar, userName }) {
   const { copied, copyText } = useCopyToClipboard();
   const theme = useTheme();
+  const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const handleCopy = useCallback(() => copyText(message), [copyText, message]);
 
   return (
     <Fade in timeout={300}>
-      <Box sx={{ py: 1.5, px: { xs: 2, sm: 4, md: 6 } }}>
+      <Box sx={{ py: { xs: 1, sm: 1.5 }, px: { xs: 2, sm: 4, md: 6 } }}>
         <Box sx={{ maxWidth: 800, mx: 'auto', display: 'flex', justifyContent: 'flex-end' }}>
-          <Box sx={{ display: 'flex', gap: 1.5, maxWidth: '80%', flexDirection: 'row-reverse', '&:hover .copy-btn': { opacity: 1 } }}>
-            <Avatar src={userAvatar} sx={{ width: 24, height: 24, bgcolor: 'primary.main', fontWeight: 600, alignSelf: 'flex-start', mt: 0.5 }}>
-              {!userAvatar && (userName?.charAt(0).toUpperCase() || 'U')}
-            </Avatar>
-            <Box sx={{ px: 2, py: 1.25, borderRadius: '16px 16px 4px 16px', backgroundColor: alpha(theme.palette.text.primary, 0.05), border: '1px solid', borderColor: alpha(theme.palette.text.primary, 0.1) }}>
+          <Box sx={{ display: 'flex', gap: { xs: 0.75, sm: 1.5 }, width: { xs: '100%', md: '70%' }, maxWidth: '100%', flexDirection: 'row-reverse', '&:hover .copy-btn': { opacity: 1 } }}>
+            {!isCompactMobile && (
+              <Avatar src={userAvatar} sx={{ width: { xs: 24, sm: 28 }, height: { xs: 24, sm: 28 }, bgcolor: 'primary.main', fontWeight: 600, alignSelf: 'flex-start', mt: 0.5 }}>
+                {!userAvatar && (userName?.charAt(0).toUpperCase() || 'U')}
+              </Avatar>
+            )}
+            <Box sx={{ px: { xs: 1.4, sm: 2 }, py: { xs: 1, sm: 1.25 }, borderRadius: '16px 16px 4px 16px', backgroundColor: theme.palette.action.hover, border: '1px solid', borderColor: theme.palette.divider }}>
               <Typography sx={{ lineHeight: 1.6, whiteSpace: 'pre-wrap', color: 'text.primary' }}>
                 {message}
               </Typography>
             </Box>
-            <CopyButton copied={copied} onClick={handleCopy} sx={{ alignSelf: 'center' }} />
+            <CopyButton copied={copied} onClick={handleCopy} sx={{ alignSelf: 'center', display: isCompactMobile ? 'none' : 'inline-flex' }} />
           </Box>
         </Box>
       </Box>
@@ -114,6 +117,7 @@ function parseJSON(value) {
 const AIMessage = memo(function AIMessage({ id, text, steps, status, onRunQuery, onOpenSqlEditor }) {
   const { copied, copyRich } = useCopyToClipboard();
   const theme = useTheme();
+  const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const contentRef = useRef(null);
   const sqlEditorTimeoutRef = useRef(null);
   const openedToolsRef = useRef(new Set());
@@ -172,16 +176,18 @@ const AIMessage = memo(function AIMessage({ id, text, steps, status, onRunQuery,
 
   return (
     <Fade in timeout={300}>
-      <Box sx={{ py: 1.5, px: { xs: 2, sm: 4, md: 6 }, '&:hover .copy-btn': { opacity: 1 } }}>
-        <Box sx={{ maxWidth: 800, mx: 'auto', display: 'flex', gap: 2, alignItems: 'flex-start' }}>
-          <Avatar
-            src="/product-logo.png"
-            sx={{
-              width: 24, height: 24, bgcolor: 'transparent', flexShrink: 0, alignSelf: 'flex-start', mt: 0,
-              border: `1px solid ${alpha(theme.palette.primary.main, 0.3)}`,
-              animation: isWaiting ? `${spin} 1s linear infinite` : 'none',
-            }}
-          />
+      <Box sx={{ py: { xs: 1, sm: 1.5 }, px: { xs: 2, sm: 4, md: 6 }, '&:hover .copy-btn': { opacity: 1 } }}>
+        <Box sx={{ width: { xs: '100%', md: '70%' }, maxWidth: { xs: '100%', sm: 800 }, mx: { xs: 0, sm: 'auto' }, display: 'flex', gap: { xs: 1, sm: 2 }, alignItems: 'flex-start' }}>
+          {!isCompactMobile && (
+            <Avatar
+              src="/product-logo.png"
+              sx={{
+                width: { xs: 24, sm: 28 }, height: { xs: 24, sm: 28 }, bgcolor: 'transparent', flexShrink: 0, alignSelf: 'flex-start', mt: 0,
+                border: `1px solid ${alpha(theme.palette.primary.main, 0.3)}`,
+                animation: isWaiting ? `${spin} 1s linear infinite` : 'none',
+              }}
+            />
+          )}
           <Box sx={{ flex: 1, minWidth: 0, pt: 0 }}>
             {displaySteps.length > 0 && (
               <StepsAccordion steps={displaySteps} isStreaming={isWaiting || isStreaming} />
@@ -195,7 +201,7 @@ const AIMessage = memo(function AIMessage({ id, text, steps, status, onRunQuery,
               <MarkdownRenderer content={displayText} onRunQuery={onRunQuery} />
             </Box>
           </Box>
-          <CopyButton copied={copied} onClick={handleCopy} sx={{ alignSelf: 'flex-start', mt: 0.5 }} />
+          <CopyButton copied={copied} onClick={handleCopy} sx={{ alignSelf: 'flex-start', mt: 0.5, display: isCompactMobile ? 'none' : 'inline-flex' }} />
         </Box>
       </Box>
     </Fade>
@@ -231,6 +237,7 @@ function normalizeAssistantMessage(message) {
 }
 
 const MessageList = memo(function MessageList({ messages = [], user, onRunQuery, onOpenSqlEditor }) {
+  const [visibleCount, setVisibleCount] = useState(60);
   const normalizedMessages = useMemo(() => (
     messages.map((message, index) => {
       const role = message.role || (message.sender === 'user' ? 'user' : 'assistant');
@@ -249,6 +256,11 @@ const MessageList = memo(function MessageList({ messages = [], user, onRunQuery,
       };
     })
   ), [messages]);
+  const effectiveVisibleCount = normalizedMessages.length <= 50 ? 60 : visibleCount;
+  const hiddenCount = Math.max(0, normalizedMessages.length - effectiveVisibleCount);
+  const visibleMessages = hiddenCount > 0
+    ? normalizedMessages.slice(-effectiveVisibleCount)
+    : normalizedMessages;
 
   return (
     <Box sx={{
@@ -258,7 +270,14 @@ const MessageList = memo(function MessageList({ messages = [], user, onRunQuery,
       // Prevent browser scroll anchoring from fighting stream updates
       overflowAnchor: 'none',
     }}>
-      {normalizedMessages.map((message) => (
+      {hiddenCount > 0 && (
+        <Box sx={{ px: { xs: 2, sm: 4, md: 6 }, pb: 1 }}>
+          <Button size="small" onClick={() => setVisibleCount((c) => c + 50)}>
+            Load {Math.min(50, hiddenCount)} older messages
+          </Button>
+        </Box>
+      )}
+      {visibleMessages.map((message) => (
         message.role === 'user'
           ? (
             <UserMessage

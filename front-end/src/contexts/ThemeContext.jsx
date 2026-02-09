@@ -3,7 +3,7 @@
  * @module ThemeContext
  */
 
-import { createContext, useContext, useMemo, useCallback } from 'react';
+import { createContext, useContext, useMemo, useLayoutEffect, useRef } from 'react';
 import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
 import { createDarkTheme, createLightTheme } from '../theme';
 import { useSettings, SettingsProvider } from './SettingsContext';
@@ -20,24 +20,54 @@ export const useTheme = () => {
   return context;
 };
 function ThemeProviderInner({ children }) {
-  const settingsContext = useSettings();
-  const { settings, isDarkMode, updateSetting, resetSettings } = settingsContext;
+  const { settings, isDarkMode, updateSetting, resetSettings } = useSettings();
+  const previousThemeRef = useRef(settings.theme);
   
   const theme = useMemo(() => {
     return settings.theme === 'light' ? createLightTheme() : createDarkTheme();
   }, [settings.theme]);
-  
-  const toggleTheme = useCallback(() => {
-    updateSetting('theme', settings.theme === 'dark' ? 'light' : 'dark');
-  }, [updateSetting, settings.theme]);
   
   const value = useMemo(() => ({
     settings,
     updateSetting,
     resetSettings,
     isDarkMode,
-    toggleTheme,
-  }), [settings, updateSetting, resetSettings, isDarkMode, toggleTheme]);
+  }), [settings, updateSetting, resetSettings, isDarkMode]);
+
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined') return;
+    document.documentElement.style.colorScheme = settings.theme;
+
+    if (previousThemeRef.current === settings.theme) return;
+    previousThemeRef.current = settings.theme;
+
+    const style = document.createElement('style');
+    style.setAttribute('data-mui-theme-switch', 'true');
+    style.textContent = `
+      *, *::before, *::after {
+        transition: none !important;
+        animation: none !important;
+      }
+    `;
+    document.head.appendChild(style);
+    window.getComputedStyle(document.body);
+
+    const remove = () => {
+      if (style.parentNode) {
+        style.parentNode.removeChild(style);
+      }
+    };
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(remove);
+    });
+
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+      remove();
+    };
+  }, [settings.theme]);
   
   return (
     <ThemeContext.Provider value={value}>

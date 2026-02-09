@@ -11,6 +11,7 @@ const SETTINGS_KEY = 'moonlit-settings';
 const defaultSettings = {
   theme: 'dark',
   idleAnimation: true,
+  idleAnimationIntensity: 'medium',
   confirmBeforeRun: false,
   queryTimeout: 30,
   maxRows: 1000,

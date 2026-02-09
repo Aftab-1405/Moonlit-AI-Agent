@@ -68,8 +68,8 @@ function FinalCTA({ onGetStarted }) {
               color: 'background.default',
               border: 'none',
               boxShadow: isDark 
-                ? `0 4px 20px ${alpha(theme.palette.common.black, 0.4)}`
-                : `0 4px 20px ${alpha(theme.palette.common.black, 0.15)}`,
+                ? `0 4px 20px ${alpha(theme.palette.text.primary, 0.28)}`
+                : `0 4px 20px ${alpha(theme.palette.text.primary, 0.15)}`,
               transition: theme.transitions.create(['background-color', 'transform', 'box-shadow'], {
                 duration: 200,
               }),
@@ -79,8 +79,8 @@ function FinalCTA({ onGetStarted }) {
                   : alpha(theme.palette.text.primary, 0.9),
                 transform: 'translateY(-2px)',
                 boxShadow: isDark
-                  ? `0 6px 25px ${alpha(theme.palette.common.black, 0.5)}`
-                  : `0 6px 25px ${alpha(theme.palette.common.black, 0.2)}`,
+                  ? `0 6px 25px ${alpha(theme.palette.text.primary, 0.35)}`
+                  : `0 6px 25px ${alpha(theme.palette.text.primary, 0.2)}`,
               },
               '&:active': {
                 transform: 'scale(0.98)',

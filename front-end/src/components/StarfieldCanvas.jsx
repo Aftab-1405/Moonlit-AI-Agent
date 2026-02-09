@@ -29,15 +29,15 @@ const hexToRgb = (hex) => {
 
 const CONFIG = {
   layers: [
-    { count: 0.00009, sizeRange: [0.2, 0.5], opacityRange: [0.08, 0.16], speed: 0.4, twinkle: 0.12 },
-    { count: 0.00006, sizeRange: [0.5, 0.8], opacityRange: [0.16, 0.3], speed: 0.85, twinkle: 0.22 },
-    { count: 0.000025, sizeRange: [0.8, 1.2], opacityRange: [0.28, 0.48], speed: 1.5, twinkle: 0.3 },
-    { count: 0.00001, sizeRange: [1.2, 2.0], opacityRange: [0.4, 0.65], speed: 2.4, twinkle: 0.4 },
+    { count: 0.0001, sizeRange: [0.25, 0.55], opacityRange: [0.16, 0.3], speed: 0.4, twinkle: 0.12 },
+    { count: 0.00007, sizeRange: [0.55, 0.9], opacityRange: [0.26, 0.44], speed: 0.85, twinkle: 0.22 },
+    { count: 0.00003, sizeRange: [0.9, 1.35], opacityRange: [0.4, 0.62], speed: 1.5, twinkle: 0.3 },
+    { count: 0.000012, sizeRange: [1.3, 2.1], opacityRange: [0.55, 0.8], speed: 2.4, twinkle: 0.4 },
   ],
   clusters: { count: 4, starsPerCluster: [10, 18], radius: [70, 140] },
   nebulas: { count: 3, pulseSpeed: 0.06 },
   meteors: { poolSize: 6, minDelay: 5000, maxDelay: 12000 },
-  ambientGlow: { enabled: true, intensity: 0.035 },
+  ambientGlow: { enabled: true, intensity: 0.075 },
   maxDPR: 1.5,
   frameSkipThreshold: 0.02,
   targetFps: 60,
@@ -173,7 +173,7 @@ class NebulaSystem {
         rotation: rand(0, Math.PI),
         rotationSpeed: (Math.random() - 0.5) * 0.007,
         color,
-        baseOpacity: rand(0.05, 0.1),
+        baseOpacity: rand(0.09, 0.18),
         vx: (Math.random() - 0.5) * 0.05,
         vy: (Math.random() - 0.5) * 0.05,
         pulsePhase: Math.random() * TWO_PI,
@@ -384,7 +384,7 @@ class MeteorPool {
   }
 }
 
-function StarfieldCanvas({ active = false }) {
+function StarfieldCanvas({ active = false, intensity = 'medium' }) {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
   const canvasRef = useRef(null);
@@ -409,6 +409,7 @@ function StarfieldCanvas({ active = false }) {
     dpr: 1,
     reduceMotion: false,
   });
+  const intensityScaleRef = useRef(1);
 
   const renderStars = useCallback((ctx, stars, globalOpacity) => {
     const len = stars.length;
@@ -457,6 +458,11 @@ function StarfieldCanvas({ active = false }) {
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
   }, []);
+
+  useEffect(() => {
+    intensityScaleRef.current =
+      intensity === 'low' ? 0.6 : intensity === 'high' ? 1.3 : 1;
+  }, [intensity]);
 
   useEffect(() => {
     if (!isDarkMode) return;
@@ -573,7 +579,8 @@ function StarfieldCanvas({ active = false }) {
         return;
       }
 
-      const { ctx, width, height, opacity: globalOpacity } = state;
+      const { ctx, width, height, opacity: baseOpacity } = state;
+      const globalOpacity = clamp(baseOpacity * intensityScaleRef.current, 0, 1.5);
 
       ctx.clearRect(0, 0, width, height);
       if (state.bgCanvas) {

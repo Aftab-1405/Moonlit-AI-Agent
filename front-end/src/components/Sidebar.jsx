@@ -20,7 +20,7 @@ import {
   CircularProgress,
   useMediaQuery,
 } from '@mui/material';
-import { styled, useTheme, alpha } from '@mui/material/styles';
+import { styled, useTheme } from '@mui/material/styles';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import QuestionAnswerOutlinedIcon from '@mui/icons-material/QuestionAnswerOutlined';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
@@ -34,6 +34,7 @@ import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
 import CloseIcon from '@mui/icons-material/Close';
 import SchemaFlowDiagram from './SchemaFlowDiagram';
 import { getUserContext } from '../api';
+import { getGlassmorphismStyles, getScrollbarStyles, getMenuPaperStyles } from '../styles/shared';
 import logger from '../utils/logger';
 const EXPANDED_WIDTH = 260;
 const COLLAPSED_WIDTH = 56;
@@ -46,15 +47,7 @@ const CONTENT_CONTAINER_STYLES = {
   display: 'flex',
   flexDirection: 'column',
 };
-const getGlassmorphismStyles = (theme, isDarkMode) => ({
-  background: isDarkMode
-    ? theme.palette.background.default  // Same as main content area
-    : theme.palette.background.default,
-  borderRight: '1px solid',
-  borderColor: theme.palette.divider,
-});
-
-const openedMixin = (theme, isDarkMode) => ({
+const openedMixin = (theme) => ({
   width: EXPANDED_WIDTH,
   transition: theme.transitions.create('width', {
     easing: SIDEBAR_WIDTH_EASING,
@@ -62,10 +55,10 @@ const openedMixin = (theme, isDarkMode) => ({
   }),
   willChange: 'width',
   overflowX: 'hidden',
-  ...getGlassmorphismStyles(theme, isDarkMode),
+  ...getGlassmorphismStyles(theme),
 });
 
-const closedMixin = (theme, isDarkMode) => ({
+const closedMixin = (theme) => ({
   transition: theme.transitions.create('width', {
     easing: SIDEBAR_WIDTH_EASING,
     duration: SIDEBAR_WIDTH_DURATION,
@@ -73,28 +66,28 @@ const closedMixin = (theme, isDarkMode) => ({
   willChange: 'width',
   overflowX: 'hidden',
   width: COLLAPSED_WIDTH,
-  ...getGlassmorphismStyles(theme, isDarkMode),
+  ...getGlassmorphismStyles(theme),
 });
 
 const StyledDrawer = styled(MuiDrawer, {
-  shouldForwardProp: (prop) => prop !== 'open' && prop !== 'isDarkMode',
-})(({ theme, open, isDarkMode }) => ({
+  shouldForwardProp: (prop) => prop !== 'open',
+})(({ theme, open }) => ({
   width: EXPANDED_WIDTH,
   height: '100%',
   flexShrink: 0,
   whiteSpace: 'nowrap',
   boxSizing: 'border-box',
   ...(open && {
-    ...openedMixin(theme, isDarkMode),
+    ...openedMixin(theme),
     '& .MuiDrawer-paper': {
-      ...openedMixin(theme, isDarkMode),
+      ...openedMixin(theme),
       borderRadius: 0,  // No rounded corners for sidebar
     },
   }),
   ...(!open && {
-    ...closedMixin(theme, isDarkMode),
+    ...closedMixin(theme),
     '& .MuiDrawer-paper': {
-      ...closedMixin(theme, isDarkMode),
+      ...closedMixin(theme),
       borderRadius: 0,  // No rounded corners for sidebar
     },
   }),
@@ -125,20 +118,25 @@ const ConversationItem = memo(function ConversationItem({
       <ListItemButton
         selected={isActive}
         onClick={handleClick}
-        sx={{
+      sx={{
           px: 1.25,
           py: 1,
           borderRadius: 1.5,
-          minHeight: 40,
+          minHeight: 44,
           color: theme.palette.text.secondary,
+          backgroundColor: 'transparent',
           '& .delete-btn': { opacity: 0 },
           '&:hover .delete-btn': { opacity: 1 },
+          '&:hover': {
+            backgroundColor: theme.palette.action.hover,
+            color: theme.palette.text.primary,
+          },
           '&.Mui-selected': {
             backgroundColor: theme.palette.action.selected,
             color: theme.palette.text.primary,
           },
           '&.Mui-selected:hover': {
-            backgroundColor: alpha(theme.palette.action.selected, 0.9),
+            backgroundColor: theme.palette.action.selected,
           },
         }}
       >
@@ -210,8 +208,8 @@ const SidebarNavItem = memo(function SidebarNavItem({
           sx={{
             color: isActive ? theme.palette.text.primary : theme.palette.text.secondary,
             position: 'relative',
-            width: 36,
-            height: 36,
+            width: 44,
+            height: 44,
             flexShrink: 0,
           }}
         >
@@ -325,7 +323,6 @@ function Sidebar({
   onMobileClose,
 }) {
   const theme = useTheme();
-  const isDarkMode = theme.palette.mode === 'dark';
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isCollapsed = !isMobile && !open;
 
@@ -350,26 +347,16 @@ function Sidebar({
     }),
   }), [isCollapsed, theme]);
 
-  const scrollbarStyles = useMemo(() => ({
-    '&::-webkit-scrollbar': { width: 4 },
-    '&::-webkit-scrollbar-track': { background: 'transparent' },
-    '&::-webkit-scrollbar-thumb': {
-      backgroundColor: alpha(theme.palette.text.secondary, 0.15),
-      borderRadius: 2,
-      '&:hover': {
-        backgroundColor: alpha(theme.palette.text.secondary, 0.25),
-      },
-    },
-  }), [theme]);
+  const scrollbarStyles = useMemo(() => getScrollbarStyles(theme), [theme]);
+  const menuPaperStyles = useMemo(() => getMenuPaperStyles(theme), [theme]);
 
   const mobileDrawerPaperStyles = useMemo(() => ({
-    width: EXPANDED_WIDTH,
+    width: { xs: '90vw', sm: 320 },
+    maxWidth: 320,
     height: '100%',
     borderRadius: 0,
-    ...getGlassmorphismStyles(theme, isDarkMode),
-    borderRight: '1px solid',
-    borderColor: theme.palette.divider,
-  }), [theme, isDarkMode]);
+    ...getGlassmorphismStyles(theme),
+  }), [theme]);
 
   const handleDatabaseSelect = useCallback((dbName) => {
     setDbPopoverAnchor(null);
@@ -479,9 +466,9 @@ function Sidebar({
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <Box
         sx={{
-          px: 1.5,
-          py: 1.5,
-          minHeight: 56,
+          px: { xs: 1.25, sm: 1.5 },
+          py: { xs: 1, sm: 1.5 },
+          minHeight: { xs: 48, sm: 56 },
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'flex-start',
@@ -496,9 +483,10 @@ function Sidebar({
         <Typography
           variant="subtitle1"
           sx={{
-            ml: 1.5,
+            ml: { xs: 1.25, sm: 1.5 },
             fontWeight: 600,
             letterSpacing: '-0.01em',
+            fontSize: { xs: '1.05rem', sm: '1.1rem' },
             color: 'text.primary',
             ...collapsedTextStyles,
           }}
@@ -580,7 +568,7 @@ function Sidebar({
         }}
       >
         <Tooltip title={isCollapsed ? (user?.displayName || 'Profile') : ''} placement="right" arrow>
-          <IconButton onClick={handleProfileClick} size="small" aria-label="Open profile menu" sx={{ width: 36, height: 36 }}>
+          <IconButton onClick={handleProfileClick} size="small" aria-label="Open profile menu" sx={{ width: 44, height: 44 }}>
             {user?.photoURL ? (
               <Avatar src={user.photoURL} sx={{ width: 24, height: 24 }} />
             ) : (
@@ -594,7 +582,7 @@ function Sidebar({
             onClick={isMobile ? onMobileClose : onToggleOpen}
             size="small"
             aria-label={isMobile ? 'Close sidebar' : (isCollapsed ? 'Expand sidebar' : 'Collapse sidebar')}
-            sx={{ width: 36, height: 36 }}
+            sx={{ width: 44, height: 44 }}
           >
             <KeyboardDoubleArrowLeftRoundedIcon
               sx={{
@@ -619,7 +607,7 @@ function Sidebar({
         onClose={handleCloseDbPopover}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         transformOrigin={{ vertical: 'top', horizontal: 'left' }}
-        PaperProps={{ sx: { mt: 1, minWidth: 200, maxHeight: 300, overflow: 'auto' } }}
+        PaperProps={{ sx: { ...menuPaperStyles, mt: 1, minWidth: 200, maxHeight: 300, overflow: 'auto' } }}
       >
         <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
           <Typography variant="overline" color={theme.palette.text.secondary}>
@@ -662,7 +650,7 @@ function Sidebar({
         onClose={handleCloseHistoryPopover}
         anchorOrigin={{ vertical: 'center', horizontal: 'right' }}
         transformOrigin={{ vertical: 'center', horizontal: 'left' }}
-        PaperProps={{ sx: { ml: 1, minWidth: 240, maxWidth: 320, maxHeight: 400, overflow: 'auto' } }}
+        PaperProps={{ sx: { ...menuPaperStyles, ml: 1, minWidth: 240, maxWidth: 320, maxHeight: 400, overflow: 'auto' } }}
       >
         <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
           <Typography variant="overline" color="text.secondary">
@@ -786,7 +774,6 @@ function Sidebar({
       <StyledDrawer
         variant="permanent"
         open={open}
-        isDarkMode={isDarkMode}
         PaperProps={{ sx: CONTENT_CONTAINER_STYLES }}
       >
         {sidebarContent}

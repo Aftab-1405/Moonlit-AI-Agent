@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, memo } from 'react';
 import ReactFlow, {
   Controls,
+  MiniMap,
   useNodesState,
   useEdgesState,
   Handle,
@@ -240,7 +241,7 @@ const ColumnNode = memo(({ data }) => {
           color: isPK ? theme.palette.warning.main : 'text.primary',
           fontWeight: isPK ? 600 : 500,
           fontSize: { xs: '0.75rem', sm: '0.7rem' },
-          fontFamily: '"JetBrains Mono", monospace',
+          fontFamily: theme.typography.fontFamilyMono,
         }}
       >
         {data.label}
@@ -253,7 +254,7 @@ const ColumnNode = memo(({ data }) => {
             color: 'text.disabled',
             fontSize: { xs: '0.65rem', sm: '0.6rem' },
             ml: 'auto',
-            fontFamily: '"JetBrains Mono", monospace',
+            fontFamily: theme.typography.fontFamilyMono,
             opacity: 0.7,
           }}
         >
@@ -424,6 +425,7 @@ function SchemaFlowDiagram({ database, tables, columns }) {
         minHeight: 300,
         borderRadius: 2,
         overflow: 'hidden',
+        touchAction: 'pan-y',
         border: '1px solid',
         borderColor: 'divider',
         backgroundColor: isDark 
@@ -449,6 +451,16 @@ function SchemaFlowDiagram({ database, tables, columns }) {
         zoomOnPinch={true}
         preventScrolling={true}
       >
+        <MiniMap
+          pannable
+          zoomable
+          nodeColor={() => alpha(theme.palette.text.primary, isDark ? 0.35 : 0.22)}
+          maskColor={alpha(theme.palette.background.default, isDark ? 0.6 : 0.45)}
+          style={{
+            background: alpha(theme.palette.background.paper, isDark ? 0.9 : 0.96),
+            border: `1px solid ${theme.palette.divider}`,
+          }}
+        />
         <Controls
           showInteractive={false}
           position={isMobile ? 'bottom-right' : 'top-right'}
@@ -460,7 +472,7 @@ function SchemaFlowDiagram({ database, tables, columns }) {
             backgroundColor: theme.palette.background.paper,
             borderRadius: '10px',
             border: `1px solid ${theme.palette.divider}`,
-            boxShadow: `0 2px 8px ${alpha(theme.palette.common.black, isDark ? 0.45 : 0.12)}`,
+            boxShadow: `0 2px 8px ${alpha(theme.palette.text.primary, isDark ? 0.25 : 0.12)}`,
             ...(isMobile 
               ? { bottom: '12px', right: '12px' }
               : { top: '12px', right: '12px' }
@@ -472,8 +484,8 @@ function SchemaFlowDiagram({ database, tables, columns }) {
       <GlobalStyles
         styles={{
           '.react-flow-controls-custom button': {
-            width: '28px !important',
-            height: '28px !important',
+            width: '44px !important',
+            height: '44px !important',
             backgroundColor: `${theme.palette.action.hover} !important`,
             border: `1px solid ${theme.palette.divider} !important`,
             borderRadius: '8px !important',
@@ -490,8 +502,8 @@ function SchemaFlowDiagram({ database, tables, columns }) {
           },
           '.react-flow-controls-custom button svg': {
             fill: `${theme.palette.text.primary} !important`,
-            width: '14px !important',
-            height: '14px !important',
+            width: '18px !important',
+            height: '18px !important',
           },
           '.react-flow-controls-custom button:disabled': {
             opacity: '0.4 !important',

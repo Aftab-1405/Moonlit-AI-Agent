@@ -11,6 +11,7 @@ import { Box, Tooltip, Typography, Chip } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import BoltIcon from '@mui/icons-material/Bolt';
 import { getQuotaStatus } from '../api';
+import { BORDER_RADIUS } from '../styles/shared';
 import logger from '../utils/logger';
 const POLL_INTERVAL = 10000;
 const formatResetTime = (seconds) => {
@@ -117,7 +118,7 @@ function QuotaDisplay({ embedded = false }) {
       return {
         height: 24,
         fontWeight: 700,
-        borderRadius: '11px',
+        borderRadius: BORDER_RADIUS.pill,
         cursor: 'default',
         color: theme.palette[statusColor].main,
         backgroundColor: 'transparent',
@@ -136,7 +137,7 @@ function QuotaDisplay({ embedded = false }) {
     return {
       height: 24,
       fontWeight: 600,
-      borderRadius: '12px',
+      borderRadius: BORDER_RADIUS.pill,
       cursor: 'default',
       backgroundColor: alpha(theme.palette[statusColor].main, 0.08),
       '& .MuiChip-icon': {

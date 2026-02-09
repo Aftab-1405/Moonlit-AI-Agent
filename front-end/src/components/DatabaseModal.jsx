@@ -51,15 +51,8 @@ import {
   sqliteSchema,
   dbFieldSchemas,
 } from '../validation';
+import { DB_TYPES } from '../config/databases';
 import logger from '../utils/logger';
-
-const DB_TYPES = [
-  { value: 'mysql', label: 'MySQL', defaultPort: 3306, supportsConnectionString: true, icon: '/logo-mysql.svg' },
-  { value: 'postgresql', label: 'PostgreSQL', defaultPort: 5432, supportsConnectionString: true, icon: '/logo-postgresql.svg' },
-  { value: 'sqlserver', label: 'SQL Server', defaultPort: 1433, supportsConnectionString: true, icon: '/logo-microsoft-sql-server.svg' },
-  { value: 'oracle', label: 'Oracle', defaultPort: 1521, supportsConnectionString: true, icon: '/logo-oracle.svg' },
-  { value: 'sqlite', label: 'SQLite', defaultPort: null, supportsConnectionString: false, icon: '/logo-sqlite.svg' },
-];
 
 const Transition = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="up" ref={ref} {...props} />;
@@ -98,7 +91,8 @@ const VisibilityToggleAdornment = memo(({ show, onToggle }) => (
     </IconButton>
   </InputAdornment>
 ));
-function EmptyState({ icon: Icon, title, subtitle }) {
+function EmptyState({ icon, title, subtitle }) {
+  const Icon = icon;
   return (
     <Box sx={{ textAlign: 'center', py: 6, px: 3 }}>
       <Icon sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
@@ -439,6 +433,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
                     <IconButton
                       size="small"
                       aria-label="Paste path from clipboard"
+                      sx={{ width: 44, height: 44 }}
                       onClick={async () => {
                         try {
                           const text = await navigator.clipboard.readText();
@@ -471,7 +466,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
           />
         ) : (
           <Stack spacing={2}>
-            <Stack direction="row" spacing={2}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
               <TextField
                 fullWidth
                 name="host"
@@ -484,7 +479,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
                 size="small"
               />
               <TextField
-                sx={{ width: 100, flexShrink: 0 }}
+                sx={{ width: { xs: '100%', sm: 100 }, flexShrink: 0 }}
                 name="port"
                 label="Port"
                 value={formData.port}
@@ -570,6 +565,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
               size="small" 
               onClick={() => setMobileNavOpen(true)}
               aria-label="Open database type menu"
+              sx={{ width: 44, height: 44 }}
             >
               <MenuRoundedIcon />
             </IconButton>
@@ -584,7 +580,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
             {isMobile ? 'Connect' : 'Connect Database'}
           </Typography>
         </Box>
-        <IconButton onClick={onClose} size="small" aria-label="Close dialog">
+        <IconButton onClick={onClose} size="small" aria-label="Close dialog" sx={{ width: 44, height: 44 }}>
           <CloseRoundedIcon />
         </IconButton>
       </Box>
@@ -608,9 +604,14 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
             anchor="left"
             open={mobileNavOpen}
             onClose={() => setMobileNavOpen(false)}
+            ModalProps={{ keepMounted: true }}
+            sx={{ zIndex: (muiTheme) => muiTheme.zIndex.modal + 2 }}
             PaperProps={{
               sx: {
                 width: 220,
+                maxWidth: '85vw',
+                height: '100%',
+                overflowY: 'auto',
                 backgroundColor: theme.palette.background.paper,
               },
             }}
@@ -623,7 +624,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
             {NavContent}
           </Drawer>
         )}
-        <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        <Box sx={{ flex: 1, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, overflow: 'hidden' }}>
           <Fade in key="form">
             <Box
               sx={{
@@ -637,13 +638,14 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
           </Fade>
           {databases.length > 0 && (
             <>
-              <Divider orientation="vertical" flexItem />
+              <Divider orientation={isMobile ? 'horizontal' : 'vertical'} flexItem />
               <Fade in key="databases">
                 <Box
                   sx={{
                     width: { xs: '100%', sm: 280 },
                     flexShrink: 0,
                     p: { xs: 2, sm: 3 },
+                    maxHeight: { xs: '45%', sm: 'none' },
                     overflowY: 'auto',
                     backgroundColor: alpha(theme.palette.background.default, 0.5),
                   }}

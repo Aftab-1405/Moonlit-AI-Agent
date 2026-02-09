@@ -24,8 +24,6 @@ import {
   Box,
   Typography,
   IconButton,
-  AppBar,
-  Toolbar,
   Menu,
   MenuItem,
   Divider,
@@ -38,7 +36,6 @@ import {
   Grow,
   Slide,
   Fade,
-  useMediaQuery,
 } from '@mui/material';
 import { useTheme as useMuiTheme, alpha } from '@mui/material/styles';
 import { useTheme as useAppTheme } from '../contexts/ThemeContext';
@@ -71,20 +68,22 @@ import {
   useMessageStreaming,
   useQueryExecution,
   useSqlEditorPanel,
+  useResponsive,
 } from '../hooks';
 
 import { getMoonlitGradient } from '../theme';
+import { getMenuPaperStyles } from '../styles/shared';
 import { isMessageActive } from '../utils/chatMessages';
 import logger from '../utils/logger';
 const DRAWER_WIDTH = 260;
 const COLLAPSED_WIDTH = 56;
-const MOBILE_APPBAR_HEIGHT = 56;
 
 function Chat() {
 
   const theme = useMuiTheme();
   const isDarkMode = theme.palette.mode === 'dark';
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const { isDesktop } = useResponsive();
+  const isNarrowLayout = !isDesktop;
   const { settings, updateSetting } = useAppTheme();
   const { user, logout } = useAuth();
   const {
@@ -165,8 +164,10 @@ function Chat() {
     settings,
   });
 
-  const isIdle = useIdleDetection();
+  const isIdle = useIdleDetection(8000);
   const idleAnimationEnabled = settings.idleAnimation ?? true;
+  const idleAnimationIntensity = settings.idleAnimationIntensity ?? 'medium';
+  const starfieldActive = isDarkMode && idleAnimationEnabled && isIdle;
 
   const isCurrentlyStreaming = useMemo(() => {
     if (messages.length === 0) return false;
@@ -197,15 +198,6 @@ function Chat() {
     return `${messageId}|${status}|${rawLen}|${textLen}|${stepsLen}|${messages.length}`;
   }, [messages]);
 
-  const glassmorphismStyles = useMemo(() => ({
-    background: isDarkMode
-      ? alpha(theme.palette.background.paper, 0.05)
-      : alpha(theme.palette.background.paper, 0.8),
-    backdropFilter: 'blur(12px)',
-    WebkitBackdropFilter: 'blur(12px)',
-    borderColor: alpha(theme.palette.divider, isDarkMode ? 0.1 : 0.15),
-  }), [isDarkMode, theme]);
-
   const snackbarContentProps = useMemo(() => {
     const severityColor = snackbar.severity === 'success' ? theme.palette.success.main :
       snackbar.severity === 'error' ? theme.palette.error.main :
@@ -214,13 +206,13 @@ function Chat() {
 
     return {
       sx: {
-        backgroundColor: isDarkMode ? alpha(theme.palette.background.paper, 0.95) : theme.palette.background.paper,
+        backgroundColor: alpha(theme.palette.background.elevated, isDarkMode ? 0.95 : 0.98),
         color: severityColor,
         fontWeight: 500,
         borderRadius: '6px',
         border: `1.5px solid ${severityColor}`,
         boxShadow: isDarkMode
-          ? `0 4px 12px ${alpha(theme.palette.common.black, 0.4)}`
+          ? `0 4px 12px ${alpha(theme.palette.text.primary, 0.25)}`
           : `0 4px 12px ${alpha(severityColor, 0.15)}`,
         padding: '10px 16px',
         minWidth: 'auto !important',
@@ -280,18 +272,8 @@ function Chat() {
   const selectMenuProps = useMemo(() => ({
     PaperProps: {
       sx: {
+        ...getMenuPaperStyles(theme),
         mt: 0.8,
-        borderRadius: 2,
-        border: '1px solid',
-        borderColor: alpha(theme.palette.divider, isDarkMode ? 0.24 : 0.45),
-        background: isDarkMode
-          ? `linear-gradient(165deg, ${alpha(theme.palette.background.paper, 0.92)} 0%, ${alpha(theme.palette.background.elevated, 0.9)} 100%)`
-          : `linear-gradient(165deg, ${alpha(theme.palette.background.elevated, 0.98)} 0%, ${alpha(theme.palette.background.default, 0.97)} 100%)`,
-        backdropFilter: 'blur(14px)',
-        WebkitBackdropFilter: 'blur(14px)',
-        boxShadow: isDarkMode
-          ? `0 14px 36px ${alpha(theme.palette.common.black, 0.34)}`
-          : `0 10px 24px ${alpha(theme.palette.text.primary, 0.12)}`,
         '& .MuiMenuItem-root': {
           fontSize: 13,
           fontWeight: 500,
@@ -302,7 +284,7 @@ function Chat() {
         },
       },
     },
-  }), [theme, isDarkMode]);
+  }), [theme]);
 
   const handleCloseDbModal = useCallback(() => setDbModalOpen(false), []);
   const handleCloseSettings = useCallback(() => setSettingsOpen(false), []);
@@ -422,6 +404,12 @@ function Chat() {
     setMobileOpen(prev => !prev);
   }, []);
 
+  useEffect(() => {
+    if (isDesktop) {
+      setMobileOpen(false);
+    }
+  }, [isDesktop]);
+
   const handleSidebarToggle = useCallback(() => {
     setSidebarOpen(prev => !prev);
   }, []);
@@ -502,12 +490,15 @@ function Chat() {
   return (
     <Box sx={{
       display: 'flex',
-      height: '100vh',
+      height: '100dvh',
+      '@supports not (height: 100dvh)': {
+        height: '100vh',
+      },
       bgcolor: 'background.default',
       overflow: 'hidden',
       position: 'relative',
     }}>
-      <StarfieldCanvas active={isIdle && idleAnimationEnabled} />
+      <StarfieldCanvas active={starfieldActive} intensity={idleAnimationIntensity} />
       <Box
         sx={{
           position: 'absolute',
@@ -517,38 +508,13 @@ function Chat() {
           background: `radial-gradient(ellipse at top right, ${alpha(theme.palette.info.main, 0.04)} 0%, transparent 50%)`,
         }}
       />
-      <AppBar
-        position="fixed"
-        sx={{
-          display: { md: 'none' },
-          backgroundColor: glassmorphismStyles.background,
-          backdropFilter: glassmorphismStyles.backdropFilter,
-          WebkitBackdropFilter: glassmorphismStyles.WebkitBackdropFilter,
-          borderBottom: '1px solid',
-          borderColor: glassmorphismStyles.borderColor,
-          zIndex: 2,
-        }}
-        elevation={0}
-      >
-        <Toolbar sx={{ justifyContent: 'space-between' }}>
-          <IconButton color="inherit" edge="start" onClick={handleDrawerToggle}>
-            <MenuOutlinedIcon sx={{ color: 'text.secondary' }} />
-          </IconButton>
-          <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 600 }}>
-            Moonlit
-          </Typography>
-          <IconButton onClick={handleNewChat} sx={{ color: 'text.primary' }}>
-            <EditNoteOutlinedIcon />
-          </IconButton>
-        </Toolbar>
-      </AppBar>
       <Menu
         anchorEl={anchorEl}
         open={Boolean(anchorEl)}
         onClose={handleMenuClose}
         anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
         transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-        PaperProps={{ sx: { minWidth: 180 } }}
+        PaperProps={{ sx: { ...getMenuPaperStyles(theme), minWidth: 180 } }}
       >
         <Box sx={{ px: 2, py: 1.5 }}>
           <Typography variant="subtitle2">{user?.displayName}</Typography>
@@ -581,27 +547,29 @@ function Chat() {
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
-          mt: { xs: `${MOBILE_APPBAR_HEIGHT}px`, md: 0 },
-          height: { xs: `calc(100svh - ${MOBILE_APPBAR_HEIGHT}px)`, md: '100vh' },
+          mt: 0,
+          height: { xs: '100svh', md: '100vh' },
           '@supports not (height: 100svh)': {
-            height: { xs: `calc(100vh - ${MOBILE_APPBAR_HEIGHT}px)`, md: '100vh' },
+            height: { xs: '100vh', md: '100vh' },
           },
           overflow: 'hidden',
-          backgroundColor: 'transparent',
+          backgroundColor: starfieldActive
+            ? alpha(theme.palette.background.default, 0.58)
+            : theme.palette.glassmorphism.background,
           position: 'relative',
           zIndex: 1,
           minWidth: 0,
-          transition: theme.transitions.create(['width', 'margin'], {
+          transition: `${theme.transitions.create(['width', 'margin'], {
             easing: theme.transitions.easing.sharp,
-            duration: theme.transitions.duration.enteringScreen, // 225ms
-          }),
+            duration: theme.transitions.duration.enteringScreen,
+          })}, background-color 420ms ${theme.transitions.easing.easeInOut}`,
         }}
       >
         <Box
           sx={{
-            px: { xs: 1.25, sm: 2, md: 2.5 },
-            pt: { xs: 1.25, md: 1.5 },
-            pb: 0.8,
+            px: { xs: 1, sm: 2, md: 2.5 },
+            pt: { xs: 0.75, md: 1.5 },
+            pb: { xs: 0.5, md: 0.8 },
             flexShrink: 0,
             display: 'flex',
             justifyContent: 'center',
@@ -609,11 +577,11 @@ function Chat() {
         >
           <Box
             sx={{
-              display: 'flex',
+              display: 'grid',
+              gridTemplateColumns: { xs: '32px minmax(0, 1fr) 32px', sm: 'auto' },
               alignItems: 'center',
-              gap: 0.85,
-              flexWrap: 'wrap',
-              width: 'fit-content',
+              columnGap: { xs: 0.75, sm: 0 },
+              width: { xs: '100%', sm: 'fit-content' },
               maxWidth: '100%',
               border: '1px solid',
               borderColor: alpha(theme.palette.divider, isDarkMode ? 0.2 : 0.4),
@@ -623,19 +591,50 @@ function Chat() {
                 : `linear-gradient(155deg, ${alpha(theme.palette.background.default, 0.985)} 0%, ${alpha(theme.palette.background.default, 0.96)} 100%)`,
               backdropFilter: isDarkMode ? 'blur(14px)' : 'none',
               WebkitBackdropFilter: isDarkMode ? 'blur(14px)' : 'none',
-              boxShadow: isDarkMode
-                ? `0 10px 24px ${alpha(theme.palette.common.black, 0.22)}`
-                : `0 2px 8px ${alpha(theme.palette.text.primary, 0.08)}`,
-              px: 0.75,
-              py: 0.75,
+              boxShadow: 'none',
+              px: { xs: 0.5, sm: 0.75 },
+              py: { xs: 0.5, sm: 0.75 },
+              '&::-webkit-scrollbar': {
+                display: 'none',
+              },
             }}
           >
+            {isNarrowLayout && (
+              <IconButton
+                size="small"
+                onClick={handleDrawerToggle}
+                aria-label="Open sidebar"
+                sx={{
+                  width: 44,
+                  height: 44,
+                  color: 'text.secondary',
+                  justifySelf: 'start',
+                }}
+              >
+                <MenuOutlinedIcon sx={{ fontSize: 20 }} />
+              </IconButton>
+            )}
+            <Box
+              sx={{
+                minWidth: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: { xs: 0.65, sm: 0.85 },
+                flexWrap: 'nowrap',
+                overflowX: { xs: 'auto', sm: 'visible' },
+                WebkitOverflowScrolling: 'touch',
+                '&::-webkit-scrollbar': {
+                  display: 'none',
+                },
+              }}
+            >
             <Box
               sx={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 0.8,
-                px: 1,
+                gap: { xs: 0.55, sm: 0.8 },
+                px: { xs: 0.9, sm: 1 },
                 py: 0.45,
                 borderRadius: '14px',
                 border: '1px solid',
@@ -643,10 +642,11 @@ function Chat() {
                 backgroundColor: isDarkMode
                   ? alpha(theme.palette.background.default, 0.42)
                   : alpha(theme.palette.background.default, 0.96),
+                flexShrink: 0,
               }}
             >
               <HubOutlinedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-              <FormControl size="small" variant="standard" sx={{ minWidth: { xs: 108, sm: 122 } }}>
+              <FormControl size="small" variant="standard" sx={{ minWidth: { xs: 94, sm: 122 } }}>
                 <Select
                   value={providerSelectValue}
                   onChange={handleProviderChange}
@@ -678,8 +678,8 @@ function Chat() {
               sx={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 0.8,
-                px: 1,
+                gap: { xs: 0.55, sm: 0.8 },
+                px: { xs: 0.9, sm: 1 },
                 py: 0.45,
                 borderRadius: '14px',
                 border: '1px solid',
@@ -687,9 +687,10 @@ function Chat() {
                 backgroundColor: isDarkMode
                   ? alpha(theme.palette.background.default, 0.42)
                   : alpha(theme.palette.background.default, 0.96),
-                minWidth: { xs: 160, sm: 225 },
+                minWidth: { xs: 142, sm: 225 },
                 maxWidth: { xs: '100%', sm: 320 },
-                flex: { xs: '1 1 180px', sm: '0 1 auto' },
+                flex: { xs: '0 0 auto', sm: '0 1 auto' },
+                flexShrink: 0,
               }}
             >
               <SmartToyOutlinedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
@@ -726,7 +727,7 @@ function Chat() {
 
             <Box
               sx={{
-                display: 'flex',
+                display: { xs: 'none', sm: 'flex' },
                 alignItems: 'center',
                 px: 0.25,
                 ml: { xs: 0, sm: 0.2 },
@@ -734,6 +735,22 @@ function Chat() {
             >
               <QuotaDisplay embedded />
             </Box>
+            </Box>
+            {isNarrowLayout && (
+              <IconButton
+                size="small"
+                onClick={handleNewChat}
+                aria-label="Start new chat"
+                sx={{
+                  width: 44,
+                  height: 44,
+                  color: 'text.primary',
+                  justifySelf: 'end',
+                }}
+              >
+                <EditNoteOutlinedIcon sx={{ fontSize: 20 }} />
+              </IconButton>
+            )}
           </Box>
         </Box>
 
@@ -825,7 +842,17 @@ function Chat() {
                 />
               </Box>
 
-              <Box sx={{ flexShrink: 0 }}>
+              <Box
+                sx={{
+                  flexShrink: 0,
+                  position: 'sticky',
+                  bottom: 0,
+                  zIndex: 2,
+                  pb: 'max(env(safe-area-inset-bottom), 0px)',
+                  background: `linear-gradient(to top, ${alpha(theme.palette.background.default, 0.94)} 70%, transparent)`,
+                  backdropFilter: 'blur(6px)',
+                }}
+              >
                 <ChatInput
                   onSend={handleSendMessageWithModel}
                   onStop={handleStopStreaming}
@@ -843,7 +870,7 @@ function Chat() {
           </Fade>
         </Box>
       </Box>
-      {!isMobile && (
+      {!isNarrowLayout && (
         <Box
           sx={{
             display: 'flex',
@@ -863,7 +890,7 @@ function Chat() {
           />
         </Box>
       )}
-      {isMobile && (
+      {isNarrowLayout && (
         <Slide direction="up" in={sqlEditorOpen} mountOnEnter unmountOnExit>
           <Box
             sx={{

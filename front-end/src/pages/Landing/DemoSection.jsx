@@ -1,6 +1,7 @@
 import { Box, Container, Typography } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import { Section } from './index';
+import { BORDER_RADIUS } from '../../styles/shared';
 
 function DemoSection() {
   const theme = useTheme();
@@ -80,7 +81,7 @@ function DemoSection() {
           >
             <Box
               sx={{
-                borderRadius: '12px 12px 0 0',
+                borderRadius: `${BORDER_RADIUS.lg} ${BORDER_RADIUS.lg} 0 0`,
                 backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.04 : 0.03),
                 border: `1px solid ${alpha(theme.palette.text.primary, 0.08)}`,
                 borderBottom: 'none',
@@ -127,7 +128,7 @@ function DemoSection() {
                   backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.04 : 0.03),
                   color: 'text.secondary',
                   fontSize: '0.8rem',
-                  fontFamily: '"JetBrains Mono", monospace',
+                  fontFamily: theme.typography.fontFamilyMono,
                 }}
               >
                 moonlit.app/chat
@@ -144,7 +145,7 @@ function DemoSection() {
                 maxHeight: { xs: '45vh', md: '55vh' },
                 objectFit: 'cover',
                 display: 'block',
-                borderRadius: '0 0 12px 12px',
+                borderRadius: `0 0 ${BORDER_RADIUS.lg} ${BORDER_RADIUS.lg}`,
                 border: `1px solid ${alpha(theme.palette.text.primary, 0.08)}`,
                 borderTop: 'none',
                 backgroundColor: theme.palette.background.paper,
