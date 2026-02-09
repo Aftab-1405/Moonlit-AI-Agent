@@ -20,6 +20,7 @@ import {
   DialogContent,
   DialogActions,
   Snackbar,
+  useMediaQuery,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useTheme, alpha } from '@mui/material/styles';
@@ -41,6 +42,11 @@ import {
   authFieldSchemas,
 } from '../validation';
 import logger from '../utils/logger';
+
+const MOBILE_MEDIA_QUERY = '@media (max-width:599.95px)';
+const BACKDROP_FILTER_FALLBACK_QUERY =
+  '@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)))';
+
 function TabPanel({ children, value, index }) {
   return (
     <Box
@@ -56,6 +62,7 @@ function TabPanel({ children, value, index }) {
 function Auth() {
   const navigate = useNavigate();
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   useEffect(() => {
     document.title = 'Moonlit - Sign In';
@@ -180,7 +187,10 @@ function Auth() {
     return (
       <Box
         sx={{
-          minHeight: '100vh',
+          minHeight: '100dvh',
+          '@supports not (min-height: 100dvh)': {
+            minHeight: '100vh',
+          },
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -195,7 +205,10 @@ function Auth() {
   return (
     <Box
       sx={{
-        minHeight: '100vh',
+        minHeight: '100dvh',
+        '@supports not (min-height: 100dvh)': {
+          minHeight: '100vh',
+        },
         width: '100%',
         backgroundColor: 'background.default',
         position: 'relative',
@@ -214,7 +227,7 @@ function Auth() {
           width: '60%',
           height: '60%',
           background: `radial-gradient(circle, ${alpha(theme.palette.text.primary, 0.06)} 0%, transparent 70%)`,
-          filter: 'blur(80px)',
+          filter: { xs: 'blur(40px)', md: 'blur(80px)' },
           pointerEvents: 'none',
           zIndex: 0,
         }}
@@ -227,14 +240,17 @@ function Auth() {
           width: '60%',
           height: '60%',
           background: `radial-gradient(circle, ${alpha(theme.palette.text.primary, 0.08)} 0%, transparent 70%)`,
-          filter: 'blur(80px)',
+          filter: { xs: 'blur(40px)', md: 'blur(80px)' },
           pointerEvents: 'none',
           zIndex: 0,
         }}
       />
       <Box
         sx={{
-          minHeight: '100vh',
+          minHeight: '100dvh',
+          '@supports not (min-height: 100dvh)': {
+            minHeight: '100vh',
+          },
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -257,9 +273,20 @@ function Auth() {
               background: alpha(theme.palette.background.paper, 0.03),
               backdropFilter: 'blur(20px)',
               WebkitBackdropFilter: 'blur(20px)',
+              [BACKDROP_FILTER_FALLBACK_QUERY]: {
+                backdropFilter: 'none',
+                WebkitBackdropFilter: 'none',
+              },
+              [MOBILE_MEDIA_QUERY]: {
+                backdropFilter: 'none',
+                WebkitBackdropFilter: 'none',
+              },
               border: '1px solid',
               borderColor: 'divider',
               borderRadius: { xs: 2, sm: 3 },
+              '& .MuiInputBase-input': {
+                fontSize: { xs: '16px', sm: '0.875rem' },
+              },
             }}
           >
             <Stack spacing={2} alignItems="center">
@@ -293,13 +320,13 @@ function Auth() {
                 value={tabValue}
                 onChange={(e, v) => setTabValue(v)}
                 variant="fullWidth"
-                sx={{
-                  width: '100%',
-                  minHeight: 36,
-                  '& .MuiTab-root': {
+                  sx={{
+                    width: '100%',
                     minHeight: 36,
-                    py: 0.5,
-                  },
+                    '& .MuiTab-root': {
+                      minHeight: { xs: 44, sm: 36 },
+                      py: 0.5,
+                    },
                   '& .Mui-selected': {
                     color: 'primary.main',
                   },
@@ -508,7 +535,7 @@ function Auth() {
                 </Typography>
               </Divider>
               <Stack
-                direction="row"
+                direction={{ xs: 'column', sm: 'row' }}
                 spacing={1.5}
                 sx={{ width: '100%' }}
               >
@@ -627,7 +654,10 @@ function Auth() {
         open={snackbarOpen}
         autoHideDuration={6000}
         onClose={handleSnackbarClose}
-        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        anchorOrigin={{
+          vertical: 'top',
+          horizontal: isMobile ? 'center' : 'right',
+        }}
       >
         <Alert
           onClose={handleSnackbarClose}
