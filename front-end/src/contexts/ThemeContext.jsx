@@ -50,7 +50,6 @@ function ThemeProviderInner({ children }) {
       }
     `;
     document.head.appendChild(style);
-    window.getComputedStyle(document.body);
 
     const remove = () => {
       if (style.parentNode) {

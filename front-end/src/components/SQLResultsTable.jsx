@@ -203,6 +203,68 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
     page * rowsPerPage,
     page * rowsPerPage + rowsPerPage
   );
+  const headerCellBaseSx = useMemo(() => ({
+    minWidth: isCompactMobile ? 68 : 80,
+    maxWidth: 500,
+    backgroundColor: theme.palette.background.default,
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    fontSize: isCompactMobile ? '0.68rem' : '0.75rem',
+    color: 'text.secondary',
+    whiteSpace: 'nowrap',
+    borderBottom: '2px solid',
+    borderColor: theme.palette.border.subtle,
+    position: 'relative',
+    userSelect: 'none',
+  }), [isCompactMobile, theme]);
+  const sortLabelSx = useMemo(() => ({
+    '&.Mui-active': { color: 'text.primary' },
+    '& .MuiTableSortLabel-icon': { fontSize: 16 },
+  }), []);
+  const resizeHandleBaseSx = useMemo(() => ({
+    display: isCompactMobile ? 'none' : 'block',
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: 6,
+    cursor: 'col-resize',
+    '&:hover': {
+      backgroundColor: theme.palette.action.selected,
+    },
+  }), [isCompactMobile, theme.palette.action.selected]);
+  const rowSx = useMemo(() => ({
+    '&:nth-of-type(even)': {
+      backgroundColor: theme.palette.action.disabledBackground,
+    },
+    '&:hover': {
+      backgroundColor: theme.palette.action.hover,
+    },
+    transition: 'background-color 0.15s ease',
+  }), [theme.palette.action.disabledBackground, theme.palette.action.hover]);
+  const bodyCellBaseSx = useMemo(() => ({
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    py: isCompactMobile ? 0.75 : 1,
+    px: isCompactMobile ? 1 : 1.5,
+    fontSize: isCompactMobile ? '0.78rem' : '0.875rem',
+    borderColor: theme.palette.border.subtle,
+    cursor: 'pointer',
+    transition: 'background-color 0.1s ease',
+    '&:hover': {
+      backgroundColor: theme.palette.action.hover,
+    },
+  }), [isCompactMobile, theme.palette.action.hover, theme.palette.border.subtle]);
+  const nullValueSx = useMemo(() => ({
+    color: 'text.disabled',
+    fontStyle: 'italic',
+    backgroundColor: theme.palette.action.disabledBackground,
+    px: 0.75,
+    py: 0.25,
+    borderRadius: 0.5,
+  }), [theme.palette.action.disabledBackground]);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: embedded ? 0 : 400 }}>
@@ -404,52 +466,26 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
               {columns.map((column, idx) => (
                 <TableCell
                   key={column}
-                  sx={{
-                    width: columnWidths[column] || 150,
-                    minWidth: isCompactMobile ? 68 : 80,
-                    maxWidth: 500,
-                    backgroundColor: theme.palette.background.default,
-                    fontWeight: 600,
-                    textTransform: 'uppercase',
-                    letterSpacing: 0.5,
-                    fontSize: isCompactMobile ? '0.68rem' : '0.75rem',
-                    color: 'text.secondary',
-                    whiteSpace: 'nowrap',
-                    borderBottom: '2px solid',
-                    borderColor: theme.palette.border.subtle,
-                    position: 'relative',
-                    userSelect: 'none',
-                    ...(idx === 0 && { pl: isCompactMobile ? 1.2 : 2 }),
-                  }}
+                  sx={[
+                    headerCellBaseSx,
+                    { width: columnWidths[column] || 150 },
+                    idx === 0 ? { pl: isCompactMobile ? 1.2 : 2 } : null,
+                  ]}
                 >
                   <TableSortLabel
                     active={orderBy === column}
                     direction={orderBy === column ? order : 'asc'}
                     onClick={() => handleSort(column)}
-                    sx={{
-                      '&.Mui-active': { color: 'text.primary' },
-                      '& .MuiTableSortLabel-icon': { fontSize: 16 },
-                    }}
+                    sx={sortLabelSx}
                   >
                     {column}
                   </TableSortLabel>
                   <Box
                     onMouseDown={(e) => handleResizeStart(e, column)}
-                    sx={{
-                      display: isCompactMobile ? 'none' : 'block',
-                      position: 'absolute',
-                      right: 0,
-                      top: 0,
-                      bottom: 0,
-                      width: 6,
-                      cursor: 'col-resize',
-                      '&:hover': {
-                        backgroundColor: theme.palette.action.selected,
-                      },
-                      ...(resizing === column && {
-                        backgroundColor: 'primary.main',
-                      }),
-                    }}
+                    sx={[
+                      resizeHandleBaseSx,
+                      resizing === column ? { backgroundColor: 'primary.main' } : null,
+                    ]}
                   />
                 </TableCell>
               ))}
@@ -459,15 +495,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
             {paginatedData.map((row, rowIndex) => (
               <TableRow
                 key={rowIndex}
-                sx={{
-                  '&:nth-of-type(even)': {
-                    backgroundColor: theme.palette.action.disabledBackground,
-                  },
-                  '&:hover': {
-                    backgroundColor: theme.palette.action.hover,
-                  },
-                  transition: 'background-color 0.15s ease',
-                }}
+                sx={rowSx}
               >
                 {columns.map((column, colIndex) => {
                   const cellKey = `${rowIndex}-${colIndex}`;
@@ -477,38 +505,18 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                     <TableCell
                       key={column}
                       onClick={() => handleCellClick(row[column], rowIndex, colIndex)}
-                      sx={{
-                        width: columnWidths[column] || 150,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        py: isCompactMobile ? 0.75 : 1,
-                        px: isCompactMobile ? 1 : 1.5,
-                        fontSize: isCompactMobile ? '0.78rem' : '0.875rem',
-                        borderColor: theme.palette.border.subtle,
-                        cursor: 'pointer',
-                        transition: 'background-color 0.1s ease',
-                        ...(isCopied && {
-                          backgroundColor: theme.palette.action.selected,
-                        }),
-                        '&:hover': {
-                          backgroundColor: theme.palette.action.hover,
-                        },
-                        ...(colIndex === 0 && { pl: isCompactMobile ? 1.2 : 2 }),
-                      }}
+                      sx={[
+                        bodyCellBaseSx,
+                        { width: columnWidths[column] || 150 },
+                        isCopied ? { backgroundColor: theme.palette.action.selected } : null,
+                        colIndex === 0 ? { pl: isCompactMobile ? 1.2 : 2 } : null,
+                      ]}
                     >
                       {row[column] === null ? (
                         <Typography
                           component="span"
                           variant="caption"
-                          sx={{
-                            color: 'text.disabled',
-                            fontStyle: 'italic',
-                            backgroundColor: theme.palette.action.disabledBackground,
-                            px: 0.75,
-                            py: 0.25,
-                            borderRadius: 0.5,
-                          }}
+                          sx={nullValueSx}
                         >
                           {nullDisplay || 'NULL'}
                         </Typography>
