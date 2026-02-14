@@ -167,6 +167,18 @@ const ThinkingStep = memo(({ content = '', isComplete, isCurrent = false }) => {
   const displayContent = showMore ? content : lines.slice(0, 6).join('\n');
 
   const nodeColor = alpha(theme.palette.info.main, isDark ? 0.7 : 0.6);
+  const thinkingNodeSx = useMemo(
+    () => getTimelineNodeSx({
+      isDark,
+      color: nodeColor,
+      isCurrent,
+      shadowColor: theme.palette.info.main,
+      shadowAlphaDark: 0.14,
+      shadowAlphaLight: 0.16,
+      animation: isActive ? `${pulse} 2s ease-in-out infinite` : undefined,
+    }),
+    [isActive, isCurrent, isDark, nodeColor, theme.palette.info.main]
+  );
 
   return (
     <Box
@@ -178,15 +190,7 @@ const ThinkingStep = memo(({ content = '', isComplete, isCurrent = false }) => {
       }}
     >
       <AccessTimeRoundedIcon
-        sx={getTimelineNodeSx({
-          isDark,
-          color: nodeColor,
-          isCurrent,
-          shadowColor: theme.palette.info.main,
-          shadowAlphaDark: 0.14,
-          shadowAlphaLight: 0.16,
-          animation: isActive ? `${pulse} 2s ease-in-out infinite` : undefined,
-        })}
+        sx={thinkingNodeSx}
       />
       <Box sx={{ flex: 1, minWidth: 0 }}>
         {content ? (
@@ -286,6 +290,29 @@ const ToolStep = memo(({
     : isError
       ? alpha(theme.palette.error.main, 0.6)
       : alpha(theme.palette.success.main, isDark ? 0.6 : 0.5);
+  const statusNodeSx = useMemo(
+    () => getTimelineNodeSx({
+      isDark,
+      color: nodeColor,
+      isCurrent,
+      shadowColor: isRunning
+        ? theme.palette.primary.main
+        : isError
+          ? theme.palette.error.main
+          : theme.palette.success.main,
+      animation: isRunning ? `${spin} 1s linear infinite` : undefined,
+    }),
+    [
+      isCurrent,
+      isDark,
+      isError,
+      isRunning,
+      nodeColor,
+      theme.palette.error.main,
+      theme.palette.primary.main,
+      theme.palette.success.main,
+    ]
+  );
 
   return (
     <Box
@@ -297,17 +324,7 @@ const ToolStep = memo(({
       }}
       >
       <StatusIcon
-        sx={getTimelineNodeSx({
-          isDark,
-          color: nodeColor,
-          isCurrent,
-          shadowColor: isRunning
-            ? theme.palette.primary.main
-            : isError
-              ? theme.palette.error.main
-              : theme.palette.success.main,
-          animation: isRunning ? `${spin} 1s linear infinite` : undefined,
-        })}
+        sx={statusNodeSx}
       />
         <ButtonBase
         onClick={() => hasDetails && setExpanded(!expanded)}
@@ -466,6 +483,13 @@ ToolStep.displayName = 'ToolStep';
 const DoneIndicator = memo(() => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
+  const doneNodeSx = useMemo(
+    () => getTimelineNodeSx({
+      isDark,
+      color: alpha(theme.palette.success.main, isDark ? 0.6 : 0.5),
+    }),
+    [isDark, theme.palette.success.main]
+  );
 
   return (
     <Box
@@ -480,10 +504,7 @@ const DoneIndicator = memo(() => {
       }}
       >
         <CheckCircleOutlineRoundedIcon
-        sx={getTimelineNodeSx({
-          isDark,
-          color: alpha(theme.palette.success.main, isDark ? 0.6 : 0.5),
-        })}
+        sx={doneNodeSx}
       />
       <Typography
         sx={{
