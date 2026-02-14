@@ -36,15 +36,17 @@ import CloseIcon from '@mui/icons-material/Close';
 import SchemaFlowDiagram from './SchemaFlowDiagram';
 import { getUserContext } from '../api';
 import { getGlassmorphismStyles, getScrollbarStyles } from '../styles/shared';
+import {
+  BACKDROP_FILTER_FALLBACK_QUERY,
+  MOBILE_MD_QUERY,
+  TOUCH_DEVICE_QUERY,
+} from '../styles/mediaQueries';
 import logger from '../utils/logger';
 const EXPANDED_WIDTH = 260;
 const COLLAPSED_WIDTH = 56;
 const SIDEBAR_WIDTH_EASING = 'cubic-bezier(0.22, 1, 0.36, 1)';
 const SIDEBAR_WIDTH_DURATION = 240;
-const MOBILE_MEDIA_QUERY = '@media (max-width:899.95px)';
-const TOUCH_DEVICE_QUERY = '@media (hover: none)';
-const BACKDROP_FILTER_FALLBACK_QUERY =
-  '@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)))';
+const MOBILE_MEDIA_QUERY = MOBILE_MD_QUERY;
 const CONTENT_CONTAINER_STYLES = {
   position: 'relative',
   height: '100%',

@@ -72,13 +72,14 @@ import {
 } from '../hooks';
 
 import { getMoonlitGradient } from '../theme';
+import {
+  BACKDROP_FILTER_FALLBACK_QUERY,
+  REDUCED_MOTION_QUERY,
+} from '../styles/mediaQueries';
 import { isMessageActive } from '../utils/chatMessages';
 import logger from '../utils/logger';
 const DRAWER_WIDTH = 260;
 const COLLAPSED_WIDTH = 56;
-const REDUCED_MOTION_QUERY = '@media (prefers-reduced-motion: reduce)';
-const BACKDROP_FILTER_FALLBACK_QUERY =
-  '@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)))';
 
 function Chat() {
 
@@ -282,7 +283,7 @@ function Chat() {
     PaperProps: {
       sx: { mt: 0.8,
         '& .MuiMenuItem-root': {
-          fontSize: { xs: 14, sm: 13 },
+          ...theme.typography.uiSelectCompact,
           fontWeight: 500,
           borderRadius: 1.2,
           mx: 0.6,
@@ -676,7 +677,7 @@ function Chat() {
                   displayEmpty
                   MenuProps={selectMenuProps}
                   sx={{
-                    fontSize: { xs: 14, sm: 13 },
+                    ...theme.typography.uiSelectCompact,
                     fontWeight: 600,
                     color: 'text.primary',
                     '& .MuiSelect-select': {
@@ -719,7 +720,7 @@ function Chat() {
                   displayEmpty
                   MenuProps={selectMenuProps}
                   sx={{
-                    fontSize: { xs: 14, sm: 13 },
+                    ...theme.typography.uiSelectCompact,
                     fontWeight: 600,
                     color: 'text.primary',
                     '& .MuiSelect-select': {
@@ -798,7 +799,7 @@ function Chat() {
                   variant="h3"
                   sx={{
                     fontWeight: 500,
-                    fontSize: { xs: '2rem', sm: '2.5rem' },
+                    ...theme.typography.uiBrandWordmark,
                     color: 'text.primary',
                     letterSpacing: '-0.02em',
                     mb: 1,

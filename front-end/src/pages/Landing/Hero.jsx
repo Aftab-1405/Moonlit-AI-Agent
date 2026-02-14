@@ -2,7 +2,7 @@ import { Box, Container, Stack, Typography, Button } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
 import PlayCircleOutlinedIcon from '@mui/icons-material/PlayCircleOutlined';
-import { Section, REDUCED_MOTION_QUERY } from './index';
+import { Section, REDUCED_MOTION_QUERY, HOVER_CAPABLE_QUERY } from './index';
 
 function Hero({ onGetStarted }) {
   const theme = useTheme();
@@ -84,7 +84,7 @@ function Hero({ onGetStarted }) {
                 fontWeight: 600,
                 letterSpacing: '0.04em',
                 textTransform: 'uppercase',
-                fontSize: '0.7rem',
+                ...theme.typography.uiCaptionXs,
               }}
             >
               ✨ AI-Powered Database Assistant
@@ -94,9 +94,7 @@ function Hero({ onGetStarted }) {
             component="h1"
             sx={{
               fontWeight: 800,
-              fontSize: { xs: '2rem', sm: '2.5rem', md: '3.25rem' },
-              lineHeight: 1.15,
-              letterSpacing: '-0.02em',
+              ...theme.typography.uiHeadingHero,
               color: 'text.primary',
             }}
           >
@@ -119,8 +117,7 @@ function Hero({ onGetStarted }) {
             sx={{
               maxWidth: 560,
               opacity: 0.8,
-              fontSize: { xs: '1rem', md: '1.125rem' },
-              lineHeight: 1.7,
+              ...theme.typography.uiBodyLg,
             }}
           >
             Connect to your database, ask in plain English, and get instant results.
@@ -145,7 +142,7 @@ function Hero({ onGetStarted }) {
                 transition: theme.transitions.create(['background-color', 'transform', 'box-shadow'], {
                   duration: 200,
                 }),
-                '@media (hover: hover) and (pointer: fine)': {
+                [HOVER_CAPABLE_QUERY]: {
                   '&:hover': {
                     backgroundColor: isDark
                       ? alpha(theme.palette.text.primary, 0.85)
@@ -183,7 +180,7 @@ function Hero({ onGetStarted }) {
                 transition: theme.transitions.create(['border-color', 'background-color', 'transform'], {
                   duration: 200,
                 }),
-                '@media (hover: hover) and (pointer: fine)': {
+                [HOVER_CAPABLE_QUERY]: {
                   '&:hover': {
                     borderColor: alpha(theme.palette.text.primary, 0.4),
                     backgroundColor: alpha(theme.palette.text.primary, 0.04),
@@ -201,7 +198,7 @@ function Hero({ onGetStarted }) {
               color="text.secondary" 
               sx={{ 
                 opacity: 0.5, 
-                fontSize: '0.65rem',
+                ...theme.typography.uiCaption2xs,
                 letterSpacing: '0.1em',
                 textTransform: 'uppercase',
               }}
@@ -216,7 +213,7 @@ function Hero({ onGetStarted }) {
               sx={{
                 opacity: 0.7,
                 transition: 'opacity 0.3s ease',
-                '@media (hover: hover) and (pointer: fine)': {
+                [HOVER_CAPABLE_QUERY]: {
                   '&:hover': {
                     opacity: 0.9,
                   },
@@ -239,7 +236,7 @@ function Hero({ onGetStarted }) {
                     alignItems: 'center',
                     justifyContent: 'center',
                     transition: 'transform 0.3s ease',
-                    '@media (hover: hover) and (pointer: fine)': {
+                    [HOVER_CAPABLE_QUERY]: {
                       '&:hover': {
                         transform: 'scale(1.15)',
                       },

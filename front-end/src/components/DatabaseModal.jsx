@@ -52,9 +52,8 @@ import {
   dbFieldSchemas,
 } from '../validation';
 import { DB_TYPES } from '../config/databases';
+import { HOVER_CAPABLE_QUERY } from '../styles/mediaQueries';
 import logger from '../utils/logger';
-
-const HOVER_CAPABLE_QUERY = '@media (hover: hover) and (pointer: fine)';
 const DYNAMIC_VIEWPORT_SUPPORT_QUERY = '@supports (height: 100dvh)';
 
 const Transition = React.forwardRef(function Transition(props, ref) {
@@ -411,7 +410,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
         flexDirection: 'column',
         gap: 2.5,
         '& .MuiInputBase-input': {
-          fontSize: { xs: '16px', sm: '0.875rem' },
+          ...theme.typography.uiInput,
         },
       }}
     >

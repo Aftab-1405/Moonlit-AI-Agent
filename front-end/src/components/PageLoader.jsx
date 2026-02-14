@@ -46,8 +46,7 @@ function PageLoader() {
     >
       <Typography
         sx={{
-          fontSize: { xs: '2.5rem', md: '3.5rem' },
-          fontWeight: 800,
+          ...theme.typography.uiLoaderWordmark,
           background: getMoonlitGradient(theme),
           backgroundClip: 'text',
           WebkitBackgroundClip: 'text',

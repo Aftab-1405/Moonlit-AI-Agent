@@ -86,7 +86,7 @@ function ConfirmDialog({
               border: '1px solid',
               borderColor: theme.palette.divider,
               fontFamily: theme.typography.fontFamilyMono,
-              fontSize: '0.85rem',
+              fontSize: theme.typography.uiCodeBlock.fontSize,
               maxHeight: 200,
               overflow: 'auto',
               whiteSpace: 'pre-wrap',

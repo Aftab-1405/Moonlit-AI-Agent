@@ -1,7 +1,7 @@
 import { Box, Container, Stack, Typography, Button } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
-import { Section, REDUCED_MOTION_QUERY } from './index';
+import { Section, REDUCED_MOTION_QUERY, HOVER_CAPABLE_QUERY } from './index';
 
 function FinalCTA({ onGetStarted }) {
   const theme = useTheme();
@@ -29,7 +29,7 @@ function FinalCTA({ onGetStarted }) {
             variant="h2"
             fontWeight="bold"
             sx={{
-              fontSize: { xs: '1.5rem', md: '2.25rem' },
+              ...theme.typography.uiHeadingLandingMd,
               lineHeight: 1.2,
             }}
           >
@@ -76,7 +76,7 @@ function FinalCTA({ onGetStarted }) {
               [REDUCED_MOTION_QUERY]: {
                 transition: 'none',
               },
-              '@media (hover: hover) and (pointer: fine)': {
+              [HOVER_CAPABLE_QUERY]: {
                 '&:hover': {
                   backgroundColor: isDark
                     ? alpha(theme.palette.text.primary, 0.85)
@@ -99,7 +99,7 @@ function FinalCTA({ onGetStarted }) {
             color="text.secondary" 
             sx={{ 
               opacity: 0.6, 
-              fontSize: '0.7rem' 
+              ...theme.typography.uiCaptionXs,
             }}
           >
             No credit card • Works with your existing databases • Cancel anytime

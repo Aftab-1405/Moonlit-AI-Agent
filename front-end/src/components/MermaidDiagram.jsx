@@ -238,7 +238,7 @@ function MermaidDiagram({ code }) {
               color: 'text.secondary',
               textTransform: 'uppercase',
               fontWeight: 500,
-              fontSize: { xs: '0.65rem', sm: '0.7rem' },
+              ...theme.typography.uiCaption2xs,
             }}
           >
             mermaid
@@ -256,7 +256,7 @@ function MermaidDiagram({ code }) {
             p: { xs: 1.5, sm: 2 },
             overflow: 'auto',
             fontFamily: theme.typography.fontFamilyMono,
-            fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' },
+            ...theme.typography.uiBodyTable,
             maxHeight: { xs: 200, sm: 300 },
           }}
         >
@@ -315,7 +315,7 @@ function MermaidDiagram({ code }) {
                 color: 'text.secondary',
                 minWidth: { xs: 32, sm: 35 },
                 textAlign: 'center',
-                fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                ...theme.typography.uiCaptionXs,
               }}
             >
               {zoom}%
@@ -382,7 +382,7 @@ function MermaidDiagram({ code }) {
                 display: 'block',
                 mt: 1,
                 color: 'text.secondary',
-                fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                ...theme.typography.uiCaptionXs,
               }}
             >
               Receiving diagram code...
@@ -397,7 +397,7 @@ function MermaidDiagram({ code }) {
                 display: 'block',
                 mt: 1,
                 color: 'text.secondary',
-                fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                ...theme.typography.uiCaptionXs,
               }}
             >
               Rendering diagram...

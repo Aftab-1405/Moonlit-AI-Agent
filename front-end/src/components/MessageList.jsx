@@ -7,10 +7,12 @@ import { useState, useMemo, useRef, useEffect, useCallback, memo } from 'react';
 import { StepsAccordion } from './AIResponseSteps';
 import MarkdownRenderer from './MarkdownRenderer';
 import { MESSAGE_STATUS, parseAssistantContent } from '../utils/chatMessages';
+import {
+  HOVER_CAPABLE_QUERY,
+  REDUCED_MOTION_QUERY,
+} from '../styles/mediaQueries';
 
 const COPY_FEEDBACK_DURATION = 2000;
-const HOVER_CAPABLE_QUERY = '@media (hover: hover) and (pointer: fine)';
-const REDUCED_MOTION_QUERY = '@media (prefers-reduced-motion: reduce)';
 
 const spin = keyframes`
   from { transform: rotate(0deg); }

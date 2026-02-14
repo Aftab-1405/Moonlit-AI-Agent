@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Box, Container, Typography, Stack } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
-import { Section, REDUCED_MOTION_QUERY } from './index';
+import { Section, REDUCED_MOTION_QUERY, HOVER_CAPABLE_QUERY } from './index';
 
 function StepsGrid() {
   const theme = useTheme();
@@ -28,7 +28,7 @@ function StepsGrid() {
               textTransform: 'uppercase',
               letterSpacing: '0.15em',
               color: 'text.secondary',
-              fontSize: '0.7rem',
+              ...theme.typography.uiCaptionXs,
               display: 'block',
               mb: 1.5,
             }}
@@ -39,7 +39,7 @@ function StepsGrid() {
             variant="h3" 
             fontWeight="bold" 
             sx={{ 
-              fontSize: { xs: '1.75rem', md: '2.25rem' }, 
+              ...theme.typography.uiHeadingLandingLg,
             }}
           >
             Three Steps.{' '}
@@ -89,7 +89,7 @@ function StepsGrid() {
                   animation: 'none',
                   transition: 'none',
                 },
-                '@media (hover: hover) and (pointer: fine)': {
+                [HOVER_CAPABLE_QUERY]: {
                   '&:hover': {
                     borderColor: alpha(theme.palette.text.primary, isDark ? 0.15 : 0.12),
                     backgroundColor: isDark
@@ -121,7 +121,7 @@ function StepsGrid() {
               >
                 <Typography 
                   sx={{ 
-                    fontSize: '0.85rem', 
+                    ...theme.typography.uiStepNumber,
                     fontWeight: 700, 
                     color: theme.palette.background.default,
                     letterSpacing: '0.02em',
@@ -134,7 +134,7 @@ function StepsGrid() {
                 <Typography 
                   variant="h6" 
                   fontWeight={700} 
-                  sx={{ fontSize: '1.1rem' }}
+                  sx={{ ...theme.typography.uiCardTitle }}
                 >
                   {s.title}
                 </Typography>
@@ -142,9 +142,8 @@ function StepsGrid() {
                   variant="body2" 
                   color="text.secondary" 
                   sx={{ 
-                    lineHeight: 1.7, 
+                    ...theme.typography.uiCardBody,
                     opacity: 0.8, 
-                    fontSize: '0.9rem',
                   }}
                 >
                   {s.desc}

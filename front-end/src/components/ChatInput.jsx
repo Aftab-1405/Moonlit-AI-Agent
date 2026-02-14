@@ -29,12 +29,12 @@ import KeyboardArrowUpRoundedIcon from '@mui/icons-material/KeyboardArrowUpRound
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import { useTheme as useAppTheme } from '../contexts/ThemeContext';
 import { getSchemas, selectSchema } from '../api';
+import {
+  BACKDROP_FILTER_FALLBACK_QUERY,
+  HOVER_CAPABLE_QUERY,
+  REDUCED_MOTION_QUERY,
+} from '../styles/mediaQueries';
 import logger from '../utils/logger';
-
-const REDUCED_MOTION_QUERY = '@media (prefers-reduced-motion: reduce)';
-const HOVER_CAPABLE_QUERY = '@media (hover: hover) and (pointer: fine)';
-const BACKDROP_FILTER_FALLBACK_QUERY =
-  '@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)))';
 
 const MENU_HEADER_STYLES = { px: 2, py: 0.5, display: 'block', color: 'text.secondary' };
 const LIST_ITEM_ICON_STYLES = { minWidth: 28 };

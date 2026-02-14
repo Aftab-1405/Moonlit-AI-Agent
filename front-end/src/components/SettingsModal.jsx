@@ -32,9 +32,8 @@ import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import { useTheme as useAppTheme } from '../contexts/ThemeContext';
 import UserDBContextManagerForAI from './UserDBContextManagerForAI';
 import { saveUserSettings } from '../api';
+import { HOVER_CAPABLE_QUERY } from '../styles/mediaQueries';
 import logger from '../utils/logger';
-
-const HOVER_CAPABLE_QUERY = '@media (hover: hover) and (pointer: fine)';
 const DYNAMIC_VIEWPORT_SUPPORT_QUERY = '@supports (height: 100dvh)';
 
 const SECTIONS = [

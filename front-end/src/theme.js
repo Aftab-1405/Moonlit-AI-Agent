@@ -1,4 +1,9 @@
 import { createTheme, responsiveFontSizes, alpha } from '@mui/material/styles';
+import {
+  BACKDROP_FILTER_FALLBACK_QUERY,
+  MOBILE_SM_QUERY,
+  REDUCED_MOTION_QUERY,
+} from './styles/mediaQueries';
 
 const SHAPE = { borderRadius: 10 };
 const HEX_WHITE = '#ffffff';
@@ -302,6 +307,80 @@ const createTypography = (palette) => ({
     fontWeight: 600,
     lineHeight: 1.35,
   },
+  uiCaption2xs: {
+    fontSize: { xs: '0.65rem', sm: '0.7rem' },
+    lineHeight: 1.4,
+    letterSpacing: '0.01em',
+  },
+  uiCaptionMd: {
+    fontSize: { xs: '0.75rem', sm: '0.8125rem' },
+    lineHeight: 1.45,
+    letterSpacing: '0.01em',
+  },
+  uiBodyTable: {
+    fontSize: { xs: '0.78rem', sm: '0.875rem' },
+    lineHeight: 1.55,
+    letterSpacing: '0.008em',
+  },
+  uiSelectCompact: {
+    fontSize: { xs: 14, sm: 13 },
+  },
+  uiCodeBlock: {
+    fontSize: '0.85rem',
+    lineHeight: 1.5,
+  },
+  uiHeadingHero: {
+    fontSize: { xs: '2rem', sm: '2.5rem', md: '3.25rem' },
+    lineHeight: 1.15,
+    letterSpacing: '-0.02em',
+  },
+  uiHeadingLandingLg: {
+    fontSize: { xs: '1.75rem', md: '2.25rem' },
+    lineHeight: 1.2,
+  },
+  uiHeadingLandingMd: {
+    fontSize: { xs: '1.5rem', md: '2rem' },
+    lineHeight: 1.2,
+  },
+  uiBodyLg: {
+    fontSize: { xs: '1rem', md: '1.125rem' },
+    lineHeight: 1.7,
+  },
+  uiLoaderWordmark: {
+    fontSize: { xs: '2.5rem', md: '3.5rem' },
+    fontWeight: 800,
+    lineHeight: 1.1,
+    letterSpacing: '-0.015em',
+  },
+  uiCardTitle: {
+    fontSize: '1.1rem',
+    lineHeight: 1.35,
+  },
+  uiCardBody: {
+    fontSize: '0.9rem',
+    lineHeight: 1.7,
+  },
+  uiStepNumber: {
+    fontSize: '0.85rem',
+    lineHeight: 1.1,
+    letterSpacing: '0.02em',
+  },
+  uiSchemaDbLabel: {
+    fontSize: { xs: '0.9rem', sm: '0.8rem' },
+    lineHeight: 1.3,
+  },
+  uiSchemaTableLabel: {
+    fontSize: { xs: '0.85rem', sm: '0.75rem' },
+    lineHeight: 1.3,
+  },
+  uiSchemaColumnLabel: {
+    fontSize: { xs: '0.75rem', sm: '0.7rem' },
+    lineHeight: 1.3,
+  },
+  uiSchemaColumnType: {
+    fontSize: { xs: '0.65rem', sm: '0.6rem' },
+    lineHeight: 1.2,
+  },
   uiCode: {
     fontSizePx: 13,
   },
@@ -349,9 +428,7 @@ const accentEffectsCache = new WeakMap();
 const mermaidCache = new WeakMap();
 const MONACO_THEME_PREFIX = 'moonlit';
 const TRANSPARENT_MONACO_BG = '#00000000';
-const MOBILE_MEDIA_QUERY = '@media (max-width:599.95px)';
-const BACKDROP_FILTER_FALLBACK_QUERY =
-  '@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)))';
+const MOBILE_MEDIA_QUERY = MOBILE_SM_QUERY;
 
 export const getMonacoThemeName = (mode, transparent = false) =>
   `${MONACO_THEME_PREFIX}-${mode}${transparent ? '-transparent' : ''}`;
@@ -546,7 +623,7 @@ const getComponentOverrides = (mode) => {
             minHeight: '100vh',
           },
         },
-        '@media (prefers-reduced-motion: reduce)': {
+        [REDUCED_MOTION_QUERY]: {
           '*': {
             animationDuration: '0.01ms !important',
             animationIterationCount: '1 !important',

@@ -118,7 +118,13 @@ const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isD
         <SyntaxHighlighter
           language={language || 'text'}
           style={isDarkMode ? vscDarkPlus : vs}
-          customStyle={{ margin: 0, padding: '16px', fontSize: '0.85rem', lineHeight: 1.5, background: 'transparent' }}
+          customStyle={{
+            margin: 0,
+            padding: '16px',
+            fontSize: theme.typography.uiCodeBlock.fontSize,
+            lineHeight: theme.typography.uiCodeBlock.lineHeight,
+            background: 'transparent',
+          }}
           wrapLines={false} // CRITICAL: Disabling wrapLines stabilizes height during typing
         >
           {code}
@@ -134,7 +140,7 @@ const InlineCode = memo(function InlineCode({ children, theme }) {
       component="code"
       sx={{
         fontFamily: theme.typography.fontFamilyMono,
-        fontSize: '0.85em',
+        fontSize: theme.typography.uiCodeBlock.fontSize,
         backgroundColor: theme.palette.code.background,
         color: theme.palette.code.text,
         px: 0.6,
@@ -217,7 +223,7 @@ const MarkdownRenderer = memo(function MarkdownRenderer({ content, onRunQuery })
     '& table': {
       overflowWrap: 'normal',  // Override global setting for tables
       wordBreak: 'normal',
-      fontSize: { xs: '0.78rem', sm: '0.875rem' },
+      ...theme.typography.uiBodyTable,
     },
     '& th': {
       bgcolor: theme.palette.action.hover,
@@ -227,7 +233,7 @@ const MarkdownRenderer = memo(function MarkdownRenderer({ content, onRunQuery })
       py: { xs: 1, sm: 1.25 },
       borderBottom: `1px solid ${theme.palette.divider}`,
       whiteSpace: 'nowrap',
-      fontSize: { xs: '0.75rem', sm: '0.8125rem' },
+      ...theme.typography.uiCaptionMd,
     },
     '& td': {
       px: { xs: 1.25, sm: 2 },

@@ -142,7 +142,7 @@ class ErrorBoundary extends Component {
                   component="pre"
                   sx={{
                     fontFamily: theme.typography.fontFamilyMono,
-                    fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                    ...theme.typography.uiCaptionXs,
                     whiteSpace: 'pre',
                     overflowX: 'auto',
                     m: 0,

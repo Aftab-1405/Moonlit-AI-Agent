@@ -4,7 +4,7 @@ import { useTheme, alpha } from '@mui/material/styles';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import SpeedIcon from '@mui/icons-material/Speed';
 import VisibilityIcon from '@mui/icons-material/Visibility';
-import { Section, REDUCED_MOTION_QUERY } from './index';
+import { Section, REDUCED_MOTION_QUERY, HOVER_CAPABLE_QUERY } from './index';
 
 function ValueGrid() {
   const theme = useTheme();
@@ -43,7 +43,7 @@ function ValueGrid() {
               textTransform: 'uppercase',
               letterSpacing: '0.15em',
               color: 'text.secondary',
-              fontSize: '0.7rem',
+              ...theme.typography.uiCaptionXs,
               display: 'block',
               mb: 1.5,
             }}
@@ -54,7 +54,7 @@ function ValueGrid() {
             variant="h3" 
             fontWeight="bold" 
             sx={{ 
-              fontSize: { xs: '1.75rem', md: '2.25rem' }, 
+              ...theme.typography.uiHeadingLandingLg,
             }}
           >
             Built for{' '}
@@ -102,7 +102,7 @@ function ValueGrid() {
                   animation: 'none',
                   transition: 'none',
                 },
-                '@media (hover: hover) and (pointer: fine)': {
+                [HOVER_CAPABLE_QUERY]: {
                   '&:hover': {
                     borderColor: alpha(theme.palette.text.primary, isDark ? 0.15 : 0.12),
                     backgroundColor: isDark
@@ -143,7 +143,7 @@ function ValueGrid() {
                     fontWeight={700} 
                     sx={{ 
                       mb: 0.75,
-                      fontSize: '1.1rem',
+                      ...theme.typography.uiCardTitle,
                     }}
                   >
                     {v.title}
@@ -152,9 +152,8 @@ function ValueGrid() {
                     variant="body2" 
                     color="text.secondary" 
                     sx={{ 
-                      lineHeight: 1.7, 
+                      ...theme.typography.uiCardBody,
                       opacity: 0.8, 
-                      fontSize: '0.9rem',
                     }}
                   >
                     {v.desc}

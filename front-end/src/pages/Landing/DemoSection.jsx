@@ -1,6 +1,6 @@
 import { Box, Container, Typography } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
-import { Section, REDUCED_MOTION_QUERY } from './index';
+import { Section, REDUCED_MOTION_QUERY, HOVER_CAPABLE_QUERY } from './index';
 
 function DemoSection() {
   const theme = useTheme();
@@ -22,7 +22,7 @@ function DemoSection() {
               textTransform: 'uppercase',
               letterSpacing: '0.15em',
               color: 'text.secondary',
-              fontSize: '0.7rem',
+              ...theme.typography.uiCaptionXs,
             }}
           >
             See It In Action
@@ -31,7 +31,7 @@ function DemoSection() {
             variant="h3" 
             fontWeight="bold" 
             sx={{ 
-              fontSize: { xs: '1.5rem', md: '2rem' }, 
+              ...theme.typography.uiHeadingLandingMd,
               mt: 1 
             }}
           >
@@ -76,7 +76,7 @@ function DemoSection() {
               [REDUCED_MOTION_QUERY]: {
                 transition: 'none',
               },
-              '@media (hover: hover) and (pointer: fine)': {
+              [HOVER_CAPABLE_QUERY]: {
                 '&:hover': {
                   transform: 'rotateX(2deg) rotateY(-2deg) scale(1.02)',
                 },
@@ -131,7 +131,7 @@ function DemoSection() {
                   borderRadius: 1.5,
                   backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.04 : 0.03),
                   color: 'text.secondary',
-                  fontSize: '0.8rem',
+                  ...theme.typography.uiBodySm,
                   fontFamily: theme.typography.fontFamilyMono,
                 }}
               >

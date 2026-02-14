@@ -210,7 +210,9 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
     fontWeight: 600,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    fontSize: isCompactMobile ? '0.68rem' : '0.75rem',
+    fontSize: isCompactMobile
+      ? theme.typography.uiCaptionXs.fontSize.xs
+      : theme.typography.caption.fontSize,
     color: 'text.secondary',
     whiteSpace: 'nowrap',
     borderBottom: '2px solid',
@@ -249,7 +251,9 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
     whiteSpace: 'nowrap',
     py: isCompactMobile ? 0.75 : 1,
     px: isCompactMobile ? 1 : 1.5,
-    fontSize: isCompactMobile ? '0.78rem' : '0.875rem',
+    fontSize: isCompactMobile
+      ? theme.typography.uiBodyTable.fontSize.xs
+      : theme.typography.body2.fontSize,
     borderColor: theme.palette.border.subtle,
     cursor: 'pointer',
     transition: 'background-color 0.1s ease',
@@ -559,7 +563,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
             minHeight: { xs: 52, sm: 56 },
           },
           '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
-            fontSize: { xs: '0.72rem', sm: '0.8125rem' },
+            ...theme.typography.uiCaptionMd,
             m: 0,
           },
           '& .MuiTablePagination-actions': {

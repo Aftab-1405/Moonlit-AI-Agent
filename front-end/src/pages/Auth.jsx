@@ -41,10 +41,8 @@ import {
   resetPasswordSchema,
   authFieldSchemas,
 } from '../validation';
+import { BACKDROP_FILTER_FALLBACK_QUERY } from '../styles/mediaQueries';
 import logger from '../utils/logger';
-
-const BACKDROP_FILTER_FALLBACK_QUERY =
-  '@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)))';
 
 function TabPanel({ children, value, index }) {
   return (

@@ -36,8 +36,7 @@ import Editor from '@monaco-editor/react';
 import { registerMonacoThemes, getMonacoThemeName } from '../theme';
 import { getUserContext } from '../api';
 import { USER } from '../api/endpoints';
-
-const HOVER_CAPABLE_QUERY = '@media (hover: hover) and (pointer: fine)';
+import { HOVER_CAPABLE_QUERY } from '../styles/mediaQueries';
 const MONACO_QUERY_BASE_OPTIONS = {
   readOnly: true,
   minimap: { enabled: false },

@@ -7,8 +7,13 @@ import ValueGrid from './ValueGrid';
 import DemoSection from './DemoSection';
 import StepsGrid from './StepsGrid';
 import FinalCTA from './FinalCTA';
+import {
+  HOVER_CAPABLE_QUERY as SHARED_HOVER_CAPABLE_QUERY,
+  REDUCED_MOTION_QUERY as SHARED_REDUCED_MOTION_QUERY,
+} from '../../styles/mediaQueries';
 
-export const REDUCED_MOTION_QUERY = '@media (prefers-reduced-motion: reduce)';
+export const REDUCED_MOTION_QUERY = SHARED_REDUCED_MOTION_QUERY;
+export const HOVER_CAPABLE_QUERY = SHARED_HOVER_CAPABLE_QUERY;
 export { default as Hero } from './Hero';
 export { default as ValueGrid } from './ValueGrid';
 export { default as DemoSection } from './DemoSection';
