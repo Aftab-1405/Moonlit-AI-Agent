@@ -494,7 +494,10 @@ function StarfieldCanvas({ active = false, intensity = 'medium' }) {
       state.bgCanvas.width = state.width;
       state.bgCanvas.height = state.height;
 
-      const base = hexToRgb(theme.palette.background.default || '#0c0c0e');
+      const baseColor =
+        theme.palette.background.default ||
+        (theme.palette.mode === 'dark' ? theme.palette.common.black : theme.palette.common.white);
+      const base = hexToRgb(baseColor);
       const bright = {
         r: clamp(base.r + 18, 0, 255),
         g: clamp(base.g + 18, 0, 255),
