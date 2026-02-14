@@ -1,7 +1,6 @@
 import { Box, Container, Typography } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import { Section, REDUCED_MOTION_QUERY } from './index';
-import { BORDER_RADIUS } from '../../styles/shared';
 
 function DemoSection() {
   const theme = useTheme();
@@ -86,7 +85,7 @@ function DemoSection() {
           >
             <Box
               sx={{
-                borderRadius: `${BORDER_RADIUS.lg} ${BORDER_RADIUS.lg} 0 0`,
+                borderRadius: `${theme.shape.borderRadius + 2}px ${theme.shape.borderRadius + 2}px 0 0`,
                 backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.04 : 0.03),
                 border: `1px solid ${alpha(theme.palette.text.primary, 0.08)}`,
                 borderBottom: 'none',
@@ -151,7 +150,7 @@ function DemoSection() {
                 maxHeight: { xs: '45vh', md: '55vh' },
                 objectFit: 'cover',
                 display: 'block',
-                borderRadius: `0 0 ${BORDER_RADIUS.lg} ${BORDER_RADIUS.lg}`,
+                borderRadius: `0 0 ${theme.shape.borderRadius + 2}px ${theme.shape.borderRadius + 2}px`,
                 border: `1px solid ${alpha(theme.palette.text.primary, 0.08)}`,
                 borderTop: 'none',
                 backgroundColor: theme.palette.background.paper,

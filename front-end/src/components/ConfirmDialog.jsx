@@ -14,7 +14,6 @@ import {
 import { alpha } from '@mui/material/styles';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
-import { BORDER_RADIUS } from '../styles/shared';
 
 /**
  * Custom confirmation dialog that matches the app's theme.
@@ -62,7 +61,7 @@ function ConfirmDialog({
       fullWidth
       PaperProps={{
         sx: {
-          borderRadius: isCompactMobile ? 0 : BORDER_RADIUS.lg,
+          borderRadius: isCompactMobile ? 0 : `${theme.shape.borderRadius + 2}px`,
           backgroundImage: 'none',
         },
       }}
@@ -82,7 +81,7 @@ function ConfirmDialog({
           <Box
             sx={{
               p: 2,
-              borderRadius: BORDER_RADIUS.lg,
+              borderRadius: `${theme.shape.borderRadius + 2}px`,
               backgroundColor: alpha(theme.palette.text.primary, isDarkMode ? 0.1 : 0.04),
               border: '1px solid',
               borderColor: theme.palette.divider,
