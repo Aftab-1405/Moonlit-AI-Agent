@@ -72,7 +72,6 @@ import {
 } from '../hooks';
 
 import { getMoonlitGradient } from '../theme';
-import { getMenuPaperStyles } from '../styles/shared';
 import { isMessageActive } from '../utils/chatMessages';
 import logger from '../utils/logger';
 const DRAWER_WIDTH = 260;
@@ -213,8 +212,7 @@ function Chat() {
           theme.palette.info.main;
 
     return {
-      sx: {
-        backgroundColor: alpha(theme.palette.background.elevated, isDarkMode ? 0.95 : 0.98),
+      sx: { backgroundColor: alpha(theme.palette.background.elevated, isDarkMode ? 0.95 : 0.98),
         color: severityColor,
         fontWeight: 500,
         borderRadius: '6px',
@@ -283,9 +281,7 @@ function Chat() {
 
   const selectMenuProps = useMemo(() => ({
     PaperProps: {
-      sx: {
-        ...getMenuPaperStyles(theme),
-        mt: 0.8,
+      sx: { mt: 0.8,
         '& .MuiMenuItem-root': {
           fontSize: { xs: 14, sm: 13 },
           fontWeight: 500,
@@ -541,7 +537,7 @@ function Chat() {
         onClose={handleMenuClose}
         anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
         transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-        PaperProps={{ sx: { ...getMenuPaperStyles(theme), minWidth: 180 } }}
+        PaperProps={{ sx: { minWidth: 180 } }}
       >
         <Box sx={{ px: 2, py: 1.5 }}>
           <Typography variant="subtitle2">{user?.displayName}</Typography>
@@ -977,8 +973,7 @@ function Chat() {
           },
         }}
         PaperProps={{
-          sx: {
-            bgcolor: 'background.paper',
+          sx: { bgcolor: 'background.paper',
             backgroundImage: 'none',
           }
         }}

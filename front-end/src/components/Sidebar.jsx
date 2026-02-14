@@ -35,7 +35,7 @@ import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
 import CloseIcon from '@mui/icons-material/Close';
 import SchemaFlowDiagram from './SchemaFlowDiagram';
 import { getUserContext } from '../api';
-import { getGlassmorphismStyles, getScrollbarStyles, getMenuPaperStyles } from '../styles/shared';
+import { getGlassmorphismStyles, getScrollbarStyles } from '../styles/shared';
 import logger from '../utils/logger';
 const EXPANDED_WIDTH = 260;
 const COLLAPSED_WIDTH = 56;
@@ -402,7 +402,6 @@ function Sidebar({
   }), [isCollapsed, theme]);
 
   const scrollbarStyles = useMemo(() => getScrollbarStyles(theme), [theme]);
-  const menuPaperStyles = useMemo(() => getMenuPaperStyles(theme), [theme]);
 
   const mobileDrawerPaperStyles = useMemo(() => ({
     width: { xs: '90vw', sm: 320 },
@@ -675,7 +674,7 @@ function Sidebar({
         onClose={handleCloseDbPopover}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         transformOrigin={{ vertical: 'top', horizontal: 'left' }}
-        PaperProps={{ sx: { ...menuPaperStyles, mt: 1, minWidth: 200, maxHeight: 300, overflow: 'auto' } }}
+        PaperProps={{ sx: { mt: 1, minWidth: 200, maxHeight: 300, overflow: 'auto' } }}
       >
         <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
           <Typography variant="overline" color={theme.palette.text.secondary}>
@@ -721,7 +720,7 @@ function Sidebar({
         onClose={handleCloseHistoryPopover}
         anchorOrigin={{ vertical: 'center', horizontal: 'right' }}
         transformOrigin={{ vertical: 'center', horizontal: 'left' }}
-        PaperProps={{ sx: { ...menuPaperStyles, ml: 1, minWidth: 240, maxWidth: 320, maxHeight: 400, overflow: 'auto' } }}
+        PaperProps={{ sx: { ml: 1, minWidth: 240, maxWidth: 320, maxHeight: 400, overflow: 'auto' } }}
       >
         <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
           <Typography variant="overline" color="text.secondary">

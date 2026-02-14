@@ -22,20 +22,6 @@ export const getScrollbarStyles = (theme) => ({
   },
 });
 
-export const getMenuPaperStyles = (theme) => {
-  const isDarkMode = theme.palette.mode === 'dark';
-
-  return {
-    borderRadius: 2,
-    border: '1px solid',
-    borderColor: alpha(theme.palette.divider, isDarkMode ? 0.24 : 0.4),
-    backgroundColor: alpha(theme.palette.background.elevated, isDarkMode ? 0.96 : 0.98),
-    backgroundImage: 'none',
-    backdropFilter: 'blur(14px)',
-    WebkitBackdropFilter: 'blur(14px)',
-    boxShadow: 'none',
-  };
-};
 
 export const BORDER_RADIUS = {
   xs: '4px',

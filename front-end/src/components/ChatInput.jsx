@@ -29,7 +29,6 @@ import KeyboardArrowUpRoundedIcon from '@mui/icons-material/KeyboardArrowUpRound
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import { useTheme as useAppTheme } from '../contexts/ThemeContext';
 import { getSchemas, selectSchema } from '../api';
-import { getMenuPaperStyles } from '../styles/shared';
 import logger from '../utils/logger';
 
 const MOBILE_MEDIA_QUERY = '@media (max-width:599.95px)';
@@ -111,7 +110,6 @@ function ChatInput({
       },
     },
   }), [theme, isCompactMobile]);
-  const menuPaperStyles = useMemo(() => getMenuPaperStyles(theme), [theme]);
   const inputPlaceholder = isConnected
     ? (isCompactMobile ? 'Ask about database...' : 'Ask about your database...')
     : 'Ask anything...';
@@ -334,9 +332,7 @@ function ChatInput({
             open={Boolean(dbAnchor)}
             onClose={handleCloseDbMenu}
             PaperProps={{
-              sx: {
-                ...menuPaperStyles,
-                minWidth: 180,
+              sx: { minWidth: 180,
                 maxHeight: 320,
                 '& .MuiMenuItem-root': { minHeight: { xs: 40, sm: 36 } },
               },
@@ -363,9 +359,7 @@ function ChatInput({
             open={Boolean(schemaAnchor)}
             onClose={handleCloseSchemaMenu}
             PaperProps={{
-              sx: {
-                ...menuPaperStyles,
-                minWidth: 160,
+              sx: { minWidth: 160,
                 maxHeight: 280,
                 '& .MuiMenuItem-root': { minHeight: { xs: 40, sm: 36 } },
               },
@@ -478,8 +472,7 @@ function ChatInput({
               variant="standard"
               InputProps={{
                 disableUnderline: true,
-                sx: {
-                  lineHeight: 1.6,
+                sx: { lineHeight: 1.6,
                   py: 0.5,
                   color: 'text.primary',
                 },
