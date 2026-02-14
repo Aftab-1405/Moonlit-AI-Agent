@@ -32,7 +32,6 @@ let monacoThemesRegistered = false;
 const MONACO_OPTIONS = {
   readOnly: true,
   minimap: { enabled: false },
-  fontSize: 13,
   lineNumbers: 'off',
   folding: false,
   scrollBeyondLastLine: false,
@@ -199,7 +198,7 @@ const ThinkingStep = memo(({ content = '', isComplete, isCurrent = false }) => {
               component="div"
               sx={{
                 color: alpha(theme.palette.text.primary, isDark ? 0.85 : 0.8),
-                fontSize: { xs: '0.82rem', sm: '0.9rem' },
+                ...theme.typography.uiBodyMd,
                 fontFamily: theme.typography.fontFamily,
                 lineHeight: { xs: 1.6, sm: 1.75 },
                 whiteSpace: 'pre-wrap',
@@ -219,7 +218,7 @@ const ThinkingStep = memo(({ content = '', isComplete, isCurrent = false }) => {
                 onClick={() => setShowMore(!showMore)}
                 sx={{
                   mt: 0.75,
-                  fontSize: { xs: '0.72rem', sm: '0.8rem' },
+                  ...theme.typography.uiCaptionSm,
                   fontFamily: theme.typography.fontFamily,
                   fontWeight: 500,
                   color: alpha(theme.palette.text.secondary, 0.55),
@@ -240,7 +239,7 @@ const ThinkingStep = memo(({ content = '', isComplete, isCurrent = false }) => {
           <Typography
             sx={{
               color: alpha(theme.palette.text.secondary, 0.5),
-              fontSize: { xs: '0.82rem', sm: '0.9rem' },
+              ...theme.typography.uiBodyMd,
               fontFamily: theme.typography.fontFamily,
               fontStyle: 'italic',
               ...(isActive && {
@@ -271,6 +270,10 @@ const ToolStep = memo(({
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   const hasDetails = Boolean(parsedArgs?.query || parsedResult);
+  const monacoOptions = useMemo(
+    () => ({ ...MONACO_OPTIONS, fontSize: theme.typography.uiCode.fontSizePx }),
+    [theme.typography.uiCode.fontSizePx]
+  );
 
   const queryHeight = useMemo(() => {
     const query = parsedArgs?.query;
@@ -355,7 +358,7 @@ const ToolStep = memo(({
           className="step-text"
           sx={{
             color: alpha(theme.palette.text.primary, isDark ? 0.78 : 0.7),
-            fontSize: { xs: '0.8rem', sm: '0.875rem' },
+            ...theme.typography.uiBodySm,
             fontFamily: theme.typography.fontFamily,
             fontWeight: 500,
             transition: TRANSITIONS.default,
@@ -399,7 +402,7 @@ const ToolStep = memo(({
                 <Typography
                   sx={{
                     fontFamily: theme.typography.fontFamilyMono,
-                    fontSize: { xs: '0.62rem', sm: '0.6875rem' },
+                    ...theme.typography.uiMonoLabel,
                     fontWeight: 500,
                     letterSpacing: '0.05em',
                     textTransform: 'uppercase',
@@ -421,7 +424,7 @@ const ToolStep = memo(({
                 >
                   <Suspense
                     fallback={
-                      <Box sx={{ p: 1.5, color: 'text.secondary', fontSize: { xs: '0.72rem', sm: '0.8rem' } }}>
+                      <Box sx={{ p: 1.5, color: 'text.secondary', ...theme.typography.uiCaptionSm }}>
                         Loading editor...
                       </Box>
                     }
@@ -431,10 +434,10 @@ const ToolStep = memo(({
                       language="sql"
                       theme={getMonacoThemeName(theme.palette.mode)}
                       value={parsedArgs.query}
-                      options={MONACO_OPTIONS}
+                      options={monacoOptions}
                       beforeMount={registerOpaqueMonacoThemes}
                       loading={
-                        <Box sx={{ p: 1.5, color: 'text.secondary', fontSize: { xs: '0.72rem', sm: '0.8rem' } }}>
+                        <Box sx={{ p: 1.5, color: 'text.secondary', ...theme.typography.uiCaptionSm }}>
                           Loading...
                         </Box>
                       }
@@ -448,7 +451,7 @@ const ToolStep = memo(({
                 <Typography
                   sx={{
                     fontFamily: theme.typography.fontFamilyMono,
-                    fontSize: { xs: '0.62rem', sm: '0.6875rem' },
+                    ...theme.typography.uiMonoLabel,
                     fontWeight: 500,
                     letterSpacing: '0.05em',
                     textTransform: 'uppercase',
@@ -463,7 +466,7 @@ const ToolStep = memo(({
                     color: isError
                       ? alpha(theme.palette.error.main, 0.85)
                       : alpha(theme.palette.text.secondary, 0.75),
-                    fontSize: { xs: '0.8rem', sm: '0.875rem' },
+                    ...theme.typography.uiBodySm,
                     fontFamily: theme.typography.fontFamily,
                     lineHeight: 1.6,
                   }}
@@ -509,7 +512,7 @@ const DoneIndicator = memo(() => {
       <Typography
         sx={{
           color: alpha(theme.palette.text.primary, isDark ? 0.7 : 0.6),
-          fontSize: { xs: '0.8rem', sm: '0.875rem' },
+          ...theme.typography.uiBodySm,
           fontFamily: theme.typography.fontFamily,
           fontWeight: 500,
         }}
@@ -642,7 +645,7 @@ export const StepsAccordion = memo(({ steps, isStreaming }) => {
           className="summary-text"
           sx={{
             color: alpha(theme.palette.text.secondary, isDark ? 0.72 : 0.62),
-            fontSize: { xs: '0.8rem', sm: '0.875rem' },
+            ...theme.typography.uiBodySm,
             fontFamily: theme.typography.fontFamily,
             fontWeight: 500,
             width: '100%',

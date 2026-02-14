@@ -549,9 +549,7 @@ function Sidebar({
           variant="subtitle1"
           sx={{
             ml: { xs: 1.25, sm: 1.5 },
-            fontWeight: 600,
-            letterSpacing: '-0.01em',
-            fontSize: { xs: '1.05rem', sm: '1.1rem' },
+            ...theme.typography.uiSidebarWordmark,
             color: 'text.primary',
             ...collapsedTextStyles,
           }}

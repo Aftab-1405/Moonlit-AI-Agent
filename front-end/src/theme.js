@@ -255,6 +255,59 @@ const createTypography = (palette) => ({
     textTransform: 'uppercase',
     color: palette.text.hint,
   },
+  uiBodyMd: {
+    fontSize: { xs: '0.82rem', sm: '0.9rem' },
+    lineHeight: 1.65,
+    letterSpacing: '0.008em',
+  },
+  uiBodySm: {
+    fontSize: { xs: '0.8rem', sm: '0.875rem' },
+    lineHeight: 1.55,
+    letterSpacing: '0.008em',
+  },
+  uiCaptionSm: {
+    fontSize: { xs: '0.72rem', sm: '0.8rem' },
+    lineHeight: 1.45,
+    letterSpacing: '0.01em',
+  },
+  uiCaptionXs: {
+    fontSize: { xs: '0.68rem', sm: '0.75rem' },
+    lineHeight: 1.4,
+    letterSpacing: '0.01em',
+  },
+  uiMonoLabel: {
+    fontFamily: FONTS.mono,
+    fontSize: { xs: '0.62rem', sm: '0.6875rem' },
+    fontWeight: 500,
+    letterSpacing: '0.05em',
+    textTransform: 'uppercase',
+  },
+  uiInput: {
+    fontSize: { xs: '1rem', sm: '0.95rem' },
+  },
+  uiBrandWordmark: {
+    fontSize: { xs: '2rem', sm: '2.5rem' },
+    fontWeight: 800,
+    lineHeight: 1.1,
+    letterSpacing: '-0.01em',
+  },
+  uiSidebarWordmark: {
+    fontSize: { xs: '1.05rem', sm: '1.1rem' },
+    fontWeight: 600,
+    lineHeight: 1.2,
+    letterSpacing: '-0.01em',
+  },
+  uiPanelTitle: {
+    fontSize: { xs: '0.9rem', sm: '0.95rem' },
+    fontWeight: 600,
+    lineHeight: 1.35,
+  },
+  uiCode: {
+    fontSizePx: 13,
+  },
+  uiCodeCompact: {
+    fontSizePx: 12,
+  },
 });
 
 export const TRANSITIONS = {

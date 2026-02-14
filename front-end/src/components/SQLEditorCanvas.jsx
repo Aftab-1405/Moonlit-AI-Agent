@@ -34,7 +34,6 @@ const fadeIn = keyframes`
 `;
 const MONACO_OPTIONS = {
   minimap: { enabled: false },
-  fontSize: 13,
   lineNumbers: 'on',
   scrollBeyondLastLine: false,
   automaticLayout: true,
@@ -149,8 +148,12 @@ function SQLEditorCanvas({
   const copyTimeoutRef = useRef(null);
   const textColor = useMemo(() => theme.palette.text.primary, [theme.palette.text.primary]);
   const monacoOptions = useMemo(
-    () => ({ ...MONACO_OPTIONS, fontFamily: theme.typography.fontFamilyMono }),
-    [theme.typography.fontFamilyMono]
+    () => ({
+      ...MONACO_OPTIONS,
+      fontFamily: theme.typography.fontFamilyMono,
+      fontSize: theme.typography.uiCode.fontSizePx,
+    }),
+    [theme.typography.fontFamilyMono, theme.typography.uiCode.fontSizePx]
   );
   useEffect(() => {
     return () => {
@@ -288,7 +291,9 @@ function SQLEditorCanvas({
       py: 0,
       fontWeight: 500,
       textTransform: 'none',
-      fontSize: isCompactMobile ? '0.8rem' : '0.875rem',
+      fontSize: isCompactMobile
+        ? theme.typography.uiBodySm.fontSize.xs
+        : theme.typography.body2.fontSize,
       color: 'text.secondary',
       transition: 'transform 0.2s ease',
       '&.Mui-selected': { color: 'text.primary' },
@@ -454,7 +459,7 @@ function SQLEditorCanvas({
         >
           <TerminalRoundedIcon sx={{ fontSize: 18, color: 'text.primary' }} />
         </Box>
-        <Typography variant="subtitle2" fontWeight={600} sx={{ fontSize: { xs: '0.9rem', sm: '0.95rem' } }}>
+        <Typography variant="subtitle2" sx={{ ...theme.typography.uiPanelTitle }}>
           SQL Editor
         </Typography>
         {currentDatabase && (

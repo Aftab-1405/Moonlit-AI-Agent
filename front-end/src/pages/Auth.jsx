@@ -284,7 +284,7 @@ function Auth() {
               borderColor: 'divider',
               borderRadius: { xs: 2, sm: 3 },
               '& .MuiInputBase-input': {
-                fontSize: { xs: '16px', sm: '0.875rem' },
+                ...theme.typography.uiInput,
               },
             }}
           >
@@ -292,8 +292,7 @@ function Auth() {
               <Typography
                 component="span"
                 sx={{
-                  fontSize: { xs: '2rem', sm: '2.5rem' },
-                  fontWeight: 800,
+                  ...theme.typography.uiBrandWordmark,
                   color: theme.palette.text.primary,
                 }}
               >

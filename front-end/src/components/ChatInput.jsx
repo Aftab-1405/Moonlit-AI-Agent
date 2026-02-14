@@ -483,7 +483,7 @@ function ChatInput({
                 },
                 '& .MuiInputBase-input': {
                   py: 0,
-                  fontSize: { xs: '1rem', sm: '0.95rem' },
+                  ...theme.typography.uiInput,
                   '&::placeholder': {
                     color: 'text.secondary',
                     opacity: 0.7,
@@ -597,7 +597,7 @@ function ChatInput({
               textAlign: 'center',
               mt: { xs: 1, sm: 1.5 },
               px: 1,
-              fontSize: { xs: '0.68rem', sm: '0.75rem' },
+              ...theme.typography.uiCaptionXs,
               color: 'text.secondary',
               opacity: 0.5,
             }}

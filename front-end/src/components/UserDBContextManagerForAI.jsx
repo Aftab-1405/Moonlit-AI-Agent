@@ -41,7 +41,6 @@ const HOVER_CAPABLE_QUERY = '@media (hover: hover) and (pointer: fine)';
 const MONACO_QUERY_BASE_OPTIONS = {
   readOnly: true,
   minimap: { enabled: false },
-  fontSize: 12,
   lineNumbers: 'off',
   folding: false,
   scrollBeyondLastLine: false,
@@ -180,13 +179,14 @@ function UserDBContextManagerForAI() {
   }, []);
   const queryMonacoOptions = useMemo(() => ({
     ...MONACO_QUERY_BASE_OPTIONS,
+    fontSize: theme.typography.uiCodeCompact.fontSizePx,
     fontFamily: theme.typography.fontFamilyMono,
     scrollbar: {
       vertical: 'auto',
       horizontal: 'hidden',
       verticalScrollbarSize: isCompactMobile ? 4 : 6,
     },
-  }), [theme.typography.fontFamilyMono, isCompactMobile]);
+  }), [theme.typography.fontFamilyMono, theme.typography.uiCodeCompact.fontSizePx, isCompactMobile]);
 
   const fetchContext = useCallback(async () => {
     setLoading(true);
@@ -286,7 +286,7 @@ function UserDBContextManagerForAI() {
           '& .MuiAlert-message': { width: '100%' },
         }}
       >
-        <Typography variant="body2" sx={{ fontSize: { xs: '0.82rem', sm: '0.875rem' }, lineHeight: 1.45 }}>
+        <Typography variant="body2" sx={{ ...theme.typography.uiBodySm, lineHeight: 1.45 }}>
           This is the AI's memory of your database structure. Delete only if your schema has changed.
         </Typography>
       </Alert>
