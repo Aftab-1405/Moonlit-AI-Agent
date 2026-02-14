@@ -1143,6 +1143,7 @@ const createBaseTheme = (mode) => {
 
   const theme = createTheme({
     breakpoints: BREAKPOINTS,
+    spacing: 8,
     shape: SHAPE,
     palette,
     typography: createTypography(palette),

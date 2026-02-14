@@ -219,7 +219,7 @@ function Chat() {
         boxShadow: isDarkMode
           ? `0 4px 12px ${alpha(theme.palette.text.primary, 0.25)}`
           : `0 4px 12px ${alpha(severityColor, 0.15)}`,
-        padding: '10px 16px',
+        padding: theme.spacing(1.25, 2),
         minWidth: 'auto !important',
         '& .MuiSnackbarContent-message': { padding: 0 },
       }
