@@ -76,7 +76,6 @@ import { isMessageActive } from '../utils/chatMessages';
 import logger from '../utils/logger';
 const DRAWER_WIDTH = 260;
 const COLLAPSED_WIDTH = 56;
-const MOBILE_MEDIA_QUERY = '@media (max-width:599.95px)';
 const REDUCED_MOTION_QUERY = '@media (prefers-reduced-motion: reduce)';
 const BACKDROP_FILTER_FALLBACK_QUERY =
   '@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)))';
@@ -618,7 +617,7 @@ function Chat() {
                 backdropFilter: 'none',
                 WebkitBackdropFilter: 'none',
               },
-              [MOBILE_MEDIA_QUERY]: {
+              [theme.breakpoints.down('sm')]: {
                 backdropFilter: 'none',
                 WebkitBackdropFilter: 'none',
               },
@@ -867,7 +866,7 @@ function Chat() {
                     backdropFilter: 'none',
                     WebkitBackdropFilter: 'none',
                   },
-                  [MOBILE_MEDIA_QUERY]: {
+                  [theme.breakpoints.down('sm')]: {
                     backdropFilter: 'none',
                     WebkitBackdropFilter: 'none',
                   },

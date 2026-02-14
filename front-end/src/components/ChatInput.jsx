@@ -31,7 +31,6 @@ import { useTheme as useAppTheme } from '../contexts/ThemeContext';
 import { getSchemas, selectSchema } from '../api';
 import logger from '../utils/logger';
 
-const MOBILE_MEDIA_QUERY = '@media (max-width:599.95px)';
 const REDUCED_MOTION_QUERY = '@media (prefers-reduced-motion: reduce)';
 const HOVER_CAPABLE_QUERY = '@media (hover: hover) and (pointer: fine)';
 const BACKDROP_FILTER_FALLBACK_QUERY =
@@ -402,7 +401,7 @@ function ChatInput({
                 backdropFilter: 'none',
                 WebkitBackdropFilter: 'none',
               },
-              [MOBILE_MEDIA_QUERY]: {
+              [theme.breakpoints.down('sm')]: {
                 backdropFilter: 'none',
                 WebkitBackdropFilter: 'none',
               },

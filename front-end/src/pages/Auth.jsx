@@ -43,7 +43,6 @@ import {
 } from '../validation';
 import logger from '../utils/logger';
 
-const MOBILE_MEDIA_QUERY = '@media (max-width:599.95px)';
 const BACKDROP_FILTER_FALLBACK_QUERY =
   '@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)))';
 
@@ -277,7 +276,7 @@ function Auth() {
                 backdropFilter: 'none',
                 WebkitBackdropFilter: 'none',
               },
-              [MOBILE_MEDIA_QUERY]: {
+              [theme.breakpoints.down('sm')]: {
                 backdropFilter: 'none',
                 WebkitBackdropFilter: 'none',
               },
