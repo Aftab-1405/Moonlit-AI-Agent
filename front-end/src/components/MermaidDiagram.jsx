@@ -255,7 +255,7 @@ function MermaidDiagram({ code }) {
             m: 0,
             p: { xs: 1.5, sm: 2 },
             overflow: 'auto',
-            fontFamily: 'monospace',
+            fontFamily: theme.typography.fontFamilyMono,
             fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' },
             maxHeight: { xs: 200, sm: 300 },
           }}

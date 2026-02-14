@@ -196,7 +196,7 @@ const ThinkingStep = memo(({ content = '', isComplete, isCurrent = false }) => {
               sx={{
                 color: alpha(theme.palette.text.primary, isDark ? 0.85 : 0.8),
                 fontSize: { xs: '0.82rem', sm: '0.9rem' },
-                fontFamily: '"Merriweather", "Georgia", serif',
+                fontFamily: theme.typography.fontFamily,
                 lineHeight: { xs: 1.6, sm: 1.75 },
                 whiteSpace: 'pre-wrap',
                 wordBreak: 'break-word',
@@ -237,7 +237,7 @@ const ThinkingStep = memo(({ content = '', isComplete, isCurrent = false }) => {
             sx={{
               color: alpha(theme.palette.text.secondary, 0.5),
               fontSize: { xs: '0.82rem', sm: '0.9rem' },
-              fontFamily: '"Merriweather", "Georgia", serif',
+              fontFamily: theme.typography.fontFamily,
               fontStyle: 'italic',
               ...(isActive && {
                 animation: `${pulse} 2s ease-in-out infinite`,

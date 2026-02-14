@@ -35,7 +35,6 @@ const fadeIn = keyframes`
 const MONACO_OPTIONS = {
   minimap: { enabled: false },
   fontSize: 13,
-  fontFamily: '"JetBrains Mono", "Fira Code", "Monaco", "Consolas", monospace',
   lineNumbers: 'on',
   scrollBeyondLastLine: false,
   automaticLayout: true,
@@ -149,6 +148,10 @@ function SQLEditorCanvas({
   const editorRef = useRef(null);
   const copyTimeoutRef = useRef(null);
   const textColor = useMemo(() => theme.palette.text.primary, [theme.palette.text.primary]);
+  const monacoOptions = useMemo(
+    () => ({ ...MONACO_OPTIONS, fontFamily: theme.typography.fontFamilyMono }),
+    [theme.typography.fontFamilyMono]
+  );
   useEffect(() => {
     return () => {
       if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
@@ -393,11 +396,11 @@ function SQLEditorCanvas({
           value={query}
           onChange={handleQueryChange}
           onMount={handleEditorDidMount}
-          options={MONACO_OPTIONS}
+          options={monacoOptions}
         />
       </Box>
     </Box>
-  ), [error, isDark, query, handleKeyDown, handleQueryChange, handleEditorDidMount, theme]);
+  ), [error, isDark, query, handleKeyDown, handleQueryChange, handleEditorDidMount, monacoOptions, theme]);
 
   const resultsTabContent = useMemo(() => (
     <Box sx={embeddedContentShellStyles}>
