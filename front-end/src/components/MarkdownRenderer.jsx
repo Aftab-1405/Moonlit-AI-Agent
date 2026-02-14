@@ -177,7 +177,9 @@ const MarkdownRenderer = memo(function MarkdownRenderer({ content, onRunQuery })
     pre: ({ children }) => <>{children}</>,
     table: ({ children }) => (
       <Box sx={{ overflowX: 'auto', my: 2, borderRadius: '12px', border: `1px solid ${theme.palette.divider}` }}>
-        <table style={{ minWidth: 'max-content', width: '100%', borderCollapse: 'collapse' }}>{children}</table>
+        <Box component="table" sx={{ minWidth: 'max-content', width: '100%', borderCollapse: 'collapse' }}>
+          {children}
+        </Box>
       </Box>
     ),
   }), [onRunQuery, isDarkMode, theme]);

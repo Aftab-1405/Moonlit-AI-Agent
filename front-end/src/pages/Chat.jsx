@@ -841,7 +841,7 @@ function Chat() {
             </Box>
           </Fade>
 
-          <Fade in={showConversationPanel} timeout={300} unmountOnExit style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <Fade in={showConversationPanel} timeout={300} unmountOnExit>
             <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
               <Box ref={setScrollContainerRef} sx={{ flex: 1, overflow: 'auto' }}>
                 <MessageList

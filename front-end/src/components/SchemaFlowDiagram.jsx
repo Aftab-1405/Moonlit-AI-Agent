@@ -16,6 +16,7 @@ import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
 import TableChartRoundedIcon from '@mui/icons-material/TableChartRounded';
 
 const MOBILE_BREAKPOINT_QUERY = 'sm';
+const HIDDEN_HANDLE_STYLE = { opacity: 0 };
 
 const CustomBezierEdge = ({
   id,
@@ -97,7 +98,7 @@ const DatabaseNode = memo(({ data }) => {
           ml: 'auto',
         }}
       />
-      <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
+      <Handle type="source" position={Position.Right} style={HIDDEN_HANDLE_STYLE} />
     </Box>
   );
 });
@@ -143,7 +144,7 @@ const TableNode = memo(({ data }) => {
       }}
       onClick={() => hasColumns && data.onToggle && data.onToggle(data.id)}
     >
-      <Handle type="target" position={Position.Left} style={{ opacity: 0 }} />
+      <Handle type="target" position={Position.Left} style={HIDDEN_HANDLE_STYLE} />
       
       <TableChartRoundedIcon
         sx={{
@@ -176,7 +177,7 @@ const TableNode = memo(({ data }) => {
         </Box>
       )}
       
-      <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
+      <Handle type="source" position={Position.Right} style={HIDDEN_HANDLE_STYLE} />
     </Box>
   );
 });
@@ -213,7 +214,7 @@ const ColumnNode = memo(({ data }) => {
         },
       }}
     >
-      <Handle type="target" position={Position.Left} style={{ opacity: 0 }} />
+      <Handle type="target" position={Position.Left} style={HIDDEN_HANDLE_STYLE} />
       
       {isPK && (
         <KeyRoundedIcon
