@@ -13,4 +13,3 @@ export function useResponsive() {
     [isDesktop, isMobile, isTablet]
   );
 }
-

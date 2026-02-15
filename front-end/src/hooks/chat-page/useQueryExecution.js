@@ -8,7 +8,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { runQuery } from '../api';
+import { runQuery } from '../../api';
 
 /**
  * Hook for query execution functionality

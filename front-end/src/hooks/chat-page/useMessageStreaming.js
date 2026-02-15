@@ -8,14 +8,14 @@
  */
 
 import { useCallback, useRef } from 'react';
-import { sendMessage } from '../api';
-import logger from '../utils/logger';
+import { sendMessage } from '../../api';
+import logger from '../../utils/logger';
 import {
   createAssistantMessage,
   createMessageId,
   createUserMessage,
   MESSAGE_STATUS,
-} from '../utils/chatMessages';
+} from '../../utils/chatMessages';
 const UPDATE_THROTTLE_MS = 16;
 
 /**
@@ -99,6 +99,7 @@ export function useMessageStreaming({
   setConversations,
   navigate,
   fetchConversations,
+  registerStreamingConversation,
   settings,
 }) {
   const abortControllerRef = useRef(null);
@@ -141,6 +142,7 @@ export function useMessageStreaming({
       }, abortControllerRef.current.signal);
       const newConversationId = response.headers.get('X-Conversation-Id');
       if (newConversationId && !currentConversationId) {
+        registerStreamingConversation?.(newConversationId);
         setCurrentConversationId(newConversationId);
         navigate(`/chat/${newConversationId}`, { replace: true });
 
@@ -179,7 +181,7 @@ export function useMessageStreaming({
         }
       }
 
-      fetchConversations();
+      fetchConversations(undefined, { showLoading: false });
     } catch (error) {
       if (error.name === 'AbortError') {
         setMessages((prev) => {
@@ -202,7 +204,16 @@ export function useMessageStreaming({
     } finally {
       abortControllerRef.current = null;
     }
-  }, [currentConversationId, settings, navigate, fetchConversations, setMessages, setConversations, setCurrentConversationId]);
+  }, [
+    currentConversationId,
+    settings,
+    navigate,
+    fetchConversations,
+    registerStreamingConversation,
+    setMessages,
+    setConversations,
+    setCurrentConversationId,
+  ]);
 
   const handleStopStreaming = useCallback(() => {
     if (abortControllerRef.current) {

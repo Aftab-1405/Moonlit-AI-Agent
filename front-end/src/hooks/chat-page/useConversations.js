@@ -14,9 +14,9 @@ import {
   getConversation,
   createConversation,
   deleteConversation,
-} from '../api';
-import logger from '../utils/logger';
-import { normalizeConversationMessage } from '../utils/chatMessages';
+} from '../../api';
+import logger from '../../utils/logger';
+import { normalizeConversationMessage } from '../../utils/chatMessages';
 
 /**
  * Hook for managing conversations and messages
@@ -43,23 +43,42 @@ export function useConversations() {
     abortControllerRef.current = new AbortController();
     return abortControllerRef.current.signal;
   }, []);
-  const fetchConversations = useCallback(async (signal) => {
+  const fetchConversations = useCallback(async (signal, options = {}) => {
+    const showLoading = options.showLoading ?? true;
     const requestSeq = conversationsLoadSeqRef.current + 1;
     conversationsLoadSeqRef.current = requestSeq;
-    setIsConversationsLoading(true);
+    if (showLoading) {
+      setIsConversationsLoading(true);
+    }
     try {
       const data = await getConversations(signal);
       if (data.status === 'success') {
-        setConversations(data.conversations || []);
+        const nextConversations = data.conversations || [];
+        setConversations((prev) => {
+          if (prev.length !== nextConversations.length) return nextConversations;
+          for (let i = 0; i < prev.length; i += 1) {
+            if (prev[i]?.id !== nextConversations[i]?.id) return nextConversations;
+            if (prev[i]?.title !== nextConversations[i]?.title) return nextConversations;
+            if (prev[i]?.created_at !== nextConversations[i]?.created_at) return nextConversations;
+          }
+          return prev;
+        });
       }
     } catch (error) {
       if (error.name === 'AbortError') return; // Ignore abort errors
       logger.error('Failed to fetch conversations:', error);
     } finally {
-      if (conversationsLoadSeqRef.current === requestSeq) {
+      if (showLoading && conversationsLoadSeqRef.current === requestSeq) {
         setIsConversationsLoading(false);
       }
     }
+  }, []);
+  const registerStreamingConversation = useCallback((convId) => {
+    newlyCreatedConvIdRef.current = convId;
+    lastLoadedConversationIdRef.current = convId;
+    prevConversationIdRef.current = convId;
+    setCurrentConversationId(convId);
+    setIsConversationLoading(false);
   }, []);
   const resetChatState = useCallback(() => {
     setMessages([]);
@@ -165,6 +184,7 @@ export function useConversations() {
     currentConversationId,
     setCurrentConversationId,
     fetchConversations,
+    registerStreamingConversation,
     handleSelectConversation,
     handleNewChat,
     handleDeleteConversation,

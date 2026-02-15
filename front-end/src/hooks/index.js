@@ -5,11 +5,14 @@
  */
 
 export { useCharacterPacing } from './useCharacterPacing';
-export { useConversations } from './useConversations';
-export { default as useAutoScroll } from './useAutoScroll';
-export { useIdleDetection } from './useIdleDetection';
 export { useLocalStorage } from './useLocalStorage';
-export { useMessageStreaming } from './useMessageStreaming';
-export { useQueryExecution } from './useQueryExecution';
-export { useSqlEditorPanel } from './useSqlEditorPanel';
-export { useResponsive } from './useResponsive';
+export { useConversations } from './chat-page/useConversations';
+export { default as useAutoScroll } from './chat-page/useAutoScroll';
+export { useIdleDetection } from './chat-page/useIdleDetection';
+export { useMessageStreaming } from './chat-page/useMessageStreaming';
+export { useQueryExecution } from './chat-page/useQueryExecution';
+export { useSqlEditorPanel } from './chat-page/useSqlEditorPanel';
+export { useResponsive } from './chat-page/useResponsive';
+export { useChatPageController } from './chat-page/useChatPageController';
+export { useChatPageLlmSelection } from './chat-page/useChatPageLlmSelection';
+export { useChatPageSessionLifecycle } from './chat-page/useChatPageSessionLifecycle';
