@@ -54,7 +54,8 @@ function Chat() {
     handleSidebarToggle,
     handleSidebarMenuOpen,
     mobileOpen,
-    handleDrawerToggle,
+    handleMobileDrawerOpen,
+    handleMobileDrawerClose,
     providerSelectValue,
     modelSelectValue,
     handleProviderChange,
@@ -145,7 +146,7 @@ function Chat() {
         onToggleOpen={handleSidebarToggle}
         onMenuOpen={handleSidebarMenuOpen}
         mobileOpen={mobileOpen}
-        onMobileClose={handleDrawerToggle}
+        onMobileClose={handleMobileDrawerClose}
       />
       <Box
         component="main"
@@ -173,7 +174,7 @@ function Chat() {
       >
         <LlmSelectorBar
           isNarrowLayout={isNarrowLayout}
-          onToggleSidebar={handleDrawerToggle}
+          onToggleSidebar={handleMobileDrawerOpen}
           onNewChat={handleSidebarNewChat}
           providerSelectValue={providerSelectValue}
           modelSelectValue={modelSelectValue}

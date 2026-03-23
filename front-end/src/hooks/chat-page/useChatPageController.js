@@ -192,8 +192,11 @@ export function useChatPageController() {
     activityKey: streamActivityKey,
   });
 
-  const handleDrawerToggle = useCallback(() => {
-    setMobileOpen((prev) => !prev);
+  const handleMobileDrawerOpen = useCallback(() => {
+    setMobileOpen(true);
+  }, []);
+  const handleMobileDrawerClose = useCallback(() => {
+    setMobileOpen(false);
   }, []);
   const effectiveMobileOpen = isDesktop ? false : mobileOpen;
 
@@ -311,7 +314,8 @@ export function useChatPageController() {
     handleSidebarToggle,
     handleSidebarMenuOpen,
     mobileOpen: effectiveMobileOpen,
-    handleDrawerToggle,
+    handleMobileDrawerOpen,
+    handleMobileDrawerClose,
     providerSelectValue,
     modelSelectValue,
     handleProviderChange,
