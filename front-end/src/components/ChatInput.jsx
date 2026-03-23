@@ -35,6 +35,7 @@ import {
   REDUCED_MOTION_QUERY,
 } from '../styles/mediaQueries';
 import logger from '../utils/logger';
+import { getCompactActionSx, getToolbarChipSx, UI_LAYOUT } from '../styles/shared';
 
 const MENU_HEADER_STYLES = { px: 2, py: 0.5, display: 'block', color: 'text.secondary' };
 const LIST_ITEM_ICON_STYLES = { minWidth: 28 };
@@ -93,22 +94,9 @@ function ChatInput({
     [message]
   );
 
-  const toolbarChipStyles = useMemo(() => ({
-    height: isCompactMobile ? 28 : 26,
-    borderRadius: '12px',
-    border: '1px solid',
-    borderColor: alpha(theme.palette.text.primary, 0.2), // Increased from 0.12 for dark theme visibility
-    backgroundColor: alpha(theme.palette.text.primary, 0.04),
-    '& .MuiChip-label': {
-      px: isCompactMobile ? 0.75 : 1,
-    },
-    [HOVER_CAPABLE_QUERY]: {
-      '&:hover': {
-        borderColor: alpha(theme.palette.text.primary, 0.35),
-        backgroundColor: alpha(theme.palette.text.primary, 0.08),
-      },
-    },
-  }), [theme, isCompactMobile]);
+  const toolbarChipStyles = useMemo(() => (
+    getToolbarChipSx(theme, { isCompactMobile })
+  ), [theme, isCompactMobile]);
   const inputPlaceholder = isConnected
     ? (isCompactMobile ? 'Ask about database...' : 'Ask about your database...')
     : 'Ask anything...';
@@ -276,7 +264,7 @@ function ChatInput({
           {(showDatabaseSelector || showSchemaSelector || onOpenSqlEditor) && (
             <Box
               sx={{
-                maxWidth: 760,
+                maxWidth: UI_LAYOUT.chatInputMaxWidth,
                 mx: 'auto',
                 mb: 1,
                 display: 'flex',
@@ -382,7 +370,7 @@ function ChatInput({
           </Menu>
           <Box
             sx={{
-              maxWidth: 760,
+              maxWidth: UI_LAYOUT.chatInputMaxWidth,
               mx: 'auto',
               display: 'flex',
               alignItems: 'center',
@@ -425,10 +413,9 @@ function ChatInput({
                       disabled
                       aria-label="Attach file (coming soon)"
                       sx={{
+                        ...getCompactActionSx(theme),
                         color: 'text.secondary',
                         opacity: 0.4,
-                        width: 44,
-                        height: 44,
                       }}
                     >
                       <AttachFileRoundedIcon sx={{ fontSize: 20 }} />
@@ -444,8 +431,7 @@ function ChatInput({
                   aria-label={reasoningEnabled ? 'Disable AI thinking' : 'Enable AI thinking'}
                   aria-pressed={reasoningEnabled}
                   sx={{
-                    width: 44,
-                    height: 44,
+                    ...getCompactActionSx(theme),
                     color: reasoningEnabled
                       ? theme.palette.info.main
                       : alpha(theme.palette.text.secondary, 0.4),
@@ -497,8 +483,7 @@ function ChatInput({
                 onClick={toggleHidden}
                 aria-label="Hide message input"
                 sx={{
-                  width: 44,
-                  height: 44,
+                  ...getCompactActionSx(theme),
                   color: 'text.disabled',
                   flexShrink: 0,
                   display: isCompactMobile ? 'none' : 'inline-flex',
@@ -516,8 +501,7 @@ function ChatInput({
                   disabled={!isStreaming && (!hasText || disabled)}
                   aria-label={isStreaming ? 'Stop generating response' : 'Send message'}
                   sx={{
-                    width: 44,
-                    height: 44,
+                    ...getCompactActionSx(theme),
                     color: (hasText || isStreaming)
                       ? (isStreaming ? theme.palette.error.main : theme.palette.text.primary)
                       : 'text.disabled',
@@ -537,7 +521,7 @@ function ChatInput({
           {showSuggestions && (
             <Box
               sx={{
-                maxWidth: 760,
+                maxWidth: UI_LAYOUT.chatInputMaxWidth,
                 mx: 'auto',
                 mt: 1.5,
                 display: 'flex',
@@ -625,4 +609,5 @@ function arePropsEqual(prevProps, nextProps) {
 }
 
 export default memo(ChatInput, arePropsEqual);
+
 

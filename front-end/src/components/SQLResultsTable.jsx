@@ -28,6 +28,7 @@ import TimerOutlinedIcon from '@mui/icons-material/TimerOutlined';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import AddchartIcon from '@mui/icons-material/Addchart';
 import ChartVisualization from './ChartVisualization';
+import { getCompactActionSx, UI_LAYOUT } from '../styles/shared';
 
 function SQLResultsTable({ data, onClose, embedded = false }) {
   const [page, setPage] = useState(0);
@@ -184,21 +185,6 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
       };
     }
   }, [resizing, handleResizeMove, handleResizeEnd]);
-
-  if (!data || !columns.length) {
-    return null;
-  }
-  if (!embedded && viewMode === 'chart') {
-    return (
-      <ChartVisualization
-        data={data}
-        onClose={onClose}
-        viewMode={viewMode}
-        onViewModeChange={(v) => v && setViewMode(v)}
-      />
-    );
-  }
-
   const paginatedData = sortedData.slice(
     page * rowsPerPage,
     page * rowsPerPage + rowsPerPage
@@ -260,7 +246,13 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
     '&:hover': {
       backgroundColor: theme.palette.action.hover,
     },
-  }), [isCompactMobile, theme.palette.action.hover, theme.palette.border.subtle]);
+  }), [
+    isCompactMobile,
+    theme.palette.action.hover,
+    theme.palette.border.subtle,
+    theme.typography.body2.fontSize,
+    theme.typography.uiBodyTable.fontSize.xs,
+  ]);
   const nullValueSx = useMemo(() => ({
     color: 'text.disabled',
     fontStyle: 'italic',
@@ -269,6 +261,20 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
     py: 0.25,
     borderRadius: 0.5,
   }), [theme.palette.action.disabledBackground]);
+
+  if (!data || !columns.length) {
+    return null;
+  }
+  if (!embedded && viewMode === 'chart') {
+    return (
+      <ChartVisualization
+        data={data}
+        onClose={onClose}
+        viewMode={viewMode}
+        onViewModeChange={(v) => v && setViewMode(v)}
+      />
+    );
+  }
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: embedded ? 0 : 400 }}>
@@ -306,8 +312,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                 size="small"
                 onClick={() => setViewMode('chart')}
                 sx={{
-                  width: 44,
-                  height: 44,
+                  ...getCompactActionSx(theme),
                   color: 'text.secondary',
                   '&:hover': { backgroundColor: theme.palette.action.hover },
                 }}
@@ -379,8 +384,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                 size="small"
                 onClick={handleCopyAsCSV}
                 sx={{
-                  width: 44,
-                  height: 44,
+                  ...getCompactActionSx(theme),
                   color: copied ? 'text.primary' : 'text.secondary',
                   '&:hover': { backgroundColor: theme.palette.action.hover },
                 }}
@@ -397,8 +401,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                 size="small"
                 onClick={handleDownloadCSV}
                 sx={{
-                  width: 44,
-                  height: 44,
+                  ...getCompactActionSx(theme),
                   color: 'text.secondary',
                   '&:hover': { backgroundColor: theme.palette.action.hover },
                 }}
@@ -412,8 +415,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                   size="small"
                   onClick={onClose}
                   sx={{
-                    width: 44,
-                    height: 44,
+                    ...getCompactActionSx(theme),
                     color: 'text.secondary',
                     '&:hover': { backgroundColor: theme.palette.action.hover },
                   }}
@@ -560,7 +562,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
           flexShrink: 0,
           '& .MuiTablePagination-toolbar': {
             px: { xs: 1, sm: 2 },
-            minHeight: { xs: 52, sm: 56 },
+            minHeight: { xs: UI_LAYOUT.touchTarget + 8, sm: 56 },
           },
           '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
             ...theme.typography.uiCaptionMd,
@@ -594,3 +596,10 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
 }
 
 export default memo(SQLResultsTable);
+
+
+
+
+
+
+

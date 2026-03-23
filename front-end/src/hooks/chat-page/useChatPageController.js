@@ -13,9 +13,10 @@ import { useResponsive } from './useResponsive';
 import { useChatPageLlmSelection } from './useChatPageLlmSelection';
 import { useChatPageSessionLifecycle } from './useChatPageSessionLifecycle';
 import { isMessageActive } from '../../utils/chatMessages';
+import { UI_LAYOUT } from '../../styles/shared';
 
-const DRAWER_WIDTH = 260;
-const COLLAPSED_WIDTH = 56;
+const DRAWER_WIDTH = UI_LAYOUT.sidebarExpandedWidth;
+const COLLAPSED_WIDTH = UI_LAYOUT.sidebarCollapsedWidth;
 
 export function useChatPageController() {
   const theme = useMuiTheme();
@@ -356,3 +357,4 @@ export function useChatPageController() {
 }
 
 export default useChatPageController;
+

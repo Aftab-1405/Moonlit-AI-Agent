@@ -7,6 +7,7 @@ import HubOutlinedIcon from '@mui/icons-material/HubOutlined';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import QuotaDisplay from './QuotaDisplay';
 import { BACKDROP_FILTER_FALLBACK_QUERY } from '../styles/mediaQueries';
+import { getCompactActionSx } from '../styles/shared';
 
 function LlmSelectorBar({
   isNarrowLayout,
@@ -101,8 +102,7 @@ function LlmSelectorBar({
             onClick={onToggleSidebar}
             aria-label="Open sidebar"
             sx={{
-              width: 44,
-              height: 44,
+              ...getCompactActionSx(theme),
               color: 'text.secondary',
               justifySelf: 'start',
             }}
@@ -237,8 +237,7 @@ function LlmSelectorBar({
             onClick={onNewChat}
             aria-label="Start new chat"
             sx={{
-              width: 44,
-              height: 44,
+              ...getCompactActionSx(theme),
               color: 'text.primary',
               justifySelf: 'end',
             }}
@@ -252,3 +251,4 @@ function LlmSelectorBar({
 }
 
 export default memo(LlmSelectorBar);
+

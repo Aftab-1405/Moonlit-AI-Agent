@@ -1,13 +1,13 @@
 import Box from '@mui/material/Box';
 import { styled } from '@mui/material/styles';
-import { getGlassmorphismStyles } from '../../styles/shared';
+import { getGlassmorphismStyles, UI_LAYOUT } from '../../styles/shared';
 import {
   BACKDROP_FILTER_FALLBACK_QUERY,
   MOBILE_MD_QUERY,
 } from '../../styles/mediaQueries';
 
-export const EXPANDED_WIDTH = 260;
-export const COLLAPSED_WIDTH = 56;
+export const EXPANDED_WIDTH = UI_LAYOUT.sidebarExpandedWidth;
+export const COLLAPSED_WIDTH = UI_LAYOUT.sidebarCollapsedWidth;
 export const MOBILE_MEDIA_QUERY = MOBILE_MD_QUERY;
 
 export const CONTENT_CONTAINER_STYLES = {
@@ -80,3 +80,4 @@ export function buildMobileDrawerPaperStyles(theme) {
     },
   };
 }
+

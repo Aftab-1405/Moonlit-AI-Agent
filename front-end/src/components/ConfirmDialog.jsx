@@ -1,9 +1,5 @@
 import { useState, useCallback, memo } from 'react';
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Button,
   Typography,
   Box,
@@ -11,9 +7,13 @@ import {
   useTheme,
   useMediaQuery,
 } from '@mui/material';
-import { alpha } from '@mui/material/styles';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
+import DialogShell from './DialogShell';
+import {
+  getInsetPanelSx,
+  UI_LAYOUT,
+} from '../styles/shared';
 
 /**
  * Custom confirmation dialog that matches the app's theme.
@@ -53,38 +53,50 @@ function ConfirmDialog({
   }, [isExecuting, onClose]);
 
   return (
-    <Dialog
+    <DialogShell
       open={open}
       onClose={handleClose}
-      fullScreen={isCompactMobile}
+      isMobile={isCompactMobile}
       maxWidth="sm"
-      fullWidth
-      PaperProps={{
-        sx: {
-          borderRadius: isCompactMobile ? 0 : `${theme.shape.borderRadius + 2}px`,
-          backgroundImage: 'none',
-        },
-      }}
+      desktopMaxHeight={560}
+      desktopMinHeight={280}
+      headerIcon={icon || <WarningAmberRoundedIcon sx={{ color: 'warning.main' }} />}
+      headerTitle={title}
+      closeAriaLabel="Close confirmation dialog"
+      bodySx={{ flexDirection: 'column' }}
+      footer={(
+        <>
+          <Button
+            onClick={handleClose}
+            color="inherit"
+            disabled={isExecuting}
+            fullWidth={isCompactMobile}
+            sx={{ color: 'text.secondary', borderColor: 'divider', minHeight: UI_LAYOUT.touchTarget }}
+          >
+            {cancelText}
+          </Button>
+          <Button
+            onClick={handleExecute}
+            disabled={isExecuting}
+            color={confirmColor}
+            fullWidth={isCompactMobile}
+            startIcon={isExecuting ? <CircularProgress size={16} color="inherit" /> : (sqlQuery ? <PlayArrowRoundedIcon /> : null)}
+            sx={{ minWidth: 100, minHeight: UI_LAYOUT.touchTarget }}
+          >
+            {isExecuting ? 'Executing...' : confirmText}
+          </Button>
+        </>
+      )}
+      footerSx={{ gap: 1, flexWrap: 'wrap' }}
     >
-      <DialogTitle sx={{ pb: 1, display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 1.5 }, px: { xs: 2, sm: 3 } }}>
-        {icon || <WarningAmberRoundedIcon sx={{ color: 'warning.main' }} />}
-        <Typography variant="h6" component="span" fontWeight={600}>
-          {title}
-        </Typography>
-      </DialogTitle>
-
-      <DialogContent sx={{ px: { xs: 2, sm: 3 } }}>
-        <Typography variant="body1" color="text.secondary" sx={{ mb: sqlQuery ? 2 : 0 }}>
+      <Box sx={{ px: { xs: 2, sm: 3 }, py: 2.5, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Typography variant="body1" color="text.secondary">
           {message}
         </Typography>
-        {sqlQuery && (
+        {sqlQuery ? (
           <Box
             sx={{
-              p: 2,
-              borderRadius: `${theme.shape.borderRadius + 2}px`,
-              backgroundColor: alpha(theme.palette.text.primary, isDarkMode ? 0.1 : 0.04),
-              border: '1px solid',
-              borderColor: theme.palette.divider,
+              ...getInsetPanelSx(theme, { backgroundOpacity: isDarkMode ? 0.1 : 0.04, borderRadius: theme.shape.borderRadius / 4 + 2 }),
               fontFamily: theme.typography.fontFamilyMono,
               fontSize: theme.typography.uiCodeBlock.fontSize,
               maxHeight: 200,
@@ -92,36 +104,16 @@ function ConfirmDialog({
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
               color: 'text.primary',
+              p: 2,
             }}
           >
             {sqlQuery}
           </Box>
-        )}
-      </DialogContent>
-
-      <DialogActions sx={{ px: { xs: 2, sm: 3 }, pb: { xs: 2, sm: 3 }, gap: 1, flexWrap: 'wrap' }}>
-        <Button
-          onClick={handleClose}
-          color="inherit"
-          disabled={isExecuting}
-          fullWidth={isCompactMobile}
-          sx={{ color: 'text.secondary', borderColor: 'divider', minHeight: 44 }}
-        >
-          {cancelText}
-        </Button>
-        <Button
-          onClick={handleExecute}
-          disabled={isExecuting}
-          color={confirmColor}
-          fullWidth={isCompactMobile}
-          startIcon={isExecuting ? <CircularProgress size={16} color="inherit" /> : (sqlQuery ? <PlayArrowRoundedIcon /> : null)}
-          sx={{ minWidth: 100, minHeight: 44 }}
-        >
-          {isExecuting ? 'Executing...' : confirmText}
-        </Button>
-      </DialogActions>
-    </Dialog>
+        ) : null}
+      </Box>
+    </DialogShell>
   );
 }
 
 export default memo(ConfirmDialog);
+

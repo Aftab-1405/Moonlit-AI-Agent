@@ -11,6 +11,7 @@ import {
   HOVER_CAPABLE_QUERY,
   REDUCED_MOTION_QUERY,
 } from '../styles/mediaQueries';
+import { UI_LAYOUT } from '../styles/shared';
 
 const COPY_FEEDBACK_DURATION = 2000;
 
@@ -124,12 +125,12 @@ const UserMessage = memo(function UserMessage({ message, userAvatar, userName })
   return (
     <Fade in timeout={300}>
       <Box sx={{ py: { xs: 1, sm: 1.5 }, px: { xs: 2, sm: 4, md: 6 } }}>
-        <Box sx={{ maxWidth: 800, mx: 'auto', display: 'flex', justifyContent: 'flex-end' }}>
+        <Box sx={{ maxWidth: UI_LAYOUT.contentMaxWidth, mx: 'auto', display: 'flex', justifyContent: 'flex-end' }}>
           <Box
             sx={{
               display: 'flex',
               gap: { xs: 0.75, sm: 1.5 },
-              width: { xs: '100%', md: '70%' },
+              width: UI_LAYOUT.messageColumnWidth || { xs: '100%', md: '70%' },
               maxWidth: '100%',
               flexDirection: 'row-reverse',
               [HOVER_CAPABLE_QUERY]: {
@@ -235,7 +236,7 @@ const AIMessage = memo(function AIMessage({ id, text, steps, status, onRunQuery,
           },
         }}
       >
-        <Box sx={{ width: { xs: '100%', md: '70%' }, maxWidth: { xs: '100%', sm: 800 }, mx: { xs: 0, sm: 'auto' }, display: 'flex', gap: { xs: 1, sm: 2 }, alignItems: 'flex-start' }}>
+        <Box sx={{ width: UI_LAYOUT.messageColumnWidth || { xs: '100%', md: '70%' }, maxWidth: { xs: '100%', sm: 800 }, mx: { xs: 0, sm: 'auto' }, display: 'flex', gap: { xs: 1, sm: 2 }, alignItems: 'flex-start' }}>
           {!isCompactMobile && (
             <Avatar
               src="/product-logo.png"
@@ -290,7 +291,7 @@ const ConversationLoadingSkeleton = memo(function ConversationLoadingSkeleton() 
   return (
     <Box sx={{ flex: 1, py: { xs: 1.5, sm: 2 }, overflowAnchor: 'none' }}>
       <Box sx={{ px: { xs: 2, sm: 4, md: 6 } }}>
-        <Box sx={{ maxWidth: 800, mx: 'auto' }}>
+        <Box sx={{ maxWidth: UI_LAYOUT.contentMaxWidth, mx: 'auto' }}>
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: { xs: 1.5, sm: 2.25 } }}>
             <Skeleton
               variant="rounded"
@@ -304,7 +305,7 @@ const ConversationLoadingSkeleton = memo(function ConversationLoadingSkeleton() 
             />
           </Box>
 
-          <Box sx={{ width: { xs: '100%', md: '70%' }, maxWidth: { xs: '100%', sm: 800 }, mx: { xs: 0, sm: 'auto' } }}>
+          <Box sx={{ width: UI_LAYOUT.messageColumnWidth || { xs: '100%', md: '70%' }, maxWidth: { xs: '100%', sm: 800 }, mx: { xs: 0, sm: 'auto' } }}>
             {lineWidths.map((width, idx) => (
               <Skeleton
                 key={`line-skeleton-${idx}`}
@@ -435,3 +436,4 @@ const MessageList = memo(function MessageList({
 });
 
 export default MessageList;
+

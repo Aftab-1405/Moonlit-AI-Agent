@@ -1,6 +1,22 @@
 /**
  * Shared styling helpers built on theme tokens.
  */
+import { alpha } from '@mui/material/styles';
+import { HOVER_CAPABLE_QUERY } from './mediaQueries';
+
+export const DIALOG_VIEWPORT_SUPPORT_QUERY = '@supports (height: 100dvh)';
+
+export const UI_LAYOUT = Object.freeze({
+  touchTarget: 44,
+  compactTouchTarget: 40,
+  sidebarExpandedWidth: 260,
+  sidebarCollapsedWidth: 56,
+  chatInputMaxWidth: 760,
+  contentMaxWidth: 800,
+  messageColumnWidth: { xs: '100%', md: '70%' },
+  dialogDesktopOffset: 64,
+});
+
 export const getGlassmorphismStyles = (theme) => ({
   background: theme.palette.glassmorphism.background,
   backdropFilter: theme.palette.glassmorphism.backdropFilter,
@@ -20,4 +36,132 @@ export const getScrollbarStyles = (theme) => ({
   },
 });
 
+export const getInsetPanelSx = (
+  theme,
+  {
+    backgroundOpacity = 0.5,
+    borderRadius = 2,
+    enableHover = false,
+  } = {},
+) => ({
+  borderRadius,
+  border: '1px solid',
+  borderColor: 'divider',
+  backgroundColor: alpha(theme.palette.background.paper, backgroundOpacity),
+  ...(enableHover
+    ? {
+        transition: 'border-color 0.15s ease',
+        [HOVER_CAPABLE_QUERY]: {
+          '&:hover': {
+            borderColor: alpha(theme.palette.text.primary, 0.15),
+          },
+        },
+      }
+    : {}),
+});
+
+export const getCompactActionSx = (
+  theme,
+  {
+    size = UI_LAYOUT.touchTarget,
+    color = 'text.secondary',
+  } = {},
+) => ({
+  width: size,
+  height: size,
+  minWidth: size,
+  minHeight: size,
+  flexShrink: 0,
+  color,
+});
+
+export const getToolbarChipSx = (
+  theme,
+  {
+    isCompactMobile = false,
+    interactive = true,
+  } = {},
+) => ({
+  height: isCompactMobile ? 28 : 26,
+  borderRadius: '12px',
+  border: '1px solid',
+  borderColor: alpha(theme.palette.text.primary, 0.2),
+  backgroundColor: alpha(theme.palette.text.primary, 0.04),
+  '& .MuiChip-label': {
+    px: isCompactMobile ? 0.75 : 1,
+  },
+  ...(interactive
+    ? {
+        [HOVER_CAPABLE_QUERY]: {
+          '&:hover': {
+            borderColor: alpha(theme.palette.text.primary, 0.35),
+            backgroundColor: alpha(theme.palette.text.primary, 0.08),
+          },
+        },
+      }
+    : {}),
+});
+
+export const getDialogPaperSx = (
+  theme,
+  {
+    isMobile = false,
+    desktopMaxHeight = 720,
+    desktopMinHeight = 400,
+  } = {},
+) => ({
+  borderRadius: isMobile ? 0 : 3,
+  backgroundImage: 'none',
+  backgroundColor: theme.palette.background.paper,
+  height: isMobile
+    ? '100vh'
+    : `calc(100vh - ${UI_LAYOUT.dialogDesktopOffset}px)`,
+  maxHeight: isMobile ? '100vh' : desktopMaxHeight,
+  minHeight: isMobile ? '100vh' : desktopMinHeight,
+  [DIALOG_VIEWPORT_SUPPORT_QUERY]: isMobile
+    ? {
+        height: '100dvh',
+        maxHeight: '100dvh',
+        minHeight: '100dvh',
+      }
+    : {},
+  overflow: 'hidden',
+});
+
+export const getDialogHeaderSx = () => ({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  px: { xs: 2, sm: 3 },
+  py: 2,
+  borderBottom: 1,
+  borderColor: 'divider',
+});
+
+export const getDialogFooterSx = () => ({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  px: { xs: 2, sm: 3 },
+  py: 2,
+  paddingBottom: { xs: 'max(env(safe-area-inset-bottom), 12px)', sm: 2 },
+  borderTop: 1,
+  borderColor: 'divider',
+});
+
+export const getDialogNavPaneSx = (theme, width) => ({
+  width,
+  flexShrink: 0,
+  borderRight: 1,
+  borderColor: 'divider',
+  backgroundColor: alpha(theme.palette.background.default, 0.5),
+  overflowY: 'auto',
+});
+
+export const getDialogScrollablePaneSx = ({ padding = { xs: 2, sm: 3 } } = {}) => ({
+  flex: 1,
+  overflowY: 'auto',
+  WebkitOverflowScrolling: 'touch',
+  p: padding,
+});
 
