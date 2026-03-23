@@ -125,14 +125,15 @@ const UserMessage = memo(function UserMessage({ message, userAvatar, userName })
   return (
     <Fade in timeout={300}>
       <Box sx={{ py: { xs: 1, sm: 1.5 }, px: { xs: 2, sm: 4, md: 6 } }}>
-        <Box sx={{ maxWidth: UI_LAYOUT.contentMaxWidth, mx: 'auto', display: 'flex', justifyContent: 'flex-end' }}>
+        <Box sx={{ width: '100%', maxWidth: UI_LAYOUT.chatInputMaxWidth, mx: 'auto', display: 'flex', justifyContent: 'flex-end' }}>
           <Box
             sx={{
               display: 'flex',
               gap: { xs: 0.75, sm: 1.5 },
-              width: UI_LAYOUT.messageColumnWidth || { xs: '100%', md: '70%' },
+              width: '100%',
               maxWidth: '100%',
               flexDirection: 'row-reverse',
+              alignItems: 'flex-start',
               [HOVER_CAPABLE_QUERY]: {
                 '&:hover .copy-btn': { opacity: 1 },
               },
@@ -236,7 +237,7 @@ const AIMessage = memo(function AIMessage({ id, text, steps, status, onRunQuery,
           },
         }}
       >
-        <Box sx={{ width: UI_LAYOUT.messageColumnWidth || { xs: '100%', md: '70%' }, maxWidth: { xs: '100%', sm: 800 }, mx: { xs: 0, sm: 'auto' }, display: 'flex', gap: { xs: 1, sm: 2 }, alignItems: 'flex-start' }}>
+        <Box sx={{ width: '100%', maxWidth: UI_LAYOUT.chatInputMaxWidth, mx: 'auto', display: 'flex', gap: { xs: 1, sm: 2 }, alignItems: 'flex-start' }}>
           {!isCompactMobile && (
             <Avatar
               src="/product-logo.png"
@@ -291,7 +292,7 @@ const ConversationLoadingSkeleton = memo(function ConversationLoadingSkeleton() 
   return (
     <Box sx={{ flex: 1, py: { xs: 1.5, sm: 2 }, overflowAnchor: 'none' }}>
       <Box sx={{ px: { xs: 2, sm: 4, md: 6 } }}>
-        <Box sx={{ maxWidth: UI_LAYOUT.contentMaxWidth, mx: 'auto' }}>
+        <Box sx={{ width: '100%', maxWidth: UI_LAYOUT.chatInputMaxWidth, mx: 'auto' }}>
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: { xs: 1.5, sm: 2.25 } }}>
             <Skeleton
               variant="rounded"
@@ -305,7 +306,7 @@ const ConversationLoadingSkeleton = memo(function ConversationLoadingSkeleton() 
             />
           </Box>
 
-          <Box sx={{ width: UI_LAYOUT.messageColumnWidth || { xs: '100%', md: '70%' }, maxWidth: { xs: '100%', sm: 800 }, mx: { xs: 0, sm: 'auto' } }}>
+          <Box sx={{ width: '100%', maxWidth: UI_LAYOUT.chatInputMaxWidth, mx: 'auto' }}>
             {lineWidths.map((width, idx) => (
               <Skeleton
                 key={`line-skeleton-${idx}`}
@@ -400,13 +401,15 @@ const MessageList = memo(function MessageList({
     }}>
       {hiddenCount > 0 && (
         <Box sx={{ px: { xs: 2, sm: 4, md: 6 }, pb: 1 }}>
-          <Button
-            size="small"
-            onClick={() => setVisibleCount((c) => c + 50)}
-            sx={{ minHeight: { xs: 36, sm: 'auto' } }}
-          >
-            Load {Math.min(50, hiddenCount)} older messages
-          </Button>
+          <Box sx={{ width: '100%', maxWidth: UI_LAYOUT.chatInputMaxWidth, mx: 'auto' }}>
+            <Button
+              size="small"
+              onClick={() => setVisibleCount((c) => c + 50)}
+              sx={{ minHeight: { xs: 36, sm: 'auto' } }}
+            >
+              Load {Math.min(50, hiddenCount)} older messages
+            </Button>
+          </Box>
         </Box>
       )}
       {visibleMessages.map((message) => (
@@ -436,4 +439,7 @@ const MessageList = memo(function MessageList({
 });
 
 export default MessageList;
+
+
+
 

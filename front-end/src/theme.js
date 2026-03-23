@@ -39,7 +39,7 @@ export {
 };
 
 const createTypography = (palette) => ({
-  fontFamily: FONTS.serif,
+  fontFamily: FONTS.sans,
   fontFamilyMono: FONTS.mono,
   fontWeightLight: 300,
   fontWeightRegular: 400,
@@ -100,11 +100,13 @@ const createTypography = (palette) => ({
     fontSize: '1rem',
     lineHeight: 1.75,
     letterSpacing: '0.008em',
+    color: palette.text.primary,
   },
   body2: {
     fontSize: '0.875rem',
     lineHeight: 1.7,
     letterSpacing: '0.008em',
+    color: palette.text.primary,
   },
   caption: {
     fontSize: '0.75rem',
@@ -121,6 +123,7 @@ const createTypography = (palette) => ({
     color: palette.text.secondary,
   },
   button: {
+    fontFamily: FONTS.sans,
     textTransform: 'none',
     fontWeight: 500,
     fontSize: '0.875rem',
@@ -170,6 +173,7 @@ const createTypography = (palette) => ({
     fontSize: { xs: '1rem', sm: '0.95rem' },
   },
   uiBrandWordmark: {
+    fontFamily: FONTS.serif,
     fontSize: { xs: '2rem', sm: '2.5rem' },
     fontWeight: 800,
     lineHeight: 1.1,
@@ -209,15 +213,18 @@ const createTypography = (palette) => ({
     lineHeight: 1.5,
   },
   uiHeadingHero: {
+    fontFamily: FONTS.serif,
     fontSize: { xs: '2rem', sm: '2.5rem', md: '3.25rem' },
     lineHeight: 1.15,
     letterSpacing: '-0.02em',
   },
   uiHeadingLandingLg: {
+    fontFamily: FONTS.serif,
     fontSize: { xs: '1.75rem', md: '2.25rem' },
     lineHeight: 1.2,
   },
   uiHeadingLandingMd: {
+    fontFamily: FONTS.serif,
     fontSize: { xs: '1.5rem', md: '2rem' },
     lineHeight: 1.2,
   },
@@ -226,6 +233,7 @@ const createTypography = (palette) => ({
     lineHeight: 1.7,
   },
   uiLoaderWordmark: {
+    fontFamily: FONTS.serif,
     fontSize: { xs: '2.5rem', md: '3.5rem' },
     fontWeight: 800,
     lineHeight: 1.1,
@@ -267,7 +275,6 @@ const createTypography = (palette) => ({
     fontSizePx: 12,
   },
 });
-
 const MOBILE_MEDIA_QUERY = MOBILE_SM_QUERY;
 
 const getComponentOverrides = (mode) => {
@@ -285,6 +292,19 @@ const getComponentOverrides = (mode) => {
       WebkitBackdropFilter: 'none',
     },
   };
+  const ambientBackground = isDark
+    ? `radial-gradient(52% 58% at 14% 0%, ${alpha(HEX_WHITE, 0.055)}, transparent 62%), radial-gradient(44% 50% at 88% 100%, ${alpha(HEX_WHITE, 0.025)}, transparent 60%)`
+    : `radial-gradient(50% 56% at 14% 0%, ${alpha(HEX_BLACK, 0.03)}, transparent 62%), radial-gradient(42% 48% at 88% 100%, ${alpha(HEX_BLACK, 0.014)}, transparent 60%)`;
+  const surfaceGradient = isDark
+    ? `linear-gradient(180deg, ${alpha(HEX_WHITE, 0.035)}, transparent)`
+    : `linear-gradient(180deg, ${alpha(HEX_BLACK, 0.02)}, transparent)`;
+  const containedHoverShadow = isDark
+    ? `0 10px 26px -16px ${alpha(HEX_BLACK, 0.5)}`
+    : `0 14px 26px -20px ${alpha(HEX_BLACK, 0.14)}`;
+  const cardHoverShadow = isDark
+    ? `0 18px 34px -26px ${alpha(HEX_BLACK, 0.45)}`
+    : `0 16px 28px -24px ${alpha(HEX_BLACK, 0.12)}`;
+  const focusRing = `0 0 0 3px ${alpha(palette.text.primary, isDark ? 0.14 : 0.1)}`;
 
   return {
     MuiCssBaseline: {
@@ -292,6 +312,31 @@ const getComponentOverrides = (mode) => {
         ...KEYFRAMES,
         '*, *::before, *::after': {
           boxSizing: 'border-box',
+        },
+        '*': {
+          scrollbarWidth: 'thin',
+          scrollbarColor: 'var(--scrollbar-thumb) var(--scrollbar-track)',
+        },
+        '*::-webkit-scrollbar': {
+          width: 'var(--app-scrollbar-size)',
+          height: 'var(--app-scrollbar-size)',
+        },
+        '*::-webkit-scrollbar-track': {
+          background: 'var(--scrollbar-track)',
+        },
+        '*::-webkit-scrollbar-thumb': {
+          backgroundColor: 'var(--scrollbar-thumb)',
+          borderRadius: 999,
+          border: '2px solid transparent',
+          backgroundClip: 'content-box',
+          minHeight: 24,
+          minWidth: 24,
+        },
+        '*::-webkit-scrollbar-thumb:hover': {
+          backgroundColor: 'var(--scrollbar-thumb-hover)',
+        },
+        '*::-webkit-scrollbar-corner': {
+          backgroundColor: 'transparent',
         },
         html: {
           colorScheme: mode,
@@ -308,29 +353,22 @@ const getComponentOverrides = (mode) => {
             minHeight: '100vh',
           },
           fontSize: '1rem',
+          fontFamily: FONTS.sans,
+          color: palette.text.primary,
           fontFeatureSettings: '"liga" 1, "calt" 1',
           textRendering: 'optimizeLegibility',
           WebkitFontSmoothing: 'antialiased',
           MozOsxFontSmoothing: 'grayscale',
           backgroundColor: palette.background.default,
-          backgroundImage: isDark
-            ? `radial-gradient(60% 60% at 20% 0%, ${alpha(HEX_WHITE, 0.05)}, transparent 60%), radial-gradient(60% 60% at 80% 100%, ${alpha(HEX_WHITE, 0.04)}, transparent 60%)`
-            : `radial-gradient(60% 60% at 20% 0%, ${alpha(HEX_BLACK, 0.04)}, transparent 60%), radial-gradient(60% 60% at 80% 100%, ${alpha(HEX_BLACK, 0.03)}, transparent 60%)`,
+          backgroundImage: ambientBackground,
 
+          '--app-scrollbar-size': '8px',
           '--scrollbar-track': palette.scrollbar.track,
           '--scrollbar-thumb': palette.scrollbar.thumb,
           '--scrollbar-thumb-hover': palette.scrollbar.thumbHover,
-          scrollbarWidth: 'thin',
-          scrollbarColor: 'var(--scrollbar-thumb) var(--scrollbar-track)',
-
-          '&::-webkit-scrollbar': { width: 8, height: 8 },
-          '&::-webkit-scrollbar-track': { background: 'var(--scrollbar-track)' },
-          '&::-webkit-scrollbar-thumb': {
-            backgroundColor: 'var(--scrollbar-thumb)',
-            borderRadius: 4,
-            border: '2px solid transparent',
-            backgroundClip: 'content-box',
-            '&:hover': { backgroundColor: 'var(--scrollbar-thumb-hover)' },
+          '&::selection': {
+            backgroundColor: alpha(palette.primary.main, isDark ? 0.3 : 0.18),
+            color: isDark ? palette.text.primary : palette.primary.dark,
           },
           [MOBILE_MEDIA_QUERY]: {
             '& input, & select, & textarea': {
@@ -366,7 +404,8 @@ const getComponentOverrides = (mode) => {
       },
       styleOverrides: {
         root: {
-          borderRadius: 8,
+          borderRadius: 10,
+          fontFamily: FONTS.sans,
           padding: '10px 22px',
           fontWeight: 500,
           transition: TRANSITIONS.default,
@@ -381,8 +420,8 @@ const getComponentOverrides = (mode) => {
           borderColor: palette.border.default,
           color: palette.text.primary,
           backgroundColor: isDark
-            ? alpha(palette.text.primary, 0.02)
-            : alpha(palette.text.primary, 0.015),
+            ? alpha(palette.background.elevated, 0.92)
+            : alpha(palette.background.paper, 0.88),
           '&:hover': {
             borderColor: palette.border.hover,
             backgroundColor: palette.action.hover,
@@ -393,9 +432,7 @@ const getComponentOverrides = (mode) => {
           color: palette.primary.contrastText,
           '&:hover': {
             backgroundColor: isDark ? palette.primary.light : palette.primary.dark,
-            boxShadow: isDark
-              ? `0 4px 12px ${alpha(HEX_BLACK, 0.4)}`
-              : `0 4px 12px ${alpha(HEX_BLACK, 0.15)}`,
+            boxShadow: containedHoverShadow,
           },
         },
         containedPrimary: {
@@ -527,9 +564,7 @@ const getComponentOverrides = (mode) => {
         root: {
           borderRadius: SHAPE.borderRadius,
           backgroundColor: palette.background.paper,
-          backgroundImage: isDark
-            ? `linear-gradient(180deg, ${alpha(HEX_WHITE, 0.02)}, transparent)`
-            : `linear-gradient(180deg, ${alpha(HEX_BLACK, 0.015)}, transparent)`,
+          backgroundImage: surfaceGradient,
         },
         elevation1: {
           boxShadow: isDark
@@ -551,10 +586,11 @@ const getComponentOverrides = (mode) => {
           border: `1px solid ${palette.border.subtle}`,
           boxShadow: 'none',
           transition: TRANSITIONS.smooth,
-          backgroundImage: isDark
-            ? `linear-gradient(180deg, ${alpha(HEX_WHITE, 0.02)}, transparent)`
-            : `linear-gradient(180deg, ${alpha(HEX_BLACK, 0.015)}, transparent)`,
-          '&:hover': { borderColor: palette.border.hover },
+          backgroundImage: surfaceGradient,
+          '&:hover': {
+            borderColor: alpha(palette.primary.main, isDark ? 0.28 : 0.24),
+            boxShadow: cardHoverShadow,
+          },
         },
       },
     },
@@ -572,6 +608,9 @@ const getComponentOverrides = (mode) => {
               transition: TRANSITIONS.default,
             },
             '&:hover fieldset': { borderColor: palette.border.hover },
+            '&.Mui-focused': {
+              boxShadow: focusRing,
+            },
             '&.Mui-focused fieldset': {
               borderColor: palette.border.focus,
               borderWidth: 1.5,
@@ -674,10 +713,11 @@ const getComponentOverrides = (mode) => {
     MuiAppBar: {
       styleOverrides: {
         root: {
-          backgroundColor: alpha(palette.background.paper, isDark ? 0.8 : 0.9),
+          backgroundColor: alpha(palette.background.paper, isDark ? 0.86 : 0.92),
+          backgroundImage: surfaceGradient,
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
-          borderBottom: `1px solid ${palette.border.subtle}`,
+          borderBottom: `1px solid ${alpha(palette.text.primary, isDark ? 0.08 : 0.1)}`,
           boxShadow: 'none',
           ...disableBlurFallback,
           ...mobileBlurFallback,
@@ -690,9 +730,7 @@ const getComponentOverrides = (mode) => {
         paper: {
           backgroundColor: palette.background.paper,
           border: `1px solid ${palette.border.subtle}`,
-          backgroundImage: isDark
-            ? `linear-gradient(180deg, ${alpha(HEX_WHITE, 0.02)}, transparent)`
-            : `linear-gradient(180deg, ${alpha(HEX_BLACK, 0.02)}, transparent)`,
+          backgroundImage: surfaceGradient,
         },
       },
     },
@@ -701,6 +739,7 @@ const getComponentOverrides = (mode) => {
       styleOverrides: {
         paper: {
           backgroundColor: palette.background.paper,
+          backgroundImage: surfaceGradient,
           borderRight: `1px solid ${palette.border.subtle}`,
         },
       },
@@ -721,7 +760,7 @@ const getComponentOverrides = (mode) => {
         head: {
           color: palette.text.secondary,
           fontWeight: 600,
-          backgroundColor: alpha(palette.text.primary, isDark ? 0.04 : 0.03),
+          backgroundColor: alpha(palette.text.primary, isDark ? 0.05 : 0.035),
         },
       },
     },
@@ -742,11 +781,11 @@ const getComponentOverrides = (mode) => {
     MuiMenu: {
       styleOverrides: {
         paper: {
-          border: `1px solid ${alpha(palette.border.subtle, isDark ? 0.9 : 0.95)}`,
-          backgroundColor: alpha(palette.background.elevated, isDark ? 0.96 : 0.98),
-          backgroundImage: 'none',
-          backdropFilter: 'blur(14px)',
-          WebkitBackdropFilter: 'blur(14px)',
+          border: `1px solid ${alpha(palette.text.primary, isDark ? 0.08 : 0.1)}`,
+          backgroundColor: alpha(palette.background.paper, isDark ? 0.96 : 0.98),
+          backgroundImage: surfaceGradient,
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
           boxShadow: 'none',
           borderRadius: 8,
           ...disableBlurFallback,
@@ -758,11 +797,11 @@ const getComponentOverrides = (mode) => {
     MuiPopover: {
       styleOverrides: {
         paper: {
-          backgroundColor: alpha(palette.background.elevated, isDark ? 0.96 : 0.98),
-          backgroundImage: 'none',
-          border: `1px solid ${alpha(palette.border.subtle, isDark ? 0.9 : 0.95)}`,
-          backdropFilter: 'blur(14px)',
-          WebkitBackdropFilter: 'blur(14px)',
+          backgroundColor: alpha(palette.background.paper, isDark ? 0.96 : 0.98),
+          backgroundImage: surfaceGradient,
+          border: `1px solid ${alpha(palette.text.primary, isDark ? 0.08 : 0.1)}`,
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
           boxShadow: 'none',
           ...disableBlurFallback,
           ...mobileBlurFallback,
@@ -809,6 +848,7 @@ const getComponentOverrides = (mode) => {
         root: {
           color: palette.primary.main,
           textDecoration: 'underline',
+          textDecorationColor: alpha(palette.primary.main, 0.35),
           textUnderlineOffset: '2px',
           transition: TRANSITIONS.default,
           '&:hover': { color: isDark ? palette.primary.light : palette.primary.dark },
@@ -995,3 +1035,4 @@ export const getNaturalMoonlitEffects = getAccentEffects;
 export const getGlassCardSx = getGlassSx;
 
 export default darkTheme;
+

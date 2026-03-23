@@ -13,7 +13,6 @@ export const UI_LAYOUT = Object.freeze({
   sidebarCollapsedWidth: 56,
   chatInputMaxWidth: 760,
   contentMaxWidth: 800,
-  messageColumnWidth: { xs: '100%', md: '70%' },
   dialogDesktopOffset: 64,
 });
 
@@ -24,15 +23,24 @@ export const getGlassmorphismStyles = (theme) => ({
   borderColor: theme.palette.glassmorphism.borderColor,
 });
 
-export const getScrollbarStyles = (theme) => ({
-  '&::-webkit-scrollbar': { width: 4 },
+export const getScrollbarStyles = (theme, { size = 8 } = {}) => ({
+  scrollbarWidth: 'thin',
+  scrollbarColor: `${theme.palette.scrollbar.thumb} ${theme.palette.scrollbar.track}`,
+  '&::-webkit-scrollbar': { width: size, height: size },
   '&::-webkit-scrollbar-track': { background: theme.palette.scrollbar.track },
   '&::-webkit-scrollbar-thumb': {
     backgroundColor: theme.palette.scrollbar.thumb,
-    borderRadius: 2,
-    '&:hover': {
-      backgroundColor: theme.palette.scrollbar.thumbHover,
-    },
+    borderRadius: 999,
+    border: '2px solid transparent',
+    backgroundClip: 'content-box',
+    minHeight: 24,
+    minWidth: 24,
+  },
+  '&::-webkit-scrollbar-thumb:hover': {
+    backgroundColor: theme.palette.scrollbar.thumbHover,
+  },
+  '&::-webkit-scrollbar-corner': {
+    backgroundColor: 'transparent',
   },
 });
 
@@ -164,4 +172,7 @@ export const getDialogScrollablePaneSx = ({ padding = { xs: 2, sm: 3 } } = {}) =
   WebkitOverflowScrolling: 'touch',
   p: padding,
 });
+
+
+
 

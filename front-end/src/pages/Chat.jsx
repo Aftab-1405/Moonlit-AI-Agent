@@ -34,6 +34,7 @@ import {
   BACKDROP_FILTER_FALLBACK_QUERY,
   REDUCED_MOTION_QUERY,
 } from '../styles/mediaQueries';
+import { getScrollbarStyles } from '../styles/shared';
 
 function Chat() {
   const {
@@ -247,7 +248,16 @@ function Chat() {
 
           <Fade in={showConversationPanel} timeout={300} unmountOnExit>
             <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-              <Box ref={setScrollContainerRef} sx={{ flex: 1, overflow: 'auto' }}>
+              <Box
+                ref={setScrollContainerRef}
+                sx={{
+                  flex: 1,
+                  minHeight: 0,
+                  overflowY: 'auto',
+                  overflowX: 'hidden',
+                  ...getScrollbarStyles(theme),
+                }}
+              >
                 <MessageList
                   messages={messages}
                   isLoadingConversation={isConversationLoading}

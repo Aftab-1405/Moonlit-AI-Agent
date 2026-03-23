@@ -25,7 +25,7 @@ import TerminalRoundedIcon from '@mui/icons-material/TerminalRounded';
 import SQLResultsTable from './SQLResultsTable';
 import ChartVisualization from './ChartVisualization';
 import { registerMonacoThemes, getMonacoThemeName } from '../theme';
-import { getGlassmorphismStyles } from '../styles/shared';
+import { getGlassmorphismStyles, getScrollbarStyles } from '../styles/shared';
 import { runQuery } from '../api';
 
 const fadeIn = keyframes`
@@ -43,8 +43,9 @@ const MONACO_OPTIONS = {
   renderLineHighlight: 'line',
   lineHeight: 22,
   scrollbar: {
-    verticalScrollbarSize: 8,
-    horizontalScrollbarSize: 8,
+    verticalScrollbarSize: 6,
+    horizontalScrollbarSize: 6,
+    useShadows: false,
   },
   suggest: {
     showKeywords: true,
@@ -343,7 +344,7 @@ function SQLEditorCanvas({
     px: { xs: 0.5, sm: 1.5 },
     pt: { xs: 0.5, sm: 1.5 },
     pb: { xs: 0.5, sm: 1.5 },
-    overflow: 'auto',
+    overflow: 'hidden',
     backgroundColor: 'transparent',
   }), []);
 
@@ -387,7 +388,9 @@ function SQLEditorCanvas({
         sx={{
           flex: 1,
           minHeight: 0,
+          overflow: 'hidden',
           backgroundColor: 'transparent',
+          ...getScrollbarStyles(theme, { size: 6 }),
           '& .monaco-editor, & .monaco-editor-background, & .monaco-editor .margin': {
             backgroundColor: 'transparent !important',
           },

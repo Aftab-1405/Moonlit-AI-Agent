@@ -28,7 +28,7 @@ import TimerOutlinedIcon from '@mui/icons-material/TimerOutlined';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import AddchartIcon from '@mui/icons-material/Addchart';
 import ChartVisualization from './ChartVisualization';
-import { getCompactActionSx, UI_LAYOUT } from '../styles/shared';
+import { getCompactActionSx, getScrollbarStyles, UI_LAYOUT } from '../styles/shared';
 
 function SQLResultsTable({ data, onClose, embedded = false }) {
   const [page, setPage] = useState(0);
@@ -456,7 +456,9 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
         sx={{
           height: '100%',
           cursor: resizing ? 'col-resize' : 'default',
-          overflow: 'auto',
+          overflowX: 'auto',
+          overflowY: 'auto',
+          ...getScrollbarStyles(theme),
         }}
       >
         <Table

@@ -7,7 +7,7 @@ import HubOutlinedIcon from '@mui/icons-material/HubOutlined';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import QuotaDisplay from './QuotaDisplay';
 import { BACKDROP_FILTER_FALLBACK_QUERY } from '../styles/mediaQueries';
-import { getCompactActionSx } from '../styles/shared';
+import { getCompactActionSx, getInsetPanelSx } from '../styles/shared';
 
 function LlmSelectorBar({
   isNarrowLayout,
@@ -23,10 +23,12 @@ function LlmSelectorBar({
 }) {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
+
   const selectMenuProps = useMemo(() => ({
     PaperProps: {
       sx: {
         mt: 0.8,
+        backgroundImage: 'none',
         '& .MuiMenuItem-root': {
           ...theme.typography.uiSelectCompact,
           fontWeight: 500,
@@ -38,18 +40,22 @@ function LlmSelectorBar({
       },
     },
   }), [theme]);
+
   const selectorChipBaseSx = useMemo(() => ({
+    ...getInsetPanelSx(theme, {
+      backgroundOpacity: isDarkMode ? 0.62 : 0.78,
+      borderRadius: 1.75,
+    }),
     display: 'flex',
     alignItems: 'center',
     gap: { xs: 0.55, sm: 0.8 },
     px: { xs: 0.9, sm: 1 },
     py: 0.45,
-    borderRadius: '14px',
-    border: '1px solid',
-    borderColor: alpha(theme.palette.divider, isDarkMode ? 0.2 : 0.38),
+    borderColor: alpha(theme.palette.text.primary, isDarkMode ? 0.08 : 0.12),
     backgroundColor: isDarkMode
-      ? alpha(theme.palette.background.default, 0.42)
-      : alpha(theme.palette.background.default, 0.96),
+      ? alpha(theme.palette.background.default, 0.52)
+      : alpha(theme.palette.background.paper, 0.84),
+    backgroundImage: 'none',
     flexShrink: 0,
   }), [isDarkMode, theme]);
 
@@ -73,13 +79,16 @@ function LlmSelectorBar({
           width: { xs: '100%', sm: 'fit-content' },
           maxWidth: '100%',
           border: '1px solid',
-          borderColor: alpha(theme.palette.divider, isDarkMode ? 0.2 : 0.4),
+          borderColor: alpha(theme.palette.text.primary, isDarkMode ? 0.08 : 0.1),
           borderRadius: '18px',
-          background: isDarkMode
-            ? `linear-gradient(155deg, ${alpha(theme.palette.background.paper, 0.62)} 0%, ${alpha(theme.palette.background.elevated, 0.44)} 100%)`
-            : `linear-gradient(155deg, ${alpha(theme.palette.background.default, 0.985)} 0%, ${alpha(theme.palette.background.default, 0.96)} 100%)`,
-          backdropFilter: isDarkMode ? 'blur(14px)' : 'none',
-          WebkitBackdropFilter: isDarkMode ? 'blur(14px)' : 'none',
+          backgroundColor: isDarkMode
+            ? alpha(theme.palette.background.paper, 0.86)
+            : alpha(theme.palette.background.paper, 0.94),
+          backgroundImage: isDarkMode
+            ? `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.03)}, transparent)`
+            : `linear-gradient(180deg, ${alpha(theme.palette.common.black, 0.018)}, transparent)`,
+          backdropFilter: isDarkMode ? 'blur(10px)' : 'none',
+          WebkitBackdropFilter: isDarkMode ? 'blur(10px)' : 'none',
           [BACKDROP_FILTER_FALLBACK_QUERY]: {
             backdropFilter: 'none',
             WebkitBackdropFilter: 'none',
@@ -157,6 +166,9 @@ function LlmSelectorBar({
                     pr: 2,
                     minHeight: 'unset',
                   },
+                  '& .MuiSelect-icon': {
+                    color: 'text.secondary',
+                  },
                 }}
               >
                 {providerOptions.map((provider) => (
@@ -209,6 +221,9 @@ function LlmSelectorBar({
                     overflow: 'hidden',
                     whiteSpace: 'nowrap',
                   },
+                  '& .MuiSelect-icon': {
+                    color: 'text.secondary',
+                  },
                 }}
               >
                 {modelOptions.map((model) => (
@@ -251,4 +266,3 @@ function LlmSelectorBar({
 }
 
 export default memo(LlmSelectorBar);
-
