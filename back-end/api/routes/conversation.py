@@ -50,8 +50,15 @@ def _get_provider_models(provider_name: str) -> list[str]:
     provider = provider_name.strip().lower()
     env_models = _split_csv(os.getenv(f"{provider.upper()}_MODELS", ""))
     provider_model = os.getenv(f"{provider.upper()}_MODEL", "").strip()
+
+    if provider_model:
+        return _dedupe([provider_model, *env_models])
+
+    if env_models:
+        return _dedupe(env_models)
+
     default_model = LLMClient.get_provider(provider).get_default_model()
-    return _dedupe([provider_model, *env_models, default_model])
+    return _dedupe([default_model])
 
 
 def _build_provider_options() -> tuple[list[dict], str]:
@@ -201,7 +208,15 @@ async def get_llm_options(user: dict = Depends(get_current_user)):
     _ = user  # keep route authenticated and avoid unused arg linting
 
     provider_options, default_provider = _build_provider_options()
-    default_model = LLMClient.get_model_name(provider_name=default_provider)
+    default_option = next(
+        (option for option in provider_options if option["name"] == default_provider),
+        None,
+    )
+    default_model = (
+        default_option["default_model"]
+        if default_option and default_option.get("default_model")
+        else LLMClient.get_model_name(provider_name=default_provider)
+    )
 
     return {
         "status": "success",
@@ -269,3 +284,4 @@ async def delete_conversation(
     except Exception as e:
         logger.error(f'Error deleting conversation: {e}')
         raise HTTPException(status_code=500, detail=str(e))
+
