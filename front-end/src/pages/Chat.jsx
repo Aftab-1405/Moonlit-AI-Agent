@@ -27,13 +27,10 @@ import StarfieldCanvas from '../components/StarfieldCanvas';
 import SQLEditorCanvas from '../components/SQLEditorCanvas';
 import ResizeHandle from '../components/ResizeHandle';
 import LlmSelectorBar from '../components/LlmSelectorBar';
+import WelcomeScreen from '../components/WelcomeScreen';
 import { useChatPageController } from '../hooks';
 
-import { getMoonlitGradient } from '../theme';
-import {
-  BACKDROP_FILTER_FALLBACK_QUERY,
-  REDUCED_MOTION_QUERY,
-} from '../styles/mediaQueries';
+import { BACKDROP_FILTER_FALLBACK_QUERY } from '../styles/mediaQueries';
 import { getScrollbarStyles } from '../styles/shared';
 
 function Chat() {
@@ -186,65 +183,12 @@ function Chat() {
           modelOptions={modelOptions}
         />
 
-        <Box sx={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-          <Fade in={showWelcomeState} timeout={300} unmountOnExit>
-            <Box
-              sx={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                px: 3,
-                position: 'absolute',
-                inset: 0,
-              }}
-            >
-              <Box
-                sx={{
-                  textAlign: 'center',
-                  mb: 3,
-                  animation: 'slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards',
-                  [REDUCED_MOTION_QUERY]: {
-                    animation: 'none',
-                  },
-                }}
-              >
-                <Typography
-                  variant="h3"
-                  sx={{
-                    fontWeight: 500,
-                    ...theme.typography.uiBrandWordmark,
-                    color: 'text.primary',
-                    letterSpacing: '-0.02em',
-                    mb: 1,
-                  }}
-                >
-                  {user?.displayName ? (
-                    <>
-                      Moonlit welcomes,{' '}
-                      <Box
-                        component="span"
-                        sx={{
-                          background: getMoonlitGradient(theme),
-                          backgroundClip: 'text',
-                          WebkitBackgroundClip: 'text',
-                          WebkitTextFillColor: 'transparent',
-                          fontWeight: 600,
-                        }}
-                      >
-                        {user.displayName.split(' ')[0]}
-                      </Box>
-                    </>
-                  ) : 'Moonlit'}
-                </Typography>
-              </Box>
-
-              <Box sx={{ width: '100%', maxWidth: 760 }}>
-                <ChatInput {...chatInputSharedProps} />
-              </Box>
-            </Box>
-          </Fade>
+        <Box sx={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <WelcomeScreen
+            visible={showWelcomeState}
+            user={user}
+            chatInputProps={chatInputSharedProps}
+          />
 
           <Fade in={showConversationPanel} timeout={300} unmountOnExit>
             <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
@@ -402,3 +346,5 @@ function Chat() {
 }
 
 export default Chat;
+
+
