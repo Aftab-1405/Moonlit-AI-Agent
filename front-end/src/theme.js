@@ -138,6 +138,7 @@ const createTypography = (palette) => ({
     fontFamily: FONTS.mono,
     fontSize: '0.6875rem',
     fontWeight: 500,
+    lineHeight: 1.1,
     letterSpacing: '0.05em',
     textTransform: 'uppercase',
     color: palette.text.hint,
@@ -166,6 +167,7 @@ const createTypography = (palette) => ({
     fontFamily: FONTS.mono,
     fontSize: { xs: '0.62rem', sm: '0.6875rem' },
     fontWeight: 500,
+    lineHeight: 1.1,
     letterSpacing: '0.05em',
     textTransform: 'uppercase',
   },
@@ -207,6 +209,8 @@ const createTypography = (palette) => ({
   },
   uiSelectCompact: {
     fontSize: { xs: 14, sm: 13 },
+    lineHeight: 1.25,
+    letterSpacing: '0.01em',
   },
   uiCodeBlock: {
     fontSize: '0.85rem',
@@ -1035,4 +1039,6 @@ export const getNaturalMoonlitEffects = getAccentEffects;
 export const getGlassCardSx = getGlassSx;
 
 export default darkTheme;
+
+
 

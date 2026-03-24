@@ -9,52 +9,66 @@ function FinalCTA({ onGetStarted }) {
 
   return (
     <Section sx={{ flexDirection: 'column', py: { xs: 6, md: 8 } }}>
+      {/* Dot-grid texture */}
       <Box
+        aria-hidden
         sx={{
           position: 'absolute',
-          top: '20%',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: '80%',
-          height: '60%',
-          background: `radial-gradient(ellipse at center, ${alpha(theme.palette.text.primary, isDark ? 0.04 : 0.03)}, transparent 70%)`,
-          filter: { xs: 'blur(50px)', md: 'blur(100px)' },
+          inset: 0,
+          backgroundImage: `radial-gradient(${alpha(theme.palette.text.primary, isDark ? 0.05 : 0.035)} 1px, transparent 1px)`,
+          backgroundSize: '24px 24px',
+          maskImage: 'radial-gradient(ellipse 70% 70% at 50% 50%, black 20%, transparent 80%)',
+          WebkitMaskImage: 'radial-gradient(ellipse 70% 70% at 50% 50%, black 20%, transparent 80%)',
           pointerEvents: 'none',
-          opacity: 0.8,
+          zIndex: 0,
         }}
       />
+
+      {/* Central glow */}
+      <Box
+        aria-hidden
+        sx={{
+          position: 'absolute',
+          top: '15%',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: '70%',
+          height: '70%',
+          background: `radial-gradient(ellipse at center, ${alpha(theme.palette.text.primary, isDark ? 0.05 : 0.035)}, transparent 70%)`,
+          filter: { xs: 'blur(50px)', md: 'blur(90px)' },
+          pointerEvents: 'none',
+          zIndex: 0,
+        }}
+      />
+
       <Container maxWidth="md" sx={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
         <Stack spacing={3} alignItems="center">
           <Typography
             variant="h2"
             fontWeight="bold"
-            sx={{
-              ...theme.typography.uiHeadingLandingMd,
-              lineHeight: 1.2,
-            }}
+            sx={{ ...theme.typography.uiHeadingLandingLg, lineHeight: 1.2 }}
           >
             Ready to Talk to{' '}
-            <Box 
-              component="span" 
-              sx={{ 
-                color: isDark 
-                  ? alpha(theme.palette.text.primary, 0.65)
-                  : alpha(theme.palette.text.primary, 0.55),
+            <Box
+              component="span"
+              sx={{
+                color: isDark
+                  ? alpha(theme.palette.text.primary, 0.45)
+                  : alpha(theme.palette.text.primary, 0.38),
               }}
             >
               Your Database?
             </Box>
           </Typography>
-          <Typography 
-            variant="body2" 
-            color="text.secondary" 
-            sx={{ 
-              maxWidth: 420, 
-              opacity: 0.75 
-            }}
+
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{ maxWidth: 420, opacity: 0.7 }}
           >
             Join developers and analysts who've simplified their database workflows. Start free, no credit card required.
           </Typography>
+
           <Button
             size="large"
             onClick={onGetStarted}
@@ -67,15 +81,11 @@ function FinalCTA({ onGetStarted }) {
               backgroundColor: 'text.primary',
               color: 'background.default',
               border: 'none',
-              boxShadow: isDark 
-                ? `0 4px 20px ${alpha(theme.palette.text.primary, 0.28)}`
-                : `0 4px 20px ${alpha(theme.palette.text.primary, 0.15)}`,
-              transition: theme.transitions.create(['background-color', 'transform', 'box-shadow'], {
-                duration: 200,
-              }),
-              [REDUCED_MOTION_QUERY]: {
-                transition: 'none',
-              },
+              boxShadow: isDark
+                ? `0 4px 24px ${alpha(theme.palette.text.primary, 0.3)}`
+                : `0 4px 24px ${alpha(theme.palette.text.primary, 0.18)}`,
+              transition: theme.transitions.create(['background-color', 'transform', 'box-shadow'], { duration: 200 }),
+              [REDUCED_MOTION_QUERY]: { transition: 'none' },
               [HOVER_CAPABLE_QUERY]: {
                 '&:hover': {
                   backgroundColor: isDark
@@ -83,27 +93,43 @@ function FinalCTA({ onGetStarted }) {
                     : alpha(theme.palette.text.primary, 0.9),
                   transform: 'translateY(-2px)',
                   boxShadow: isDark
-                    ? `0 6px 25px ${alpha(theme.palette.text.primary, 0.35)}`
-                    : `0 6px 25px ${alpha(theme.palette.text.primary, 0.2)}`,
+                    ? `0 8px 28px ${alpha(theme.palette.text.primary, 0.38)}`
+                    : `0 8px 28px ${alpha(theme.palette.text.primary, 0.22)}`,
                 },
               },
-              '&:active': {
-                transform: 'scale(0.98)',
-              },
+              '&:active': { transform: 'scale(0.98)' },
             }}
           >
             Get Started Free
           </Button>
-          <Typography 
-            variant="caption" 
-            color="text.secondary" 
-            sx={{ 
-              opacity: 0.6, 
-              ...theme.typography.uiCaptionXs,
-            }}
+
+          {/* Trust badges */}
+          <Stack
+            direction="row"
+            spacing={0}
+            alignItems="center"
+            divider={
+              <Box
+                sx={{
+                  width: '1px',
+                  height: 12,
+                  backgroundColor: alpha(theme.palette.text.primary, 0.12),
+                  mx: 2,
+                }}
+              />
+            }
           >
-            No credit card • Works with your existing databases • Cancel anytime
-          </Typography>
+            {['No credit card', 'Your existing databases', 'Cancel anytime'].map((item) => (
+              <Typography
+                key={item}
+                variant="caption"
+                color="text.secondary"
+                sx={{ opacity: 0.5, ...theme.typography.uiCaptionXs }}
+              >
+                {item}
+              </Typography>
+            ))}
+          </Stack>
         </Stack>
       </Container>
     </Section>

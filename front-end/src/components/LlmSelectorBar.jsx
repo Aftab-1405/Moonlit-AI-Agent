@@ -1,13 +1,16 @@
 import { memo, useMemo } from 'react';
-import { Box, FormControl, IconButton, Input, MenuItem, Select } from '@mui/material';
+import { Box, IconButton, InputBase, MenuItem, Select, Skeleton, Typography } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import MenuOutlinedIcon from '@mui/icons-material/MenuOutlined';
 import EditNoteOutlinedIcon from '@mui/icons-material/EditNoteOutlined';
-import HubOutlinedIcon from '@mui/icons-material/HubOutlined';
-import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import QuotaDisplay from './QuotaDisplay';
-import { BACKDROP_FILTER_FALLBACK_QUERY } from '../styles/mediaQueries';
 import { getCompactActionSx, getInsetPanelSx } from '../styles/shared';
+import { TRANSITIONS } from '../theme';
+
+const SELECTOR_WIDTH = { xs: 176, sm: 210 };
+const SELECTOR_HEIGHT = 34;
+const SELECTOR_LABEL_MIN_WIDTH = { xs: 48, sm: 56 };
+const SELECTOR_VALUE_GAP = 1;
 
 function LlmSelectorBar({
   isNarrowLayout,
@@ -24,40 +27,180 @@ function LlmSelectorBar({
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
 
-  const selectMenuProps = useMemo(() => ({
-    PaperProps: {
-      sx: {
-        mt: 0.8,
-        backgroundImage: 'none',
-        '& .MuiMenuItem-root': {
-          ...theme.typography.uiSelectCompact,
-          fontWeight: 500,
-          borderRadius: 1.2,
-          mx: 0.6,
-          my: 0.2,
-          minHeight: { xs: 40, sm: 32 },
+  const selectMenuProps = useMemo(
+    () => ({
+      PaperProps: {
+        sx: {
+          mt: 0.8,
+          width: SELECTOR_WIDTH,
+          maxWidth: SELECTOR_WIDTH,
+          '& .MuiMenuItem-root': {
+            ...theme.typography.uiSelectCompact,
+            fontWeight: 500,
+            borderRadius: 1.2,
+            mx: 0.6,
+            my: 0.2,
+            minHeight: { xs: 40, sm: 32 },
+          },
         },
       },
-    },
-  }), [theme]);
-
-  const selectorChipBaseSx = useMemo(() => ({
-    ...getInsetPanelSx(theme, {
-      backgroundOpacity: isDarkMode ? 0.62 : 0.78,
-      borderRadius: 1.75,
     }),
-    display: 'flex',
-    alignItems: 'center',
-    gap: { xs: 0.55, sm: 0.8 },
-    px: { xs: 0.9, sm: 1 },
-    py: 0.45,
-    borderColor: alpha(theme.palette.text.primary, isDarkMode ? 0.08 : 0.12),
-    backgroundColor: isDarkMode
-      ? alpha(theme.palette.background.default, 0.52)
-      : alpha(theme.palette.background.paper, 0.84),
-    backgroundImage: 'none',
-    flexShrink: 0,
-  }), [isDarkMode, theme]);
+    [theme],
+  );
+
+  const selectorChipSx = useMemo(
+    () => ({
+      ...getInsetPanelSx(theme, {
+        backgroundOpacity: isDarkMode ? 0.62 : 0.78,
+        borderRadius: 1.75,
+      }),
+      display: 'flex',
+      alignItems: 'stretch',
+      width: SELECTOR_WIDTH,
+      minWidth: 0,
+      height: SELECTOR_HEIGHT,
+      borderColor: alpha(theme.palette.text.primary, isDarkMode ? 0.08 : 0.12),
+      backgroundColor: isDarkMode
+        ? alpha(theme.palette.background.default, 0.52)
+        : alpha(theme.palette.background.paper, 0.84),
+      flexShrink: 0,
+      overflow: 'hidden',
+      transition: TRANSITIONS.default,
+      '&:hover': {
+        borderColor: alpha(theme.palette.text.primary, isDarkMode ? 0.16 : 0.22),
+        backgroundColor: isDarkMode
+          ? alpha(theme.palette.background.default, 0.68)
+          : alpha(theme.palette.background.paper, 0.96),
+      },
+      '&:focus-within': {
+        borderColor: alpha(theme.palette.text.primary, isDarkMode ? 0.2 : 0.26),
+        boxShadow: `0 0 0 3px ${alpha(theme.palette.text.primary, isDarkMode ? 0.12 : 0.08)}`,
+      },
+    }),
+    [isDarkMode, theme],
+  );
+
+  const selectorLabelSx = useMemo(
+    () => ({
+      ...theme.typography.uiMonoLabel,
+      color: 'text.secondary',
+      minWidth: SELECTOR_LABEL_MIN_WIDTH,
+      flexShrink: 0,
+      whiteSpace: 'nowrap',
+    }),
+    [theme],
+  );
+
+  const selectorValueRowSx = useMemo(
+    () => ({
+      display: 'flex',
+      alignItems: 'center',
+      gap: SELECTOR_VALUE_GAP,
+      minWidth: 0,
+      width: '100%',
+      overflow: 'hidden',
+    }),
+    [],
+  );
+
+  const selectorValueTextSx = useMemo(
+    () => ({
+      minWidth: 0,
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+    }),
+    [],
+  );
+
+  const selectSx = useMemo(
+    () => ({
+      ...theme.typography.uiSelectCompact,
+      fontWeight: 600,
+      color: 'text.primary',
+      minWidth: 0,
+      width: '100%',
+      height: '100%',
+      borderRadius: 'inherit',
+      transition: TRANSITIONS.default,
+      '& .MuiSelect-select': {
+        boxSizing: 'border-box',
+        display: 'flex',
+        alignItems: 'center',
+        width: '100%',
+        height: '100%',
+        minWidth: 0,
+        minHeight: 'unset',
+        px: { xs: 1, sm: 1.1 },
+        py: 0,
+        pr: 4,
+        overflow: 'hidden',
+        '&:focus': {
+          backgroundColor: 'transparent',
+        },
+      },
+      '& .MuiSelect-icon': {
+        color: 'text.secondary',
+        right: 10,
+        transition: TRANSITIONS.default,
+      },
+      '&.Mui-focused .MuiSelect-icon': {
+        color: 'text.primary',
+      },
+      '&.Mui-disabled': {
+        opacity: 0.6,
+      },
+    }),
+    [theme],
+  );
+
+  const renderSelectorValue = (label, value) => (
+    <Box component="span" sx={selectorValueRowSx}>
+      <Typography component="span" sx={selectorLabelSx}>
+        {label}
+      </Typography>
+      <Box component="span" sx={selectorValueTextSx}>
+        {value}
+      </Box>
+    </Box>
+  );
+
+  if (llmOptionsLoading) {
+    return (
+      <Box
+        sx={{
+          px: { xs: 1, sm: 2, md: 2.5 },
+          pt: { xs: 0.75, md: 1.5 },
+          pb: { xs: 0.5, md: 0.8 },
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: { xs: 0.75, sm: 0.85 },
+          width: '100%',
+        }}
+      >
+        {isNarrowLayout && (
+          <Skeleton variant="rounded" width={32} height={32} sx={{ borderRadius: 1.5, flexShrink: 0 }} />
+        )}
+        <Skeleton
+          variant="rounded"
+          width={SELECTOR_WIDTH}
+          height={SELECTOR_HEIGHT}
+          sx={{ borderRadius: 1.75, flexShrink: 0 }}
+        />
+        <Skeleton
+          variant="rounded"
+          width={SELECTOR_WIDTH}
+          height={SELECTOR_HEIGHT}
+          sx={{ borderRadius: 1.75, flexShrink: 0 }}
+        />
+        {isNarrowLayout && (
+          <Skeleton variant="rounded" width={32} height={32} sx={{ borderRadius: 1.5, flexShrink: 0 }} />
+        )}
+      </Box>
+    );
+  }
 
   return (
     <Box
@@ -67,200 +210,111 @@ function LlmSelectorBar({
         pb: { xs: 0.5, md: 0.8 },
         flexShrink: 0,
         display: 'flex',
+        alignItems: 'center',
         justifyContent: 'center',
+        gap: { xs: 0.75, sm: 0.85 },
+        width: '100%',
       }}
     >
+      {isNarrowLayout && (
+        <IconButton
+          size="small"
+          onClick={onToggleSidebar}
+          aria-label="Open sidebar"
+          sx={{
+            ...getCompactActionSx(theme),
+            color: 'text.secondary',
+            flexShrink: 0,
+          }}
+        >
+          <MenuOutlinedIcon sx={{ fontSize: 20 }} />
+        </IconButton>
+      )}
+
       <Box
         sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: '44px minmax(0, 1fr) 44px', sm: 'auto' },
+          minWidth: 0,
+          display: 'flex',
+          flexWrap: 'nowrap',
           alignItems: 'center',
-          columnGap: { xs: 0.75, sm: 0 },
-          width: { xs: '100%', sm: 'fit-content' },
-          maxWidth: '100%',
-          border: '1px solid',
-          borderColor: alpha(theme.palette.text.primary, isDarkMode ? 0.08 : 0.1),
-          borderRadius: '18px',
-          backgroundColor: isDarkMode
-            ? alpha(theme.palette.background.paper, 0.86)
-            : alpha(theme.palette.background.paper, 0.94),
-          backgroundImage: isDarkMode
-            ? `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.03)}, transparent)`
-            : `linear-gradient(180deg, ${alpha(theme.palette.common.black, 0.018)}, transparent)`,
-          backdropFilter: isDarkMode ? 'blur(10px)' : 'none',
-          WebkitBackdropFilter: isDarkMode ? 'blur(10px)' : 'none',
-          [BACKDROP_FILTER_FALLBACK_QUERY]: {
-            backdropFilter: 'none',
-            WebkitBackdropFilter: 'none',
-          },
-          [theme.breakpoints.down('sm')]: {
-            backdropFilter: 'none',
-            WebkitBackdropFilter: 'none',
-          },
-          boxShadow: 'none',
-          px: { xs: 0.5, sm: 0.75 },
-          py: { xs: 0.5, sm: 0.75 },
+          justifyContent: { xs: 'flex-start', sm: 'center' },
+          gap: { xs: 0.65, sm: 0.85 },
+          flex: isNarrowLayout ? 1 : '0 1 auto',
+          overflowX: { xs: 'auto', sm: 'visible' },
+          scrollPaddingInline: theme.spacing(1),
+          WebkitOverflowScrolling: 'touch',
           '&::-webkit-scrollbar': {
             display: 'none',
           },
         }}
       >
-        {isNarrowLayout && (
-          <IconButton
-            size="small"
-            onClick={onToggleSidebar}
-            aria-label="Open sidebar"
-            sx={{
-              ...getCompactActionSx(theme),
-              color: 'text.secondary',
-              justifySelf: 'start',
+        <Box sx={selectorChipSx}>
+          <Select
+            value={providerSelectValue}
+            onChange={onProviderChange}
+            disabled={providerOptions.length === 0}
+            input={<InputBase />}
+            displayEmpty
+            MenuProps={selectMenuProps}
+            sx={selectSx}
+            renderValue={(val) => {
+              const display = providerOptions.find((provider) => provider.name === val)?.label ?? val;
+              return renderSelectorValue('Provider', display);
             }}
           >
-            <MenuOutlinedIcon sx={{ fontSize: 20 }} />
-          </IconButton>
-        )}
+            {providerOptions.map((provider) => (
+              <MenuItem key={provider.name} value={provider.name}>
+                {provider.label}
+              </MenuItem>
+            ))}
+          </Select>
+        </Box>
+
+        <Box sx={selectorChipSx}>
+          <Select
+            value={modelSelectValue}
+            onChange={onModelChange}
+            disabled={modelOptions.length === 0}
+            input={<InputBase />}
+            displayEmpty
+            MenuProps={selectMenuProps}
+            sx={selectSx}
+            renderValue={(val) => renderSelectorValue('Model', val)}
+          >
+            {modelOptions.map((model) => (
+              <MenuItem key={model} value={model}>
+                {model}
+              </MenuItem>
+            ))}
+          </Select>
+        </Box>
+
         <Box
           sx={{
-            minWidth: 0,
-            display: 'flex',
+            display: { xs: 'none', sm: 'flex' },
             alignItems: 'center',
-            justifyContent: 'center',
-            gap: { xs: 0.65, sm: 0.85 },
-            flexWrap: 'nowrap',
-            overflowX: { xs: 'auto', sm: 'visible' },
-            WebkitOverflowScrolling: 'touch',
-            '&::-webkit-scrollbar': {
-              display: 'none',
-            },
+            minHeight: SELECTOR_HEIGHT,
+            flexShrink: 0,
           }}
         >
-          <Box sx={selectorChipBaseSx}>
-            <HubOutlinedIcon
-              sx={{
-                display: { xs: 'none', sm: 'inline-flex' },
-                fontSize: 16,
-                color: 'text.secondary',
-              }}
-            />
-            <FormControl
-              size="small"
-              variant="standard"
-              sx={{
-                minWidth: { xs: 86, sm: 98 },
-                maxWidth: { xs: 124, sm: 150 },
-              }}
-            >
-              <Select
-                value={providerSelectValue}
-                onChange={onProviderChange}
-                disabled={llmOptionsLoading || providerOptions.length === 0}
-                input={<Input disableUnderline />}
-                displayEmpty
-                MenuProps={selectMenuProps}
-                sx={{
-                  ...theme.typography.uiSelectCompact,
-                  fontWeight: 600,
-                  color: 'text.primary',
-                  '& .MuiSelect-select': {
-                    py: 0,
-                    pr: 2,
-                    minHeight: 'unset',
-                  },
-                  '& .MuiSelect-icon': {
-                    color: 'text.secondary',
-                  },
-                }}
-              >
-                {providerOptions.map((provider) => (
-                  <MenuItem key={provider.name} value={provider.name}>
-                    {provider.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Box>
-
-          <Box
-            sx={{
-              ...selectorChipBaseSx,
-              minWidth: { xs: 118, sm: 150 },
-              width: 'fit-content',
-              maxWidth: { xs: 188, sm: 220 },
-              flex: { xs: '0 0 auto', sm: '0 1 auto' },
-            }}
-          >
-            <SmartToyOutlinedIcon
-              sx={{
-                display: { xs: 'none', sm: 'inline-flex' },
-                fontSize: 16,
-                color: 'text.secondary',
-              }}
-            />
-            <FormControl
-              size="small"
-              variant="standard"
-              sx={{ width: 'auto', minWidth: 0, maxWidth: '100%' }}
-            >
-              <Select
-                value={modelSelectValue}
-                onChange={onModelChange}
-                disabled={llmOptionsLoading || modelOptions.length === 0}
-                input={<Input disableUnderline />}
-                displayEmpty
-                MenuProps={selectMenuProps}
-                sx={{
-                  ...theme.typography.uiSelectCompact,
-                  fontWeight: 600,
-                  color: 'text.primary',
-                  '& .MuiSelect-select': {
-                    py: 0,
-                    pr: 2,
-                    minHeight: 'unset',
-                    maxWidth: { xs: 126, sm: 150 },
-                    textOverflow: 'ellipsis',
-                    overflow: 'hidden',
-                    whiteSpace: 'nowrap',
-                  },
-                  '& .MuiSelect-icon': {
-                    color: 'text.secondary',
-                  },
-                }}
-              >
-                {modelOptions.map((model) => (
-                  <MenuItem key={model} value={model}>
-                    {model}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Box>
-
-          <Box
-            sx={{
-              display: { xs: 'none', sm: 'flex' },
-              alignItems: 'center',
-              px: 0.25,
-              ml: { xs: 0, sm: 0.2 },
-            }}
-          >
-            <QuotaDisplay embedded />
-          </Box>
+          <QuotaDisplay embedded />
         </Box>
-        {isNarrowLayout && (
-          <IconButton
-            size="small"
-            onClick={onNewChat}
-            aria-label="Start new chat"
-            sx={{
-              ...getCompactActionSx(theme),
-              color: 'text.primary',
-              justifySelf: 'end',
-            }}
-          >
-            <EditNoteOutlinedIcon sx={{ fontSize: 20 }} />
-          </IconButton>
-        )}
       </Box>
+
+      {isNarrowLayout && (
+        <IconButton
+          size="small"
+          onClick={onNewChat}
+          aria-label="Start new chat"
+          sx={{
+            ...getCompactActionSx(theme),
+            color: 'text.primary',
+            flexShrink: 0,
+          }}
+        >
+          <EditNoteOutlinedIcon sx={{ fontSize: 20 }} />
+        </IconButton>
+      )}
     </Box>
   );
 }

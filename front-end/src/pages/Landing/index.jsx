@@ -1,6 +1,8 @@
 import { useEffect, useCallback } from 'react';
 import { Box } from '@mui/material';
+import GlobalStyles from '@mui/material/GlobalStyles';
 import { useNavigate } from 'react-router-dom';
+import { useTheme, alpha } from '@mui/material/styles';
 import { useAuth } from '../../contexts/AuthContext';
 import Hero from './Hero';
 import ValueGrid from './ValueGrid';
@@ -19,33 +21,67 @@ export { default as ValueGrid } from './ValueGrid';
 export { default as DemoSection } from './DemoSection';
 export { default as StepsGrid } from './StepsGrid';
 export { default as FinalCTA } from './FinalCTA';
-export const Section = ({ children, sx = {}, id, fullHeight = true }) => (
-  <Box
-    id={id}
-    component="section"
-    sx={{
-      width: '100%',
-      maxWidth: '100%',
-      minHeight: fullHeight ? '100dvh' : 'auto',
-      '@supports not (min-height: 100dvh)': {
-        minHeight: fullHeight ? '100vh' : 'auto',
+
+export const Section = ({ children, sx = {}, id, fullHeight = true, tinted = false }) => {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+  return (
+    <Box
+      id={id}
+      component="section"
+      sx={{
+        width: '100%',
+        maxWidth: '100%',
+        minHeight: fullHeight ? '100dvh' : 'auto',
+        '@supports not (min-height: 100dvh)': {
+          minHeight: fullHeight ? '100vh' : 'auto',
+        },
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        position: 'relative',
+        py: { xs: 6, sm: 8, md: 10, lg: 12 },
+        px: { xs: 2, sm: 3, md: 4 },
+        boxSizing: 'border-box',
+        overflowX: 'clip',
+        scrollSnapAlign: 'start',
+        scrollSnapStop: 'always',
+        ...(tinted && {
+          backgroundColor: isDark
+            ? alpha(theme.palette.text.primary, 0.015)
+            : alpha(theme.palette.text.primary, 0.012),
+        }),
+        ...sx,
+      }}
+    >
+      {children}
+    </Box>
+  );
+};
+
+const LANDING_GLOBAL_STYLES = (
+  <GlobalStyles
+    styles={{
+      '@keyframes float': {
+        '0%, 100%': { transform: 'translateY(0px)' },
+        '50%': { transform: 'translateY(-18px)' },
       },
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      position: 'relative',
-      py: { xs: 6, sm: 8, md: 10, lg: 12 },
-      px: { xs: 2, sm: 3, md: 4 },
-      boxSizing: 'border-box',
-      overflowX: 'clip',
-      scrollSnapAlign: 'start',
-      scrollSnapStop: 'always',
-      ...sx,
+      '@keyframes fadeIn': {
+        from: { opacity: 0, transform: 'translateY(10px)' },
+        to: { opacity: 1, transform: 'translateY(0)' },
+      },
+      '@keyframes pulse-dot': {
+        '0%, 100%': { opacity: 1, transform: 'scale(1)' },
+        '50%': { opacity: 0.4, transform: 'scale(0.85)' },
+      },
+      '@keyframes shimmer': {
+        '0%': { backgroundPosition: '-200% center' },
+        '100%': { backgroundPosition: '200% center' },
+      },
     }}
-  >
-    {children}
-  </Box>
+  />
 );
+
 export default function Landing() {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
@@ -57,31 +93,32 @@ export default function Landing() {
   }, [navigate, isAuthenticated]);
 
   return (
-    <Box
-      sx={{
-        height: '100dvh',
-        '@supports not (height: 100dvh)': {
-          height: '100vh',
-        },
-        overflowY: 'auto',
-        overflowX: 'hidden',
-        backgroundColor: 'background.default',
-        scrollBehavior: 'smooth',
-        scrollSnapType: { xs: 'y proximity', md: 'y mandatory' },
-        position: 'relative',
-        [REDUCED_MOTION_QUERY]: {
-          scrollBehavior: 'auto',
-          scrollSnapType: 'none',
-          '& *': { animation: 'none !important', transition: 'none !important' },
-        },
-      }}
-      role="main"
-    >
-      <Hero onGetStarted={handleGetStarted} />
-      <ValueGrid />
-      <DemoSection />
-      <StepsGrid />
-      <FinalCTA onGetStarted={handleGetStarted} />
-    </Box>
+    <>
+      {LANDING_GLOBAL_STYLES}
+      <Box
+        sx={{
+          height: '100dvh',
+          '@supports not (height: 100dvh)': { height: '100vh' },
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          backgroundColor: 'background.default',
+          scrollBehavior: 'smooth',
+          scrollSnapType: { xs: 'y proximity', md: 'y mandatory' },
+          position: 'relative',
+          [REDUCED_MOTION_QUERY]: {
+            scrollBehavior: 'auto',
+            scrollSnapType: 'none',
+            '& *': { animation: 'none !important', transition: 'none !important' },
+          },
+        }}
+        role="main"
+      >
+        <Hero onGetStarted={handleGetStarted} />
+        <ValueGrid />
+        <DemoSection />
+        <StepsGrid />
+        <FinalCTA onGetStarted={handleGetStarted} />
+      </Box>
+    </>
   );
 }
