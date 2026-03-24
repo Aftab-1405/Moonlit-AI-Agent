@@ -12,10 +12,12 @@ import {
   Grow,
   Slide,
   Fade,
+  IconButton,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
+import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import Sidebar from '../components/Sidebar';
 import ChatInput from '../components/ChatInput';
 import MessageList from '../components/MessageList';
@@ -26,9 +28,8 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import StarfieldCanvas from '../components/StarfieldCanvas';
 import SQLEditorCanvas from '../components/SQLEditorCanvas';
 import ResizeHandle from '../components/ResizeHandle';
-import LlmSelectorBar from '../components/LlmSelectorBar';
 import WelcomeScreen from '../components/WelcomeScreen';
-import { useChatPageController } from '../hooks';
+import { useChatPageController } from '../hooks/chat-page/useChatPageController';
 
 import { BACKDROP_FILTER_FALLBACK_QUERY } from '../styles/mediaQueries';
 import { getScrollbarStyles } from '../styles/shared';
@@ -54,13 +55,6 @@ function Chat() {
     mobileOpen,
     handleMobileDrawerOpen,
     handleMobileDrawerClose,
-    providerSelectValue,
-    modelSelectValue,
-    handleProviderChange,
-    handleModelChange,
-    llmOptionsLoading,
-    providerOptions,
-    modelOptions,
     showWelcomeState,
     setScrollContainerRef,
     showConversationPanel,
@@ -170,20 +164,37 @@ function Chat() {
           })}, background-color 420ms ${theme.transitions.easing.easeInOut}`,
         }}
       >
-        <LlmSelectorBar
-          isNarrowLayout={isNarrowLayout}
-          onToggleSidebar={handleMobileDrawerOpen}
-          onNewChat={handleSidebarNewChat}
-          providerSelectValue={providerSelectValue}
-          modelSelectValue={modelSelectValue}
-          onProviderChange={handleProviderChange}
-          onModelChange={handleModelChange}
-          llmOptionsLoading={llmOptionsLoading}
-          providerOptions={providerOptions}
-          modelOptions={modelOptions}
-        />
+        {isNarrowLayout && (
+          <IconButton
+            size="small"
+            onClick={handleMobileDrawerOpen}
+            aria-label="Open sidebar"
+            sx={{
+              position: 'absolute',
+              top: 'max(env(safe-area-inset-top), 12px)',
+              left: 12,
+              zIndex: 3,
+              width: 44,
+              height: 44,
+              border: '1px solid',
+              borderColor: alpha(theme.palette.text.primary, 0.08),
+              backgroundColor: alpha(theme.palette.background.default, 0.68),
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              [BACKDROP_FILTER_FALLBACK_QUERY]: {
+                backdropFilter: 'none',
+                WebkitBackdropFilter: 'none',
+              },
+              '&:hover': {
+                backgroundColor: alpha(theme.palette.background.default, 0.84),
+              },
+            }}
+          >
+            <MenuRoundedIcon sx={{ fontSize: 20 }} />
+          </IconButton>
+        )}
 
-        <Box sx={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <Box sx={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
           <WelcomeScreen
             visible={showWelcomeState}
             user={user}
@@ -346,5 +357,4 @@ function Chat() {
 }
 
 export default Chat;
-
 

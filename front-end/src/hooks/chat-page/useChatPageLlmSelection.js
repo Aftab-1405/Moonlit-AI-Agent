@@ -33,20 +33,32 @@ export function useChatPageLlmSelection({ settings, updateSetting }) {
   const providerSelectValue = selectedProvider || '';
   const modelSelectValue = selectedModel || '';
 
+  const handleLlmSelection = useCallback((providerName, modelName) => {
+    const providerOption = providerOptions.find((provider) => provider.name === providerName);
+    if (!providerOption) return;
+
+    const nextModel = providerOption.models?.includes(modelName)
+      ? modelName
+      : (providerOption.default_model || providerOption.models?.[0] || null);
+
+    updateSetting('llmProvider', providerName);
+    updateSetting('llmModel', nextModel);
+  }, [providerOptions, updateSetting]);
+
   const handleProviderChange = useCallback((event) => {
     const nextProvider = event.target.value;
-    updateSetting('llmProvider', nextProvider);
-
     const providerOption = providerOptions.find((provider) => provider.name === nextProvider);
     const nextModels = providerOption?.models || [];
     const nextModel = nextModels.includes(settings.llmModel)
       ? settings.llmModel
       : (providerOption?.default_model || nextModels[0] || null);
-    updateSetting('llmModel', nextModel);
-  }, [providerOptions, settings.llmModel, updateSetting]);
+
+    handleLlmSelection(nextProvider, nextModel);
+  }, [providerOptions, settings.llmModel, handleLlmSelection]);
+
   const handleModelChange = useCallback((event) => {
-    updateSetting('llmModel', event.target.value);
-  }, [updateSetting]);
+    handleLlmSelection(selectedProvider, event.target.value);
+  }, [handleLlmSelection, selectedProvider]);
 
   useEffect(() => {
     let isMounted = true;
@@ -111,6 +123,7 @@ export function useChatPageLlmSelection({ settings, updateSetting }) {
     selectedProvider,
     selectedModel,
     llmOptionsLoading,
+    handleLlmSelection,
     handleProviderChange,
     handleModelChange,
   };

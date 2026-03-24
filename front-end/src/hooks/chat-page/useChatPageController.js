@@ -71,14 +71,10 @@ export function useChatPageController() {
   const llmSelection = useChatPageLlmSelection({ settings, updateSetting });
   const {
     providerOptions,
-    modelOptions,
-    providerSelectValue,
-    modelSelectValue,
     selectedProvider,
     selectedModel,
     llmOptionsLoading,
-    handleProviderChange,
-    handleModelChange,
+    handleLlmSelection,
   } = llmSelection;
 
   const showSnackbar = useCallback((message, severity = 'info') => {
@@ -245,6 +241,11 @@ export function useChatPageController() {
     availableDatabases,
     onDatabaseSwitch: handleDatabaseSwitch,
     onOpenSqlEditor: handleOpenSqlEditor,
+    selectedProvider,
+    selectedModel,
+    providerOptions,
+    llmOptionsLoading,
+    onSelectLlm: handleLlmSelection,
   }), [
     handleSendMessageWithModel,
     handleStopStreaming,
@@ -255,6 +256,11 @@ export function useChatPageController() {
     availableDatabases,
     handleDatabaseSwitch,
     handleOpenSqlEditor,
+    selectedProvider,
+    selectedModel,
+    providerOptions,
+    llmOptionsLoading,
+    handleLlmSelection,
   ]);
   const commonSidebarProps = useMemo(() => ({
     conversations,
@@ -317,13 +323,6 @@ export function useChatPageController() {
     mobileOpen: effectiveMobileOpen,
     handleMobileDrawerOpen,
     handleMobileDrawerClose,
-    providerSelectValue,
-    modelSelectValue,
-    handleProviderChange,
-    handleModelChange,
-    llmOptionsLoading,
-    providerOptions,
-    modelOptions,
     showWelcomeState,
     setScrollContainerRef,
     showConversationPanel,
@@ -357,4 +356,3 @@ export function useChatPageController() {
 }
 
 export default useChatPageController;
-
