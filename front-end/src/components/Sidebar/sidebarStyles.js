@@ -47,6 +47,10 @@ export const StyledDesktopSidebarPanel = styled(Drawer, {
 })(({ theme, open }) => ({
   width: open ? EXPANDED_WIDTH : COLLAPSED_WIDTH,
   flexShrink: 0,
+  alignSelf: 'stretch',
+  display: 'flex',
+  flexDirection: 'column',
+  minHeight: 0,
   whiteSpace: 'nowrap',
   boxSizing: 'border-box',
   zIndex: 2,

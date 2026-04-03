@@ -83,12 +83,15 @@ function Chat() {
 
   return (
     <Box
+      id="app-shell"
       sx={{
+        flex: 1,
         display: 'flex',
-        height: '100dvh',
-        '@supports not (height: 100dvh)': {
-          height: '100vh',
-        },
+        flexDirection: 'row',
+        alignItems: 'stretch',
+        width: '100%',
+        minWidth: 0,
+        minHeight: 0,
         bgcolor: 'background.default',
         overflow: 'hidden',
         position: 'relative',
@@ -128,123 +131,160 @@ function Chat() {
         onMobileClose={handleMobileDrawerClose}
       />
       <Box
-        component="main"
         sx={{
           flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          mt: 0,
-          height: { xs: '100svh', md: '100vh' },
-          '@supports not (height: 100svh)': {
-            height: { xs: '100vh', md: '100vh' },
-          },
-          overflow: 'hidden',
-          backgroundColor: theme.palette.background.default,
-          position: 'relative',
-          zIndex: 1,
           minWidth: 0,
-          transition: theme.transitions.create(['width', 'margin'], {
-            easing: theme.transitions.easing.sharp,
-            duration: theme.transitions.duration.enteringScreen,
-          }),
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'row',
+          alignItems: 'stretch',
+          overflow: 'hidden',
+          position: 'relative',
         }}
       >
-        {isNarrowLayout && (
-          <IconButton
-            size="small"
-            onClick={handleMobileDrawerOpen}
-            aria-label="Open sidebar"
-            sx={{
-              position: 'absolute',
-              top: 'max(env(safe-area-inset-top), 12px)',
-              left: 12,
-              zIndex: 3,
-              width: 44,
-              height: 44,
-              border: '1px solid',
-              borderColor: alpha(theme.palette.text.primary, 0.1),
-              backgroundColor: alpha(theme.palette.background.paper, 0.96),
-              boxShadow: `0 6px 18px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.18 : 0.08)}`,
-              '&:hover': {
-                backgroundColor: alpha(theme.palette.background.paper, 1),
-              },
-            }}
-          >
-            <MenuRoundedIcon sx={{ fontSize: 20 }} />
-          </IconButton>
-        )}
-
-        <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-          <WelcomeScreen
-            visible={showWelcomeState}
-            user={user}
-            chatInputProps={chatInputSharedProps}
-          />
-
-          <Fade in={showConversationPanel} timeout={300} unmountOnExit>
-            <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-              <Box
-                ref={setScrollContainerRef}
-                sx={{
-                  flex: 1,
-                  minHeight: 0,
-                  overflowY: 'auto',
-                  overflowX: 'hidden',
-                  px: { xs: 0, sm: 1 },
-                  pt: { xs: 2, sm: 3 },
-                  pb: { xs: 1, sm: 2 },
-                  ...getScrollbarStyles(theme),
-                }}
-              >
-                <MessageList
-                  messages={messages}
-                  isLoadingConversation={isConversationLoading}
-                  user={user}
-                  onRunQuery={handleRunQuery}
-                  onOpenSqlEditor={handleOpenSqlEditor}
-                />
-              </Box>
-
-              <Box
-                sx={{
-                  flexShrink: 0,
-                  zIndex: 2,
-                  px: { xs: 0, sm: 1 },
-                  pt: { xs: 1, sm: 1.5 },
-                  pb: 'max(env(safe-area-inset-bottom), 8px)',
-                  borderTop: `1px solid ${alpha(theme.palette.divider, 0.65)}`,
-                  backgroundColor: alpha(theme.palette.background.default, 0.98),
-                }}
-              >
-                <ChatInput
-                  {...chatInputSharedProps}
-                  showSuggestions={false}
-                />
-              </Box>
-            </Box>
-          </Fade>
-        </Box>
-      </Box>
-      {!isNarrowLayout && (
         <Box
+          component="main"
+          id="main-content"
+          aria-label="Chat workspace"
           sx={{
+            flex: 1,
             display: 'flex',
-            flexShrink: 0,
-            height: '100vh',
+            flexDirection: 'column',
+            mt: 0,
+            minWidth: 0,
+            minHeight: 0,
+            overflow: 'hidden',
+            backgroundColor: theme.palette.background.default,
+            position: 'relative',
+            zIndex: 1,
+            transition: theme.transitions.create(['width', 'margin'], {
+              easing: theme.transitions.easing.sharp,
+              duration: theme.transitions.duration.enteringScreen,
+            }),
           }}
         >
-          <ResizeHandle onResize={handlePanelResize} disabled={!sqlEditorOpen} />
-          <SQLEditorCanvas
-            onClose={handleCloseSqlEditor}
-            initialQuery={sqlEditorQuery}
-            initialResults={sqlEditorResults}
-            isConnected={isDbConnected}
-            currentDatabase={currentDatabase}
-            isOpen={sqlEditorOpen}
-            panelWidth={sqlEditorWidth}
+          <Box
+            aria-hidden
+            sx={{
+              pointerEvents: 'none',
+              position: 'absolute',
+              inset: 0,
+              zIndex: 0,
+              opacity: theme.palette.mode === 'dark' ? 0.22 : 0.35,
+              backgroundImage: `linear-gradient(to right, ${alpha(theme.palette.divider, 0.45)} 1px, transparent 1px), linear-gradient(to bottom, ${alpha(theme.palette.divider, 0.45)} 1px, transparent 1px)`,
+              backgroundSize: '32px 32px',
+            }}
           />
+          {isNarrowLayout && (
+            <IconButton
+              size="small"
+              onClick={handleMobileDrawerOpen}
+              aria-label="Open sidebar"
+              sx={{
+                position: 'absolute',
+                top: 'max(env(safe-area-inset-top), 12px)',
+                left: 12,
+                zIndex: 3,
+                width: 44,
+                height: 44,
+                border: '1px solid',
+                borderColor: alpha(theme.palette.text.primary, 0.1),
+                backgroundColor: alpha(theme.palette.background.paper, 0.96),
+                boxShadow: `0 6px 18px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.18 : 0.08)}`,
+                '&:hover': {
+                  backgroundColor: alpha(theme.palette.background.paper, 1),
+                },
+              }}
+            >
+              <MenuRoundedIcon sx={{ fontSize: 20 }} />
+            </IconButton>
+          )}
+
+          <Box
+            sx={{
+              position: 'relative',
+              zIndex: 1,
+              flex: 1,
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <WelcomeScreen
+              visible={showWelcomeState}
+              user={user}
+              chatInputProps={chatInputSharedProps}
+            />
+
+            <Fade in={showConversationPanel} timeout={300} unmountOnExit>
+              <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+                <Box
+                  ref={setScrollContainerRef}
+                  sx={{
+                    flex: 1,
+                    minHeight: 0,
+                    overflowY: 'auto',
+                    overflowX: 'hidden',
+                    px: { xs: 0, sm: 1 },
+                    pt: { xs: 2, sm: 3 },
+                    pb: { xs: 1, sm: 2 },
+                    ...getScrollbarStyles(theme),
+                  }}
+                >
+                  <MessageList
+                    messages={messages}
+                    isLoadingConversation={isConversationLoading}
+                    user={user}
+                    onRunQuery={handleRunQuery}
+                    onOpenSqlEditor={handleOpenSqlEditor}
+                  />
+                </Box>
+
+                <Box
+                  sx={{
+                    flexShrink: 0,
+                    zIndex: 2,
+                    px: { xs: 0, sm: 1 },
+                    pt: { xs: 1, sm: 1.5 },
+                    pb: 'max(env(safe-area-inset-bottom), 8px)',
+                    borderTop: `1px solid ${alpha(theme.palette.divider, 0.65)}`,
+                    backgroundColor: alpha(theme.palette.background.default, 0.98),
+                  }}
+                >
+                  <ChatInput
+                    {...chatInputSharedProps}
+                    showSuggestions={false}
+                  />
+                </Box>
+              </Box>
+            </Fade>
+          </Box>
         </Box>
-      )}
+        {!isNarrowLayout && (
+          <Box
+            component="section"
+            sx={{
+              display: 'flex',
+              flexShrink: 0,
+              minHeight: 0,
+              alignSelf: 'stretch',
+              height: '100%',
+            }}
+            aria-label="SQL editor panel"
+          >
+            <ResizeHandle onResize={handlePanelResize} disabled={!sqlEditorOpen} />
+            <SQLEditorCanvas
+              onClose={handleCloseSqlEditor}
+              initialQuery={sqlEditorQuery}
+              initialResults={sqlEditorResults}
+              isConnected={isDbConnected}
+              currentDatabase={currentDatabase}
+              isOpen={sqlEditorOpen}
+              panelWidth={sqlEditorWidth}
+            />
+          </Box>
+        )}
+      </Box>
       {isNarrowLayout && (
         <Slide direction="up" in={sqlEditorOpen} mountOnEnter unmountOnExit>
           <Box

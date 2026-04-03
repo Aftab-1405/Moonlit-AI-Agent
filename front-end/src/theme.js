@@ -348,6 +348,7 @@ const getComponentOverrides = (mode) => {
           WebkitTextSizeAdjust: '100%',
           textSizeAdjust: '100%',
           minHeight: '100%',
+          height: '100%',
         },
         body: {
           margin: 0,
@@ -356,6 +357,9 @@ const getComponentOverrides = (mode) => {
           '@supports not (min-height: 100dvh)': {
             minHeight: '100vh',
           },
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
           fontSize: '1rem',
           fontFamily: FONTS.sans,
           color: palette.text.primary,
@@ -381,10 +385,15 @@ const getComponentOverrides = (mode) => {
           },
         },
         '#root': {
+          flex: '1 1 auto',
+          minWidth: 0,
+          width: '100%',
           minHeight: '100dvh',
           '@supports not (min-height: 100dvh)': {
             minHeight: '100vh',
           },
+          display: 'flex',
+          flexDirection: 'column',
         },
         [REDUCED_MOTION_QUERY]: {
           '*': {
