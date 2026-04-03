@@ -439,7 +439,3 @@ const MessageList = memo(function MessageList({
 });
 
 export default MessageList;
-
-
-
-

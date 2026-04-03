@@ -598,10 +598,3 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
 }
 
 export default memo(SQLResultsTable);
-
-
-
-
-
-
-

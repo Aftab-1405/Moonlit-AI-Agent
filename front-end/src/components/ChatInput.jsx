@@ -778,16 +778,3 @@ function arePropsEqual(prevProps, nextProps) {
 }
 
 export default memo(ChatInput, arePropsEqual);
-
-
-
-
-
-
-
-
-
-
-
-
-
