@@ -6,6 +6,7 @@ import ReactFlow, {
   Position,
   getBezierPath,
 } from 'reactflow';
+import 'reactflow/dist/style.css';
 import Dagre from '@dagrejs/dagre';
 import { Box, Typography, useTheme, useMediaQuery } from '@mui/material';
 import { alpha } from '@mui/material/styles';
@@ -16,61 +17,6 @@ import TableChartRoundedIcon from '@mui/icons-material/TableChartRounded';
 
 const MOBILE_BREAKPOINT_QUERY = 'sm';
 const HIDDEN_HANDLE_STYLE = { opacity: 0 };
-const REACT_FLOW_BASE_SX = {
-  '& .react-flow': {
-    width: '100%',
-    height: '100%',
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  '& .react-flow__container': {
-    width: '100%',
-    height: '100%',
-    position: 'absolute',
-    left: 0,
-    top: 0,
-  },
-  '& .react-flow__pane': {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-    left: 0,
-    top: 0,
-    cursor: 'grab',
-  },
-  '& .react-flow__viewport': {
-    transformOrigin: '0 0',
-    pointerEvents: 'none',
-  },
-  '& .react-flow__nodes, & .react-flow__edges': {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-    left: 0,
-    top: 0,
-  },
-  '& .react-flow__node': {
-    position: 'absolute',
-    userSelect: 'none',
-    pointerEvents: 'all',
-    transformOrigin: '0 0',
-    boxSizing: 'border-box',
-  },
-  '& .react-flow__edge': {
-    position: 'absolute',
-    pointerEvents: 'none',
-  },
-  '& .react-flow__edge-path': {
-    fill: 'none',
-  },
-  '& .react-flow__handle': {
-    position: 'absolute',
-    width: 6,
-    height: 6,
-    borderRadius: '50%',
-    pointerEvents: 'none',
-  },
-};
 
 const CustomBezierEdge = ({
   id,
@@ -483,10 +429,9 @@ function SchemaFlowDiagram({ database, tables, columns }) {
         touchAction: 'pan-y',
         border: '1px solid',
         borderColor: 'divider',
-        backgroundColor: isDark 
+        backgroundColor: isDark
           ? alpha(theme.palette.background.default, 0.5)
           : theme.palette.background.paper,
-        ...REACT_FLOW_BASE_SX,
       }}
     >
       <ReactFlow

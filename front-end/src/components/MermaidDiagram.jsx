@@ -1,15 +1,12 @@
 import { useEffect, useRef, useState, useId, useCallback, useMemo, memo } from 'react';
 import mermaid from 'mermaid';
-import { Box, Paper, IconButton, Tooltip, Typography, CircularProgress, Slider, Portal } from '@mui/material';
+import { Box, Paper, IconButton, Tooltip, Typography, CircularProgress, Portal } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import FullscreenRoundedIcon from '@mui/icons-material/FullscreenRounded';
 import FullscreenExitRoundedIcon from '@mui/icons-material/FullscreenExitRounded';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
-import ZoomInRoundedIcon from '@mui/icons-material/ZoomInRounded';
-import ZoomOutRoundedIcon from '@mui/icons-material/ZoomOutRounded';
-import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded';
 import { getMermaidThemeConfig } from '../theme';
 import logger from '../utils/logger';
 
@@ -17,6 +14,7 @@ function MermaidDiagram({ code }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   const containerRef = useRef(null);
+  const diagramRef = useRef(null);
   const copyTimeoutRef = useRef(null);
   const renderTimeoutRef = useRef(null);
   const uniqueId = useId().replace(/:/g, '');
@@ -38,6 +36,20 @@ function MermaidDiagram({ code }) {
       if (renderTimeoutRef.current) clearTimeout(renderTimeoutRef.current);
     };
   }, []);
+
+  // Attach non-passive wheel listener for scroll-to-zoom (preventDefault requires non-passive)
+  useEffect(() => {
+    const el = diagramRef.current;
+    if (!el) return;
+    const handler = (e) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -10 : 10;
+      setZoom((prev) => Math.min(Math.max(prev + delta, 25), 300));
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, []);
+
   useEffect(() => {
     if (!code) return;
 
@@ -117,23 +129,6 @@ function MermaidDiagram({ code }) {
     a.click();
     URL.revokeObjectURL(url);
   }, [svg]);
-
-  const handleZoomIn = useCallback(() => {
-    setZoom(prev => Math.min(prev + 25, 300));
-  }, []);
-
-  const handleZoomOut = useCallback(() => {
-    setZoom(prev => Math.max(prev - 25, 25));
-  }, []);
-
-  const handleResetZoom = useCallback(() => {
-    setZoom(100);
-    setPanPosition({ x: 0, y: 0 });
-  }, []);
-
-  const handleZoomChange = useCallback((_, value) => {
-    setZoom(value);
-  }, []);
 
   const toggleFullscreen = useCallback(() => {
     setFullscreen(prev => !prev);
@@ -274,96 +269,35 @@ function MermaidDiagram({ code }) {
             color: 'text.secondary',
             textTransform: 'uppercase',
             fontWeight: 500,
-            letterSpacing: 0.5,
-            display: { xs: 'none', sm: 'block' },
-            flexShrink: 0,
+            ...theme.typography.uiCaption2xs,
           }}
         >
           diagram
         </Typography>
-        <Box sx={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: { xs: 0.25, sm: 0.5 },
-          flex: { xs: 1, sm: 'none' },
-          justifyContent: { xs: 'space-between', sm: 'flex-end' },
-        }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
-            <Tooltip title="Zoom out">
-              <IconButton size="small" onClick={handleZoomOut} disabled={zoom <= 25} sx={{ width: 44, height: 44 }}>
-                <ZoomOutRoundedIcon sx={{ fontSize: { xs: 18, sm: 16 } }} />
-              </IconButton>
-            </Tooltip>
-            <Box sx={{ width: 80, mx: 0.5, display: { xs: 'none', md: 'block' } }}>
-              <Slider
-                value={zoom}
-                onChange={handleZoomChange}
-                min={25}
-                max={300}
-                size="small"
-                sx={{
-                  color: 'primary.main',
-                  '& .MuiSlider-thumb': { width: 12, height: 12 },
-                  '& .MuiSlider-track': { height: 3 },
-                  '& .MuiSlider-rail': { height: 3, opacity: 0.3 },
-                }}
-              />
-            </Box>
-            <Typography
-              variant="caption"
-              sx={{
-                color: 'text.secondary',
-                minWidth: { xs: 32, sm: 35 },
-                textAlign: 'center',
-                ...theme.typography.uiCaptionXs,
-              }}
-            >
-              {zoom}%
-            </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Tooltip title={copied ? 'Copied!' : 'Copy code'}>
+            <IconButton size="small" onClick={handleCopy} sx={{ width: 44, height: 44 }}>
+              {copied ? <CheckRoundedIcon sx={{ fontSize: { xs: 16, sm: 14 } }} /> : <ContentCopyRoundedIcon sx={{ fontSize: { xs: 16, sm: 14 } }} />}
+            </IconButton>
+          </Tooltip>
 
-            <Tooltip title="Zoom in">
-              <IconButton size="small" onClick={handleZoomIn} disabled={zoom >= 300} sx={{ width: 44, height: 44 }}>
-                <ZoomInRoundedIcon sx={{ fontSize: { xs: 18, sm: 16 } }} />
+          <Tooltip title="Download SVG">
+            <span>
+              <IconButton size="small" onClick={handleDownload} disabled={!svg} sx={{ width: 44, height: 44 }}>
+                <FileDownloadOutlinedIcon sx={{ fontSize: { xs: 16, sm: 14 } }} />
               </IconButton>
-            </Tooltip>
+            </span>
+          </Tooltip>
 
-            <Tooltip title="Reset zoom">
-              <IconButton size="small" onClick={handleResetZoom} sx={{ width: 44, height: 44 }}>
-                <RestartAltRoundedIcon sx={{ fontSize: { xs: 18, sm: 16 } }} />
-              </IconButton>
-            </Tooltip>
-          </Box>
-          <Box sx={{
-            width: 1,
-            height: 16,
-            bgcolor: theme.palette.border.subtle,
-            mx: 0.5,
-            display: { xs: 'none', sm: 'block' },
-          }} />
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
-            <Tooltip title={copied ? 'Copied!' : 'Copy code'}>
-              <IconButton size="small" onClick={handleCopy} sx={{ width: 44, height: 44 }}>
-                {copied ? <CheckRoundedIcon sx={{ fontSize: { xs: 16, sm: 14 } }} /> : <ContentCopyRoundedIcon sx={{ fontSize: { xs: 16, sm: 14 } }} />}
-              </IconButton>
-            </Tooltip>
-
-            <Tooltip title="Download SVG">
-              <span>
-                <IconButton size="small" onClick={handleDownload} disabled={!svg} sx={{ width: 44, height: 44 }}>
-                  <FileDownloadOutlinedIcon sx={{ fontSize: { xs: 16, sm: 14 } }} />
-                </IconButton>
-              </span>
-            </Tooltip>
-
-            <Tooltip title={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
-              <IconButton size="small" onClick={toggleFullscreen} sx={{ width: 44, height: 44 }}>
-                {fullscreen ? <FullscreenExitRoundedIcon sx={{ fontSize: { xs: 18, sm: 16 } }} /> : <FullscreenRoundedIcon sx={{ fontSize: { xs: 18, sm: 16 } }} />}
-              </IconButton>
-            </Tooltip>
-          </Box>
+          <Tooltip title={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
+            <IconButton size="small" onClick={toggleFullscreen} sx={{ width: 44, height: 44 }}>
+              {fullscreen ? <FullscreenExitRoundedIcon sx={{ fontSize: { xs: 18, sm: 16 } }} /> : <FullscreenRoundedIcon sx={{ fontSize: { xs: 18, sm: 16 } }} />}
+            </IconButton>
+          </Tooltip>
         </Box>
       </Box>
       <Box
+        ref={diagramRef}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
