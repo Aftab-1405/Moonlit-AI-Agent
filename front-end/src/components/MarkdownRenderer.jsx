@@ -53,8 +53,8 @@ const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isD
   }, [onRunQuery, isSQL, isRunning, code]);
 
   const containerStyles = useMemo(() => ({
-    my: 2,
-    borderRadius: '12px',
+    my: { xs: 1.5, sm: 2 },
+    borderRadius: { xs: '8px', sm: '12px' },
     overflow: 'hidden',
     backgroundColor: theme.palette.background.elevated,
     border: '1px solid',
@@ -70,13 +70,19 @@ const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isD
     <Box sx={containerStyles}>
       <Box sx={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        px: 1.5,
-        py: 0.5,
+        px: { xs: 1, sm: 2 },
+        py: { xs: 0.5, sm: 0.75 },
+        minHeight: { xs: 40, sm: 44 },
         borderBottom: '1px solid',
-        borderColor: theme.palette.divider,
+        borderColor: theme.palette.border.subtle,
         backgroundColor: theme.palette.action.hover,
       }}>
-        <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500, textTransform: 'uppercase' }}>
+        <Typography variant="caption" sx={{
+          color: 'text.secondary',
+          fontWeight: 500,
+          textTransform: 'uppercase',
+          ...theme.typography.uiCaption2xs,
+        }}>
           {language || 'code'}
         </Typography>
         <Box sx={{ display: 'flex', gap: 0.5 }}>
@@ -88,12 +94,13 @@ const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isD
                   onClick={handleRun}
                   disabled={isRunning}
                   sx={{
-                    p: 0.5,
+                    width: 44,
+                    height: 44,
                     color: isRunning ? 'text.disabled' : 'success.main',
                     '&:hover': { color: 'success.light', bgcolor: alpha(theme.palette.success.main, 0.1) },
                   }}
                 >
-                  {isRunning ? <CircularProgress size={14} color="inherit" /> : <PlayArrowRoundedIcon sx={{ fontSize: 16 }} />}
+                  {isRunning ? <CircularProgress size={14} color="inherit" /> : <PlayArrowRoundedIcon sx={{ fontSize: { xs: 18, sm: 16 } }} />}
                 </IconButton>
               </span>
             </Tooltip>
@@ -103,12 +110,13 @@ const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isD
               size="small"
               onClick={handleCopy}
               sx={{
-                p: 0.5,
+                width: 44,
+                height: 44,
                 color: copied ? 'success.main' : 'text.disabled',
                 '&:hover': { color: 'text.primary', bgcolor: alpha(theme.palette.text.primary, 0.05) },
               }}
             >
-              {copied ? <CheckRoundedIcon sx={{ fontSize: 14 }} /> : <ContentCopyRoundedIcon sx={{ fontSize: 14 }} />}
+              {copied ? <CheckRoundedIcon sx={{ fontSize: { xs: 16, sm: 14 } }} /> : <ContentCopyRoundedIcon sx={{ fontSize: { xs: 16, sm: 14 } }} />}
             </IconButton>
           </Tooltip>
         </Box>
