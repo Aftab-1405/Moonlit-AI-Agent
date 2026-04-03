@@ -2,20 +2,19 @@ import { useState, memo, useCallback, useMemo, useEffect } from 'react';
 import {
   Box,
   Typography,
-  IconButton,
   Tooltip,
   List,
   Avatar,
   Drawer,
+  ListItemButton,
   useMediaQuery,
 } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
+import { alpha, useTheme } from '@mui/material/styles';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import StorageOutlinedIcon from '@mui/icons-material/StorageOutlined';
 import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined';
-import KeyboardDoubleArrowLeftRoundedIcon from '@mui/icons-material/KeyboardDoubleArrowLeftRounded';
-import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined';
 import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
+import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import { getUserContext } from '../../api';
 import { getScrollbarStyles } from '../../styles/shared';
 import logger from '../../utils/logger';
@@ -62,18 +61,19 @@ function Sidebar({
   const [mindmapOpen, setMindmapOpen] = useState(false);
   const [schemaData, setSchemaData] = useState(null);
   const [schemaLoading, setSchemaLoading] = useState(false);
-  const [showExpandedDesktopContent, setShowExpandedDesktopContent] = useState(open);
-
   const isPopoverOpen = Boolean(dbPopoverAnchor);
   const isHistoryPopoverOpen = Boolean(historyPopoverAnchor);
-  const desktopUsesExpandedContent = open || showExpandedDesktopContent;
-
   const scrollbarStyles = useMemo(() => getScrollbarStyles(theme), [theme]);
-
   const mobileDrawerPaperStyles = useMemo(
     () => buildMobileDrawerPaperStyles(theme),
     [theme],
   );
+  const userInitials = useMemo(() => {
+    const name = user?.displayName?.trim();
+    if (!name) return 'M';
+    const parts = name.split(/\s+/).filter(Boolean);
+    return parts.slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'M';
+  }, [user?.displayName]);
 
   const handleDatabaseSelect = useCallback((dbName) => {
     setDbPopoverAnchor(null);
@@ -122,39 +122,26 @@ function Sidebar({
   }, [onOpenDbModal]);
 
   useEffect(() => {
-    if (open) {
-      setShowExpandedDesktopContent(true);
-    }
-  }, [open]);
-
-  useEffect(() => {
     if ((isMobile && !mobileOpen) || (!isMobile && !open)) {
       setDbPopoverAnchor(null);
       setHistoryPopoverAnchor(null);
     }
   }, [isMobile, mobileOpen, open]);
 
-  const handleDesktopTransitionEnd = useCallback((event) => {
-    if (event.target !== event.currentTarget || event.propertyName !== 'width' || open) {
-      return;
-    }
-    setShowExpandedDesktopContent(false);
-  }, [open]);
-
   const primaryNavItems = useMemo(() => {
     const items = [
       {
         id: 'new-chat',
-        label: 'New Chat',
+        label: 'New chat',
         tooltip: 'New chat',
-        icon: <ChatBubbleOutlineRoundedIcon sx={{ fontSize: 20 }} />,
+        icon: <ChatBubbleOutlineRoundedIcon sx={{ fontSize: 18 }} />,
         onClick: () => onNewChat?.(),
       },
       {
         id: 'database',
         label: 'Database',
         tooltip: isConnected ? (currentDatabase || 'Connected database') : 'Connect database',
-        icon: <StorageOutlinedIcon sx={{ fontSize: 20 }} />,
+        icon: <StorageOutlinedIcon sx={{ fontSize: 18 }} />,
         onClick: handleDatabaseAction,
         showStatus: isConnected,
       },
@@ -165,19 +152,13 @@ function Sidebar({
         id: 'mindmap',
         label: 'Mindmap',
         tooltip: 'View database mindmap',
-        icon: <AccountTreeOutlinedIcon sx={{ fontSize: 20 }} />,
+        icon: <AccountTreeOutlinedIcon sx={{ fontSize: 18 }} />,
         onClick: () => handleOpenMindmap(),
       });
     }
 
     return items;
-  }, [
-    onNewChat,
-    isConnected,
-    currentDatabase,
-    handleDatabaseAction,
-    handleOpenMindmap,
-  ]);
+  }, [onNewChat, isConnected, currentDatabase, handleDatabaseAction, handleOpenMindmap]);
 
   const railNavItems = useMemo(
     () => [
@@ -185,8 +166,8 @@ function Sidebar({
       {
         id: 'history',
         label: 'History',
-        tooltip: 'Conversation history',
-        icon: <HistoryOutlinedIcon sx={{ fontSize: 20 }} />,
+        tooltip: 'Recent chats',
+        icon: <HistoryOutlinedIcon sx={{ fontSize: 18 }} />,
         onClick: handleHistoryClick,
         disabled: conversations.length === 0,
       },
@@ -194,55 +175,111 @@ function Sidebar({
     [conversations.length, handleHistoryClick, primaryNavItems],
   );
 
-  const renderHeader = (collapsed) => (
-    <Box
-      sx={{
-        px: 1,
-        py: { xs: 1, sm: 1.5 },
-        minHeight: { xs: 48, sm: 56 },
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'flex-start',
-      }}
-    >
+  // FIX 1: renderHeader — always 'row', never flips flexDirection.
+  // Title uses opacity + maxWidth transition instead of conditional mount/unmount.
+  // Stable minHeight prevents height jitter during transition.
+  const renderHeader = ({ collapsed = false, mobile = false } = {}) => {
+    const toggleLabel = mobile
+      ? 'Close sidebar'
+      : collapsed
+        ? 'Expand sidebar'
+        : 'Collapse sidebar';
+
+    return (
       <Box
         sx={{
-          width: 44,
-          height: 44,
-          flexShrink: 0,
+          px: 1.25,
+          pt: 1.25,
+          pb: 1,
+          minHeight: 52,
           display: 'flex',
+          flexDirection: 'row',        // FIXED: never flips — flexDirection is not CSS-animatable
           alignItems: 'center',
-          justifyContent: 'center',
+          justifyContent: 'flex-start',
+          gap: 1,
         }}
       >
+        <Tooltip title={toggleLabel} placement="right" arrow>
+          <Box
+            component="button"
+            type="button"
+            onClick={mobile ? onMobileClose : onToggleOpen}
+            aria-label={toggleLabel}
+            sx={{
+              width: 36,
+              height: 36,
+              p: 0,
+              border: 'none',
+              outline: 'none',
+              appearance: 'none',
+              borderRadius: '10px',
+              backgroundColor: 'transparent',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              color: 'inherit',
+              flexShrink: 0,
+              WebkitTapHighlightColor: 'transparent',
+              transition: theme.transitions.create('background-color', {
+                easing: theme.transitions.easing.easeInOut,
+                duration: theme.transitions.duration.shorter,
+              }),
+              '&:hover': {
+                backgroundColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.06),
+              },
+              '&:focus-visible': {
+                boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.28)}`,
+              },
+            }}
+          >
+            <Box
+              component="img"
+              src="/product-logo.png"
+              alt="Moonlit"
+              sx={{
+                width: 22,
+                height: 22,
+                flexShrink: 0,
+                opacity: 0.95,
+                display: 'block',
+              }}
+            />
+          </Box>
+        </Tooltip>
+
+        {/* FIXED: always mounted, fades + shrinks instead of unmounting */}
         <Box
-          component="img"
-          src="/product-logo.png"
-          alt="Moonlit"
           sx={{
-            width: 24,
-            height: 24,
-            opacity: 0.95,
-          }}
-        />
-      </Box>
-      {!collapsed && (
-        <Typography
-          variant="subtitle1"
-          sx={{
-            ml: 0.5,
-            ...theme.typography.uiSidebarWordmark,
-            color: 'text.primary',
+            flex: '1 1 auto',
+            minWidth: 0,
+            maxWidth: collapsed ? 0 : 160,
+            opacity: collapsed ? 0 : 1,
+            overflow: 'hidden',
+            transition: theme.transitions.create(['max-width', 'opacity'], {
+              easing: theme.transitions.easing.sharp,
+              duration: theme.transitions.duration.shorter,
+            }),
           }}
         >
-          Moonlit
-        </Typography>
-      )}
-    </Box>
-  );
+          <Typography
+            noWrap
+            sx={{
+              fontSize: '0.95rem',
+              fontWeight: 600,
+              lineHeight: 1.2,
+              color: 'text.primary',
+            }}
+          >
+            Moonlit
+          </Typography>
+        </Box>
+      </Box>
+    );
+  };
 
-  const renderNavigation = (items, collapsed, disabled = false) => (
-    <Box sx={{ px: 0.5, py: 0.75 }}>
+  const renderNavigation = (items, collapsed) => (
+    <Box sx={{ px: 0.25, py: 0.25 }}>
       <List disablePadding>
         {items.map((item) => (
           <SidebarNavItem
@@ -253,7 +290,7 @@ function Sidebar({
             onClick={item.onClick}
             isCollapsed={collapsed}
             showStatus={item.showStatus}
-            disabled={disabled || item.disabled}
+            disabled={item.disabled}
           />
         ))}
       </List>
@@ -262,15 +299,27 @@ function Sidebar({
 
   const renderHistorySection = () => (
     <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', px: 2.5, pt: 1.5, pb: 0.75 }}>
-        History
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{
+          display: 'block',
+          px: 2,
+          pt: 1.5,
+          pb: 0.75,
+          fontSize: '0.7rem',
+          letterSpacing: '0.04em',
+          textTransform: 'uppercase',
+        }}
+      >
+        Recent chats
       </Typography>
       <List
         dense
         disablePadding
         sx={{
-          px: 1,
-          pb: 1,
+          px: 0.75,
+          pb: 0.75,
           flex: 1,
           overflowY: 'auto',
           overflowX: 'hidden',
@@ -280,8 +329,8 @@ function Sidebar({
         {isConversationsLoading ? (
           <HistoryListSkeleton />
         ) : conversations.length === 0 ? (
-          <Box sx={{ p: 2, textAlign: 'center', opacity: 0.5 }}>
-            <Typography variant="caption" color="text.secondary">
+          <Box sx={{ px: 1.5, py: 2, opacity: 0.6 }}>
+            <Typography sx={{ fontSize: '0.8rem', color: 'text.secondary', lineHeight: 1.4 }}>
               No conversations yet
             </Typography>
           </Box>
@@ -300,26 +349,17 @@ function Sidebar({
     </Box>
   );
 
-  const renderFooter = ({ collapsed = false, disabled = false, mobile = false } = {}) => {
+  // FIX 2: renderFooter — Avatar is a stable 30px (no size jump during transition).
+  // Label + chevron always mounted, fades + shrinks instead of unmounting.
+  const renderFooter = ({ collapsed = false } = {}) => {
     const profileTooltipTitle = collapsed ? (user?.displayName || 'Profile') : '';
-    const toggleTooltipTitle = collapsed ? 'Expand sidebar' : '';
-    const toggleAriaLabel = mobile
-      ? 'Close sidebar'
-      : collapsed
-        ? 'Expand sidebar'
-        : 'Collapse sidebar';
 
     return (
       <Box
         sx={{
-          borderTop: '1px solid',
-          borderColor: 'divider',
-          p: 1,
-          display: 'flex',
-          flexDirection: collapsed ? 'column' : 'row',
-          alignItems: collapsed ? 'flex-start' : 'center',
-          justifyContent: collapsed ? 'center' : 'space-between',
-          gap: collapsed ? 0.5 : 0,
+          borderTop: `1px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.06)}`,
+          px: 0.75,
+          py: 0.75,
         }}
       >
         <Tooltip
@@ -330,53 +370,65 @@ function Sidebar({
           disableFocusListener={!profileTooltipTitle}
           disableTouchListener={!profileTooltipTitle}
         >
-          <Box>
-            <IconButton
-              onClick={handleProfileClick}
-              disabled={disabled}
-              size="small"
-              aria-label="Open profile menu"
-              sx={{ width: 44, height: 44 }}
-            >
-              {user?.photoURL ? (
-                <Avatar src={user.photoURL} sx={{ width: 24, height: 24 }} />
-              ) : (
-                <AccountCircleOutlinedIcon sx={{ fontSize: 24 }} />
-              )}
-            </IconButton>
-          </Box>
-        </Tooltip>
+          <ListItemButton
+            onClick={handleProfileClick}
+            aria-label="Open profile menu"
+            sx={{
+              minHeight: 44,
+              px: 1,
+              py: 0.75,
+              borderRadius: '12px',
+              justifyContent: 'flex-start',
+              gap: 1,
+            }}
+          >
+            {/* FIXED: stable 30px — no size reflow during collapse animation */}
+            {user?.photoURL ? (
+              <Avatar src={user.photoURL} sx={{ width: 30, height: 30, flexShrink: 0 }} />
+            ) : (
+              <Avatar sx={{ width: 30, height: 30, flexShrink: 0, fontSize: '0.78rem', fontWeight: 600 }}>
+                {userInitials}
+              </Avatar>
+            )}
 
-        <Tooltip
-          title={toggleTooltipTitle}
-          placement="right"
-          arrow
-          disableHoverListener={!toggleTooltipTitle}
-          disableFocusListener={!toggleTooltipTitle}
-          disableTouchListener={!toggleTooltipTitle}
-        >
-          <Box>
-            <IconButton
-              onClick={mobile ? onMobileClose : onToggleOpen}
-              disabled={disabled}
-              size="small"
-              aria-label={toggleAriaLabel}
-              sx={{ width: 44, height: 44 }}
+            {/* FIXED: always mounted, fades + shrinks */}
+            <Box
+              sx={{
+                flex: '1 1 auto',
+                minWidth: 0,
+                maxWidth: collapsed ? 0 : 200,
+                opacity: collapsed ? 0 : 1,
+                overflow: 'hidden',
+                transition: theme.transitions.create(['max-width', 'opacity'], {
+                  easing: theme.transitions.easing.sharp,
+                  duration: theme.transitions.duration.shorter,
+                }),
+              }}
             >
-              <KeyboardDoubleArrowLeftRoundedIcon
-                sx={{
-                  fontSize: 20,
-                  transform: mobile ? 'none' : (collapsed ? 'rotate(180deg)' : 'rotate(0deg)'),
-                  transition: theme.transitions.create('transform', {
-                    easing: theme.transitions.easing.sharp,
-                    duration: collapsed
-                      ? theme.transitions.duration.leavingScreen
-                      : theme.transitions.duration.enteringScreen,
-                  }),
-                }}
-              />
-            </IconButton>
-          </Box>
+              <Typography noWrap sx={{ fontSize: '0.86rem', fontWeight: 500, lineHeight: 1.2, color: 'text.primary' }}>
+                {user?.displayName || 'Profile'}
+              </Typography>
+              <Typography noWrap sx={{ fontSize: '0.72rem', lineHeight: 1.2, color: 'text.secondary', mt: 0.2 }}>
+                Settings
+              </Typography>
+            </Box>
+
+            {/* FIXED: chevron always mounted, fades out */}
+            <Box
+              sx={{
+                maxWidth: collapsed ? 0 : 24,
+                opacity: collapsed ? 0 : 1,
+                overflow: 'hidden',
+                flexShrink: 0,
+                transition: theme.transitions.create(['max-width', 'opacity'], {
+                  easing: theme.transitions.easing.sharp,
+                  duration: theme.transitions.duration.shorter,
+                }),
+              }}
+            >
+              <ExpandMoreRoundedIcon sx={{ fontSize: 18, color: 'text.secondary', display: 'block' }} />
+            </Box>
+          </ListItemButton>
         </Tooltip>
       </Box>
     );
@@ -384,25 +436,72 @@ function Sidebar({
 
   const expandedSidebarContent = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {renderHeader(false)}
+      {renderHeader({ mobile: isMobile })}
       {renderNavigation(primaryNavItems, false)}
       {renderHistorySection()}
-      {renderFooter({ mobile: isMobile })}
+      {renderFooter()}
     </Box>
   );
 
-  const collapsedRailContent = (
+  // FIX 3: desktopSidebarContent — history section and collapsed history icon are BOTH
+  // always mounted inside a stable flex:1 container. They crossfade via opacity + visibility
+  // instead of unmounting and remounting, which was the primary cause of layout jitter.
+  const desktopSidebarContent = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {renderHeader(true)}
-      {renderNavigation(railNavItems, true)}
-      <Box sx={{ flex: 1, minHeight: 0 }} />
-      {renderFooter({ collapsed: true })}
+      {renderHeader({ collapsed: !open })}
+      {renderNavigation(primaryNavItems, !open)}
+
+      <Box sx={{ flex: 1, minHeight: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}>
+        {/* Expanded: full history list — always mounted, hidden when collapsed */}
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            opacity: open ? 1 : 0,
+            visibility: open ? 'visible' : 'hidden',
+            transition: theme.transitions.create('opacity', {
+              easing: theme.transitions.easing.sharp,
+              duration: theme.transitions.duration.shorter,
+            }),
+          }}
+        >
+          {renderHistorySection()}
+        </Box>
+
+        {/* Collapsed: history icon — always mounted, hidden when expanded */}
+        <Box
+          sx={{
+            px: 0.25,
+            py: 0.25,
+            opacity: open ? 0 : 1,
+            visibility: open ? 'hidden' : 'visible',
+            transition: theme.transitions.create('opacity', {
+              easing: theme.transitions.easing.sharp,
+              duration: theme.transitions.duration.shorter,
+            }),
+          }}
+        >
+          <List disablePadding>
+            <SidebarNavItem
+              label="History"
+              tooltip="Recent chats"
+              icon={<HistoryOutlinedIcon sx={{ fontSize: 18 }} />}
+              onClick={handleHistoryClick}
+              isCollapsed
+              disabled={conversations.length === 0}
+            />
+          </List>
+        </Box>
+      </Box>
+
+      {renderFooter({ collapsed: !open })}
     </Box>
   );
-
-  const desktopSidebarContent = desktopUsesExpandedContent
-    ? expandedSidebarContent
-    : collapsedRailContent;
 
   if (isMobile) {
     return (
@@ -443,7 +542,7 @@ function Sidebar({
 
   return (
     <>
-      <StyledDesktopSidebarPanel open={open} onTransitionEnd={handleDesktopTransitionEnd}>
+      <StyledDesktopSidebarPanel variant="permanent" open={open}>
         {desktopSidebarContent}
       </StyledDesktopSidebarPanel>
       <SidebarOverlays

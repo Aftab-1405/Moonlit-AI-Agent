@@ -25,21 +25,16 @@ import DatabaseModal from '../components/DatabaseModal';
 import SQLResultsTable from '../components/SQLResultsTable';
 import SettingsModal from '../components/SettingsModal';
 import ConfirmDialog from '../components/ConfirmDialog';
-import StarfieldCanvas from '../components/StarfieldCanvas';
 import SQLEditorCanvas from '../components/SQLEditorCanvas';
 import ResizeHandle from '../components/ResizeHandle';
 import WelcomeScreen from '../components/WelcomeScreen';
 import { useChatPageController } from '../hooks/chat-page/useChatPageController';
-
-import { BACKDROP_FILTER_FALLBACK_QUERY } from '../styles/mediaQueries';
 import { getScrollbarStyles } from '../styles/shared';
 
 function Chat() {
   const {
     theme,
     isNarrowLayout,
-    starfieldActive,
-    idleAnimationIntensity,
     anchorEl,
     user,
     handleMenuClose,
@@ -87,26 +82,18 @@ function Chat() {
   } = useChatPageController();
 
   return (
-    <Box sx={{
-      display: 'flex',
-      height: '100dvh',
-      '@supports not (height: 100dvh)': {
-        height: '100vh',
-      },
-      bgcolor: 'background.default',
-      overflow: 'hidden',
-      position: 'relative',
-    }}>
-      <StarfieldCanvas active={starfieldActive} intensity={idleAnimationIntensity} />
-      <Box
-        sx={{
-          position: 'absolute',
-          inset: 0,
-          zIndex: 0,
-          pointerEvents: 'none',
-          background: `radial-gradient(ellipse at top right, ${alpha(theme.palette.info.main, 0.04)} 0%, transparent 50%)`,
-        }}
-      />
+    <Box
+      sx={{
+        display: 'flex',
+        height: '100dvh',
+        '@supports not (height: 100dvh)': {
+          height: '100vh',
+        },
+        bgcolor: 'background.default',
+        overflow: 'hidden',
+        position: 'relative',
+      }}
+    >
       <Menu
         anchorEl={anchorEl}
         open={Boolean(anchorEl)}
@@ -152,16 +139,14 @@ function Chat() {
             height: { xs: '100vh', md: '100vh' },
           },
           overflow: 'hidden',
-          backgroundColor: starfieldActive
-            ? alpha(theme.palette.background.default, 0.58)
-            : theme.palette.glassmorphism.background,
+          backgroundColor: theme.palette.background.default,
           position: 'relative',
           zIndex: 1,
           minWidth: 0,
-          transition: `${theme.transitions.create(['width', 'margin'], {
+          transition: theme.transitions.create(['width', 'margin'], {
             easing: theme.transitions.easing.sharp,
             duration: theme.transitions.duration.enteringScreen,
-          })}, background-color 420ms ${theme.transitions.easing.easeInOut}`,
+          }),
         }}
       >
         {isNarrowLayout && (
@@ -177,16 +162,11 @@ function Chat() {
               width: 44,
               height: 44,
               border: '1px solid',
-              borderColor: alpha(theme.palette.text.primary, 0.08),
-              backgroundColor: alpha(theme.palette.background.default, 0.68),
-              backdropFilter: 'blur(12px)',
-              WebkitBackdropFilter: 'blur(12px)',
-              [BACKDROP_FILTER_FALLBACK_QUERY]: {
-                backdropFilter: 'none',
-                WebkitBackdropFilter: 'none',
-              },
+              borderColor: alpha(theme.palette.text.primary, 0.1),
+              backgroundColor: alpha(theme.palette.background.paper, 0.96),
+              boxShadow: `0 6px 18px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.18 : 0.08)}`,
               '&:hover': {
-                backgroundColor: alpha(theme.palette.background.default, 0.84),
+                backgroundColor: alpha(theme.palette.background.paper, 1),
               },
             }}
           >
@@ -194,7 +174,7 @@ function Chat() {
           </IconButton>
         )}
 
-        <Box sx={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
           <WelcomeScreen
             visible={showWelcomeState}
             user={user}
@@ -210,6 +190,9 @@ function Chat() {
                   minHeight: 0,
                   overflowY: 'auto',
                   overflowX: 'hidden',
+                  px: { xs: 0, sm: 1 },
+                  pt: { xs: 2, sm: 3 },
+                  pb: { xs: 1, sm: 2 },
                   ...getScrollbarStyles(theme),
                 }}
               >
@@ -225,21 +208,12 @@ function Chat() {
               <Box
                 sx={{
                   flexShrink: 0,
-                  position: 'sticky',
-                  bottom: 0,
                   zIndex: 2,
-                  pb: 'max(env(safe-area-inset-bottom), 0px)',
-                  background: `linear-gradient(to top, ${alpha(theme.palette.background.default, 0.94)} 70%, transparent)`,
-                  backdropFilter: 'blur(6px)',
-                  WebkitBackdropFilter: 'blur(6px)',
-                  [BACKDROP_FILTER_FALLBACK_QUERY]: {
-                    backdropFilter: 'none',
-                    WebkitBackdropFilter: 'none',
-                  },
-                  [theme.breakpoints.down('sm')]: {
-                    backdropFilter: 'none',
-                    WebkitBackdropFilter: 'none',
-                  },
+                  px: { xs: 0, sm: 1 },
+                  pt: { xs: 1, sm: 1.5 },
+                  pb: 'max(env(safe-area-inset-bottom), 8px)',
+                  borderTop: `1px solid ${alpha(theme.palette.divider, 0.65)}`,
+                  backgroundColor: alpha(theme.palette.background.default, 0.98),
                 }}
               >
                 <ChatInput
@@ -334,9 +308,10 @@ function Chat() {
           },
         }}
         PaperProps={{
-          sx: { bgcolor: 'background.paper',
+          sx: {
+            bgcolor: 'background.paper',
             backgroundImage: 'none',
-          }
+          },
         }}
       >
         {queryResults && <SQLResultsTable data={queryResults} onClose={handleCloseQueryResults} />}
@@ -357,4 +332,3 @@ function Chat() {
 }
 
 export default Chat;
-

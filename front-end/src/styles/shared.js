@@ -10,7 +10,7 @@ export const UI_LAYOUT = Object.freeze({
   touchTarget: 44,
   compactTouchTarget: 40,
   sidebarExpandedWidth: 260,
-  sidebarCollapsedWidth: 56,
+  sidebarCollapsedWidth: 52,
   chatInputMaxWidth: 760,
   contentMaxWidth: 800,
   dialogDesktopOffset: 64,
@@ -86,7 +86,6 @@ export const getCompactActionSx = (
 export const getToolbarChipSx = (
   theme,
   {
-    isCompactMobile = false,
     interactive = true,
   } = {},
 ) => ({
