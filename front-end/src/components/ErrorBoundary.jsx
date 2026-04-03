@@ -140,13 +140,13 @@ class ErrorBoundary extends Component {
                 <Typography
                   variant="caption"
                   component="pre"
-                  sx={{
+                  sx={(theme) => ({
                     fontFamily: theme.typography.fontFamilyMono,
                     ...theme.typography.uiCaptionXs,
                     whiteSpace: 'pre',
                     overflowX: 'auto',
                     m: 0,
-                  }}
+                  })}
                 >
                   {this.state.error.toString()}
                   {this.state.errorInfo?.componentStack}

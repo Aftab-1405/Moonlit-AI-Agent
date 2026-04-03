@@ -2,19 +2,19 @@ import { useState, useEffect, useMemo, useCallback, useRef, memo } from 'react';
 import { Box, Typography, Collapse, useTheme, ButtonBase, useMediaQuery } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
-import { TRANSITIONS } from '../theme';
+import { TRANSITIONS } from '../../theme';
 import {
   ThinkingStep,
   ToolStep,
   DoneIndicator,
-} from './ai-response-steps/StepTimelineItems';
-import { TIMELINE_LINE_X, slideIn } from './ai-response-steps/timelineShared';
+} from './StepTimelineItems';
+import { TIMELINE_LINE_X, slideIn } from './timelineShared';
 import {
   normalizeSteps,
   buildStepsSummary,
   getCurrentStepIndex,
   areAllStepsComplete,
-} from './ai-response-steps/stepUtils';
+} from './stepUtils';
 
 export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming }) {
   const [expanded, setExpanded] = useState(() => !!isStreaming);

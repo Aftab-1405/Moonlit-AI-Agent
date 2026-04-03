@@ -16,19 +16,19 @@ import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined';
 import KeyboardDoubleArrowLeftRoundedIcon from '@mui/icons-material/KeyboardDoubleArrowLeftRounded';
 import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined';
 import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
-import { getUserContext } from '../api';
-import { getScrollbarStyles } from '../styles/shared';
-import logger from '../utils/logger';
+import { getUserContext } from '../../api';
+import { getScrollbarStyles } from '../../styles/shared';
+import logger from '../../utils/logger';
 import {
   ConversationItem,
   SidebarNavItem,
   HistoryListSkeleton,
-} from './sidebar/SidebarPrimitives';
-import SidebarOverlays from './sidebar/SidebarOverlays';
+} from './SidebarPrimitives';
+import SidebarOverlays from './SidebarOverlays';
 import {
   StyledDesktopSidebarPanel,
   buildMobileDrawerPaperStyles,
-} from './sidebar/sidebarStyles';
+} from './sidebarStyles';
 
 const MOBILE_DRAWER_SLIDE_PROPS = {
   mountOnEnter: true,
