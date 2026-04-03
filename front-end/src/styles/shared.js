@@ -90,20 +90,26 @@ export const getToolbarChipSx = (
     interactive = true,
   } = {},
 ) => ({
-  height: isCompactMobile ? 28 : 26,
-  borderRadius: '12px',
+  height: 26,
+  borderRadius: '8px',
   border: '1px solid',
-  borderColor: alpha(theme.palette.text.primary, 0.2),
+  borderColor: alpha(theme.palette.text.primary, 0.14),
   backgroundColor: alpha(theme.palette.text.primary, 0.04),
   '& .MuiChip-label': {
-    px: isCompactMobile ? 0.75 : 1,
+    px: 0.875,
+    ...theme.typography.uiCaptionSm,
+    lineHeight: 1,
+  },
+  '& .MuiChip-icon': {
+    fontSize: 13,
+    ml: 0.625,
   },
   ...(interactive
     ? {
         [HOVER_CAPABLE_QUERY]: {
           '&:hover': {
-            borderColor: alpha(theme.palette.text.primary, 0.35),
-            backgroundColor: alpha(theme.palette.text.primary, 0.08),
+            borderColor: alpha(theme.palette.text.primary, 0.28),
+            backgroundColor: alpha(theme.palette.text.primary, 0.07),
           },
         },
       }

@@ -3,6 +3,7 @@ import {
   Box,
   TextField,
   IconButton,
+  ButtonBase,
   Tooltip,
   Typography,
   Chip,
@@ -24,8 +25,6 @@ import StopRoundedIcon from '@mui/icons-material/StopRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
-import RadioButtonUncheckedRoundedIcon from '@mui/icons-material/RadioButtonUncheckedRounded';
-import RadioButtonCheckedRoundedIcon from '@mui/icons-material/RadioButtonCheckedRounded';
 import StorageOutlinedIcon from '@mui/icons-material/StorageOutlined';
 import CodeRoundedIcon from '@mui/icons-material/CodeRounded';
 import KeyboardArrowUpRoundedIcon from '@mui/icons-material/KeyboardArrowUpRounded';
@@ -38,7 +37,7 @@ import {
   REDUCED_MOTION_QUERY,
 } from '../styles/mediaQueries';
 import logger from '../utils/logger';
-import { getCompactActionSx, getToolbarChipSx, UI_LAYOUT } from '../styles/shared';
+import { getToolbarChipSx, UI_LAYOUT } from '../styles/shared';
 
 const MENU_HEADER_STYLES = { px: 2, py: 0.5, display: 'block', color: 'text.secondary' };
 const LIST_ITEM_ICON_STYLES = { minWidth: 28 };
@@ -252,32 +251,23 @@ function ChatInput({
 
   const llmChipStyles = useMemo(() => ({
     ...getToolbarChipSx(theme, { isCompactMobile, interactive: hasLlmOptions || llmOptionsLoading }),
-    height: isCompactMobile ? 28 : 26,
-    width: 'auto',
-    maxWidth: { xs: 'min(44vw, 132px)', sm: 190 },
-    borderRadius: '12px',
+    maxWidth: { xs: 'min(44vw, 140px)', sm: 200 },
     borderColor: llmAnchor
-      ? alpha(theme.palette.text.primary, 0.26)
-      : alpha(theme.palette.text.primary, 0.12),
-    backgroundColor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.58 : 0.84),
+      ? alpha(theme.palette.text.primary, 0.24)
+      : alpha(theme.palette.text.primary, 0.14),
+    backgroundColor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.5 : 0.8),
     color: 'text.primary',
-    boxShadow: llmAnchor
-      ? '0 0 0 1px ' + alpha(theme.palette.text.primary, 0.06)
-      : 'none',
-    '& .MuiChip-icon': {
-      color: reasoningEnabled ? theme.palette.info.main : theme.palette.text.secondary,
-      ml: 0.75,
-    },
     '& .MuiChip-label': {
       display: 'inline-flex',
       alignItems: 'center',
       overflow: 'hidden',
       maxWidth: '100%',
-      paddingLeft: theme.spacing(0.75),
-      paddingRight: theme.spacing(0.75),
+      px: 0.875,
       py: 0,
+      ...theme.typography.uiCaptionSm,
+      lineHeight: 1,
     },
-  }), [theme, isCompactMobile, hasLlmOptions, llmOptionsLoading, llmAnchor, reasoningEnabled]);
+  }), [theme, isCompactMobile, hasLlmOptions, llmOptionsLoading, llmAnchor]);
 
   return (
     <Box sx={{ position: 'relative' }}>
@@ -305,7 +295,7 @@ function ChatInput({
         </Box>
       </Collapse>
       <Collapse in={!isHidden} timeout={300}>
-        <Box component="form" onSubmit={handleSubmit} sx={{ p: { xs: 1, sm: 3 }, pb: { xs: 'max(env(safe-area-inset-bottom), 10px)', sm: 2.5 } }}>
+        <Box component="form" onSubmit={handleSubmit} sx={{ p: { xs: 0.75, sm: 1.5 }, pb: { xs: 'max(env(safe-area-inset-bottom), 8px)', sm: 1.75 } }}>
           <Menu
             anchorEl={dbAnchor}
             open={Boolean(dbAnchor)}
@@ -344,164 +334,181 @@ function ChatInput({
             onClose={handleCloseLlmPopover}
             anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
             transformOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-            PaperProps={{
-              sx: {
-                width: { xs: 'min(280px, calc(100vw - 24px))', sm: 292 },
-                mb: 0.75,
-                borderRadius: '16px',
-                border: '1px solid',
-                borderColor: alpha(theme.palette.text.primary, 0.08),
-                backgroundColor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.96 : 0.99),
-                backdropFilter: 'blur(14px)',
-                WebkitBackdropFilter: 'blur(14px)',
-                boxShadow: `0 14px 36px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.22 : 0.12)}`,
-                overflow: 'hidden',
-                [BACKDROP_FILTER_FALLBACK_QUERY]: {
-                  backdropFilter: 'none',
-                  WebkitBackdropFilter: 'none',
+            slotProps={{
+              paper: {
+                sx: {
+                  width: { xs: 'min(268px, calc(100vw - 24px))', sm: 276 },
+                  mt: -1,
+                  borderRadius: '14px',
+                  border: '1px solid',
+                  borderColor: alpha(theme.palette.text.primary, 0.09),
+                  backgroundColor: theme.palette.mode === 'dark'
+                    ? alpha(theme.palette.background.elevated, 0.97)
+                    : alpha(theme.palette.background.paper, 0.99),
+                  backdropFilter: 'blur(16px)',
+                  WebkitBackdropFilter: 'blur(16px)',
+                  boxShadow: `0 8px 28px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.3 : 0.1)}`,
+                  overflow: 'hidden',
+                  [BACKDROP_FILTER_FALLBACK_QUERY]: { backdropFilter: 'none', WebkitBackdropFilter: 'none' },
                 },
               },
             }}
           >
-            <Box sx={{ p: 0.75 }}>
-              <Typography variant="overline" sx={{ px: 1, py: 0.25, display: 'block', color: 'text.secondary', fontSize: '0.68rem', letterSpacing: '0.14em' }}>
-                Select model
+            {/* Header */}
+            <Box sx={{ px: 1.5, pt: 1.25, pb: 1 }}>
+              <Typography sx={{
+                ...theme.typography.uiCaption2xs,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                color: 'text.secondary',
+                fontWeight: 600,
+              }}>
+                Model
               </Typography>
-              <Box sx={{ px: 1, pb: 0.75 }}>
-                <Typography sx={{ fontWeight: 500, fontSize: '0.95rem', color: 'text.primary' }}>{selectedModel || 'Choose a model'}</Typography>
-                <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.74rem' }}>{activeProviderLabel || 'Available providers'}</Typography>
-              </Box>
-              <Divider sx={{ borderColor: alpha(theme.palette.text.primary, 0.08) }} />
-              <Box sx={{ py: 0.5, maxHeight: 248, overflowY: 'auto' }}>
-                {llmOptionsLoading ? (
-                  <Box sx={{ px: 1, display: 'grid', gap: 0.75 }}>
-                    {[0, 1, 2].map((index) => (
-                      <Skeleton key={index} variant="rounded" height={42} sx={{ borderRadius: 1.5 }} />
-                    ))}
-                  </Box>
-                ) : hasLlmOptions ? (
-                  llmSections.map((section, sectionIndex) => (
-                    <Box key={section.name} sx={{ px: 0.25, pt: sectionIndex === 0 ? 0 : 0.5 }}>
-                      <Typography variant="overline" sx={{ px: 0.75, py: 0.25, display: 'block', color: 'text.secondary', fontSize: '0.66rem', letterSpacing: '0.14em' }}>
-                        {section.label}
-                      </Typography>
-                      {section.models.map((model) => {
-                        const isActive = section.name === selectedProvider && model === selectedModel;
-                        return (
-                          <MenuItem
-                            role="menuitemradio"
-                            aria-checked={isActive}
-                            key={`${section.name}-${model}`}
-                            selected={isActive}
-                            onClick={() => handleLlmSelection(section.name, model)}
-                            sx={{
-                              borderRadius: 1.5,
-                              mx: 0.25,
-                              px: 1,
-                              py: 0.7,
-                              minHeight: 40,
-                              alignItems: 'flex-start',
-                              gap: 0.65,
-                              '&.Mui-selected': {
-                                backgroundColor: alpha(theme.palette.info.main, 0.08),
-                              },
-                              '&.Mui-selected:hover': {
-                                backgroundColor: alpha(theme.palette.info.main, 0.12),
-                              },
-                            }}
-                          >
-                            <Box sx={{ flex: 1, minWidth: 0 }}>
-                              <Typography sx={{ fontWeight: isActive ? 600 : 400, fontSize: '0.95rem' }}>{model}</Typography>
-                              <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.74rem' }}>
-                                {model === section.defaultModel ? 'Default model' : section.label}
-                              </Typography>
-                            </Box>
-                            {isActive ? <RadioButtonCheckedRoundedIcon sx={{ fontSize: 16, color: 'info.main', mt: 0.2 }} /> : <RadioButtonUncheckedRoundedIcon sx={{ fontSize: 16, color: 'text.disabled', mt: 0.2 }} />}
-                          </MenuItem>
-                        );
-                      })}
-                    </Box>
-                  ))
-                ) : (
-                  <Box sx={{ px: 1, py: 1.1 }}>
-                    <Typography sx={{ fontWeight: 500, fontSize: '0.95rem' }}>No models available</Typography>
-                    <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.74rem' }}>
-                      Model options could not be loaded right now.
+            </Box>
+
+            <Divider sx={{ borderColor: alpha(theme.palette.text.primary, 0.07) }} />
+
+            {/* Model list */}
+            <Box sx={{ py: 0.5, maxHeight: 232, overflowY: 'auto' }}>
+              {llmOptionsLoading ? (
+                <Box sx={{ px: 1.25, py: 0.5, display: 'grid', gap: 0.5 }}>
+                  {[0, 1, 2].map((i) => (
+                    <Skeleton key={i} variant="rounded" height={36} sx={{ borderRadius: '8px' }} />
+                  ))}
+                </Box>
+              ) : hasLlmOptions ? (
+                llmSections.map((section, sectionIndex) => (
+                  <Box key={section.name} sx={{ px: 0.75, pt: sectionIndex === 0 ? 0.25 : 0.75 }}>
+                    <Typography sx={{
+                      ...theme.typography.uiCaption2xs,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.07em',
+                      color: 'text.disabled',
+                      fontWeight: 600,
+                      px: 0.75,
+                      pb: 0.25,
+                      display: 'block',
+                    }}>
+                      {section.label}
                     </Typography>
+                    {section.models.map((model) => {
+                      const isActive = section.name === selectedProvider && model === selectedModel;
+                      return (
+                        <MenuItem
+                          role="menuitemradio"
+                          aria-checked={isActive}
+                          key={`${section.name}-${model}`}
+                          selected={isActive}
+                          onClick={() => handleLlmSelection(section.name, model)}
+                          sx={{
+                            borderRadius: '8px',
+                            px: 1,
+                            py: 0.625,
+                            minHeight: 'unset',
+                            gap: 1,
+                            '&.Mui-selected': { backgroundColor: alpha(theme.palette.text.primary, 0.07) },
+                            '&.Mui-selected:hover': { backgroundColor: alpha(theme.palette.text.primary, 0.1) },
+                          }}
+                        >
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography sx={{
+                              ...theme.typography.uiCaptionSm,
+                              fontWeight: isActive ? 600 : 400,
+                              color: 'text.primary',
+                              lineHeight: 1.3,
+                            }}>
+                              {model}
+                            </Typography>
+                            {model === section.defaultModel && (
+                              <Typography sx={{
+                                ...theme.typography.uiCaption2xs,
+                                color: 'text.disabled',
+                                lineHeight: 1.2,
+                                mt: 0.125,
+                              }}>
+                                Default
+                              </Typography>
+                            )}
+                          </Box>
+                          {isActive && (
+                            <CheckRoundedIcon sx={{ fontSize: 13, color: 'text.primary', flexShrink: 0 }} />
+                          )}
+                        </MenuItem>
+                      );
+                    })}
                   </Box>
-                )}
-              </Box>
-              <Divider sx={{ borderColor: alpha(theme.palette.text.primary, 0.08) }} />
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.25, px: 1, py: 0.85 }}>
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography sx={{ fontWeight: 500, fontSize: '0.95rem' }}>Extended thinking</Typography>
-                  <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.74rem' }}>
-                    Think longer for more complex tasks.
+                ))
+              ) : (
+                <Box sx={{ px: 1.75, py: 1.25 }}>
+                  <Typography sx={{ ...theme.typography.uiCaptionSm, fontWeight: 500, color: 'text.primary' }}>
+                    No models available
+                  </Typography>
+                  <Typography sx={{ ...theme.typography.uiCaption2xs, color: 'text.secondary', mt: 0.25 }}>
+                    Model options could not be loaded.
                   </Typography>
                 </Box>
-                <Switch
-                  checked={reasoningEnabled}
-                  onChange={toggleReasoning}
-                  inputProps={{ 'aria-label': 'Toggle extended thinking' }}
-                  sx={{
-                    width: 34,
-                    height: 22,
-                    p: 0,
-                    flexShrink: 0,
-                    '& .MuiSwitch-switchBase': {
-                      p: '3px',
-                      transitionDuration: '180ms',
-                      '&.Mui-checked': {
-                        transform: 'translateX(12px)',
-                        color: theme.palette.common.white,
-                        '& + .MuiSwitch-track': {
-                          opacity: 1,
-                          backgroundColor: alpha(theme.palette.info.main, 0.72),
-                        },
-                      },
-                    },
-                    '& .MuiSwitch-thumb': {
-                      boxShadow: 'none',
-                      width: 16,
-                      height: 16,
-                    },
-                    '& .MuiSwitch-track': {
-                      borderRadius: 11,
-                      opacity: 1,
-                      backgroundColor: alpha(theme.palette.text.primary, 0.14),
-                    },
-                  }}
-                />
+              )}
+            </Box>
+
+            <Divider sx={{ borderColor: alpha(theme.palette.text.primary, 0.07) }} />
+
+            {/* Extended thinking toggle */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 1.5, py: 1 }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography sx={{ ...theme.typography.uiCaptionSm, fontWeight: 500, color: 'text.primary' }}>
+                  Extended thinking
+                </Typography>
+                <Typography sx={{ ...theme.typography.uiCaption2xs, color: 'text.secondary', mt: 0.25 }}>
+                  Think longer for complex tasks
+                </Typography>
               </Box>
+              <Switch
+                checked={reasoningEnabled}
+                onChange={toggleReasoning}
+                inputProps={{ 'aria-label': 'Toggle extended thinking' }}
+                sx={{
+                  width: 32,
+                  height: 20,
+                  p: 0,
+                  flexShrink: 0,
+                  '& .MuiSwitch-switchBase': {
+                    p: '3px',
+                    transitionDuration: '180ms',
+                    '&.Mui-checked': {
+                      transform: 'translateX(12px)',
+                      color: '#fff',
+                      '& + .MuiSwitch-track': { opacity: 1, backgroundColor: theme.palette.primary.main },
+                    },
+                  },
+                  '& .MuiSwitch-thumb': { boxShadow: 'none', width: 14, height: 14 },
+                  '& .MuiSwitch-track': {
+                    borderRadius: 10,
+                    opacity: 1,
+                    backgroundColor: alpha(theme.palette.text.primary, 0.16),
+                  },
+                }}
+              />
             </Box>
           </Popover>
           <Box
             sx={{
               maxWidth: UI_LAYOUT.chatInputMaxWidth,
               mx: 'auto',
-              px: { xs: 1.1, sm: 1.5 },
-              py: { xs: 1, sm: 1.2 },
-              borderRadius: { xs: '22px', sm: '28px' },
-              border: '1px solid',
-              borderColor: isFocused ? alpha(theme.palette.text.primary, 0.18) : alpha(theme.palette.text.primary, 0.1),
-              background: `linear-gradient(180deg, ${alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.66 : 0.92)} 0%, ${alpha(theme.palette.background.default, theme.palette.mode === 'dark' ? 0.5 : 0.84)} 100%)`,
+              p: { xs: 1.5, sm: 1.75 },
+              borderRadius: '20px',
+              background: theme.palette.mode === 'dark'
+                ? theme.palette.background.paper
+                : theme.palette.background.elevated,
               boxShadow: isFocused
-                ? `0 14px 42px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.24 : 0.08)}`
-                : `0 10px 28px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.18 : 0.06)}`,
-              backdropFilter: 'blur(14px)',
-              WebkitBackdropFilter: 'blur(14px)',
-              [BACKDROP_FILTER_FALLBACK_QUERY]: {
-                backdropFilter: 'none',
-                WebkitBackdropFilter: 'none',
-              },
-              [theme.breakpoints.down('sm')]: {
-                backdropFilter: 'none',
-                WebkitBackdropFilter: 'none',
-              },
-              transition: theme.transitions.create(['border-color', 'box-shadow', 'background'], { duration: theme.transitions.duration.shorter }),
+                ? `0 0.25rem 1.25rem ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.08 : 0.075)}, 0 0 0 1px ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.22 : 0.18)}`
+                : `0 0.25rem 1.25rem ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.04 : 0.035)}, 0 0 0 0.5px ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.14 : 0.1)}`,
+              transition: theme.transitions.create('box-shadow', { duration: theme.transitions.duration.shorter }),
               [HOVER_CAPABLE_QUERY]: {
                 '&:hover': {
-                  borderColor: alpha(theme.palette.text.primary, 0.16),
+                  boxShadow: isFocused
+                    ? `0 0.25rem 1.25rem ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.08 : 0.075)}, 0 0 0 1px ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.26 : 0.22)}`
+                    : `0 0.25rem 1.25rem ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.04 : 0.035)}, 0 0 0 0.5px ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.22 : 0.18)}`,
                 },
               },
             }}
@@ -509,7 +516,7 @@ function ChatInput({
             <TextField
               fullWidth
               multiline
-              minRows={isCompactMobile ? 2 : 3}
+              minRows={isCompactMobile ? 1 : 2}
               maxRows={6}
               placeholder={inputPlaceholder}
               value={message}
@@ -536,29 +543,11 @@ function ChatInput({
                 },
               }}
             />
-            <Box
-              sx={{
-                mt: 0.9,
-                display: 'grid',
-                gridTemplateColumns: 'minmax(0, 1fr) auto',
-                alignItems: 'center',
-                gap: { xs: 0.6, sm: 1 },
-              }}
-            >
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 0.5,
-                  flexWrap: 'nowrap',
-                  minWidth: 0,
-                  overflowX: 'auto',
-                  overflowY: 'hidden',
-                  pr: 0.25,
-                  scrollbarWidth: 'none',
-                  '&::-webkit-scrollbar': { display: 'none' },
-                }}
-              >
+            {/* Action bar — flex, consistent 32px height for interactive elements */}
+            <Box sx={{ mt: 0.875, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.5 }}>
+
+              {/* Left: attach + contextual context chips */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0, flex: 1, overflowX: 'auto', overflowY: 'hidden', scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } }}>
                 <Tooltip title="Attach file (coming soon)">
                   <span>
                     <IconButton
@@ -566,24 +555,22 @@ function ChatInput({
                       disabled
                       aria-label="Attach file (coming soon)"
                       sx={{
-                        ...getCompactActionSx(theme),
-                        display: { xs: 'none', sm: 'inline-flex' },
+                        width: 32,
+                        height: 32,
+                        borderRadius: '8px',
                         color: 'text.secondary',
-                        opacity: 0.42,
-                        width: { xs: 34, sm: 36 },
-                        height: { xs: 34, sm: 36 },
-                        minWidth: { xs: 34, sm: 36 },
-                        minHeight: { xs: 34, sm: 36 },
+                        opacity: 0.45,
+                        flexShrink: 0,
                       }}
                     >
-                      <AddRoundedIcon sx={{ fontSize: 19 }} />
+                      <AddRoundedIcon sx={{ fontSize: 18 }} />
                     </IconButton>
                   </span>
                 </Tooltip>
                 {showDatabaseSelector && (
                   <Tooltip title={canSwitchDatabase ? `Database: ${currentDatabase} (click to switch)` : `Database: ${currentDatabase}`}>
                     <Chip
-                      icon={<StorageOutlinedIcon sx={{ fontSize: 14 }} />}
+                      icon={<StorageOutlinedIcon />}
                       label={currentDatabase}
                       onClick={canSwitchDatabase ? handleOpenDbMenu : undefined}
                       size="small"
@@ -594,7 +581,7 @@ function ChatInput({
                 {showSchemaSelector && (
                   <Tooltip title={`Schema: ${schemaLoading ? '...' : currentSchema}`}>
                     <Chip
-                      icon={<AccountTreeOutlinedIcon sx={{ fontSize: 14 }} />}
+                      icon={<AccountTreeOutlinedIcon />}
                       label={currentSchema}
                       onClick={handleOpenSchemaMenu}
                       size="small"
@@ -605,7 +592,7 @@ function ChatInput({
                 {onOpenSqlEditor && (
                   <Tooltip title="Open SQL Editor">
                     <Chip
-                      icon={<CodeRoundedIcon sx={{ fontSize: 14 }} />}
+                      icon={<CodeRoundedIcon />}
                       label="SQL Editor"
                       onClick={handleOpenSqlEditorClick}
                       size="small"
@@ -614,45 +601,48 @@ function ChatInput({
                   </Tooltip>
                 )}
               </Box>
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'flex-end',
-                  gap: 0.55,
-                  flexShrink: 0,
-                  ml: 'auto',
-                  minWidth: 'fit-content',
-                }}
-              >
+
+              {/* Right: model selector (ghost text button) + send */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
                 <Tooltip title={activeProviderLabel ? `${selectedModel || 'Select model'} · ${activeProviderLabel}` : 'Select model'}>
                   <span>
-                    <Chip
-                      clickable
-                      disabled={!hasLlmOptions && !llmOptionsLoading}
+                    <ButtonBase
                       onClick={handleOpenLlmPopover}
-                      label={(
-                        <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6, minWidth: 0, maxWidth: '100%' }}>
-                          <Typography
-                            component="span"
-                            sx={{ fontWeight: 400, minWidth: 0, maxWidth: { xs: 98, sm: 145 }, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: { xs: '0.79rem', sm: '0.84rem' } }}
-                          >
-                            {modelChipLabel}
-                          </Typography>
-                          <KeyboardArrowDownRoundedIcon
-                            sx={{
-                              fontSize: 18,
-                              color: 'text.secondary',
-                              transform: llmAnchor ? 'rotate(180deg)' : 'rotate(0deg)',
-                              transition: theme.transitions.create('transform', { duration: 150 }),
-                            }}
-                          />
-                        </Box>
-                      )}
-                      sx={llmChipStyles}
-                    />
+                      disabled={!hasLlmOptions && !llmOptionsLoading}
+                      aria-expanded={Boolean(llmAnchor)}
+                      aria-label="Select model"
+                      sx={{
+                        height: 32,
+                        borderRadius: '8px',
+                        px: 1,
+                        gap: 0.375,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        maxWidth: { xs: 'min(44vw, 140px)', sm: 200 },
+                        color: 'text.secondary',
+                        ...theme.typography.uiCaptionSm,
+                        transition: theme.transitions.create('background-color', { duration: theme.transitions.duration.shorter }),
+                        [HOVER_CAPABLE_QUERY]: {
+                          '&:hover': { backgroundColor: alpha(theme.palette.text.primary, 0.06) },
+                        },
+                        '&[aria-expanded="true"]': { backgroundColor: alpha(theme.palette.text.primary, 0.08) },
+                        '&.Mui-disabled': { opacity: 0.38, cursor: 'default' },
+                      }}
+                    >
+                      <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                        {modelChipLabel}
+                      </Box>
+                      <KeyboardArrowDownRoundedIcon sx={{
+                        fontSize: 14,
+                        flexShrink: 0,
+                        opacity: 0.75,
+                        transform: llmAnchor ? 'rotate(180deg)' : 'rotate(0deg)',
+                        transition: theme.transitions.create('transform', { duration: 150 }),
+                      }} />
+                    </ButtonBase>
                   </span>
                 </Tooltip>
+
                 <Tooltip title={isStreaming ? 'Stop generating' : (hasText ? 'Send message' : 'Type a message')}>
                   <span>
                     <IconButton
@@ -661,32 +651,37 @@ function ChatInput({
                       disabled={!isStreaming && (!hasText || disabled)}
                       aria-label={isStreaming ? 'Stop generating response' : 'Send message'}
                       sx={{
-                        width: { xs: 38, sm: 40 },
-                        height: { xs: 38, sm: 40 },
-                        minWidth: { xs: 38, sm: 40 },
-                        minHeight: { xs: 38, sm: 40 },
+                        width: 32,
+                        height: 32,
                         flexShrink: 0,
-                        borderRadius: { xs: '12px', sm: '14px' },
-                        color: isStreaming ? theme.palette.error.main : (hasText ? theme.palette.primary.contrastText : 'text.disabled'),
+                        borderRadius: '8px',
+                        color: isStreaming
+                          ? theme.palette.error.main
+                          : (hasText ? theme.palette.primary.contrastText : alpha(theme.palette.text.primary, 0.28)),
                         backgroundColor: isStreaming
-                          ? alpha(theme.palette.error.main, 0.12)
-                          : (hasText ? theme.palette.primary.main : alpha(theme.palette.text.primary, 0.04)),
+                          ? alpha(theme.palette.error.main, 0.1)
+                          : (hasText ? theme.palette.primary.main : alpha(theme.palette.text.primary, 0.05)),
                         border: '1px solid',
                         borderColor: isStreaming
-                          ? alpha(theme.palette.error.main, 0.26)
-                          : (hasText ? alpha(theme.palette.primary.main, 0.8) : alpha(theme.palette.text.primary, 0.08)),
+                          ? alpha(theme.palette.error.main, 0.2)
+                          : (hasText ? alpha(theme.palette.primary.main, 0.6) : alpha(theme.palette.text.primary, 0.07)),
+                        transition: theme.transitions.create(['background-color', 'border-color', 'color'], { duration: theme.transitions.duration.shorter }),
                         '&:hover': {
                           backgroundColor: isStreaming
-                            ? alpha(theme.palette.error.main, 0.18)
+                            ? alpha(theme.palette.error.main, 0.16)
                             : (hasText ? theme.palette.primary.dark : alpha(theme.palette.text.primary, 0.08)),
+                        },
+                        '&:active': { transform: 'scale(0.92)' },
+                        '&.Mui-disabled': {
+                          backgroundColor: alpha(theme.palette.text.primary, 0.04),
+                          borderColor: alpha(theme.palette.text.primary, 0.06),
+                          color: alpha(theme.palette.text.primary, 0.2),
                         },
                       }}
                     >
-                      {isStreaming ? (
-                        <StopRoundedIcon sx={{ fontSize: { xs: 18, sm: 20 } }} />
-                      ) : (
-                        <SendRoundedIcon sx={{ fontSize: { xs: 18, sm: 20 }, ml: 0.15 }} />
-                      )}
+                      {isStreaming
+                        ? <StopRoundedIcon sx={{ fontSize: 14 }} />
+                        : <SendRoundedIcon sx={{ fontSize: 14, ml: '1px' }} />}
                     </IconButton>
                   </span>
                 </Tooltip>
@@ -694,7 +689,7 @@ function ChatInput({
             </Box>
           </Box>
           {showSuggestions && (
-            <Box sx={{ maxWidth: UI_LAYOUT.chatInputMaxWidth, mx: 'auto', mt: 1.5, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            <Box sx={{ maxWidth: UI_LAYOUT.chatInputMaxWidth, mx: 'auto', mt: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 0.625, flexWrap: 'wrap' }}>
               {suggestions.map((chip, index) => (
                 <Chip
                   key={chip.label}
@@ -703,33 +698,32 @@ function ChatInput({
                   onClick={() => handleSuggestionClick(chip.prompt)}
                   size="small"
                   sx={{
-                    borderRadius: '12px',
-                    border: '1px solid',
-                    borderColor: alpha(theme.palette.text.primary, 0.16),
+                    height: 32,
+                    borderRadius: '8px',
+                    border: '0.5px solid',
+                    borderColor: alpha(theme.palette.text.primary, 0.13),
                     color: 'text.secondary',
-                    height: 30,
-                    backgroundColor: alpha(theme.palette.background.paper, 0.32),
+                    backgroundColor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.28 : 0.6),
                     cursor: 'pointer',
                     opacity: 0,
-                    animation: 'chipFadeIn 0.4s ease forwards',
-                    animationDelay: `${index * 0.08}s`,
-                    [REDUCED_MOTION_QUERY]: {
-                      opacity: 1,
-                      animation: 'none',
-                    },
+                    animation: 'chipFadeIn 0.3s ease forwards',
+                    animationDelay: `${index * 0.06}s`,
+                    [REDUCED_MOTION_QUERY]: { opacity: 1, animation: 'none' },
                     '@keyframes chipFadeIn': {
-                      from: { opacity: 0, transform: 'translateY(8px)' },
+                      from: { opacity: 0, transform: 'translateY(5px)' },
                       to: { opacity: 1, transform: 'translateY(0)' },
                     },
-                    transition: 'transform 0.15s ease, border-color 0.15s ease, background-color 0.15s ease',
-                    '& .MuiChip-icon': {
-                      color: 'inherit',
-                      ml: 0.5,
+                    transition: 'border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease',
+                    '& .MuiChip-label': {
+                      px: 1.125,
+                      ...theme.typography.uiCaptionSm,
+                      lineHeight: 1,
                     },
+                    '& .MuiChip-icon': { color: 'inherit', ml: 0.875, mr: -0.25, fontSize: 13 },
                     [HOVER_CAPABLE_QUERY]: {
                       '&:hover': {
-                        borderColor: alpha(theme.palette.text.primary, 0.28),
-                        backgroundColor: alpha(theme.palette.background.paper, 0.52),
+                        borderColor: alpha(theme.palette.text.primary, 0.24),
+                        backgroundColor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.5 : 0.85),
                         color: 'text.primary',
                       },
                     },
@@ -743,11 +737,12 @@ function ChatInput({
             sx={{
               display: 'block',
               textAlign: 'center',
-              mt: { xs: 1, sm: 1.5 },
+              mt: { xs: 0.75, sm: 1 },
               px: 1,
-              ...theme.typography.uiCaptionXs,
+              ...theme.typography.uiCaption2xs,
               color: 'text.secondary',
-              opacity: 0.5,
+              opacity: 0.4,
+              letterSpacing: '0.015em',
             }}
           >
             Moonlit can make mistakes. Verify important info.
