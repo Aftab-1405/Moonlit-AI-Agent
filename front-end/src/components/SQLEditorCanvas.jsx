@@ -4,9 +4,11 @@ import {
   Typography,
   IconButton,
   Tooltip,
-  Chip,
   CircularProgress,
   ButtonBase,
+  Button,
+  Menu,
+  MenuItem,
   useMediaQuery,
 } from '@mui/material';
 import { styled, useTheme as useMuiTheme, alpha, keyframes } from '@mui/material/styles';
@@ -15,16 +17,15 @@ import Editor from '@monaco-editor/react';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
-import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
-import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
-import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
+import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import TableChartOutlinedIcon from '@mui/icons-material/TableChartOutlined';
 import BarChartRoundedIcon from '@mui/icons-material/BarChartRounded';
 import TerminalRoundedIcon from '@mui/icons-material/TerminalRounded';
 import SQLResultsTable from './SQLResultsTable';
 import ChartVisualization from './ChartVisualization';
 import { registerMonacoThemes, getMonacoThemeName } from '../theme';
-import { getGlassmorphismStyles, getScrollbarStyles } from '../styles/shared';
+import { getAccentEffects, TRANSITIONS } from '../styles/themeEffects';
+import { getGlassmorphismStyles, getScrollbarStyles, UI_LAYOUT } from '../styles/shared';
 import { runQuery } from '../api';
 
 const fadeIn = keyframes`
@@ -38,7 +39,7 @@ const MONACO_OPTIONS = {
   automaticLayout: true,
   wordWrap: 'on',
   wrappingIndent: 'same',
-  padding: { top: 16, bottom: 16 },
+  padding: { top: 18, bottom: 20 },
   renderLineHighlight: 'line',
   lineHeight: 22,
   scrollbar: {
@@ -50,6 +51,24 @@ const MONACO_OPTIONS = {
     showKeywords: true,
   },
 };
+
+function resultsToCsv(results) {
+  const columns = results?.columns || [];
+  const rows = results?.result || [];
+  if (!columns.length || !rows.length) return '';
+  const header = columns.join(',');
+  const body = rows.map((row) =>
+    columns.map((col) => {
+      const val = row[col];
+      if (val === null || val === undefined) return '';
+      const s = String(val);
+      if (s.includes(',') || s.includes('"') || s.includes('\n')) return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    }).join(',')
+  );
+  return [header, ...body].join('\n');
+}
+
 const openedMixin = (theme, width) => ({
   width: typeof width === 'number' ? width : width,
   transition: theme.transitions.create('width', {
@@ -83,7 +102,7 @@ const StyledPanel = styled(Box, {
   ...(!open && closedMixin(theme)),
 }));
 
-const EmptyState = memo(function EmptyState({ icon: _Icon, title, subtitle, textColor }) {
+const EmptyState = memo(function EmptyState({ icon: _Icon, title, subtitle, textColor, accent }) {
   const Icon = _Icon;
   return (
     <Box
@@ -94,29 +113,48 @@ const EmptyState = memo(function EmptyState({ icon: _Icon, title, subtitle, text
         justifyContent: 'center',
         height: '100%',
         color: 'text.secondary',
-        gap: 2,
-        animation: `${fadeIn} 0.3s ease-out`,
+        gap: 2.25,
+        animation: `${fadeIn} 0.4s cubic-bezier(0.22, 1, 0.36, 1)`,
       }}
     >
       <Box
         sx={{
-          width: 72,
-          height: 72,
-          borderRadius: 3,
+          width: 80,
+          height: 80,
+          borderRadius: '20px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: alpha(textColor, 0.03),
-          border: '2px dashed',
-          borderColor: alpha(textColor, 0.1),
+          background: `linear-gradient(145deg, ${alpha(accent, 0.12)} 0%, ${alpha(accent, 0.03)} 100%)`,
+          border: '1px solid',
+          borderColor: alpha(accent, 0.22),
+          boxShadow: `0 1px 0 ${alpha(textColor, 0.06)} inset, 0 8px 32px ${alpha(accent, 0.08)}`,
         }}
       >
-        <Icon sx={{ fontSize: 32, opacity: 0.3 }} />
+        <Icon sx={{ fontSize: 36, color: accent, opacity: 0.85 }} />
       </Box>
-      <Typography variant="body1" sx={{ opacity: 0.6, fontWeight: 500 }}>
+      <Typography
+        variant="body1"
+        sx={{
+          fontWeight: 600,
+          letterSpacing: '-0.02em',
+          color: 'text.primary',
+          opacity: 0.92,
+        }}
+      >
         {title}
       </Typography>
-      <Typography variant="body2" sx={{ opacity: 0.4, textAlign: 'center', px: 4 }}>
+      <Typography
+        variant="body2"
+        sx={{
+          textAlign: 'center',
+          px: 3,
+          maxWidth: 320,
+          lineHeight: 1.65,
+          color: 'text.secondary',
+          opacity: 0.85,
+        }}
+      >
         {subtitle}
       </Typography>
     </Box>
@@ -144,6 +182,7 @@ function SQLEditorCanvas({
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
+  const [copyMenuAnchor, setCopyMenuAnchor] = useState(null);
   const editorRef = useRef(null);
   const copyTimeoutRef = useRef(null);
   const textColor = useMemo(() => theme.palette.text.primary, [theme.palette.text.primary]);
@@ -247,6 +286,27 @@ function SQLEditorCanvas({
     copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
   }, [query]);
 
+  const handleCopyCsv = useCallback(() => {
+    const csv = resultsToCsv(results);
+    if (!csv) return;
+    navigator.clipboard.writeText(csv);
+    setCopied(true);
+    if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+    copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
+    setCopyMenuAnchor(null);
+  }, [results]);
+
+  const openCopyMenu = useCallback((e) => {
+    setCopyMenuAnchor(e.currentTarget);
+  }, []);
+
+  const closeCopyMenu = useCallback(() => setCopyMenuAnchor(null), []);
+
+  const handleCopyMenuSql = useCallback(() => {
+    handleCopy();
+    setCopyMenuAnchor(null);
+  }, [handleCopy]);
+
   const handleKeyDown = useCallback((e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
@@ -265,84 +325,159 @@ function SQLEditorCanvas({
   const handleCloseResults = useCallback(() => {
     setResults(null);
   }, []);
+  const accentFx = useMemo(() => getAccentEffects(theme), [theme]);
+  const artifactChromeBg = useMemo(
+    () => theme.palette.background.paper,
+    [theme.palette.background.paper]
+  );
+  const artifactBorder = useMemo(
+    () => alpha(theme.palette.divider, isDark ? 0.85 : 0.95),
+    [theme.palette.divider, isDark]
+  );
+  const segmentTrackBg = useMemo(
+    () => alpha(theme.palette.text.primary, isDark ? 0.11 : 0.055),
+    [theme.palette.text.primary, isDark]
+  );
+  const headerBarBg = useMemo(
+    () => (isDark
+      ? `linear-gradient(180deg, ${alpha(artifactChromeBg, 1)} 0%, ${alpha(artifactChromeBg, 0.94)} 100%)`
+      : `linear-gradient(180deg, ${alpha(theme.palette.common.white, 1)} 0%, ${alpha(artifactChromeBg, 0.98)} 100%)`
+    ),
+    [artifactChromeBg, isDark, theme.palette.common.white]
+  );
+  const footerBarBg = useMemo(
+    () => (isDark
+      ? `linear-gradient(0deg, ${alpha(artifactChromeBg, 1)} 0%, ${alpha(artifactChromeBg, 0.92)} 100%)`
+      : `linear-gradient(0deg, ${alpha(artifactChromeBg, 1)} 0%, ${alpha(theme.palette.common.white, 0.97)} 100%)`
+    ),
+    [artifactChromeBg, isDark, theme.palette.common.white]
+  );
+
   const actionBarStyles = useMemo(() => ({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: isCompactMobile ? 0.75 : 1.25,
-    px: { xs: 1.25, sm: 2 },
-    py: { xs: 1, sm: 1.25 },
-    borderTop: '1px solid',
-    borderColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.1 : 0.08),
-    background: theme.palette.mode === 'dark'
-      ? `linear-gradient(0deg, ${alpha(theme.palette.background.paper, 0.45)} 0%, ${alpha(theme.palette.background.default, 0.2)} 100%)`
-      : `linear-gradient(0deg, ${alpha(theme.palette.background.paper, 0.95)} 0%, ${alpha(theme.palette.background.default, 0.88)} 100%)`,
-    backdropFilter: 'blur(12px)',
-    WebkitBackdropFilter: 'blur(12px)',
+    gap: isCompactMobile ? 0.75 : 1.75,
+    px: { xs: 1.5, sm: 2.5 },
+    py: { xs: 1.1, sm: 1.35 },
     flexShrink: 0,
-  }), [theme, isCompactMobile]);
+    borderTop: '1px solid',
+    borderColor: artifactBorder,
+    background: footerBarBg,
+    boxShadow: isDark
+      ? `0 -1px 0 ${alpha(theme.palette.common.white, 0.04)} inset, 0 -12px 40px ${alpha(theme.palette.common.black, 0.35)}`
+      : `0 -1px 0 ${alpha(theme.palette.common.white, 0.9)} inset, 0 -8px 32px ${alpha(theme.palette.common.black, 0.04)}`,
+  }), [artifactBorder, footerBarBg, isCompactMobile, isDark, theme.palette.common.black, theme.palette.common.white]);
 
-  const runButtonStyles = useMemo(() => ({
+  const runPrimaryStyles = useMemo(() => ({
     width: 44,
     height: 44,
-    color: isRunning ? 'text.secondary' : 'text.primary',
-    backgroundColor: alpha(textColor, isDark ? 0.1 : 0.08),
-    border: '1px solid',
-    borderColor: alpha(textColor, isDark ? 0.15 : 0.12),
+    borderRadius: '12px',
+    color: theme.palette.primary.contrastText,
+    background: accentFx.gradient,
+    border: 'none',
+    boxShadow: `${accentFx.glow}, 0 1px 0 ${alpha(theme.palette.common.white, isDark ? 0.12 : 0.25)} inset`,
+    transition: TRANSITIONS.smooth,
     '&:hover': {
-      backgroundColor: alpha(textColor, isDark ? 0.15 : 0.12),
+      background: accentFx.gradient,
+      filter: 'brightness(1.06)',
+      boxShadow: `${accentFx.glow}, 0 2px 12px ${alpha(theme.palette.primary.main, isDark ? 0.35 : 0.22)}`,
+    },
+    '&:active': { transform: 'scale(0.97)' },
+    '@media (prefers-reduced-motion: reduce)': {
+      transition: TRANSITIONS.fade,
+      '&:active': { transform: 'none' },
     },
     '&.Mui-disabled': {
       color: 'text.disabled',
-      backgroundColor: 'transparent',
+      background: alpha(theme.palette.text.primary, isDark ? 0.12 : 0.08),
+      boxShadow: 'none',
+      filter: 'none',
+    },
+  }), [accentFx.glow, accentFx.gradient, isDark, theme.palette.common.white, theme.palette.primary.contrastText, theme.palette.primary.main, theme.palette.text.primary]);
+
+  const toolbarGhostStyles = useMemo(() => ({
+    width: 44,
+    height: 44,
+    borderRadius: '12px',
+    color: 'text.secondary',
+    bgcolor: alpha(textColor, isDark ? 0.06 : 0.04),
+    border: '1px solid',
+    borderColor: alpha(textColor, isDark ? 0.1 : 0.08),
+    transition: TRANSITIONS.default,
+    '&:hover': {
+      color: 'text.primary',
+      bgcolor: alpha(textColor, isDark ? 0.11 : 0.08),
+      borderColor: alpha(textColor, isDark ? 0.16 : 0.12),
+    },
+    '&.Mui-disabled': {
+      color: 'text.disabled',
+      bgcolor: 'transparent',
       borderColor: 'transparent',
     },
-  }), [isDark, isRunning, textColor]);
+  }), [isDark, textColor]);
 
-  const embeddedContentShellStyles = useMemo(() => ({
-    height: '100%',
+  /** Fills canvas body; overflow stays inside table/chart (not this wrapper). */
+  const artifactTabPaneStyles = useMemo(() => ({
+    flex: 1,
     minHeight: 0,
-    boxSizing: 'border-box',
-    px: { xs: 0.5, sm: 1.5 },
-    pt: { xs: 0.5, sm: 1.5 },
-    pb: { xs: 0.5, sm: 1.5 },
-    overflow: 'hidden',
-    backgroundColor: 'transparent',
-  }), []);
-
-  const embeddedContentFrameStyles = useMemo(() => ({
+    minWidth: 0,
     display: 'flex',
     flexDirection: 'column',
-    height: '100%',
-    minHeight: 0,
-    borderRadius: 2,
-    border: '1px solid',
-    borderColor: theme.palette.border.subtle,
-    backgroundColor: alpha(theme.palette.background.paper, isDark ? 0.14 : 0.75),
     overflow: 'hidden',
-  }), [theme, isDark]);
+    bgcolor: artifactChromeBg,
+    backgroundImage: `radial-gradient(ellipse 100% 60% at 50% 0%, ${alpha(theme.palette.primary.main, isDark ? 0.06 : 0.045)} 0%, transparent 52%)`,
+  }), [artifactChromeBg, isDark, theme.palette.primary.main]);
+
+  const centeredEmptyWrapStyles = useMemo(() => ({
+    flex: 1,
+    minHeight: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    px: { xs: 3, md: 5.5 },
+    py: { xs: 3, md: 4 },
+    maxWidth: UI_LAYOUT.chatInputMaxWidth,
+    mx: 'auto',
+    width: '100%',
+    boxSizing: 'border-box',
+    overflow: 'auto',
+  }), []);
   const editorTabContent = useMemo(() => (
     <Box
       sx={{
-        height: '100%',
+        flex: 1,
+        minHeight: 0,
+        minWidth: 0,
         display: 'flex',
         flexDirection: 'column',
-        backgroundColor: 'transparent',
+        bgcolor: artifactChromeBg,
+        backgroundImage: `radial-gradient(ellipse 110% 70% at 50% -15%, ${alpha(theme.palette.primary.main, isDark ? 0.08 : 0.055)} 0%, transparent 50%)`,
       }}
     >
       {error && (
         <Box
           sx={{
-            px: 2.5,
-            py: 1.5,
-            backgroundColor: alpha(theme.palette.error.main, isDark ? 0.15 : 0.08),
-            borderBottom: '1px solid',
-            borderColor: alpha(theme.palette.error.main, 0.3),
-            animation: `${fadeIn} 0.2s ease-out`,
+            mx: 2,
+            mt: 1.5,
+            px: 2,
+            py: 1.25,
+            flexShrink: 0,
+            borderRadius: 2,
+            border: '1px solid',
+            borderColor: alpha(theme.palette.error.main, 0.35),
+            borderLeftWidth: 4,
+            borderLeftColor: theme.palette.error.main,
+            backgroundColor: alpha(theme.palette.error.main, isDark ? 0.12 : 0.06),
+            animation: `${fadeIn} 0.25s cubic-bezier(0.22, 1, 0.36, 1)`,
           }}
         >
-          <Typography variant="body2" color="error.main" sx={{ fontFamily: theme.typography.fontFamilyMono }}>
-            ⚠ {error}
+          <Typography
+            variant="body2"
+            color="error.main"
+            sx={{ fontFamily: theme.typography.fontFamilyMono, fontSize: '0.8125rem', lineHeight: 1.55 }}
+          >
+            {error}
           </Typography>
         </Box>
       )}
@@ -351,10 +486,8 @@ function SQLEditorCanvas({
           flex: 1,
           minHeight: 0,
           overflow: 'hidden',
-          backgroundColor: 'transparent',
-          ...getScrollbarStyles(theme, { size: 6 }),
           '& .monaco-editor, & .monaco-editor-background, & .monaco-editor .margin': {
-            backgroundColor: 'transparent !important',
+            backgroundColor: `${alpha(artifactChromeBg, 1)} !important`,
           },
         }}
         onKeyDown={handleKeyDown}
@@ -370,66 +503,54 @@ function SQLEditorCanvas({
         />
       </Box>
     </Box>
-  ), [error, isDark, query, handleKeyDown, handleQueryChange, handleEditorDidMount, monacoOptions, theme]);
+  ), [artifactChromeBg, error, isDark, query, handleKeyDown, handleQueryChange, handleEditorDidMount, monacoOptions, theme]);
 
   const resultsTabContent = useMemo(() => (
-    <Box sx={embeddedContentShellStyles}>
+    <Box sx={artifactTabPaneStyles}>
       {results ? (
-        <Box sx={embeddedContentFrameStyles}>
-          <SQLResultsTable data={results} onClose={handleCloseResults} embedded />
-        </Box>
+        <SQLResultsTable data={results} onClose={handleCloseResults} embedded />
       ) : (
-        <EmptyState
-          icon={TableChartOutlinedIcon}
-          title="No results yet"
-          subtitle="Run a query to see results here"
-          textColor={textColor}
-        />
+        <Box sx={centeredEmptyWrapStyles}>
+          <EmptyState
+            icon={TableChartOutlinedIcon}
+            title="No results yet"
+            subtitle="Run a query to see results here"
+            textColor={textColor}
+            accent={theme.palette.primary.main}
+          />
+        </Box>
       )}
     </Box>
-  ), [results, handleCloseResults, textColor, embeddedContentShellStyles, embeddedContentFrameStyles]);
+  ), [artifactTabPaneStyles, centeredEmptyWrapStyles, handleCloseResults, results, textColor, theme.palette.primary.main]);
 
   const chartTabContent = useMemo(() => (
-    <Box sx={embeddedContentShellStyles}>
+    <Box sx={artifactTabPaneStyles}>
       {results ? (
-        <Box sx={embeddedContentFrameStyles}>
-          <ChartVisualization data={results} embedded />
-        </Box>
+        <ChartVisualization data={results} embedded />
       ) : (
-        <EmptyState
-          icon={BarChartRoundedIcon}
-          title="No data to visualize"
-          subtitle="Run a query to create charts"
-          textColor={textColor}
-        />
+        <Box sx={centeredEmptyWrapStyles}>
+          <EmptyState
+            icon={BarChartRoundedIcon}
+            title="No data to visualize"
+            subtitle="Run a query to create charts"
+            textColor={textColor}
+            accent={theme.palette.info.main}
+          />
+        </Box>
       )}
     </Box>
-  ), [results, textColor, embeddedContentShellStyles, embeddedContentFrameStyles]);
+  ), [artifactTabPaneStyles, centeredEmptyWrapStyles, results, textColor, theme.palette.info.main]);
   const tabContent = activeTab === 0 ? editorTabContent : activeTab === 1 ? resultsTabContent : chartTabContent;
 
+  const tabTitleSuffix = ['SQL', 'Results', 'Chart'][activeTab];
+  const headerTitle = currentDatabase
+    ? `SQL workspace · ${tabTitleSuffix} · ${currentDatabase}`
+    : `SQL workspace · ${tabTitleSuffix}`;
+
   const navSegments = useMemo(() => [
-    {
-      id: 0,
-      label: 'Editor',
-      shortLabel: 'SQL',
-      icon: TerminalRoundedIcon,
-      disabled: false,
-    },
-    {
-      id: 1,
-      label: 'Results',
-      shortLabel: 'Rows',
-      icon: TableChartOutlinedIcon,
-      disabled: false,
-      badge: results?.row_count,
-    },
-    {
-      id: 2,
-      label: 'Chart',
-      shortLabel: 'Viz',
-      icon: BarChartRoundedIcon,
-      disabled: !results,
-    },
+    { id: 0, ariaLabel: 'SQL editor', icon: TerminalRoundedIcon, disabled: false },
+    { id: 1, ariaLabel: 'Query results', icon: TableChartOutlinedIcon, disabled: false },
+    { id: 2, ariaLabel: 'Chart', icon: BarChartRoundedIcon, disabled: !results },
   ], [results]);
 
   const unifiedHeader = (
@@ -437,167 +558,114 @@ function SQLEditorCanvas({
       sx={{
         display: 'flex',
         alignItems: 'center',
-        gap: { xs: 1, sm: 1.5 },
-        px: { xs: 1, sm: 1.5 },
-        py: { xs: 0.875, sm: 1 },
-        minHeight: { xs: 52, sm: 56 },
+        justifyContent: 'space-between',
+        gap: 1,
+        px: { xs: 1, sm: 1.25 },
+        py: { xs: 1, sm: 1.125 },
         flexShrink: 0,
+        minHeight: { xs: 50, sm: 52 },
         borderBottom: '1px solid',
-        borderColor: alpha(theme.palette.text.primary, isDark ? 0.1 : 0.08),
-        background: isDark
-          ? `linear-gradient(180deg, ${alpha(theme.palette.background.paper, 0.55)} 0%, ${alpha(theme.palette.background.default, 0.35)} 100%)`
-          : `linear-gradient(180deg, ${alpha(theme.palette.background.paper, 0.98)} 0%, ${alpha(theme.palette.background.default, 0.92)} 100%)`,
-        backdropFilter: 'blur(14px)',
-        WebkitBackdropFilter: 'blur(14px)',
+        borderColor: artifactBorder,
+        background: headerBarBg,
+        boxShadow: isDark
+          ? `0 1px 0 ${alpha(theme.palette.common.white, 0.06)} inset`
+          : `0 1px 0 ${alpha(theme.palette.common.white, 0.85)} inset`,
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0, minWidth: 0 }}>
-        <Box
-          sx={{
-            width: { xs: 30, sm: 34 },
-            height: { xs: 30, sm: 34 },
-            borderRadius: 2,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: `linear-gradient(145deg, ${alpha(theme.palette.primary.main, 0.22)}, ${alpha(theme.palette.primary.main, 0.06)})`,
-            border: '1px solid',
-            borderColor: alpha(theme.palette.primary.main, 0.25),
-            boxShadow: `0 1px 0 ${alpha(theme.palette.common.white, isDark ? 0.06 : 0.35)} inset`,
-          }}
-        >
-          <TerminalRoundedIcon sx={{ fontSize: { xs: 17, sm: 18 }, color: 'primary.main' }} />
-        </Box>
-        <Box sx={{ minWidth: 0, display: { xs: 'none', sm: 'block' } }}>
-          <Typography
-            variant="subtitle2"
-            sx={{
-              ...theme.typography.uiPanelTitle,
-              lineHeight: 1.2,
-              fontWeight: 600,
-              letterSpacing: '-0.02em',
-            }}
-          >
-            SQL workspace
-          </Typography>
-          {currentDatabase && (
-            <Typography variant="caption" sx={{ ...theme.typography.uiCaption2xs, color: 'text.secondary', display: 'block', mt: 0.125 }}>
-              {currentDatabase}
-            </Typography>
-          )}
-        </Box>
-        {currentDatabase && (
-          <Chip
-            size="small"
-            icon={<StorageRoundedIcon sx={{ fontSize: 11 }} />}
-            label={currentDatabase}
-            sx={{
-              display: { xs: 'inline-flex', sm: 'none' },
-              height: 24,
-              maxWidth: 100,
-              '& .MuiChip-label': { px: 0.75, ...theme.typography.uiCaption2xs },
-              backgroundColor: alpha(theme.palette.text.primary, 0.07),
-              border: '1px solid',
-              borderColor: alpha(theme.palette.text.primary, 0.1),
-            }}
-          />
-        )}
-      </Box>
-
       <Box
-        role="tablist"
-        aria-label="SQL workspace views"
         sx={{
-          flex: 1,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
+          gap: 1,
+          flex: 1,
           minWidth: 0,
-          mx: { xs: 0, sm: 0.5 },
+          overflow: 'hidden',
+          pl: 1.5,
         }}
       >
         <Box
+          role="tablist"
+          aria-label="SQL workspace views"
           sx={{
             display: 'inline-flex',
             alignItems: 'center',
             gap: 0.25,
-            p: 0.35,
-            borderRadius: 999,
-            maxWidth: '100%',
-            overflowX: 'auto',
-            overflowY: 'hidden',
-            scrollbarWidth: 'none',
-            '&::-webkit-scrollbar': { display: 'none' },
+            p: 0.5,
+            height: 34,
+            flexShrink: 0,
+            borderRadius: '10px',
+            bgcolor: segmentTrackBg,
             border: '1px solid',
-            borderColor: alpha(theme.palette.text.primary, isDark ? 0.12 : 0.1),
-            backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.06 : 0.04),
-            boxShadow: `0 1px 2px ${alpha(theme.palette.common.black, isDark ? 0.25 : 0.06)} inset`,
+            borderColor: alpha(theme.palette.text.primary, isDark ? 0.12 : 0.09),
+            boxSizing: 'border-box',
+            boxShadow: `0 1px 2px ${alpha(theme.palette.common.black, isDark ? 0.35 : 0.06)} inset`,
           }}
         >
           {navSegments.map((seg) => {
             const Icon = seg.icon;
             const selected = activeTab === seg.id;
-            const label = isCompactMobile ? seg.shortLabel : seg.label;
             return (
               <ButtonBase
                 key={seg.id}
                 role="tab"
+                aria-label={seg.ariaLabel}
                 aria-selected={selected}
                 aria-disabled={seg.disabled}
                 disabled={seg.disabled}
                 onClick={() => !seg.disabled && handleTabChange(seg.id)}
                 sx={{
-                  px: { xs: 1.1, sm: 1.5 },
-                  py: 0.55,
-                  borderRadius: 999,
-                  minHeight: 34,
+                  position: 'relative',
+                  width: 34,
+                  height: 28,
+                  minWidth: 34,
+                  borderRadius: '8px',
                   color: selected ? 'text.primary' : 'text.secondary',
-                  fontWeight: selected ? 600 : 500,
-                  fontSize: isCompactMobile ? 11.5 : 12.5,
-                  letterSpacing: '0.01em',
-                  textTransform: 'none',
                   transition: theme.transitions.create(['background-color', 'color', 'box-shadow', 'transform'], {
-                    duration: theme.transitions.duration.shorter,
+                    duration: 250,
+                    easing: theme.transitions.easing.easeInOut,
                   }),
-                  backgroundColor: selected
-                    ? alpha(theme.palette.background.paper, isDark ? 0.92 : 1)
-                    : 'transparent',
+                  '@media (prefers-reduced-motion: reduce)': {
+                    transition: 'none',
+                  },
+                  bgcolor: selected ? alpha(theme.palette.background.paper, isDark ? 0.96 : 1) : 'transparent',
                   boxShadow: selected
-                    ? `0 1px 3px ${alpha(theme.palette.common.black, isDark ? 0.35 : 0.1)}, 0 0 0 1px ${alpha(theme.palette.text.primary, 0.08)}`
+                    ? `0 0 0 1px ${alpha(theme.palette.primary.main, isDark ? 0.35 : 0.22)}, 0 1px 3px ${alpha(theme.palette.common.black, isDark ? 0.4 : 0.07)}`
                     : 'none',
                   '&:hover': {
                     color: 'text.primary',
-                    backgroundColor: selected
-                      ? alpha(theme.palette.background.paper, isDark ? 0.95 : 1)
-                      : alpha(theme.palette.text.primary, 0.06),
+                    bgcolor: selected
+                      ? alpha(theme.palette.background.paper, 1)
+                      : alpha(theme.palette.text.primary, 0.07),
                   },
-                  '&.Mui-disabled': { opacity: 0.38 },
+                  '&:focus-visible': {
+                    outline: `2px solid ${alpha(theme.palette.primary.main, 0.45)}`,
+                    outlineOffset: 1,
+                  },
+                  '&.Mui-disabled': { opacity: 0.35 },
                 }}
               >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.65 }}>
-                  <Icon sx={{ fontSize: isCompactMobile ? 15 : 16, opacity: selected ? 1 : 0.85 }} />
-                  <Box component="span" sx={{ whiteSpace: 'nowrap' }}>{label}</Box>
+                <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon sx={{ fontSize: 20 }} />
                   {seg.id === 1 && results?.row_count != null && (
                     <Box
                       component="span"
                       sx={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        minWidth: 22,
-                        height: 18,
-                        px: 0.45,
+                        position: 'absolute',
+                        top: -3,
+                        right: -2,
+                        minWidth: 15,
+                        height: 15,
+                        px: 0.2,
                         borderRadius: 999,
-                        fontSize: 10,
+                        fontSize: 8,
                         fontWeight: 700,
-                        lineHeight: 1,
-                        backgroundColor: selected
-                          ? alpha(theme.palette.primary.main, 0.2)
-                          : alpha(theme.palette.text.primary, 0.1),
-                        color: 'text.primary',
+                        lineHeight: '15px',
+                        textAlign: 'center',
+                        bgcolor: 'primary.main',
+                        color: 'primary.contrastText',
                       }}
                     >
-                      {results.row_count}
+                      {results.row_count > 99 ? '99+' : results.row_count}
                     </Box>
                   )}
                 </Box>
@@ -605,59 +673,207 @@ function SQLEditorCanvas({
             );
           })}
         </Box>
+
+        <Typography
+          component="h2"
+          noWrap
+          title={headerTitle}
+          sx={{
+            flex: 1,
+            minWidth: 0,
+            ...theme.typography.uiBodySm,
+            fontWeight: 500,
+            letterSpacing: '-0.01em',
+            lineHeight: 1.4,
+            color: 'text.secondary',
+          }}
+        >
+          <Box component="span" sx={{ color: 'text.primary' }}>SQL workspace</Box>
+          <Box component="span" sx={{ color: 'text.disabled', opacity: 0.75 }}> · </Box>
+          <Box component="span" sx={{ color: 'text.secondary' }}>{tabTitleSuffix}</Box>
+          {currentDatabase ? (
+            <>
+              <Box component="span" sx={{ color: 'text.disabled', opacity: 0.75 }}> · </Box>
+              <Box component="span" sx={{ color: 'text.secondary', opacity: 0.9 }}>{currentDatabase}</Box>
+            </>
+          ) : null}
+        </Typography>
       </Box>
 
-      <Tooltip title="Close panel">
-        <IconButton
-          size="small"
-          onClick={onClose}
-          aria-label="Close SQL editor"
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
+        <Box
           sx={{
-            flexShrink: 0,
-            width: 40,
-            height: 40,
-            color: 'text.secondary',
+            display: 'inline-flex',
+            alignItems: 'stretch',
+            height: 34,
+            borderRadius: '10px',
+            overflow: 'hidden',
             border: '1px solid',
-            borderColor: alpha(theme.palette.text.primary, 0.1),
-            backgroundColor: alpha(theme.palette.text.primary, 0.04),
+            borderColor: artifactBorder,
+            boxShadow: `0 1px 2px ${alpha(theme.palette.common.black, isDark ? 0.25 : 0.05)}`,
+            transition: TRANSITIONS.default,
             '&:hover': {
-              backgroundColor: alpha(theme.palette.text.primary, 0.09),
-              color: 'text.primary',
+              borderColor: alpha(theme.palette.primary.main, isDark ? 0.35 : 0.25),
+              boxShadow: `0 2px 8px ${alpha(theme.palette.primary.main, isDark ? 0.15 : 0.1)}`,
             },
           }}
         >
-          <CloseRoundedIcon sx={{ fontSize: 18 }} />
-        </IconButton>
-      </Tooltip>
+          <Button
+            size="small"
+            onClick={handleCopy}
+            disabled={!query.trim()}
+            sx={{
+              px: 1.5,
+              minWidth: 0,
+              height: '100%',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              letterSpacing: '0.02em',
+              textTransform: 'none',
+              borderRadius: 0,
+              borderRight: '1px solid',
+              borderColor: artifactBorder,
+              bgcolor: alpha(artifactChromeBg, 1),
+              color: copied ? 'success.main' : 'text.primary',
+              transition: TRANSITIONS.default,
+              '&:hover': { bgcolor: alpha(theme.palette.action.hover, 1) },
+            }}
+          >
+            {copied ? 'Copied' : 'Copy'}
+          </Button>
+          <IconButton
+            size="small"
+            onClick={openCopyMenu}
+            aria-label="More copy options"
+            aria-haspopup="true"
+            aria-expanded={Boolean(copyMenuAnchor)}
+            sx={{
+              width: 32,
+              height: '100%',
+              borderRadius: 0,
+              bgcolor: alpha(artifactChromeBg, 1),
+              color: 'text.secondary',
+              transition: TRANSITIONS.default,
+              '&:hover': { bgcolor: alpha(theme.palette.action.hover, 1), color: 'text.primary' },
+            }}
+          >
+            <KeyboardArrowDownRoundedIcon sx={{ fontSize: 18 }} />
+          </IconButton>
+        </Box>
+        <Menu
+          anchorEl={copyMenuAnchor}
+          open={Boolean(copyMenuAnchor)}
+          onClose={closeCopyMenu}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          slotProps={{
+            paper: {
+              elevation: 0,
+              sx: {
+                minWidth: 208,
+                mt: 0.75,
+                borderRadius: '12px',
+                border: '1px solid',
+                borderColor: artifactBorder,
+                boxShadow: isDark
+                  ? `0 12px 40px ${alpha(theme.palette.common.black, 0.55)}`
+                  : `0 12px 40px ${alpha(theme.palette.common.black, 0.1)}, 0 2px 8px ${alpha(theme.palette.common.black, 0.04)}`,
+                overflow: 'hidden',
+              },
+            },
+          }}
+        >
+          <MenuItem
+            onClick={handleCopyMenuSql}
+            disabled={!query.trim()}
+            sx={{ fontSize: '0.8125rem', py: 1.1, borderRadius: 1, mx: 0.5, my: 0.25 }}
+          >
+            Copy SQL
+          </MenuItem>
+          <MenuItem
+            onClick={handleCopyCsv}
+            disabled={!results?.columns?.length}
+            sx={{ fontSize: '0.8125rem', py: 1.1, borderRadius: 1, mx: 0.5, mb: 0.5 }}
+          >
+            Copy results as CSV
+          </MenuItem>
+        </Menu>
+
+        <Tooltip title="Close panel">
+          <IconButton
+            size="small"
+            onClick={onClose}
+            aria-label="Close SQL editor"
+            sx={{
+              width: 38,
+              height: 38,
+              ml: 0.25,
+              borderRadius: '10px',
+              color: 'text.secondary',
+              border: '1px solid',
+              borderColor: 'transparent',
+              transition: TRANSITIONS.default,
+              '&:hover': {
+                color: 'text.primary',
+                bgcolor: alpha(theme.palette.text.primary, 0.06),
+                borderColor: alpha(theme.palette.text.primary, isDark ? 0.14 : 0.1),
+              },
+            }}
+          >
+            <CloseRoundedIcon sx={{ fontSize: 20 }} />
+          </IconButton>
+        </Tooltip>
+      </Box>
     </Box>
   );
 
   const actionBarComponent = (
     <Box sx={actionBarStyles}>
-      <Tooltip title={activeTab !== 0 ? 'Switch to Editor to run' : (isRunning ? 'Running...' : 'Run Query (Ctrl+Enter)')}>
+      <Tooltip title={activeTab !== 0 ? 'Switch to SQL tab to run' : (isRunning ? 'Running…' : 'Run query (Ctrl+Enter)')}>
         <span>
           <IconButton
             size="small"
             onClick={handleRunQuery}
             disabled={isRunning || !query.trim() || activeTab !== 0}
-            sx={runButtonStyles}
+            sx={runPrimaryStyles}
+            aria-label="Run query"
           >
-            {isRunning ? <CircularProgress size={18} color="inherit" /> : <PlayArrowRoundedIcon sx={{ fontSize: 20 }} />}
+            {isRunning ? <CircularProgress size={20} thickness={4} sx={{ color: 'inherit' }} /> : <PlayArrowRoundedIcon sx={{ fontSize: 24 }} />}
           </IconButton>
         </span>
       </Tooltip>
-      <Tooltip title={copied ? 'Copied!' : 'Copy query'}>
-        <span>
-          <IconButton size="small" onClick={handleCopy} disabled={!query.trim()} sx={{ width: 44, height: 44 }}>
-            {copied ? <CheckRoundedIcon sx={{ fontSize: 18 }} /> : <ContentCopyRoundedIcon sx={{ fontSize: 18 }} />}
-          </IconButton>
-        </span>
-      </Tooltip>
-      <Tooltip title="Clear all">
-        <IconButton size="small" onClick={handleClear} sx={{ width: 44, height: 44 }}>
-          <DeleteOutlineRoundedIcon sx={{ fontSize: 18 }} />
+      <Tooltip title="Clear query and results">
+        <IconButton size="small" onClick={handleClear} sx={toolbarGhostStyles} aria-label="Clear all">
+          <DeleteOutlineRoundedIcon sx={{ fontSize: 21 }} />
         </IconButton>
       </Tooltip>
+      <Box
+        component="span"
+        sx={{
+          ml: { xs: 0, sm: 1.25 },
+          display: { xs: 'none', sm: 'inline-flex' },
+          alignItems: 'center',
+          px: 1.25,
+          py: 0.35,
+          borderRadius: 999,
+          border: '1px solid',
+          borderColor: alpha(theme.palette.text.primary, isDark ? 0.12 : 0.08),
+          bgcolor: alpha(theme.palette.text.primary, isDark ? 0.06 : 0.03),
+        }}
+      >
+        <Typography
+          component="span"
+          variant="caption"
+          sx={{
+            color: 'text.secondary',
+            fontWeight: 500,
+            ...theme.typography.uiCaption2xs,
+            letterSpacing: '0.04em',
+          }}
+        >
+          Ctrl+Enter
+        </Typography>
+      </Box>
     </Box>
   );
   if (fullscreen) {
@@ -672,10 +888,22 @@ function SQLEditorCanvas({
           },
           width: '100%',
           bgcolor: 'background.default',
+          backgroundImage: `radial-gradient(ellipse 90% 45% at 50% 0%, ${alpha(theme.palette.primary.main, isDark ? 0.07 : 0.04)} 0%, transparent 55%)`,
         }}
       >
         {unifiedHeader}
-        <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>{tabContent}</Box>
+        <Box
+          sx={{
+            flex: 1,
+            minHeight: 0,
+            minWidth: 0,
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          {tabContent}
+        </Box>
         {actionBarComponent}
       </Box>
     );
@@ -683,7 +911,17 @@ function SQLEditorCanvas({
   return (
     <StyledPanel open={isOpen} panelWidth={panelWidth}>
       {unifiedHeader}
-      <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: 'transparent' }}>
+      <Box
+        sx={{
+          flex: 1,
+          minHeight: 0,
+          minWidth: 0,
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          bgcolor: 'transparent',
+        }}
+      >
         {tabContent}
       </Box>
       {actionBarComponent}

@@ -28,6 +28,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import SQLEditorCanvas from '../components/SQLEditorCanvas';
 import ResizeHandle from '../components/ResizeHandle';
 import WelcomeScreen from '../components/WelcomeScreen';
+import StarfieldCanvas from '../components/StarfieldCanvas';
 import { useChatPageController } from '../hooks/chat-page/useChatPageController';
 import { getScrollbarStyles } from '../styles/shared';
 
@@ -79,6 +80,8 @@ function Chat() {
     handleCloseSettings,
     confirmDialog,
     handleConfirmDialogClose,
+    starfieldActive,
+    idleAnimationIntensity,
   } = useChatPageController();
 
   return (
@@ -163,6 +166,7 @@ function Chat() {
             }),
           }}
         >
+          <StarfieldCanvas active={starfieldActive} intensity={idleAnimationIntensity} />
           <Box
             aria-hidden
             sx={{

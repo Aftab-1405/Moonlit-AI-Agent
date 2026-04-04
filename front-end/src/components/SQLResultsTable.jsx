@@ -276,8 +276,148 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
     );
   }
 
+  const embeddedToolbarSx = useMemo(() => ({
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: { xs: 0.5, sm: 0.75 },
+    px: 2,
+    py: 0.75,
+    flexShrink: 0,
+    minHeight: 40,
+    borderBottom: '1px solid',
+    borderColor: theme.palette.border.subtle,
+    backgroundColor: theme.palette.background.paper,
+  }), [theme.palette.background.paper, theme.palette.border.subtle]);
+
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: embedded ? 0 : 400 }}>
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        ...(embedded
+          ? {
+            flex: 1,
+            minHeight: 0,
+            minWidth: 0,
+            alignSelf: 'stretch',
+            height: 'auto',
+          }
+          : {
+            height: '100%',
+            minHeight: 400,
+          }),
+      }}
+    >
+      {embedded && (
+        <Box sx={embeddedToolbarSx}>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: { xs: 0.35, sm: 0.5 },
+              minWidth: 0,
+              flexWrap: 'wrap',
+            }}
+          >
+            <Chip
+              size="small"
+              label={`${searchQuery ? filteredData.length : row_count} rows`}
+              sx={{
+                height: 22,
+                ...theme.typography.uiCaption2xs,
+                backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.08 : 0.05),
+                border: '1px solid',
+                borderColor: theme.palette.border.subtle,
+              }}
+            />
+            {execution_time != null && (
+              <Chip
+                size="small"
+                icon={<TimerOutlinedIcon sx={{ fontSize: 11 }} />}
+                label={`${execution_time.toFixed(2)}s`}
+                sx={{
+                  height: 22,
+                  ...theme.typography.uiCaption2xs,
+                  backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.06 : 0.04),
+                  '& .MuiChip-icon': { ml: 0.35, color: 'text.secondary' },
+                }}
+              />
+            )}
+            {truncated && (
+              <Chip
+                size="small"
+                label="Truncated"
+                sx={{
+                  height: 22,
+                  ...theme.typography.uiCaption2xs,
+                  color: 'text.secondary',
+                  border: '1px solid',
+                  borderColor: theme.palette.border.subtle,
+                  bgcolor: 'transparent',
+                }}
+              />
+            )}
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <TextField
+              size="small"
+              placeholder="Search…"
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchRoundedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{
+                width: { xs: 100, sm: 140 },
+                '& .MuiOutlinedInput-root': {
+                  height: 30,
+                  ...theme.typography.uiCaptionMd,
+                  bgcolor: alpha(theme.palette.text.primary, isDark ? 0.06 : 0.04),
+                  '& fieldset': { borderColor: theme.palette.border.subtle },
+                },
+              }}
+            />
+            <Tooltip title={copied ? 'Copied!' : 'Copy as CSV'}>
+              <IconButton
+                size="small"
+                onClick={handleCopyAsCSV}
+                aria-label="Copy as CSV"
+                sx={{
+                  width: 32,
+                  height: 32,
+                  color: copied ? 'text.primary' : 'text.secondary',
+                  borderRadius: 1.5,
+                  '&:hover': { bgcolor: alpha(theme.palette.text.primary, 0.06) },
+                }}
+              >
+                {copied ? <CheckRoundedIcon sx={{ fontSize: 18 }} /> : <ContentCopyRoundedIcon sx={{ fontSize: 18 }} />}
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Download CSV">
+              <IconButton
+                size="small"
+                onClick={handleDownloadCSV}
+                aria-label="Download CSV"
+                sx={{
+                  width: 32,
+                  height: 32,
+                  color: 'text.secondary',
+                  borderRadius: 1.5,
+                  '&:hover': { bgcolor: alpha(theme.palette.text.primary, 0.06) },
+                }}
+              >
+                <FileDownloadOutlinedIcon sx={{ fontSize: 18 }} />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        </Box>
+      )}
       {!embedded && (
         <Box
           sx={{
