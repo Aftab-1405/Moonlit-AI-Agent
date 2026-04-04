@@ -10,27 +10,11 @@ import WrapTextRoundedIcon from '@mui/icons-material/WrapTextRounded';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus, vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import MermaidDiagram from './MermaidDiagram';
+import { SYNTAX_COLORS } from '../styles/themeFoundation';
 
 const SQL_LANGUAGES = new Set([
   'sql', 'mysql', 'postgresql', 'sqlite', 'sqlserver', 'oracle', 'tsql', 'plsql'
 ]);
-
-const LANG_COLORS = {
-  sql: '#4fc3f7', mysql: '#4fc3f7', postgresql: '#4fc3f7', sqlite: '#4fc3f7',
-  sqlserver: '#4fc3f7', oracle: '#4fc3f7', tsql: '#4fc3f7', plsql: '#4fc3f7',
-  javascript: '#f7c948', js: '#f7c948',
-  typescript: '#5b8dd9', ts: '#5b8dd9',
-  jsx: '#61dafb', tsx: '#61dafb',
-  python: '#6bbf8e', py: '#6bbf8e',
-  json: '#e09b5e',
-  bash: '#a8c28a', sh: '#a8c28a', shell: '#a8c28a',
-  html: '#e07b59', xml: '#e07b59',
-  css: '#7bafd4', scss: '#c39cd9', sass: '#c39cd9',
-  rust: '#c96a44',
-  go: '#5ab8d9',
-  java: '#e07b59',
-  cpp: '#6b9dd4', c: '#6b9dd4',
-};
 
 const REMARK_PLUGINS = [remarkGfm];
 
@@ -55,10 +39,10 @@ const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isD
   const isMermaid = language.toLowerCase() === 'mermaid';
   const lineCount = code.split('\n').length;
   const showLineNumbers = lineCount >= 4;
-  const langColor = LANG_COLORS[language.toLowerCase()] || null;
+  const langColor = SYNTAX_COLORS[language.toLowerCase()] || null;
 
   // Dark mode: use Monaco's near-black for a crisper editor feel
-  const codeBg = isDarkMode ? '#0c0d0f' : theme.palette.background.elevated;
+  const codeBg = isDarkMode ? theme.palette.monaco.background : theme.palette.background.elevated;
   const headerBg = isDarkMode
     ? alpha(theme.palette.background.elevated, 0.9)
     : alpha(theme.palette.background.paper, 0.95);

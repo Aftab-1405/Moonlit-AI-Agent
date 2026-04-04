@@ -11,7 +11,7 @@ import {
   HEX_WHITE,
   PALETTE_MODES,
   SHAPE,
-  getReadableTextColor,
+  getShadowScale,
 } from './styles/themeFoundation';
 import {
   KEYFRAMES,
@@ -36,6 +36,7 @@ export {
   getMonacoThemeName,
   registerMonacoThemes,
   getMermaidThemeConfig,
+  getShadowScale,
 };
 
 const createTypography = (palette) => ({
@@ -284,13 +285,10 @@ const getComponentOverrides = (mode) => {
   const surfaceGradient = isDark
     ? `linear-gradient(180deg, ${alpha(HEX_WHITE, 0.035)}, transparent)`
     : `linear-gradient(180deg, ${alpha(HEX_BLACK, 0.02)}, transparent)`;
-  const containedHoverShadow = isDark
-    ? `0 10px 26px -16px ${alpha(HEX_BLACK, 0.5)}`
-    : `0 14px 26px -20px ${alpha(HEX_BLACK, 0.14)}`;
-  const cardHoverShadow = isDark
-    ? `0 18px 34px -26px ${alpha(HEX_BLACK, 0.45)}`
-    : `0 16px 28px -24px ${alpha(HEX_BLACK, 0.12)}`;
-  const focusRing = `0 0 0 3px ${alpha(palette.text.primary, isDark ? 0.14 : 0.1)}`;
+  const shadows = getShadowScale(mode);
+  const containedHoverShadow = shadows.containedHover;
+  const cardHoverShadow = shadows.cardHover;
+  const focusRing = shadows.focus(palette.primary.main);
 
   return {
     MuiCssBaseline: {
@@ -356,6 +354,39 @@ const getComponentOverrides = (mode) => {
           '--scrollbar-track': palette.scrollbar.track,
           '--scrollbar-thumb': palette.scrollbar.thumb,
           '--scrollbar-thumb-hover': palette.scrollbar.thumbHover,
+
+          '--color-bg-default': palette.background.default,
+          '--color-bg-paper': palette.background.paper,
+          '--color-bg-elevated': palette.background.elevated,
+          '--color-bg-sunken': palette.background.sunken,
+
+          '--color-text-primary': palette.text.primary,
+          '--color-text-secondary': palette.text.secondary,
+          '--color-text-disabled': palette.text.disabled,
+          '--color-text-hint': palette.text.hint,
+
+          '--color-border-default': palette.border.default,
+          '--color-border-subtle': palette.border.subtle,
+          '--color-border-hover': palette.border.hover,
+          '--color-border-focus': palette.border.focus,
+
+          '--color-primary': palette.primary.main,
+          '--color-primary-light': palette.primary.light,
+          '--color-primary-dark': palette.primary.dark,
+          '--color-error': palette.error.main,
+          '--color-warning': palette.warning.main,
+          '--color-success': palette.success.main,
+          '--color-info': palette.info.main,
+
+          '--radius-sm': `${SHAPE.radius.sm}px`,
+          '--radius-md': `${SHAPE.radius.md}px`,
+          '--radius-lg': `${SHAPE.radius.lg}px`,
+          '--radius-full': `${SHAPE.radius.full}px`,
+
+          '--color-code-bg': palette.code.background,
+          '--color-code-text': palette.code.text,
+          '--color-code-border': palette.code.border,
+
           '&::selection': {
             backgroundColor: alpha(palette.primary.main, isDark ? 0.3 : 0.18),
             color: isDark ? palette.text.primary : palette.primary.dark,
@@ -430,64 +461,6 @@ const getComponentOverrides = (mode) => {
             boxShadow: containedHoverShadow,
           },
         },
-        containedSecondary: {
-          backgroundColor: palette.secondary.main,
-          color: palette.secondary.contrastText,
-          '&:hover': { backgroundColor: isDark ? palette.secondary.light : palette.secondary.dark },
-        },
-        containedSuccess: {
-          backgroundColor: palette.success.main,
-          color: getReadableTextColor(palette.success.main),
-          '&:hover': { backgroundColor: palette.success.dark },
-        },
-        containedWarning: {
-          backgroundColor: palette.warning.main,
-          color: getReadableTextColor(palette.warning.main),
-          '&:hover': { backgroundColor: palette.warning.dark },
-        },
-        containedError: {
-          backgroundColor: palette.error.main,
-          color: getReadableTextColor(palette.error.main),
-          '&:hover': { backgroundColor: palette.error.dark },
-        },
-        containedInfo: {
-          backgroundColor: palette.info.main,
-          color: getReadableTextColor(palette.info.main),
-          '&:hover': { backgroundColor: palette.info.dark },
-        },
-
-        outlinedPrimary: {
-          borderColor: alpha(palette.primary.main, isDark ? 0.35 : 0.4),
-          color: palette.primary.main,
-          '&:hover': {
-            borderColor: palette.primary.main,
-            backgroundColor: alpha(palette.primary.main, isDark ? 0.12 : 0.08),
-          },
-        },
-        outlinedSecondary: {
-          borderColor: alpha(palette.secondary.main, isDark ? 0.35 : 0.4),
-          color: palette.secondary.main,
-          '&:hover': {
-            borderColor: palette.secondary.main,
-            backgroundColor: alpha(palette.secondary.main, isDark ? 0.12 : 0.08),
-          },
-        },
-        outlinedSuccess: {
-          borderColor: alpha(palette.success.main, isDark ? 0.35 : 0.4),
-          color: palette.success.main,
-          '&:hover': {
-            borderColor: palette.success.main,
-            backgroundColor: alpha(palette.success.main, isDark ? 0.12 : 0.08),
-          },
-        },
-        outlinedWarning: {
-          borderColor: alpha(palette.warning.main, isDark ? 0.35 : 0.4),
-          color: palette.warning.main,
-          '&:hover': {
-            borderColor: palette.warning.main,
-            backgroundColor: alpha(palette.warning.main, isDark ? 0.12 : 0.08),
-          },
-        },
         outlinedError: {
           borderColor: alpha(palette.error.main, isDark ? 0.35 : 0.4),
           color: palette.error.main,
@@ -496,40 +469,6 @@ const getComponentOverrides = (mode) => {
             backgroundColor: alpha(palette.error.main, isDark ? 0.12 : 0.08),
           },
         },
-        outlinedInfo: {
-          borderColor: alpha(palette.info.main, isDark ? 0.35 : 0.4),
-          color: palette.info.main,
-          '&:hover': {
-            borderColor: palette.info.main,
-            backgroundColor: alpha(palette.info.main, isDark ? 0.12 : 0.08),
-          },
-        },
-
-        textPrimary: {
-          color: palette.primary.main,
-          '&:hover': { backgroundColor: alpha(palette.primary.main, isDark ? 0.12 : 0.08) },
-        },
-        textSecondary: {
-          color: palette.secondary.main,
-          '&:hover': { backgroundColor: alpha(palette.secondary.main, isDark ? 0.12 : 0.08) },
-        },
-        textSuccess: {
-          color: palette.success.main,
-          '&:hover': { backgroundColor: alpha(palette.success.main, isDark ? 0.12 : 0.08) },
-        },
-        textWarning: {
-          color: palette.warning.main,
-          '&:hover': { backgroundColor: alpha(palette.warning.main, isDark ? 0.12 : 0.08) },
-        },
-        textError: {
-          color: palette.error.main,
-          '&:hover': { backgroundColor: alpha(palette.error.main, isDark ? 0.12 : 0.08) },
-        },
-        textInfo: {
-          color: palette.info.main,
-          '&:hover': { backgroundColor: alpha(palette.info.main, isDark ? 0.12 : 0.08) },
-        },
-
         sizeSmall: { padding: '6px 16px', fontSize: '0.8125rem' },
         sizeLarge: { padding: '14px 28px', fontSize: '0.9375rem' },
       },
@@ -557,15 +496,11 @@ const getComponentOverrides = (mode) => {
           backgroundImage: surfaceGradient,
         },
         elevation1: {
-          boxShadow: isDark
-            ? `0 1px 3px 0 ${alpha(HEX_BLACK, 0.5)}`
-            : `0 1px 3px 0 ${alpha(HEX_BLACK, 0.08)}`,
+          boxShadow: shadows.subtle,
           border: `1px solid ${palette.border.subtle}`,
         },
         elevation2: {
-          boxShadow: isDark
-            ? `0 4px 6px -1px ${alpha(HEX_BLACK, 0.6)}`
-            : `0 4px 6px -1px ${alpha(HEX_BLACK, 0.08)}`,
+          boxShadow: shadows.medium,
         },
       },
     },
@@ -628,56 +563,6 @@ const getComponentOverrides = (mode) => {
         outlined: {
           borderColor: palette.border.default,
           '&:hover': { backgroundColor: palette.action.hover },
-        },
-
-        filledPrimary: {
-          backgroundColor: alpha(palette.primary.main, isDark ? 0.16 : 0.12),
-          color: palette.primary.main,
-        },
-        filledSecondary: {
-          backgroundColor: alpha(palette.secondary.main, isDark ? 0.16 : 0.12),
-          color: palette.secondary.main,
-        },
-        filledSuccess: {
-          backgroundColor: alpha(palette.success.main, isDark ? 0.16 : 0.12),
-          color: palette.success.main,
-        },
-        filledWarning: {
-          backgroundColor: alpha(palette.warning.main, isDark ? 0.16 : 0.12),
-          color: palette.warning.main,
-        },
-        filledError: {
-          backgroundColor: alpha(palette.error.main, isDark ? 0.16 : 0.12),
-          color: palette.error.main,
-        },
-        filledInfo: {
-          backgroundColor: alpha(palette.info.main, isDark ? 0.16 : 0.12),
-          color: palette.info.main,
-        },
-
-        outlinedPrimary: {
-          borderColor: alpha(palette.primary.main, isDark ? 0.35 : 0.4),
-          color: palette.primary.main,
-        },
-        outlinedSecondary: {
-          borderColor: alpha(palette.secondary.main, isDark ? 0.35 : 0.4),
-          color: palette.secondary.main,
-        },
-        outlinedSuccess: {
-          borderColor: alpha(palette.success.main, isDark ? 0.35 : 0.4),
-          color: palette.success.main,
-        },
-        outlinedWarning: {
-          borderColor: alpha(palette.warning.main, isDark ? 0.35 : 0.4),
-          color: palette.warning.main,
-        },
-        outlinedError: {
-          borderColor: alpha(palette.error.main, isDark ? 0.35 : 0.4),
-          color: palette.error.main,
-        },
-        outlinedInfo: {
-          borderColor: alpha(palette.info.main, isDark ? 0.35 : 0.4),
-          color: palette.info.main,
         },
       },
     },
@@ -973,6 +858,142 @@ const getComponentOverrides = (mode) => {
         },
       },
     },
+
+    MuiTabs: {
+      styleOverrides: {
+        root: { minHeight: 40 },
+        indicator: {
+          height: 2,
+          borderRadius: 2,
+          backgroundColor: palette.primary.main,
+        },
+      },
+    },
+
+    MuiTab: {
+      styleOverrides: {
+        root: {
+          minHeight: 40,
+          textTransform: 'none',
+          fontWeight: 500,
+          fontSize: '0.875rem',
+          letterSpacing: '0.01em',
+          color: palette.text.secondary,
+          padding: '8px 16px',
+          transition: TRANSITIONS.default,
+          '&.Mui-selected': {
+            color: palette.text.primary,
+            fontWeight: 600,
+          },
+          '&:hover': {
+            color: palette.text.primary,
+            backgroundColor: palette.action.hover,
+          },
+          [MOBILE_SM_QUERY]: {
+            minHeight: 44,
+            padding: '10px 12px',
+          },
+        },
+      },
+    },
+
+    MuiLinearProgress: {
+      styleOverrides: {
+        root: {
+          borderRadius: SHAPE.radius.full,
+          backgroundColor: alpha(palette.text.primary, isDark ? 0.08 : 0.06),
+          height: 4,
+        },
+        bar: {
+          borderRadius: SHAPE.radius.full,
+        },
+      },
+    },
+
+    MuiCircularProgress: {
+      styleOverrides: {
+        colorPrimary: { color: palette.primary.main },
+        colorSecondary: { color: palette.secondary.main },
+      },
+    },
+
+    MuiInputLabel: {
+      styleOverrides: {
+        root: {
+          color: palette.text.secondary,
+          fontSize: '0.875rem',
+          '&.Mui-focused': { color: palette.text.primary },
+          '&.Mui-error': { color: palette.error.main },
+        },
+        shrink: {
+          fontSize: '0.75rem',
+          letterSpacing: '0.02em',
+        },
+      },
+    },
+
+    MuiFormHelperText: {
+      styleOverrides: {
+        root: {
+          fontSize: '0.75rem',
+          color: palette.text.secondary,
+          marginTop: 4,
+          '&.Mui-error': { color: palette.error.main },
+        },
+      },
+    },
+
+    MuiSelect: {
+      styleOverrides: {
+        root: { borderRadius: SHAPE.radius.md },
+        select: {
+          color: palette.text.primary,
+          '&:focus': { backgroundColor: 'transparent' },
+        },
+        icon: {
+          color: palette.text.secondary,
+          transition: TRANSITIONS.fast,
+        },
+      },
+    },
+
+    MuiAccordion: {
+      styleOverrides: {
+        root: {
+          backgroundColor: 'transparent',
+          backgroundImage: 'none',
+          boxShadow: 'none',
+          border: `1px solid ${palette.border.subtle}`,
+          borderRadius: `${SHAPE.radius.lg}px !important`,
+          marginBottom: 8,
+          '&::before': { display: 'none' },
+          '&.Mui-expanded': { marginTop: 0, marginBottom: 8 },
+        },
+      },
+    },
+
+    MuiAccordionSummary: {
+      styleOverrides: {
+        root: {
+          minHeight: 48,
+          padding: '0 16px',
+          transition: TRANSITIONS.default,
+          '&:hover': { backgroundColor: palette.action.hover },
+          '&.Mui-expanded': {
+            minHeight: 48,
+            borderBottom: `1px solid ${palette.border.subtle}`,
+          },
+        },
+        content: {
+          margin: '12px 0',
+          '&.Mui-expanded': { margin: '12px 0' },
+        },
+        expandIconWrapper: {
+          color: palette.text.secondary,
+          transition: TRANSITIONS.default,
+        },
+      },
+    },
   };
 };
 const createBaseTheme = (mode) => {
@@ -1001,6 +1022,9 @@ const createBaseTheme = (mode) => {
       medium: 0.2,
       strong: 0.4,
     },
+    shadows: getShadowScale(theme.palette.mode),
+    shape: SHAPE,
+    zIndex: { fullscreen: 9999, fullscreenBackdrop: 9998 },
   };
 
   return theme;

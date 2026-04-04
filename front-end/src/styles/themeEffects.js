@@ -6,6 +6,9 @@ export const TRANSITIONS = {
   smooth: 'all 300ms cubic-bezier(0.4, 0, 0.2, 1)',
   bounce: 'transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1)',
   fade: 'opacity 200ms ease-in-out',
+  fast: 'all 120ms cubic-bezier(0.4, 0, 0.2, 1)',
+  enter: 'all 220ms ease-in',
+  exit: 'all 180ms ease-out',
 };
 
 export const KEYFRAMES = {
@@ -32,6 +35,18 @@ export const KEYFRAMES = {
   '@keyframes slideUp': {
     from: { opacity: 0, transform: 'translateY(20px)' },
     to: { opacity: 1, transform: 'translateY(0)' },
+  },
+  '@keyframes spin': {
+    from: { transform: 'rotate(0deg)' },
+    to: { transform: 'rotate(360deg)' },
+  },
+  '@keyframes scaleIn': {
+    from: { opacity: 0, transform: 'scale(0.92)' },
+    to: { opacity: 1, transform: 'scale(1)' },
+  },
+  '@keyframes scaleOut': {
+    from: { opacity: 1, transform: 'scale(1)' },
+    to: { opacity: 0, transform: 'scale(0.92)' },
   },
 };
 

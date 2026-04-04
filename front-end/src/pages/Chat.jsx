@@ -250,8 +250,6 @@ function Chat() {
                     px: { xs: 0, sm: 1 },
                     pt: { xs: 1, sm: 1.5 },
                     pb: 'max(env(safe-area-inset-bottom), 8px)',
-                    borderTop: `1px solid ${alpha(theme.palette.divider, 0.65)}`,
-                    backgroundColor: alpha(theme.palette.background.default, 0.98),
                   }}
                 >
                   <ChatInput
