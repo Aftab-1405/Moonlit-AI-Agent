@@ -280,8 +280,8 @@ const getComponentOverrides = (mode) => {
     },
   };
   const ambientBackground = isDark
-    ? `radial-gradient(52% 58% at 14% 0%, ${alpha(HEX_WHITE, 0.055)}, transparent 62%), radial-gradient(44% 50% at 88% 100%, ${alpha(HEX_WHITE, 0.025)}, transparent 60%)`
-    : `radial-gradient(50% 56% at 14% 0%, ${alpha(HEX_BLACK, 0.03)}, transparent 62%), radial-gradient(42% 48% at 88% 100%, ${alpha(HEX_BLACK, 0.014)}, transparent 60%)`;
+    ? `radial-gradient(55% 60% at 12% 0%, ${alpha(palette.primary.main, 0.09)}, transparent 65%), radial-gradient(45% 52% at 90% 100%, ${alpha(palette.secondary.main, 0.055)}, transparent 62%)`
+    : `radial-gradient(52% 58% at 12% 0%, ${alpha(palette.primary.main, 0.06)}, transparent 64%), radial-gradient(42% 50% at 90% 100%, ${alpha(palette.secondary.main, 0.035)}, transparent 62%)`;
   const surfaceGradient = isDark
     ? `linear-gradient(180deg, ${alpha(HEX_WHITE, 0.035)}, transparent)`
     : `linear-gradient(180deg, ${alpha(HEX_BLACK, 0.02)}, transparent)`;

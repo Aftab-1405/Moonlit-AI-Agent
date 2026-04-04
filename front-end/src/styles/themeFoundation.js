@@ -35,58 +35,70 @@ export const SYNTAX_COLORS = {
 
 export const PALETTE_MODES = {
   dark: {
-    background: { default: '#0a0b0d', paper: '#111214', elevated: '#17191d', sunken: '#07080a' },
-    chart: ['#5b9bd6', '#d97575', '#c9a85c', '#6bbf8e', '#9b7ec8', '#5bc4c4', '#d4845a', '#8eabd9'],
-    text: { primary: '#f1f3f5', secondary: '#a2a7b0', disabled: '#626872', hint: '#7c828c' },
-    border: { default: '#2a2e35', subtle: '#1c2026', hover: '#3a4049', focus: '#8d949f' },
-    primary: { main: '#9aa1ad', light: '#c2c7d0', dark: '#787f8a', contrastText: '#0a0b0d' },
-    secondary: { main: '#7f8691', light: '#a1a8b2', dark: '#676d77', contrastText: '#0a0b0d' },
-    error: { main: '#d88a8a', light: '#e8b4b4', dark: '#b96f6f' },
-    warning: { main: '#c7a36b', light: '#dabc8d', dark: '#aa8756' },
-    info: { main: '#8f97a4', light: '#b4bac4', dark: '#727985' },
-    success: { main: '#7fb09a', light: '#9fc7b5', dark: '#669380' },
+    // Deep night sky — blue-black, not flat grey-black
+    background: { default: '#0d1017', paper: '#131822', elevated: '#1b2334', sunken: '#090c12' },
+    // Vibrant but harmonious series — moon blue leads, violet second
+    chart: ['#6e9fd4', '#e07878', '#d4924e', '#62b888', '#8b78d0', '#66b0d8', '#d47862', '#a894e0'],
+    // Cool off-white text — softer than pure white, easier on the eyes at night
+    text: { primary: '#d8e4f2', secondary: '#7a90aa', disabled: '#3c4a5e', hint: '#546070' },
+    // Blue-tinted borders — cohesive with the night-sky backgrounds
+    border: { default: '#1e2d42', subtle: '#141e2e', hover: '#2a3f5a', focus: '#4a7cbf' },
+    // Moon blue — the signature accent: luminous, cool, unmistakably "moonlit"
+    primary: { main: '#6e9fd4', light: '#94bce4', dark: '#4c7db8', contrastText: '#0d1017' },
+    // Violet haze — the secondary: the pre-moonrise sky
+    secondary: { main: '#8b78d0', light: '#aa9ae0', dark: '#6a58b0', contrastText: '#ffffff' },
+    error: { main: '#e07878', light: '#eea8a8', dark: '#bc5858' },
+    warning: { main: '#d4924e', light: '#e8b880', dark: '#b07030' },
+    info: { main: '#66b0d8', light: '#90cae8', dark: '#4490b8' },
+    success: { main: '#62b888', light: '#88d0a8', dark: '#429868' },
     action: {
       active: alpha(HEX_WHITE, 0.76),
-      hover: alpha(HEX_WHITE, 0.045),
-      selected: alpha(HEX_WHITE, 0.08),
+      hover: alpha(HEX_WHITE, 0.05),
+      selected: alpha(HEX_WHITE, 0.09),
       disabled: alpha(HEX_WHITE, 0.28),
       disabledBackground: alpha(HEX_WHITE, 0.1),
     },
-    scrollbar: { track: 'transparent', thumb: '#363b44', thumbHover: '#4a515c' },
-    code: { background: alpha(HEX_WHITE, 0.06), text: '#f1f3f5', border: alpha(HEX_WHITE, 0.08) },
+    scrollbar: { track: 'transparent', thumb: '#1e2d42', thumbHover: '#2a3f5a' },
+    code: { background: alpha(HEX_WHITE, 0.055), text: '#d8e4f2', border: alpha(HEX_WHITE, 0.08) },
     glassmorphism: {
-      background: alpha('#101114', 0.84),
+      background: alpha('#10151e', 0.84),
       backdropFilter: 'blur(16px)',
       borderColor: alpha(HEX_WHITE, 0.08),
     },
-    monaco: { background: '#0f1012', gutter: '#0f1012', highlight: '#16181c', lineHighlight: '#14161a' },
+    monaco: { background: '#0a0d14', gutter: '#0a0d14', highlight: '#151e2e', lineHighlight: '#121a28' },
   },
   light: {
-    background: { default: '#f4f4f5', paper: '#fafafa', elevated: '#ffffff', sunken: '#ebebec' },
-    chart: ['#3a7abf', '#c45a5a', '#b08040', '#4a8f6e', '#7a5cb0', '#3a9a9a', '#bf6a3a', '#5a8abf'],
-    text: { primary: '#17181b', secondary: '#5f6570', disabled: '#979ca5', hint: '#767c86' },
-    border: { default: '#d6d9de', subtle: '#e7e9ed', hover: '#c5c9d0', focus: '#626975' },
-    primary: { main: '#353a42', light: '#525861', dark: '#25292f', contrastText: '#ffffff' },
-    secondary: { main: '#6b7280', light: '#8b93a0', dark: '#4d5561', contrastText: '#ffffff' },
-    error: { main: '#c46f6f', light: '#db9a9a', dark: '#a95858' },
-    warning: { main: '#b78c54', light: '#caa978', dark: '#987241' },
-    info: { main: '#707887', light: '#949ba7', dark: '#575f6c' },
-    success: { main: '#5f8f7a', light: '#7aa18f', dark: '#4a715f' },
+    // Cool pearl — slightly blue-tinted, not warm beige
+    background: { default: '#f0f2f7', paper: '#ffffff', elevated: '#ffffff', sunken: '#e6e9f2' },
+    // Same hue family as dark but richer saturation for light backgrounds
+    chart: ['#2e5fa8', '#c44848', '#b87830', '#3d9068', '#5244a8', '#3d88c4', '#b85830', '#6858c0'],
+    // Deep cool navy text — not pure black, has depth and warmth
+    text: { primary: '#0f1623', secondary: '#586275', disabled: '#98a2b0', hint: '#7888a0' },
+    // Crisp, slightly blue-tinted borders
+    border: { default: '#cdd4e4', subtle: '#e0e5f0', hover: '#b0bcce', focus: '#2e5fa8' },
+    // Deep navy — same hue as dark mode primary, just darkened for light contrast
+    primary: { main: '#2e5fa8', light: '#4c80cc', dark: '#1a3f7e', contrastText: '#ffffff' },
+    // Deep violet — consistent brand across modes
+    secondary: { main: '#5244a8', light: '#7868c4', dark: '#362e80', contrastText: '#ffffff' },
+    error: { main: '#c44848', light: '#dc7878', dark: '#9e3030' },
+    warning: { main: '#b87830', light: '#d4a060', dark: '#8e5818' },
+    info: { main: '#3d88c4', light: '#60a8dc', dark: '#2468a0' },
+    success: { main: '#3d9068', light: '#60b088', dark: '#287048' },
     action: {
       active: alpha(HEX_BLACK, 0.62),
       hover: alpha(HEX_BLACK, 0.04),
-      selected: alpha(HEX_BLACK, 0.07),
+      selected: alpha(HEX_BLACK, 0.08),
       disabled: alpha(HEX_BLACK, 0.24),
       disabledBackground: alpha(HEX_BLACK, 0.06),
     },
-    scrollbar: { track: 'transparent', thumb: '#bcc1c9', thumbHover: '#a4abb6' },
-    code: { background: alpha(HEX_BLACK, 0.035), text: '#17181b', border: alpha(HEX_BLACK, 0.08) },
+    scrollbar: { track: 'transparent', thumb: '#c8d0e0', thumbHover: '#b0bcd0' },
+    code: { background: alpha(HEX_BLACK, 0.035), text: '#0f1623', border: alpha(HEX_BLACK, 0.08) },
     glassmorphism: {
-      background: alpha('#ffffff', 0.9),
+      background: alpha('#ffffff', 0.92),
       backdropFilter: 'blur(16px)',
       borderColor: alpha(HEX_BLACK, 0.08),
     },
-    monaco: { background: '#f6f6f7', gutter: '#f8f8f9', highlight: '#eceef1', lineHighlight: '#e7eaee' },
+    monaco: { background: '#f5f6fa', gutter: '#f2f3f8', highlight: '#e8ecf5', lineHighlight: '#e4e8f4' },
   },
 };
 

@@ -374,12 +374,12 @@ function Sidebar({
             onClick={handleProfileClick}
             aria-label="Open profile menu"
             sx={{
-              minHeight: 44,
-              px: 1,
-              py: 0.75,
+              minHeight: collapsed ? 40 : 44,
+              px: collapsed ? 0.5 : 1,
+              py: collapsed ? 0.5 : 0.75,
               borderRadius: '12px',
-              justifyContent: 'flex-start',
-              gap: 1,
+              justifyContent: collapsed ? 'center' : 'flex-start',
+              gap: collapsed ? 0 : 1,
             }}
           >
             {/* FIXED: stable 30px — no size reflow during collapse animation */}

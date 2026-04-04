@@ -7,8 +7,7 @@ export const EXPANDED_WIDTH = UI_LAYOUT.sidebarExpandedWidth;
 export const COLLAPSED_WIDTH = UI_LAYOUT.sidebarCollapsedWidth;
 
 export const CONTENT_CONTAINER_STYLES = {
-  height: '100dvh',
-  minHeight: '100dvh',
+  height: '100%',
   display: 'flex',
   flexDirection: 'column',
 };

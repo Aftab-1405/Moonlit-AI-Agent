@@ -160,10 +160,6 @@ function Chat() {
             backgroundColor: theme.palette.background.default,
             position: 'relative',
             zIndex: 1,
-            transition: theme.transitions.create(['width', 'margin'], {
-              easing: theme.transitions.easing.sharp,
-              duration: theme.transitions.duration.enteringScreen,
-            }),
           }}
         >
           <StarfieldCanvas active={starfieldActive} intensity={idleAnimationIntensity} />

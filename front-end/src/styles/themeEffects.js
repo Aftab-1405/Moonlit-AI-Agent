@@ -56,9 +56,10 @@ const accentEffectsCache = new WeakMap();
 export const getMoonlitGradient = (theme) => {
   if (gradientCache.has(theme)) return gradientCache.get(theme);
   const isDark = theme.palette.mode === 'dark';
+  // Moon blue → violet haze: the core brand gradient
   const gradient = isDark
-    ? `linear-gradient(135deg, ${alpha(theme.palette.primary.light, 0.92)}, ${alpha(theme.palette.info.main, 0.78)})`
-    : `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.94)}, ${alpha(theme.palette.info.dark, 0.78)})`;
+    ? `linear-gradient(135deg, ${alpha(theme.palette.primary.light, 0.92)}, ${alpha(theme.palette.secondary.main, 0.82)})`
+    : `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.94)}, ${alpha(theme.palette.secondary.main, 0.80)})`;
   gradientCache.set(theme, gradient);
   return gradient;
 };
@@ -67,25 +68,25 @@ export const getAccentEffects = (theme) => {
   if (accentEffectsCache.has(theme)) return accentEffectsCache.get(theme);
   const isDark = theme.palette.mode === 'dark';
   const main = theme.palette.primary.main;
-  const accent = theme.palette.info.main;
+  const accent = theme.palette.secondary.main;
   const gradient = isDark
-    ? `linear-gradient(135deg, ${alpha(theme.palette.primary.light, 0.92)}, ${alpha(accent, 0.78)})`
-    : `linear-gradient(135deg, ${main}, ${alpha(accent, 0.82)})`;
+    ? `linear-gradient(135deg, ${alpha(theme.palette.primary.light, 0.92)}, ${alpha(accent, 0.82)})`
+    : `linear-gradient(135deg, ${main}, ${alpha(accent, 0.85)})`;
 
   const effects = isDark
     ? {
         gradient,
         textGradient: gradient,
-        glow: `0 0 24px ${alpha(main, 0.16)}, 0 0 46px ${alpha(accent, 0.1)}`,
-        border: `1px solid ${alpha(main, 0.18)}`,
-        background: alpha(main, 0.08),
+        glow: `0 0 24px ${alpha(main, 0.22)}, 0 0 46px ${alpha(accent, 0.14)}`,
+        border: `1px solid ${alpha(main, 0.22)}`,
+        background: alpha(main, 0.1),
       }
     : {
         gradient,
         textGradient: gradient,
-        glow: `0 8px 28px ${alpha(main, 0.12)}`,
-        border: `1px solid ${alpha(main, 0.12)}`,
-        background: alpha(main, 0.05),
+        glow: `0 8px 28px ${alpha(main, 0.18)}`,
+        border: `1px solid ${alpha(main, 0.16)}`,
+        background: alpha(main, 0.07),
       };
 
   const frozen = Object.freeze(effects);
@@ -107,21 +108,21 @@ export const getGlassSx = (theme) => ({
 export const getGlowButtonSx = (theme) => {
   const isDark = theme.palette.mode === 'dark';
   const start = theme.palette.primary.main;
-  const end = theme.palette.info.main;
+  const end = theme.palette.secondary.main;
   return {
     px: 3,
     py: 1.5,
     borderRadius: 2,
     fontWeight: 600,
     background: `linear-gradient(135deg, ${start}, ${end})`,
-    color: theme.palette.getContrastText ? theme.palette.getContrastText(start) : theme.palette.primary.contrastText,
+    color: theme.palette.primary.contrastText,
     border: 'none',
     boxShadow: isDark
       ? `0 4px 18px ${alpha(start, 0.34)}`
       : `0 8px 22px ${alpha(start, 0.18)}`,
     transition: TRANSITIONS.smooth,
     '&:hover': {
-      background: `linear-gradient(135deg, ${theme.palette.primary.light}, ${theme.palette.info.light})`,
+      background: `linear-gradient(135deg, ${theme.palette.primary.light}, ${theme.palette.secondary.light})`,
       boxShadow: isDark
         ? `0 8px 24px ${alpha(start, 0.42)}`
         : `0 10px 26px ${alpha(start, 0.22)}`,
