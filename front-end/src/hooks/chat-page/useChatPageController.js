@@ -186,6 +186,7 @@ export function useChatPageController() {
   const { setScrollContainerRef } = useAutoScroll({
     messageCount: messages.length,
     isStreaming: isCurrentlyStreaming,
+    isConversationLoading,
     activityKey: streamActivityKey,
   });
 

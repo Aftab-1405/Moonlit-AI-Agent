@@ -12,9 +12,8 @@ function WelcomeScreen({ visible, user, chatInputProps }) {
     <Fade in={visible} timeout={300} unmountOnExit>
       <Box
         sx={{
-          flex: 1,
-          width: '100%',
-          minHeight: 0,
+          position: 'absolute',
+          inset: 0,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',

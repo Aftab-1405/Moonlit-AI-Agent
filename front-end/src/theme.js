@@ -181,17 +181,6 @@ const createTypography = (palette) => ({
     lineHeight: 1.1,
     letterSpacing: '-0.01em',
   },
-  uiSidebarWordmark: {
-    fontSize: { xs: '1.05rem', sm: '1.1rem' },
-    fontWeight: 600,
-    lineHeight: 1.2,
-    letterSpacing: '-0.01em',
-  },
-  uiPanelTitle: {
-    fontSize: { xs: '0.9rem', sm: '0.95rem' },
-    fontWeight: 600,
-    lineHeight: 1.35,
-  },
   uiCaption2xs: {
     fontSize: { xs: '0.65rem', sm: '0.7rem' },
     lineHeight: 1.4,
@@ -206,11 +195,6 @@ const createTypography = (palette) => ({
     fontSize: { xs: '0.78rem', sm: '0.875rem' },
     lineHeight: 1.55,
     letterSpacing: '0.008em',
-  },
-  uiSelectCompact: {
-    fontSize: { xs: 14, sm: 13 },
-    lineHeight: 1.25,
-    letterSpacing: '0.01em',
   },
   uiCodeBlock: {
     fontSize: '0.85rem',
@@ -279,8 +263,6 @@ const createTypography = (palette) => ({
     fontSizePx: 12,
   },
 });
-const MOBILE_MEDIA_QUERY = MOBILE_SM_QUERY;
-
 const getComponentOverrides = (mode) => {
   const palette = PALETTE_MODES[mode];
   const isDark = mode === 'dark';
@@ -291,7 +273,7 @@ const getComponentOverrides = (mode) => {
     },
   };
   const mobileBlurFallback = {
-    [MOBILE_MEDIA_QUERY]: {
+    [MOBILE_SM_QUERY]: {
       backdropFilter: 'none',
       WebkitBackdropFilter: 'none',
     },
@@ -378,7 +360,7 @@ const getComponentOverrides = (mode) => {
             backgroundColor: alpha(palette.primary.main, isDark ? 0.3 : 0.18),
             color: isDark ? palette.text.primary : palette.primary.dark,
           },
-          [MOBILE_MEDIA_QUERY]: {
+          [MOBILE_SM_QUERY]: {
             '& input, & select, & textarea': {
               fontSize: '16px',
             },
@@ -423,7 +405,7 @@ const getComponentOverrides = (mode) => {
           fontWeight: 500,
           transition: TRANSITIONS.default,
           borderWidth: 1,
-          [MOBILE_MEDIA_QUERY]: {
+          [MOBILE_SM_QUERY]: {
             minHeight: 44,
             padding: '10px 18px',
           },
@@ -447,11 +429,6 @@ const getComponentOverrides = (mode) => {
             backgroundColor: isDark ? palette.primary.light : palette.primary.dark,
             boxShadow: containedHoverShadow,
           },
-        },
-        containedPrimary: {
-          backgroundColor: palette.primary.main,
-          color: palette.primary.contrastText,
-          '&:hover': { backgroundColor: isDark ? palette.primary.light : palette.primary.dark },
         },
         containedSecondary: {
           backgroundColor: palette.secondary.main,
@@ -563,7 +540,7 @@ const getComponentOverrides = (mode) => {
         root: {
           borderRadius: 6,
           transition: TRANSITIONS.default,
-          [MOBILE_MEDIA_QUERY]: {
+          [MOBILE_SM_QUERY]: {
             minWidth: 44,
             minHeight: 44,
           },
@@ -829,7 +806,7 @@ const getComponentOverrides = (mode) => {
           margin: '2px 8px',
           padding: '10px 16px',
           transition: TRANSITIONS.default,
-          [MOBILE_MEDIA_QUERY]: {
+          [MOBILE_SM_QUERY]: {
             minHeight: 44,
           },
           '&:hover': { backgroundColor: palette.action.hover },
@@ -1016,7 +993,6 @@ const createBaseTheme = (mode) => {
   theme.custom = {
     getGradient: () => getMoonlitGradient(theme),
     getEffects: () => getAccentEffects(theme),
-    getNaturalMoonlitEffects: () => getAccentEffects(theme),
     fonts: FONTS,
     transitions: TRANSITIONS,
     alpha: {
@@ -1044,10 +1020,4 @@ export const createLightTheme = () => getCachedTheme('light');
 export const darkTheme = createDarkTheme();
 export const lightTheme = createLightTheme();
 
-export const getNaturalMoonlitEffects = getAccentEffects;
-export const getGlassCardSx = getGlassSx;
-
 export default darkTheme;
-
-
-

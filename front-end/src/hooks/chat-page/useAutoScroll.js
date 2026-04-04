@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 const PINNED_THRESHOLD_PX = 96;
 const POST_STREAM_SETTLE_MS = 700;
 
-function useAutoScroll({ messageCount, isStreaming, activityKey = '' }) {
+function useAutoScroll({ messageCount, isStreaming, isConversationLoading = false, activityKey = '' }) {
   const [scrollContainer, setScrollContainer] = useState(null);
   const scheduleRafRef = useRef(null);
   const prevMessageCountRef = useRef(messageCount);
@@ -70,6 +70,12 @@ function useAutoScroll({ messageCount, isStreaming, activityKey = '' }) {
       scheduleScrollToBottom();
     }
   }, [scrollContainer, scheduleScrollToBottom, shouldAutoFollow]);
+
+  useEffect(() => {
+    if (!scrollContainer || !isConversationLoading) return;
+    scrollContainer.scrollTop = 0;
+    pinnedRef.current = true;
+  }, [isConversationLoading, scrollContainer]);
 
   useEffect(() => {
     if (messageCount > prevMessageCountRef.current) {

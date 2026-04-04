@@ -6,6 +6,7 @@ import { alpha } from '@mui/material/styles';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
+import WrapTextRoundedIcon from '@mui/icons-material/WrapTextRounded';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus, vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import MermaidDiagram from './MermaidDiagram';
@@ -14,11 +15,29 @@ const SQL_LANGUAGES = new Set([
   'sql', 'mysql', 'postgresql', 'sqlite', 'sqlserver', 'oracle', 'tsql', 'plsql'
 ]);
 
+const LANG_COLORS = {
+  sql: '#4fc3f7', mysql: '#4fc3f7', postgresql: '#4fc3f7', sqlite: '#4fc3f7',
+  sqlserver: '#4fc3f7', oracle: '#4fc3f7', tsql: '#4fc3f7', plsql: '#4fc3f7',
+  javascript: '#f7c948', js: '#f7c948',
+  typescript: '#5b8dd9', ts: '#5b8dd9',
+  jsx: '#61dafb', tsx: '#61dafb',
+  python: '#6bbf8e', py: '#6bbf8e',
+  json: '#e09b5e',
+  bash: '#a8c28a', sh: '#a8c28a', shell: '#a8c28a',
+  html: '#e07b59', xml: '#e07b59',
+  css: '#7bafd4', scss: '#c39cd9', sass: '#c39cd9',
+  rust: '#c96a44',
+  go: '#5ab8d9',
+  java: '#e07b59',
+  cpp: '#6b9dd4', c: '#6b9dd4',
+};
+
 const REMARK_PLUGINS = [remarkGfm];
 
 const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isDarkMode, theme }) {
   const [copied, setCopied] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
+  const [wrapLongLines, setWrapLongLines] = useState(false);
   const copyTimeoutRef = useRef(null);
 
   useEffect(() => {
@@ -26,6 +45,7 @@ const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isD
       if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
     };
   }, []);
+
   const language = className?.replace('language-', '') || '';
   const code = useMemo(() => {
     return Array.isArray(children) ? children.join('') : String(children || '').replace(/\n$/, '');
@@ -33,6 +53,15 @@ const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isD
 
   const isSQL = SQL_LANGUAGES.has(language.toLowerCase());
   const isMermaid = language.toLowerCase() === 'mermaid';
+  const lineCount = code.split('\n').length;
+  const showLineNumbers = lineCount >= 4;
+  const langColor = LANG_COLORS[language.toLowerCase()] || null;
+
+  // Dark mode: use Monaco's near-black for a crisper editor feel
+  const codeBg = isDarkMode ? '#0c0d0f' : theme.palette.background.elevated;
+  const headerBg = isDarkMode
+    ? alpha(theme.palette.background.elevated, 0.9)
+    : alpha(theme.palette.background.paper, 0.95);
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(code);
@@ -54,53 +83,99 @@ const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isD
 
   const containerStyles = useMemo(() => ({
     my: { xs: 1.5, sm: 2 },
-    borderRadius: { xs: '8px', sm: '12px' },
+    borderRadius: { xs: '8px', sm: '10px' },
     overflow: 'hidden',
-    backgroundColor: theme.palette.background.elevated,
+    backgroundColor: codeBg,
     border: '1px solid',
     borderColor: theme.palette.border.subtle,
     minWidth: 0, // CRITICAL: Prevents flexbox overflow issues during streaming
     width: '100%',
-  }), [theme]);
+    transition: 'border-color 0.18s ease, box-shadow 0.18s ease',
+    '&:hover': {
+      borderColor: langColor
+        ? alpha(langColor, isDarkMode ? 0.35 : 0.3)
+        : theme.palette.border.default,
+      boxShadow: langColor
+        ? `0 0 0 1px ${alpha(langColor, isDarkMode ? 0.1 : 0.07)}`
+        : `0 0 0 1px ${alpha(theme.palette.text.primary, 0.04)}`,
+    },
+  }), [theme, codeBg, langColor, isDarkMode]);
+
   if (isMermaid) {
     return <MermaidDiagram code={code} />;
   }
 
   return (
     <Box sx={containerStyles}>
+      {/* Header */}
       <Box sx={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        px: { xs: 1, sm: 2 },
-        py: { xs: 0.5, sm: 0.75 },
-        minHeight: { xs: 40, sm: 44 },
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        px: { xs: 1.25, sm: 1.75 },
+        minHeight: { xs: 38, sm: 42 },
         borderBottom: '1px solid',
         borderColor: theme.palette.border.subtle,
-        backgroundColor: theme.palette.action.hover,
+        backgroundColor: headerBg,
+        gap: 1,
       }}>
-        <Typography variant="caption" sx={{
-          color: 'text.secondary',
-          fontWeight: 500,
-          textTransform: 'uppercase',
-          ...theme.typography.uiCaption2xs,
-        }}>
-          {language || 'code'}
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 0.5 }}>
+        {/* Language label */}
+        <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0 }}>
+          <Typography sx={{
+            color: theme.palette.text.secondary,
+            fontWeight: 500,
+            fontFamily: theme.typography.fontFamilyMono,
+            ...theme.typography.uiCaption2xs,
+            textTransform: 'lowercase',
+            letterSpacing: '0.03em',
+          }}>
+            {language || 'code'}
+          </Typography>
+        </Box>
+
+        {/* Action buttons */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, flexShrink: 0 }}>
+          <Tooltip title={wrapLongLines ? 'Unwrap long lines' : 'Wrap long lines'} arrow>
+            <IconButton
+              size="small"
+              onClick={() => setWrapLongLines((v) => !v)}
+              sx={{
+                width: 30,
+                height: 30,
+                borderRadius: '6px',
+                color: wrapLongLines ? theme.palette.primary.main : theme.palette.text.secondary,
+                bgcolor: wrapLongLines ? alpha(theme.palette.primary.main, isDarkMode ? 0.12 : 0.08) : 'transparent',
+                transition: 'color 0.15s ease, background-color 0.15s ease',
+                '&:hover': {
+                  color: wrapLongLines ? theme.palette.primary.light : theme.palette.text.primary,
+                  bgcolor: alpha(theme.palette.text.primary, 0.06),
+                },
+              }}
+            >
+              <WrapTextRoundedIcon sx={{ fontSize: 14 }} />
+            </IconButton>
+          </Tooltip>
           {isSQL && (
-            <Tooltip title={isRunning ? "Running..." : "Run"} arrow>
+            <Tooltip title={isRunning ? 'Running…' : 'Run query'} arrow>
               <span>
                 <IconButton
                   size="small"
                   onClick={handleRun}
                   disabled={isRunning}
                   sx={{
-                    width: 44,
-                    height: 44,
-                    color: isRunning ? 'text.disabled' : 'success.main',
-                    '&:hover': { color: 'success.light', bgcolor: alpha(theme.palette.success.main, 0.1) },
+                    width: 30,
+                    height: 30,
+                    color: isRunning ? 'text.disabled' : theme.palette.success.main,
+                    borderRadius: '6px',
+                    '&:hover': {
+                      color: theme.palette.success.light,
+                      bgcolor: alpha(theme.palette.success.main, isDarkMode ? 0.12 : 0.08),
+                    },
                   }}
                 >
-                  {isRunning ? <CircularProgress size={14} color="inherit" /> : <PlayArrowRoundedIcon sx={{ fontSize: { xs: 18, sm: 16 } }} />}
+                  {isRunning
+                    ? <CircularProgress size={13} color="inherit" />
+                    : <PlayArrowRoundedIcon sx={{ fontSize: 16 }} />}
                 </IconButton>
               </span>
             </Tooltip>
@@ -110,30 +185,49 @@ const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isD
               size="small"
               onClick={handleCopy}
               sx={{
-                width: 44,
-                height: 44,
-                color: copied ? 'success.main' : 'text.disabled',
-                '&:hover': { color: 'text.primary', bgcolor: alpha(theme.palette.text.primary, 0.05) },
+                width: 30,
+                height: 30,
+                borderRadius: '6px',
+                color: copied ? theme.palette.success.main : theme.palette.text.secondary,
+                transition: 'color 0.15s ease, background-color 0.15s ease',
+                '&:hover': {
+                  color: theme.palette.text.primary,
+                  bgcolor: alpha(theme.palette.text.primary, 0.06),
+                },
               }}
             >
-              {copied ? <CheckRoundedIcon sx={{ fontSize: { xs: 16, sm: 14 } }} /> : <ContentCopyRoundedIcon sx={{ fontSize: { xs: 16, sm: 14 } }} />}
+              {copied
+                ? <CheckRoundedIcon sx={{ fontSize: 14 }} />
+                : <ContentCopyRoundedIcon sx={{ fontSize: 14 }} />}
             </IconButton>
           </Tooltip>
         </Box>
       </Box>
 
+      {/* Code body */}
       <Box sx={{ overflowX: 'auto' }}>
         <SyntaxHighlighter
           language={language || 'text'}
           style={isDarkMode ? vscDarkPlus : vs}
+          showLineNumbers={showLineNumbers}
+          lineNumberStyle={{
+            minWidth: '2.5em',
+            paddingRight: '1em',
+            color: isDarkMode
+              ? alpha('#ffffff', 0.18)
+              : alpha('#000000', 0.22),
+            fontSize: '0.78em',
+            userSelect: 'none',
+          }}
           customStyle={{
             margin: 0,
-            padding: '16px',
+            padding: '14px 16px',
             fontSize: theme.typography.uiCodeBlock.fontSize,
             lineHeight: theme.typography.uiCodeBlock.lineHeight,
             background: 'transparent',
           }}
-          wrapLines={false} // CRITICAL: Disabling wrapLines stabilizes height during typing
+          wrapLines={wrapLongLines}
+          wrapLongLines={wrapLongLines}
         >
           {code}
         </SyntaxHighlighter>

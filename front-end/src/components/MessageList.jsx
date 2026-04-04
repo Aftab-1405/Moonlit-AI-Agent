@@ -319,7 +319,6 @@ const AIMessage = memo(function AIMessage({ id, text, steps, status, onRunQuery,
 });
 
 const ConversationLoadingSkeleton = memo(function ConversationLoadingSkeleton() {
-  const theme = useTheme();
   const prefersReducedMotion = useMediaQuery(REDUCED_MOTION_QUERY);
   const animation = prefersReducedMotion ? false : 'wave';
   const lineWidths = [
@@ -355,7 +354,6 @@ const ConversationLoadingSkeleton = memo(function ConversationLoadingSkeleton() 
               width: { xs: 112, sm: 168 },
               height: { xs: 26, sm: 34 },
               borderRadius: '12px',
-              bgcolor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.16 : 0.12),
             }}
           />
         </Box>
@@ -370,7 +368,6 @@ const ConversationLoadingSkeleton = memo(function ConversationLoadingSkeleton() 
               height: { xs: 10, sm: 12 },
               mb: { xs: 0.85, sm: 1 },
               borderRadius: 999,
-              bgcolor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.13 : 0.1),
             }}
           />
         ))}
