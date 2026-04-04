@@ -38,10 +38,43 @@ import { getToolbarChipSx, UI_LAYOUT } from '../styles/shared';
 const MENU_HEADER_STYLES = { px: 2, py: 0.5, display: 'block', color: 'text.secondary' };
 const LIST_ITEM_ICON_STYLES = { minWidth: 28 };
 
-/** Rotates the conic-gradient so the accent appears to run around the border */
-const rgbBorderSpin = keyframes`
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+/** Moves a concentrated glow around the rounded input shell like a traveling border light */
+const rgbBorderOrbit = keyframes`
+  0% {
+    top: 50%;
+    left: 0%;
+    transform: translate(-34%, -50%) rotate(-12deg);
+  }
+  16% {
+    top: 0%;
+    left: 22%;
+    transform: translate(-50%, -42%) rotate(0deg);
+  }
+  34% {
+    top: 0%;
+    left: 100%;
+    transform: translate(-76%, -40%) rotate(18deg);
+  }
+  50% {
+    top: 100%;
+    left: 100%;
+    transform: translate(-76%, -60%) rotate(180deg);
+  }
+  66% {
+    top: 100%;
+    left: 22%;
+    transform: translate(-50%, -58%) rotate(198deg);
+  }
+  84% {
+    top: 100%;
+    left: 0%;
+    transform: translate(-28%, -60%) rotate(216deg);
+  }
+  100% {
+    top: 50%;
+    left: 0%;
+    transform: translate(-34%, -50%) rotate(348deg);
+  }
 `;
 
 function ChatInput({
@@ -495,23 +528,38 @@ function ChatInput({
             <Box
               sx={{
                 position: 'absolute',
-                left: '50%',
-                top: '50%',
-                width: '220%',
-                height: '220%',
-                marginLeft: '-110%',
-                marginTop: '-110%',
-                background: `conic-gradient(
-                  from 0deg,
-                  #f472b6,
-                  #a78bfa,
-                  #22d3ee,
-                  #34d399,
-                  #fbbf24,
-                  #fb7185,
-                  #f472b6
+                inset: 0,
+                borderRadius: 'inherit',
+                background: `linear-gradient(
+                  135deg,
+                  ${alpha('#f472b6', theme.palette.mode === 'dark' ? 0.34 : 0.24)},
+                  ${alpha('#22d3ee', theme.palette.mode === 'dark' ? 0.18 : 0.12)} 45%,
+                  ${alpha('#fbbf24', theme.palette.mode === 'dark' ? 0.22 : 0.14)}
                 )`,
-                animation: `${rgbBorderSpin} 2.4s linear infinite`,
+                opacity: theme.palette.mode === 'dark' ? 0.8 : 0.62,
+              }}
+            />
+            <Box
+              sx={{
+                position: 'absolute',
+                top: '50%',
+                left: 0,
+                width: { xs: '42%', sm: '34%' },
+                height: { xs: 54, sm: 64 },
+                borderRadius: '999px',
+                background: `linear-gradient(
+                  90deg,
+                  ${alpha('#ffffff', 0)} 0%,
+                  ${alpha('#a78bfa', theme.palette.mode === 'dark' ? 0.2 : 0.12)} 18%,
+                  ${alpha('#22d3ee', theme.palette.mode === 'dark' ? 0.82 : 0.6)} 52%,
+                  ${alpha('#fbbf24', theme.palette.mode === 'dark' ? 0.74 : 0.52)} 74%,
+                  ${alpha('#fb7185', theme.palette.mode === 'dark' ? 0.9 : 0.66)} 100%
+                )`,
+                boxShadow: `0 0 26px ${alpha('#22d3ee', theme.palette.mode === 'dark' ? 0.4 : 0.22)}, 0 0 38px ${alpha('#fb7185', theme.palette.mode === 'dark' ? 0.28 : 0.16)}`,
+                filter: 'blur(11px)',
+                opacity: theme.palette.mode === 'dark' ? 0.95 : 0.88,
+                transformOrigin: 'center',
+                animation: `${rgbBorderOrbit} 2.8s linear infinite`,
               }}
             />
           </Box>
