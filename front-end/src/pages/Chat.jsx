@@ -234,7 +234,6 @@ function Chat() {
                   <MessageList
                     messages={messages}
                     isLoadingConversation={isConversationLoading}
-                    user={user}
                     onRunQuery={handleRunQuery}
                     onOpenSqlEditor={handleOpenSqlEditor}
                   />

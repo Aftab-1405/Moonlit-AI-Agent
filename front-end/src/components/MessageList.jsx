@@ -1,5 +1,5 @@
-import { Box, Typography, Avatar, IconButton, Tooltip, Button, Skeleton, useTheme, useMediaQuery } from '@mui/material';
-import { alpha, keyframes } from '@mui/material/styles';
+import { Box, Typography, IconButton, Tooltip, Button, Skeleton, CircularProgress, useTheme, useMediaQuery } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import Fade from '@mui/material/Fade';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
@@ -15,10 +15,25 @@ import { UI_LAYOUT } from '../styles/shared';
 
 const COPY_FEEDBACK_DURATION = 2000;
 
-const spin = keyframes`
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-`;
+const messageActionsRowSx = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'flex-start',
+  gap: 0.5,
+  flexWrap: 'wrap',
+  opacity: 0,
+  transition: 'opacity 0.2s ease',
+};
+
+const turnGroupHoverSx = {
+  [HOVER_CAPABLE_QUERY]: {
+    '&:hover .msg-actions-row': { opacity: 1 },
+    '&:focus-within .msg-actions-row': { opacity: 1 },
+  },
+  '@media (pointer: coarse)': {
+    '& .msg-actions-row': { opacity: 1 },
+  },
+};
 
 function fallbackCopyText(text) {
   if (typeof document === 'undefined') return false;
@@ -93,63 +108,82 @@ function useCopyToClipboard() {
   return { copied, copyText, copyRich };
 }
 
-const CopyButton = memo(function CopyButton({ copied, onClick, className = 'copy-btn', sx = {} }) {
+const CopyButton = memo(function CopyButton({ copied, onClick, className = 'message-action-btn', sx = {}, 'data-testid': dataTestId }) {
   return (
     <Tooltip title={copied ? 'Copied!' : 'Copy'}>
       <IconButton
         className={className}
+        aria-label="Copy"
+        data-testid={dataTestId}
         size="small"
         onClick={onClick}
         sx={{
-          opacity: 0,
+          width: 32,
+          height: 32,
           color: copied ? 'text.primary' : 'text.secondary',
-          transition: 'opacity 0.2s',
+          transition: 'color 0.2s',
           [HOVER_CAPABLE_QUERY]: {
             '&:hover': { color: 'text.primary' },
           },
           ...sx,
         }}
       >
-        {copied ? <CheckRoundedIcon sx={{ fontSize: 16 }} /> : <ContentCopyRoundedIcon sx={{ fontSize: 16 }} />}
+        {copied ? <CheckRoundedIcon sx={{ fontSize: 18 }} /> : <ContentCopyRoundedIcon sx={{ fontSize: 18 }} />}
       </IconButton>
     </Tooltip>
   );
 });
 
-const UserMessage = memo(function UserMessage({ message, userAvatar, userName }) {
+const UserMessage = memo(function UserMessage({ message }) {
   const { copied, copyText } = useCopyToClipboard();
   const theme = useTheme();
-  const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const handleCopy = useCallback(() => copyText(message), [copyText, message]);
+  const bubbleBg = alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.06);
 
   return (
     <Fade in timeout={300}>
-      <Box sx={{ py: { xs: 1, sm: 1.5 }, px: { xs: 2, sm: 4, md: 6 } }}>
-        <Box sx={{ width: '100%', maxWidth: UI_LAYOUT.chatInputMaxWidth, mx: 'auto', display: 'flex', justifyContent: 'flex-end' }}>
+      <Box
+        sx={{
+          mt: 3,
+          mb: 0.25,
+          ...turnGroupHoverSx,
+        }}
+      >
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
           <Box
             sx={{
-              display: 'flex',
-              gap: { xs: 0.75, sm: 1.5 },
-              width: '100%',
-              maxWidth: '100%',
-              flexDirection: 'row-reverse',
-              alignItems: 'flex-start',
-              [HOVER_CAPABLE_QUERY]: {
-                '&:hover .copy-btn': { opacity: 1 },
-              },
+              display: 'inline-flex',
+              flexDirection: 'column',
+              maxWidth: 'min(85%, 75ch)',
+              borderRadius: '12px',
+              px: 2,
+              py: 1.25,
+              bgcolor: bubbleBg,
+              border: '1px solid',
+              borderColor: alpha(theme.palette.divider, 0.85),
+              color: 'text.primary',
             }}
           >
-            {!isCompactMobile && (
-              <Avatar src={userAvatar} sx={{ width: { xs: 24, sm: 28 }, height: { xs: 24, sm: 28 }, bgcolor: 'primary.main', fontWeight: 600, alignSelf: 'flex-start', mt: 0.5 }}>
-                {!userAvatar && (userName?.charAt(0).toUpperCase() || 'U')}
-              </Avatar>
-            )}
-            <Box sx={{ px: { xs: 1.4, sm: 2 }, py: { xs: 1, sm: 1.25 }, borderRadius: '16px 16px 4px 16px', backgroundColor: theme.palette.action.hover, border: '1px solid', borderColor: theme.palette.divider }}>
-              <Typography sx={{ lineHeight: 1.6, whiteSpace: 'pre-wrap', color: 'text.primary' }}>
-                {message}
-              </Typography>
-            </Box>
-            <CopyButton copied={copied} onClick={handleCopy} sx={{ alignSelf: 'center', display: isCompactMobile ? 'none' : 'inline-flex' }} />
+            <Typography
+              component="div"
+              data-testid="user-message"
+              sx={{
+                lineHeight: 1.6,
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+                fontSize: { xs: '0.9375rem', sm: '1rem' },
+              }}
+            >
+              {message}
+            </Typography>
+          </Box>
+          <Box
+            className="msg-actions-row"
+            role="group"
+            aria-label="Message actions"
+            sx={messageActionsRowSx}
+          >
+            <CopyButton copied={copied} onClick={handleCopy} data-testid="action-bar-copy" />
           </Box>
         </Box>
       </Box>
@@ -169,7 +203,7 @@ function parseJSON(value) {
 const AIMessage = memo(function AIMessage({ id, text, steps, status, onRunQuery, onOpenSqlEditor }) {
   const { copied, copyRich } = useCopyToClipboard();
   const theme = useTheme();
-  const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const prefersReducedMotion = useMediaQuery(REDUCED_MOTION_QUERY);
   const contentRef = useRef(null);
   const sqlEditorTimeoutRef = useRef(null);
   const openedToolsRef = useRef(new Set());
@@ -226,45 +260,58 @@ const AIMessage = memo(function AIMessage({ id, text, steps, status, onRunQuery,
     copyRich(htmlContent, plainTextContent);
   }, [copyRich, displayText]);
 
+  const showThinkingSpinner = isWaiting && displaySteps.length === 0 && !displayText.trim();
+
   return (
     <Fade in timeout={300}>
       <Box
         sx={{
-          py: { xs: 1, sm: 1.5 },
-          px: { xs: 2, sm: 4, md: 6 },
-          [HOVER_CAPABLE_QUERY]: {
-            '&:hover .copy-btn': { opacity: 1 },
-          },
+          pb: 3,
+          minWidth: 0,
+          ...turnGroupHoverSx,
         }}
       >
-        <Box sx={{ width: '100%', maxWidth: UI_LAYOUT.chatInputMaxWidth, mx: 'auto', display: 'flex', gap: { xs: 1, sm: 2 }, alignItems: 'flex-start' }}>
-          {!isCompactMobile && (
-            <Avatar
-              src="/product-logo.png"
-              sx={{
-                width: { xs: 24, sm: 28 }, height: { xs: 24, sm: 28 }, bgcolor: 'transparent', flexShrink: 0, alignSelf: 'flex-start', mt: 0,
-                border: `1px solid ${alpha(theme.palette.primary.main, 0.3)}`,
-                animation: isWaiting ? `${spin} 1s linear infinite` : 'none',
-                [REDUCED_MOTION_QUERY]: {
-                  animation: 'none',
-                },
-              }}
-            />
+        <Box sx={{ position: 'relative', lineHeight: 1.65, minWidth: 0 }}>
+          {showThinkingSpinner && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: 1, py: 0.75, color: 'text.secondary' }}>
+              {prefersReducedMotion ? (
+                <Typography component="span" variant="body2" color="text.secondary" aria-hidden>
+                  …
+                </Typography>
+              ) : (
+                <CircularProgress size={16} thickness={4} sx={{ color: 'primary.main' }} />
+              )}
+            </Box>
           )}
-          <Box sx={{ flex: 1, minWidth: 0, pt: 0 }}>
-            {displaySteps.length > 0 && (
+
+          {displaySteps.length > 0 && (
+            <Box sx={{ pl: 1, py: 0.75, minWidth: 0 }}>
               <StepsAccordion steps={displaySteps} isStreaming={isWaiting || isStreaming} />
-            )}
+            </Box>
+          )}
 
-            {displayText.trim() && (
-              <MarkdownRenderer content={displayText} onRunQuery={onRunQuery} />
-            )}
-
-            <Box ref={contentRef} sx={{ display: 'none' }} aria-hidden>
+          {displayText.trim() && (
+            <Box sx={{ pl: 1, pr: { xs: 2, sm: 4 }, minWidth: 0, py: 0.5 }}>
               <MarkdownRenderer content={displayText} onRunQuery={onRunQuery} />
             </Box>
+          )}
+
+          <Box ref={contentRef} sx={{ display: 'none' }} aria-hidden>
+            <MarkdownRenderer content={displayText} onRunQuery={onRunQuery} />
           </Box>
-          <CopyButton copied={copied} onClick={handleCopy} sx={{ alignSelf: 'flex-start', mt: 0.5, display: isCompactMobile ? 'none' : 'inline-flex' }} />
+        </Box>
+
+        <Box
+          className="msg-actions-row"
+          role="group"
+          aria-label="Message actions"
+          sx={{
+            ...messageActionsRowSx,
+            width: '100%',
+            mt: 0.25,
+          }}
+        >
+          <CopyButton copied={copied} onClick={handleCopy} data-testid="action-bar-copy" />
         </Box>
       </Box>
     </Fade>
@@ -291,38 +338,42 @@ const ConversationLoadingSkeleton = memo(function ConversationLoadingSkeleton() 
 
   return (
     <Box sx={{ flex: 1, py: { xs: 1.5, sm: 2 }, overflowAnchor: 'none' }}>
-      <Box sx={{ px: { xs: 2, sm: 4, md: 6 } }}>
-        <Box sx={{ width: '100%', maxWidth: UI_LAYOUT.chatInputMaxWidth, mx: 'auto' }}>
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: { xs: 1.5, sm: 2.25 } }}>
-            <Skeleton
-              variant="rounded"
-              animation={animation}
-              sx={{
-                width: { xs: 112, sm: 168 },
-                height: { xs: 26, sm: 34 },
-                borderRadius: 2,
-                bgcolor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.16 : 0.12),
-              }}
-            />
-          </Box>
-
-          <Box sx={{ width: '100%', maxWidth: UI_LAYOUT.chatInputMaxWidth, mx: 'auto' }}>
-            {lineWidths.map((width, idx) => (
-              <Skeleton
-                key={`line-skeleton-${idx}`}
-                variant="rounded"
-                animation={animation}
-                sx={{
-                  width,
-                  height: { xs: 10, sm: 12 },
-                  mb: { xs: 0.85, sm: 1 },
-                  borderRadius: 999,
-                  bgcolor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.13 : 0.1),
-                }}
-              />
-            ))}
-          </Box>
+      <Box
+        sx={{
+          width: '100%',
+          maxWidth: UI_LAYOUT.chatInputMaxWidth,
+          mx: 'auto',
+          px: 2,
+          pt: 0.5,
+        }}
+      >
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: { xs: 1.5, sm: 2.25 } }}>
+          <Skeleton
+            variant="rounded"
+            animation={animation}
+            sx={{
+              width: { xs: 112, sm: 168 },
+              height: { xs: 26, sm: 34 },
+              borderRadius: '12px',
+              bgcolor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.16 : 0.12),
+            }}
+          />
         </Box>
+
+        {lineWidths.map((width, idx) => (
+          <Skeleton
+            key={`line-skeleton-${idx}`}
+            variant="rounded"
+            animation={animation}
+            sx={{
+              width,
+              height: { xs: 10, sm: 12 },
+              mb: { xs: 0.85, sm: 1 },
+              borderRadius: 999,
+              bgcolor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.13 : 0.1),
+            }}
+          />
+        ))}
       </Box>
     </Box>
   );
@@ -359,7 +410,6 @@ function normalizeAssistantMessage(message) {
 const MessageList = memo(function MessageList({
   messages = [],
   isLoadingConversation = false,
-  user,
   onRunQuery,
   onOpenSqlEditor,
 }) {
@@ -393,15 +443,30 @@ const MessageList = memo(function MessageList({
   }
 
   return (
-    <Box sx={{
-      flex: 1,
-      py: 2,
-      // Prevent browser scroll anchoring from fighting stream updates
-      overflowAnchor: 'none',
-    }}>
-      {hiddenCount > 0 && (
-        <Box sx={{ px: { xs: 2, sm: 4, md: 6 }, pb: 1 }}>
-          <Box sx={{ width: '100%', maxWidth: UI_LAYOUT.chatInputMaxWidth, mx: 'auto' }}>
+    <Box
+      sx={{
+        flex: 1,
+        py: 2,
+        overflowAnchor: 'none',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      <Box
+        sx={{
+          width: '100%',
+          maxWidth: UI_LAYOUT.chatInputMaxWidth,
+          mx: 'auto',
+          px: 2,
+          pt: 0.5,
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          minWidth: 0,
+        }}
+      >
+        {hiddenCount > 0 && (
+          <Box sx={{ pb: 1 }}>
             <Button
               size="small"
               onClick={() => setVisibleCount((c) => c + 50)}
@@ -410,30 +475,23 @@ const MessageList = memo(function MessageList({
               Load {Math.min(50, hiddenCount)} older messages
             </Button>
           </Box>
-        </Box>
-      )}
-      {visibleMessages.map((message) => (
-        message.role === 'user'
-          ? (
-            <UserMessage
-              key={message.id}
-              message={message.text}
-              userAvatar={user?.photoURL}
-              userName={user?.displayName}
-            />
-          )
-          : (
-            <AIMessage
-              key={message.id}
-              id={message.id}
-              text={message.text}
-              steps={message.steps}
-              status={message.status}
-              onRunQuery={onRunQuery}
-              onOpenSqlEditor={onOpenSqlEditor}
-            />
-          )
-      ))}
+        )}
+        {visibleMessages.map((message) => (
+          message.role === 'user'
+            ? <UserMessage key={message.id} message={message.text} />
+            : (
+              <AIMessage
+                key={message.id}
+                id={message.id}
+                text={message.text}
+                steps={message.steps}
+                status={message.status}
+                onRunQuery={onRunQuery}
+                onOpenSqlEditor={onOpenSqlEditor}
+              />
+            )
+        ))}
+      </Box>
     </Box>
   );
 });

@@ -11,7 +11,7 @@ export const UI_LAYOUT = Object.freeze({
   compactTouchTarget: 40,
   sidebarExpandedWidth: 260,
   sidebarCollapsedWidth: 52,
-  chatInputMaxWidth: 760,
+  chatInputMaxWidth: 768,
   contentMaxWidth: 800,
   dialogDesktopOffset: 64,
 });

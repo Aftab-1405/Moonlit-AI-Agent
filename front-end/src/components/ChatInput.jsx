@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, memo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react';
 import {
   Box,
   TextField,
@@ -17,7 +17,7 @@ import {
   Skeleton,
   useMediaQuery,
 } from '@mui/material';
-import { alpha, useTheme } from '@mui/material/styles';
+import { alpha, useTheme, keyframes } from '@mui/material/styles';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import StopRoundedIcon from '@mui/icons-material/StopRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
@@ -37,6 +37,12 @@ import { getToolbarChipSx, UI_LAYOUT } from '../styles/shared';
 
 const MENU_HEADER_STYLES = { px: 2, py: 0.5, display: 'block', color: 'text.secondary' };
 const LIST_ITEM_ICON_STYLES = { minWidth: 28 };
+
+/** Rotates the conic-gradient so the accent appears to run around the border */
+const rgbBorderSpin = keyframes`
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+`;
 
 function ChatInput({
   onSend,
@@ -58,6 +64,8 @@ function ChatInput({
 }) {
   const [message, setMessage] = useState('');
   const [isFocused, setIsFocused] = useState(false);
+  const [rgbBorderFlash, setRgbBorderFlash] = useState(false);
+  const rgbBorderTimeoutRef = useRef(null);
   const theme = useTheme();
   const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { settings, updateSetting } = useAppTheme();
@@ -182,8 +190,29 @@ function ChatInput({
     setMessage(e.target.value);
   }, []);
 
-  const handleFocus = useCallback(() => setIsFocused(true), []);
-  const handleBlur = useCallback(() => setIsFocused(false), []);
+  const RGB_BORDER_MS = 3800;
+
+  const handleFocus = useCallback(() => {
+    setIsFocused(true);
+    if (rgbBorderTimeoutRef.current) {
+      clearTimeout(rgbBorderTimeoutRef.current);
+    }
+    setRgbBorderFlash(true);
+    rgbBorderTimeoutRef.current = setTimeout(() => {
+      setRgbBorderFlash(false);
+      rgbBorderTimeoutRef.current = null;
+    }, RGB_BORDER_MS);
+  }, []);
+
+  const handleBlur = useCallback(() => {
+    setIsFocused(false);
+  }, []);
+
+  useEffect(() => () => {
+    if (rgbBorderTimeoutRef.current) {
+      clearTimeout(rgbBorderTimeoutRef.current);
+    }
+  }, []);
 
   const handleOpenDbMenu = useCallback((e) => setDbAnchor(e.currentTarget), []);
   const handleOpenSchemaMenu = useCallback((e) => setSchemaAnchor(e.currentTarget), []);
@@ -445,26 +474,73 @@ function ChatInput({
         sx={{
           maxWidth: UI_LAYOUT.chatInputMaxWidth,
           mx: 'auto',
-          p: { xs: 1.25, sm: 1.5 },
-          borderRadius: '18px',
-          border: '1px solid',
-          borderColor: isFocused
-            ? alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.26 : 0.18)
-            : alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.14 : 0.1),
-          backgroundColor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.94 : 0.98),
-          boxShadow: isFocused
-            ? `0 10px 24px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.22 : 0.08)}`
-            : `0 4px 12px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.16 : 0.05)}`,
-          transition: theme.transitions.create(['border-color', 'box-shadow', 'background-color'], {
-            duration: theme.transitions.duration.shorter,
-          }),
-          [HOVER_CAPABLE_QUERY]: {
-            '&:hover': {
-              borderColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.22 : 0.15),
-            },
-          },
+          position: 'relative',
+          borderRadius: '20px',
+          overflow: 'hidden',
+          boxSizing: 'border-box',
         }}
       >
+        {rgbBorderFlash && (
+          <Box
+            aria-hidden
+            sx={{
+              position: 'absolute',
+              inset: 0,
+              zIndex: 0,
+              borderRadius: 'inherit',
+              overflow: 'hidden',
+              pointerEvents: 'none',
+            }}
+          >
+            <Box
+              sx={{
+                position: 'absolute',
+                left: '50%',
+                top: '50%',
+                width: '220%',
+                height: '220%',
+                marginLeft: '-110%',
+                marginTop: '-110%',
+                background: `conic-gradient(
+                  from 0deg,
+                  #f472b6,
+                  #a78bfa,
+                  #22d3ee,
+                  #34d399,
+                  #fbbf24,
+                  #fb7185,
+                  #f472b6
+                )`,
+                animation: `${rgbBorderSpin} 2.4s linear infinite`,
+              }}
+            />
+          </Box>
+        )}
+        <Box
+          sx={{
+            m: '1px',
+            p: { xs: 1.25, sm: 1.5 },
+            borderRadius: '18px',
+            position: 'relative',
+            zIndex: 1,
+            border: '1px solid',
+            borderColor: isFocused
+              ? alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.26 : 0.18)
+              : alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.14 : 0.1),
+            backgroundColor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.94 : 0.98),
+            boxShadow: isFocused
+              ? `0 10px 24px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.22 : 0.08)}`
+              : `0 4px 12px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.16 : 0.05)}`,
+            transition: theme.transitions.create(['border-color', 'box-shadow', 'background-color'], {
+              duration: theme.transitions.duration.shorter,
+            }),
+            [HOVER_CAPABLE_QUERY]: {
+              '&:hover': {
+                borderColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.22 : 0.15),
+              },
+            },
+          }}
+        >
         <TextField
           fullWidth
           multiline
@@ -641,6 +717,7 @@ function ChatInput({
               </span>
             </Tooltip>
           </Box>
+        </Box>
         </Box>
       </Box>
       {showSuggestions && (

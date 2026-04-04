@@ -1,6 +1,7 @@
 import { Box, Container, Typography } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import { Section, REDUCED_MOTION_QUERY, HOVER_CAPABLE_QUERY } from './index';
+import { UI_LAYOUT } from '../../styles/shared';
 
 function DemoSection() {
   const theme = useTheme();
@@ -54,7 +55,7 @@ function DemoSection() {
         <Box
           sx={{
             position: 'relative',
-            maxWidth: { xs: '100%', md: 760 },
+            maxWidth: { xs: '100%', md: UI_LAYOUT.chatInputMaxWidth },
             mx: 'auto',
             perspective: '1200px',
           }}
