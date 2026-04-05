@@ -1,11 +1,10 @@
 /**
  * Database Connection Validation Schemas
- * 
+ *
  * Zod schemas for database connection forms:
  * - Credentials (host, port, user, password)
  * - Connection String
- * - SQLite (file path)
- * 
+ *
  * @module validation/schemas/database
  */
 
@@ -41,13 +40,6 @@ export const connectionStringSchema = z.object({
     ),
 });
 
-export const sqliteSchema = z.object({
-  database: z
-    .string()
-    .min(1, 'Database file path is required')
-    .regex(/\.(db|sqlite|sqlite3)$/i, 'File must be .db, .sqlite, or .sqlite3'),
-});
-
 export const dbFieldSchemas = {
   host: z
     .string()
@@ -67,12 +59,11 @@ export const dbFieldSchemas = {
     .min(1, 'Connection string is required'),
   database: z
     .string()
-    .min(1, 'Database file path is required'),
+    .min(1, 'Database name is required'),
 };
 
 export default {
   credentialsSchema,
   connectionStringSchema,
-  sqliteSchema,
   dbFieldSchemas,
 };

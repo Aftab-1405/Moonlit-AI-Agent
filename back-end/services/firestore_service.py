@@ -1,7 +1,6 @@
 # File: services/firestore_service.py
 """Firestore service for conversation storage"""
 
-import re
 import firebase_admin
 from firebase_admin import credentials, firestore
 from functools import lru_cache
@@ -46,27 +45,6 @@ def get_firestore_db():
     return firestore.client()
 
 
-def _strip_markers(text):
-    """
-    Strip streaming markers from message before storing.
-    
-    These markers ([[THINKING:...]], [[TOOL:...]]) are for real-time UI rendering.
-    Stored messages should contain only the clean content.
-    """
-    if not text:
-        return text
-    
-    # Strip thinking markers
-    text = re.sub(r'\[\[THINKING:start\]\]', '', text)
-    text = re.sub(r'\[\[THINKING:chunk:.*?\]\]', '', text)
-    text = re.sub(r'\[\[THINKING:end\]\]', '', text)
-    
-    # Strip tool markers (keep result data separate in 'tools' field)
-    text = re.sub(r'\[\[TOOL:[^\]]+\]\]', '', text)
-    
-    return text.strip()
-
-
 def store_conversation(conversation_id, sender, message, user_id, tools=None):
     """Store conversation message in Firestore
     
@@ -88,14 +66,11 @@ def store_conversation(conversation_id, sender, message, user_id, tools=None):
                 'messages': []
             })
 
-        # Clean the message content for storage
-        # AI messages may contain streaming markers that should not be persisted
-        clean_message = _strip_markers(message) if sender == 'ai' else message
-        
-        # Build the message object
+        content = str(message or "").strip()
+
         message_data = {
             'sender': sender,
-            'content': clean_message,
+            'content': content,
             'timestamp': datetime.now()
         }
         
@@ -198,11 +173,6 @@ class FirestoreService:
     def get_db(cls):
         """DEPRECATED: Use get_firestore_db() instead."""
         return get_firestore_db()
-    
-    @staticmethod
-    def _strip_markers(text):
-        """DEPRECATED: Use _strip_markers() module function."""
-        return _strip_markers(text)
     
     @staticmethod
     def store_conversation(conversation_id, sender, message, user_id, tools=None):

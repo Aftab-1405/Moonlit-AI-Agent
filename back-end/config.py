@@ -24,29 +24,31 @@ class Config:
         raise ValueError("SECRET_KEY environment variable must be set to a real value (not the placeholder)")
     
     # LLM API Configuration (Provider-based)
-    # Provider options are implemented via adapters in services/llm/providers.
-    # Current built-in providers: cerebras, gemini
-    LLM_PROVIDER = os.getenv('LLM_PROVIDER', 'cerebras').strip().lower()
+    # Providers: gemini, cerebras, anthropic, openai (via LangGraph / LangChain)
+    LLM_PROVIDER = os.getenv('LLM_PROVIDER', 'gemini').strip().lower()
 
     # Provider API keys (supports key rotation/load balancing).
-    # Resolution order:
-    # 1) <PROVIDER>_API_KEYS (e.g., GEMINI_API_KEYS, CEREBRAS_API_KEYS)
-    # 2) provider-specific single-key vars
-    # 3) LLM_API_KEYS (generic)
-    # 4) LLM_API_KEY (generic single-key)
+    # Resolution order per provider:
+    # 1) <PROVIDER>_API_KEYS  (comma-separated, for rotation)
+    # 2) <PROVIDER>_API_KEY   (single key)
+    # 3) LLM_API_KEYS / LLM_API_KEY  (generic fallback)
     _provider_keys_env = f'{LLM_PROVIDER.upper()}_API_KEYS'
     _provider_keys_raw = os.getenv(_provider_keys_env, '')
     LLM_API_KEYS = [k.strip() for k in _provider_keys_raw.split(',') if k.strip()]
 
-    if not LLM_API_KEYS and LLM_PROVIDER == 'cerebras':
-        _cerebras_key = os.getenv('CEREBRAS_API_KEY', '').strip()
-        if _cerebras_key:
-            LLM_API_KEYS = [_cerebras_key]
-
-    if not LLM_API_KEYS and LLM_PROVIDER == 'gemini':
-        _gemini_key = os.getenv('GEMINI_API_KEY', '').strip() or os.getenv('GOOGLE_API_KEY', '').strip()
-        if _gemini_key:
-            LLM_API_KEYS = [_gemini_key]
+    if not LLM_API_KEYS:
+        # Try provider-specific single-key env var
+        _single_key_vars = {
+            'cerebras': ['CEREBRAS_API_KEY'],
+            'gemini': ['GEMINI_API_KEY', 'GOOGLE_API_KEY'],
+            'anthropic': ['ANTHROPIC_API_KEY'],
+            'openai': ['OPENAI_API_KEY'],
+        }
+        for _var in _single_key_vars.get(LLM_PROVIDER, []):
+            _val = os.getenv(_var, '').strip()
+            if _val:
+                LLM_API_KEYS = [_val]
+                break
 
     if not LLM_API_KEYS:
         _generic_keys_raw = os.getenv('LLM_API_KEYS', '')

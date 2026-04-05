@@ -1,390 +1,253 @@
 """
-Conversation Service - Pure FastAPI Version
+Conversation Service - Handles conversation management, AI streaming, and Firestore persistence.
 
-Handles conversation management, AI streaming responses, and Firestore persistence.
-No Flask dependencies.
+Consumes the LangGraph agent's SSE-encoded JSON events, passes them through
+to the HTTP client, and persists completed messages to Firestore.
 """
 
+import json
 import uuid
 import logging
-from typing import Optional, Generator
+from typing import Optional, AsyncGenerator
 
 logger = logging.getLogger(__name__)
 
 
 class ConversationService:
     """Service for managing conversations and AI interactions."""
-    
+
+    # ── Conversation CRUD ────────────────────────────────────────────
+
     @staticmethod
     def create_or_get_conversation_id(provided_id: Optional[str] = None) -> str:
-        """
-        Generate new conversation ID or return provided one.
-        
-        Args:
-            provided_id: Optional conversation ID from client
-            
-        Returns:
-            A valid conversation ID
-        """
         if provided_id:
             return provided_id
         return str(uuid.uuid4())
-    
+
     @staticmethod
     def initialize_conversation(conversation_id: str, history: list = None) -> None:
-        """Initialize conversation (no-op for stateless API)."""
-        pass
-    
+        pass  # Stateless API
+
     @staticmethod
     def get_conversation_data(conversation_id: str, user_id: str) -> Optional[dict]:
-        """Fetch conversation from Firestore (verifies user ownership)."""
         from repositories import ConversationRepository
         return ConversationRepository.get_for_user(conversation_id, user_id)
-    
+
     @staticmethod
     def delete_user_conversation(conversation_id: str, user_id: str) -> None:
-        """Delete conversation from Firestore."""
         from repositories import ConversationRepository
         ConversationRepository.delete(conversation_id, user_id)
-    
+
     @staticmethod
     def get_user_conversations(user_id: str) -> list:
-        """Get all conversations for a user."""
         from repositories import ConversationRepository
         return ConversationRepository.get_by_user(user_id)
-    
+
+    # ── AI Streaming (LangGraph SSE) ─────────────────────────────────
+
     @staticmethod
-    def create_streaming_generator(
-        conversation_id: str, 
-        prompt: str, 
-        user_id: str, 
+    async def create_streaming_generator(
+        conversation_id: str,
+        prompt: str,
+        user_id: str,
         db_config: dict = None,
         enable_reasoning: bool = True,
-        reasoning_effort: str = 'medium',
-        response_style: str = 'balanced',
+        reasoning_effort: str = "medium",
+        response_style: str = "balanced",
         max_rows: int = None,
         api_key: str = None,
         provider: str | None = None,
         model: str | None = None,
-    ) -> Generator:
+    ) -> AsyncGenerator[str, None]:
         """
-        Create a generator for streaming AI responses WITH tool support.
-        
-        Args:
-            conversation_id: The conversation ID
-            prompt: User's prompt
-            user_id: The user ID for Firestore
-            db_config: Database connection config for tool execution
-            enable_reasoning: Whether to use reasoning
-            reasoning_effort: 'low', 'medium', or 'high'
-            response_style: 'concise', 'balanced', or 'detailed'
-            max_rows: Max rows to return from queries
-            api_key: Optional API key for LLM calls (from rate limiter)
-            provider: Optional provider override (e.g., gemini, cerebras)
-            model: Optional model override for selected provider
-            
+        Consume SSE events from the LangGraph agent, pass them through
+        to the client, and persist the completed message to Firestore.
+
         Yields:
-            Text chunks from AI response, tool status markers, or error messages
+            SSE ``data: {…}\\n\\n`` strings.
         """
         from repositories import ConversationRepository
-        from services.llm import LLMService
-        
+        from agent import stream_conversation
+
         prompt_stored = False
         response_stored = False
-        full_response_content = []
-        tools_used = []
+        full_content: list[str] = []
+        thinking_content: list[str] = []
+        tools_used: list[dict] = []
         was_aborted = False
-        has_error = False  # Track if an error occurred
+        has_error = False
 
-        def _parse_tool_marker(marker: str):
-            """
-            Parse tool marker string into (name, status, args, result).
-            Marker format: [[TOOL:name:status:args:result]]
-            """
-            if not marker.startswith('[[TOOL:') or not marker.endswith(']]'):
-                return None
-            payload = marker[len('[[TOOL:'):-2]
-
-            parts = []
-            current = []
-            depth = 0
-            in_string = False
-            escape_next = False
-
-            for ch in payload:
-                if escape_next:
-                    current.append(ch)
-                    escape_next = False
-                    continue
-
-                if ch == '\\' and in_string:
-                    current.append(ch)
-                    escape_next = True
-                    continue
-
-                if ch == '"':
-                    current.append(ch)
-                    in_string = not in_string
-                    continue
-
-                if not in_string:
-                    if ch in '{[':
-                        depth += 1
-                    elif ch in '}]':
-                        depth -= 1
-
-                if ch == ':' and depth == 0 and not in_string and len(parts) < 3:
-                    parts.append(''.join(current))
-                    current = []
-                else:
-                    current.append(ch)
-
-            parts.append(''.join(current))
-
-            if len(parts) != 4:
-                return None
-
-            tool_name, status, args_str, result_str = parts
-            return tool_name, status, args_str, result_str
-        
-        def _find_tool_marker_end(text: str, start: int) -> int:
-            """
-            Find the end index of a [[TOOL:...]] marker starting at 'start'.
-            Uses bracket depth to handle nested JSON.
-            """
-            depth = 0
-            in_string = False
-            escape_next = False
-
-            for i in range(start, len(text)):
-                if escape_next:
-                    escape_next = False
-                    continue
-
-                char = text[i]
-
-                if char == '\\' and in_string:
-                    escape_next = True
-                    continue
-
-                if char == '"':
-                    in_string = not in_string
-                    continue
-
-                if not in_string:
-                    if char == '[':
-                        depth += 1
-                    elif char == ']':
-                        depth -= 1
-                        if depth == 0:
-                            return i
-            return -1
-
-        def _extract_tools_from_text(text: str):
-            """
-            Extract tool markers from full response text (handles streamed chunks).
-            Returns tools list in display order, with 'done' overriding 'running'.
-            """
-            if not text or '[[TOOL:' not in text:
-                return []
-
-            tools = []
-            i = 0
-            while i < len(text):
-                start = text.find('[[TOOL:', i)
-                if start == -1:
-                    break
-                end = _find_tool_marker_end(text, start)
-                if end == -1:
-                    i = start + 7
-                    continue
-                marker = text[start:end + 1]
-                parsed = _parse_tool_marker(marker)
-                if parsed:
-                    tool_name, status, args_str, result_str = parsed
-                    if status == 'running':
-                        tools.append({
-                            'name': tool_name,
-                            'status': 'running',
-                            'args': args_str,
-                            'result': result_str
-                        })
-                    elif status == 'done':
-                        updated = False
-                        for tool in tools:
-                            if tool['name'] == tool_name and tool['status'] == 'running':
-                                tool['status'] = 'done'
-                                tool['args'] = args_str
-                                tool['result'] = result_str
-                                updated = True
-                                break
-                        if not updated:
-                            tools.append({
-                                'name': tool_name,
-                                'status': 'done',
-                                'args': args_str,
-                                'result': result_str
-                            })
-                i = end + 1
-            return tools
-        
         try:
-            # Fetch existing conversation history for context
+            # Load conversation history for the checkpointer
+            # (The LangGraph checkpointer handles per-thread state automatically
+            #  via thread_id, but we still verify ownership.)
             conv_data = ConversationRepository.get(conversation_id)
-            if conv_data and conv_data.get('user_id') != user_id:
+            if conv_data and conv_data.get("user_id") != user_id:
                 raise PermissionError("User does not own this conversation")
-            history = None
-            if conv_data and conv_data.get('messages'):
-                messages = conv_data.get('messages', [])
-                recent_messages = messages[-20:] if len(messages) > 20 else messages
-                history = [
-                    {"role": "user" if msg["sender"] == "user" else "model", "parts": [msg["content"]]}
-                    for msg in recent_messages
-                ]
-                logger.debug(f"Loaded {len(history)} messages for context")
-            
-            # Use LLM Service with tool support
-            responses = LLMService.send_message_with_tools(
-                conversation_id, prompt, user_id, 
-                history=history, 
+
+            # Stream from the LangGraph agent
+            async for sse_line in stream_conversation(
+                conversation_id,
+                prompt,
+                user_id,
                 db_config=db_config,
-                enable_reasoning=enable_reasoning,
-                reasoning_effort=reasoning_effort,
                 response_style=response_style,
                 max_rows=max_rows,
                 api_key=api_key,
-                provider_name=provider,
-                model_name=model,
-            )
-            
-            for chunk in responses:
-                # Detect error messages from orchestrator - don't store these
-                if chunk.startswith('\n[ERROR]') or chunk.startswith('[ERROR]'):
+                provider=provider or "gemini",
+                model=model,
+                enable_reasoning=enable_reasoning,
+                reasoning_effort=reasoning_effort,
+            ):
+                # Parse the SSE data line to track content/tools for persistence
+                event = _parse_sse_event(sse_line)
+                if event is None:
+                    # Forward unparseable lines as-is (shouldn't happen)
+                    yield sse_line
+                    continue
+
+                event_type = event.get("type")
+
+                if event_type == "token":
+                    if not prompt_stored:
+                        ConversationRepository.store_message(
+                            conversation_id, "user", prompt, user_id
+                        )
+                        prompt_stored = True
+                    full_content.append(event.get("content", ""))
+
+                elif event_type == "tool_start":
+                    if not prompt_stored:
+                        ConversationRepository.store_message(
+                            conversation_id, "user", prompt, user_id
+                        )
+                        prompt_stored = True
+                    tools_used.append({
+                        "name": event.get("name", ""),
+                        "status": "running",
+                        "args": json.dumps(event.get("args", {}), default=str),
+                        "result": "null",
+                    })
+
+                elif event_type == "tool_end":
+                    name = event.get("name", "")
+                    for tool in tools_used:
+                        if tool["name"] == name and tool["status"] == "running":
+                            tool["status"] = "done"
+                            tool["args"] = json.dumps(event.get("args", {}), default=str)
+                            tool["result"] = json.dumps(event.get("result", {}), default=str)
+                            break
+
+                elif event_type == "thinking_token":
+                    if not prompt_stored:
+                        ConversationRepository.store_message(
+                            conversation_id, "user", prompt, user_id
+                        )
+                        prompt_stored = True
+                    chunk = event.get("content", "")
+                    if chunk:
+                        thinking_content.append(chunk)
+
+                elif event_type == "error":
                     has_error = True
-                    yield chunk
-                    continue  # Don't append to full_response_content
-                
-                # Tool status markers - extract full data for persistence
-                if chunk.startswith('[[TOOL:'):
-                    parsed = _parse_tool_marker(chunk)
-                    if parsed:
-                        tool_name, status, args_str, result_str = parsed
-                        
-                        if status == 'running':
-                            # Track running tool with placeholder for args (result comes later)
-                            tools_used.append({
-                                'name': tool_name,
-                                'status': 'running',
-                                'args': args_str,
-                                'result': result_str
-                            })
-                            if not prompt_stored:
-                                ConversationRepository.store_message(conversation_id, 'user', prompt, user_id)
-                                prompt_stored = True
-                        elif status == 'done':
-                            # Update existing tool entry with 'done' status and full result
-                            updated = False
-                            for tool in tools_used:
-                                if tool['name'] == tool_name and tool['status'] == 'running':
-                                    tool['status'] = 'done'
-                                    tool['args'] = args_str  # May have more complete args now
-                                    tool['result'] = result_str
-                                    updated = True
-                                    break
-                            # If no running entry found, add as new (edge case)
-                            if not updated:
-                                tools_used.append({
-                                    'name': tool_name,
-                                    'status': 'done',
-                                    'args': args_str,
-                                    'result': result_str
-                                })
-                    
-                    full_response_content.append(chunk)
-                    yield chunk
-                    continue
-                
-                # Thinking markers
-                if chunk.startswith('[[THINKING:'):
-                    full_response_content.append(chunk)
-                    yield chunk
-                    continue
-                
-                # Store user prompt on first text chunk
-                if not prompt_stored and not chunk.startswith('['):
-                    ConversationRepository.store_message(conversation_id, 'user', prompt, user_id)
-                    prompt_stored = True
-                
-                full_response_content.append(chunk)
-                yield chunk
+
+                # event_type "done" — pass-through only
+
+                yield sse_line
 
         except GeneratorExit:
             was_aborted = True
             logger.info(f"Stream aborted for conversation {conversation_id}")
-            
+
+        except PermissionError:
+            has_error = True
+            yield _make_sse_error("You don't have permission to access this conversation.")
+
         except Exception as err:
-            has_error = True  # Mark as error - don't store
-            error_str = str(err).lower()
-            
-            if 'rate_limit' in error_str or 'quota' in error_str or '429' in error_str:
-                logger.warning(f'Rate limit exceeded: {err}')
-                error_msg = "⚠️ **API Rate Limit Exceeded**\n\nPlease wait a moment and try again."
-            elif 'authentication' in error_str or '401' in error_str:
-                logger.error(f'Authentication error: {err}')
-                error_msg = "⚠️ **Authentication Error**\n\nPlease check API keys."
-            else:
-                logger.error(f'API error: {err}')
-                error_msg = "⚠️ **AI Service Error**\n\nPlease try again."
-            
-            yield error_msg
-            
+            has_error = True
+            logger.error(f"Streaming error: {err}", exc_info=True)
+            yield _make_sse_error(_classify_error(str(err)))
+
         finally:
-            # Only store if we have actual content AND no errors occurred
             if prompt_stored and not response_stored and not has_error:
-                response_text = "".join(full_response_content).strip()
-                if response_text or tools_used:
+                response_text = "".join(full_content).strip()
+                thinking_text = "".join(thinking_content).strip()
+                if response_text or tools_used or thinking_text:
                     if not response_text and tools_used:
                         response_text = "(Used tools to gather information)"
-                    
                     if was_aborted and response_text:
                         response_text += "\n\n_(Response stopped by user)_"
-                    
-                    # Fallback: re-parse tool markers from full response text.
-                    # This handles cases where markers are split across stream chunks.
-                    parsed_tools = _extract_tools_from_text(response_text)
-                    if parsed_tools:
-                        tools_used = parsed_tools
-                    
+
                     ConversationRepository.store_message(
-                        conversation_id, 'ai', response_text, user_id,
-                        tools=tools_used if tools_used else None
+                        conversation_id,
+                        "ai",
+                        response_text,
+                        user_id,
+                        tools=tools_used if tools_used else None,
+                        thinking=thinking_text or None,
                     )
                     response_stored = True
                     status = "partial (aborted)" if was_aborted else "complete"
-                    logger.info(f"Stored AI response ({status}): {len(response_text)} chars")
+                    logger.info(
+                        f"Stored AI response ({status}): {len(response_text)} chars"
+                    )
             elif has_error:
-                logger.info(f"Skipped storing error response for conversation {conversation_id}")
-    
+                logger.info(
+                    f"Skipped storing error response for conversation {conversation_id}"
+                )
+
+    # ── Response headers ─────────────────────────────────────────────
+
     @staticmethod
     def get_streaming_headers(
         conversation_id: str,
         provider: str | None = None,
         model: str | None = None,
     ) -> dict:
-        """Get HTTP headers for streaming responses."""
         headers = {
-            'X-Conversation-Id': conversation_id,
-            'Cache-Control': 'no-cache, no-transform',
-            'X-Accel-Buffering': 'no'
+            "X-Conversation-Id": conversation_id,
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
         }
         if provider:
-            headers['X-LLM-Provider'] = provider
+            headers["X-LLM-Provider"] = provider
         if model:
-            headers['X-LLM-Model'] = model
+            headers["X-LLM-Model"] = model
         return headers
-    
+
     @staticmethod
     def check_quota_error(error_message: str) -> bool:
-        """Check if an error message indicates quota exceeded."""
-        error_lower = error_message.lower()
-        return 'quota' in error_lower or '429' in error_lower or 'rate' in error_lower
+        lower = error_message.lower()
+        return "quota" in lower or "429" in lower or "rate" in lower
+
+
+# ── module-level helpers ─────────────────────────────────────────────
+
+
+def _parse_sse_event(sse_line: str) -> Optional[dict]:
+    """Extract the JSON dict from a ``data: {…}\\n\\n`` SSE line."""
+    line = sse_line.strip()
+    if not line.startswith("data: "):
+        return None
+    payload = line[6:].strip()
+    if not payload or payload == "[DONE]":
+        return {"type": "done"}
+    try:
+        return json.loads(payload)
+    except (json.JSONDecodeError, ValueError):
+        return None
+
+
+def _make_sse_error(message: str) -> str:
+    """Build a single SSE error event string."""
+    return f'data: {json.dumps({"type": "error", "message": message})}\n\n'
+
+
+def _classify_error(raw: str) -> str:
+    lower = raw.lower()
+    if "rate_limit" in lower or "quota" in lower or "429" in lower:
+        return "API rate limit exceeded. Please wait a moment and try again."
+    if "authentication" in lower or "401" in lower:
+        return "Authentication error. Please check API keys."
+    return "AI service error. Please try again."

@@ -14,6 +14,5 @@ export {
 export {
   credentialsSchema,
   connectionStringSchema,
-  sqliteSchema,
   dbFieldSchemas,
 } from './schemas/database';

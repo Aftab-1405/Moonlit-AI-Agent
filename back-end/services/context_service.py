@@ -361,13 +361,6 @@ class ContextService:
         return ContextService._update_context(user_id, {'recent_queries': queries})
     
     @staticmethod
-    def get_recent_queries(user_id: str, limit: int = 10) -> List[Dict]:
-        """Get recent queries for user."""
-        context = ContextService._get_context(user_id)
-        queries = context.get('recent_queries', [])
-        return queries[-limit:]
-    
-    @staticmethod
     def clear_query_history(user_id: str) -> bool:
         """Clear query history."""
         return ContextService._update_context(user_id, {'recent_queries': []})

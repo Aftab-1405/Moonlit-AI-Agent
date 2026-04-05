@@ -23,6 +23,7 @@ export const ConversationItem = memo(function ConversationItem({
   onDelete,
 }) {
   const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
   const handleClick = useCallback(() => onSelect(conv.id), [onSelect, conv.id]);
   const handleDelete = useCallback((e) => {
     e.stopPropagation();
@@ -36,29 +37,43 @@ export const ConversationItem = memo(function ConversationItem({
         onClick={handleClick}
         sx={{
           px: 1.25,
-          py: 0.875,
+          py: 0.75,
           minHeight: 38,
           borderRadius: '10px',
           alignItems: 'center',
-          color: theme.palette.text.secondary,
+          color: isActive ? theme.palette.text.primary : theme.palette.text.secondary,
           backgroundColor: 'transparent',
+          transition: theme.transitions.create(['background-color', 'color', 'box-shadow'], {
+            duration: theme.transitions.duration.shorter,
+          }),
           '& .delete-btn': { opacity: 0 },
           '&:hover .delete-btn, &:focus-within .delete-btn': { opacity: 1 },
           [TOUCH_DEVICE_QUERY]: { '& .delete-btn': { opacity: 1 } },
           '&:hover': {
-            backgroundColor: alpha(theme.palette.text.primary, 0.05),
+            backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.06 : 0.05),
             color: theme.palette.text.primary,
           },
           '&.Mui-selected': {
-            backgroundColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.1 : 0.07),
+            backgroundColor: alpha(theme.palette.primary.main, isDark ? 0.1 : 0.08),
             color: theme.palette.text.primary,
+            boxShadow: `inset 2px 0 0 ${alpha(theme.palette.primary.main, isDark ? 0.6 : 0.5)}`,
           },
           '&.Mui-selected:hover': {
-            backgroundColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.13 : 0.09),
+            backgroundColor: alpha(theme.palette.primary.main, isDark ? 0.14 : 0.11),
+            boxShadow: `inset 2px 0 0 ${alpha(theme.palette.primary.main, isDark ? 0.6 : 0.5)}`,
           },
         }}
       >
-        <ListItemIcon sx={{ minWidth: 0, mr: 1.25, color: 'inherit' }}>
+        <ListItemIcon
+          sx={{
+            minWidth: 0,
+            mr: 1.25,
+            color: isActive
+              ? alpha(theme.palette.primary.main, isDark ? 0.75 : 0.65)
+              : 'inherit',
+            transition: theme.transitions.create('color', { duration: theme.transitions.duration.shorter }),
+          }}
+        >
           <QuestionAnswerOutlinedIcon sx={{ fontSize: 16 }} />
         </ListItemIcon>
         <ListItemText
@@ -83,8 +98,13 @@ export const ConversationItem = memo(function ConversationItem({
             p: 0.5,
             minWidth: { xs: 34, sm: 'auto' },
             minHeight: { xs: 34, sm: 'auto' },
+            borderRadius: '6px',
             color: theme.palette.text.secondary,
-            transition: 'opacity 0.15s ease',
+            transition: 'opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease',
+            '&:hover': {
+              color: theme.palette.error.main,
+              backgroundColor: alpha(theme.palette.error.main, isDark ? 0.1 : 0.08),
+            },
           }}
         >
           <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
@@ -105,6 +125,7 @@ export const SidebarNavItem = memo(function SidebarNavItem({
   disabled = false,
 }) {
   const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
 
   return (
     <Tooltip
@@ -130,13 +151,16 @@ export const SidebarNavItem = memo(function SidebarNavItem({
             overflow: 'hidden',
             color: isActive ? theme.palette.text.primary : theme.palette.text.secondary,
             backgroundColor: isActive
-              ? alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.1 : 0.07)
+              ? alpha(theme.palette.primary.main, isDark ? 0.1 : 0.08)
               : 'transparent',
-            transition: theme.transitions.create(['background-color', 'color'], {
+            boxShadow: isActive
+              ? `inset 2px 0 0 ${alpha(theme.palette.primary.main, isDark ? 0.6 : 0.5)}`
+              : 'none',
+            transition: theme.transitions.create(['background-color', 'color', 'box-shadow'], {
               duration: theme.transitions.duration.shorter,
             }),
             '&:hover': {
-              backgroundColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.05),
+              backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.07 : 0.05),
               color: theme.palette.text.primary,
             },
           }}
@@ -162,6 +186,7 @@ export const SidebarNavItem = memo(function SidebarNavItem({
                   height: 6,
                   borderRadius: '50%',
                   backgroundColor: theme.palette.success.main,
+                  boxShadow: `0 0 0 1.5px ${theme.palette.background.paper}`,
                 }}
               />
             )}

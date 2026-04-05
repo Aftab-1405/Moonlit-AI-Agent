@@ -32,7 +32,7 @@ export async function getStatus() {
  * @param {string} [params.port] - Database port
  * @param {string} [params.user] - Database user
  * @param {string} [params.password] - Database password
- * @param {string} [params.db_name] - Database name (for SQLite)
+ * @param {string} [params.db_name] - Database name
  * @param {string} [params.connection_string] - Connection string (for remote DBs)
  * @returns {Promise<{status: string, message: string, schemas?: Array}>}
  */

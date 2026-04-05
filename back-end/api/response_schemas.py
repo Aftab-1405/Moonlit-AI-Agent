@@ -95,7 +95,7 @@ class DeleteConversationResponse(SuccessResponse):
 
 class DatabaseConfigSchema(BaseModel):
     """Database configuration object returned in responses"""
-    db_type: Literal['mysql', 'postgresql', 'sqlite', 'sqlserver', 'oracle'] = Field(...)
+    db_type: Literal['mysql', 'postgresql', 'sqlserver', 'oracle'] = Field(...)
     database: Optional[str] = None
     host: Optional[str] = None
     port: Optional[int] = None
@@ -121,7 +121,7 @@ class DisconnectDBResponse(SuccessResponse):
 class DatabaseStatusResponse(BaseResponse):
     """Response for GET /db_status"""
     connected: bool = Field(...)
-    db_type: Optional[Literal['mysql', 'postgresql', 'sqlite', 'sqlserver', 'oracle']] = None
+    db_type: Optional[Literal['mysql', 'postgresql', 'sqlserver', 'oracle']] = None
     current_database: Optional[str] = None
     is_remote: Optional[bool] = None
     databases: Optional[List[str]] = Field(default=None, description="Available databases for switching")

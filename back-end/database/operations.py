@@ -59,7 +59,6 @@ class DatabaseOperations:
             with manager.get_cursor(db_config) as cursor:
                 cursor.execute(query)
                 raw_rows = cursor.fetchall()
-                # Use adapter method to extract database names (handles SQLite PRAGMA format)
                 databases = adapter.extract_database_names(raw_rows)
 
             # Filter out system databases using adapter
@@ -128,10 +127,7 @@ class DatabaseOperations:
             manager = get_connection_manager()
             
             with manager.get_cursor(db_config) as cursor:
-                if db_type == 'sqlite':
-                    # SQLite PRAGMA doesn't reliably support parameter substitution
-                    cursor.execute(f"PRAGMA table_info('{validated_table}')")
-                elif db_type == 'postgresql':
+                if db_type == 'postgresql':
                     validated_schema = DatabaseSecurity.validate_database_name(schema)
                     query = adapter.get_table_schema_query(validated_schema)
                     cursor.execute(query, (validated_table, validated_table))
@@ -165,9 +161,7 @@ class DatabaseOperations:
             manager = get_connection_manager()
             
             with manager.get_cursor(db_config) as cursor:
-                if db_type == 'sqlite':
-                    cursor.execute(f'SELECT COUNT(*) FROM "{validated_table}"')
-                elif db_type == 'postgresql':
+                if db_type == 'postgresql':
                     validated_schema = DatabaseSecurity.validate_database_name(schema)
                     cursor.execute(f'SELECT COUNT(*) FROM "{validated_schema}"."{validated_table}"')
                 elif db_type == 'sqlserver':

@@ -54,7 +54,7 @@ class ChatRequest(BaseModel):
 
 class ConnectDBRequest(BaseModel):
     """Schema for /connect_db"""
-    db_type: Literal['mysql', 'postgresql', 'sqlite', 'sqlserver', 'oracle'] = Field(...)
+    db_type: Literal['mysql', 'postgresql', 'sqlserver', 'oracle'] = Field(...)
     database: Optional[str] = Field(None, max_length=255, validation_alias='db_name')
     host: Optional[str] = Field(None, max_length=255)
     port: Optional[int] = Field(None, ge=1, le=65535)

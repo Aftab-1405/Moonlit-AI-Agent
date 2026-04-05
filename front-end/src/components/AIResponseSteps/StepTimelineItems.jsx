@@ -1,5 +1,6 @@
 import { useState, useMemo, memo, lazy, Suspense } from 'react';
 import { Box, Typography, Collapse, useTheme, ButtonBase, Link } from '@mui/material';
+import MarkdownRenderer from '../MarkdownRenderer';
 import { alpha, keyframes } from '@mui/material/styles';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
@@ -104,24 +105,26 @@ export const ThinkingStep = memo(function ThinkingStep({ content = '', isComplet
       <Box sx={{ flex: 1, minWidth: 0 }}>
         {content ? (
           <>
-            <Typography
-              component="div"
+            <Box
               sx={{
-                color: alpha(theme.palette.text.primary, isDark ? 0.85 : 0.8),
-                ...theme.typography.uiBodyMd,
+                color: alpha(theme.palette.text.primary, isDark ? 0.82 : 0.78),
+                ...theme.typography.uiBodySm,
                 fontFamily: theme.typography.fontFamily,
                 lineHeight: { xs: 1.6, sm: 1.75 },
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
                 letterSpacing: '0.008em',
-                '& strong': { fontWeight: 600 },
-                '& ul, & ol': { pl: 2.5, my: 1 },
-                '& li': { mb: 0.5 },
+                mt: 0.25,
+                px: { xs: 1, sm: 1.25 },
+                py: { xs: 0.75, sm: 1 },
+                borderRadius: '0 6px 6px 0',
+                borderLeft: '2px solid',
+                borderColor: alpha(theme.palette.text.secondary, isDark ? 0.18 : 0.14),
+                bgcolor: isDark
+                  ? alpha(theme.palette.text.primary, 0.025)
+                  : alpha(theme.palette.text.primary, 0.02),
               }}
             >
-              {displayContent}
-              {!showMore && isLong && '...'}
-            </Typography>
+              <MarkdownRenderer content={showMore || !isLong ? displayContent : displayContent + '\u2026'} />
+            </Box>
             {isLong && (
               <Link
                 component="button"
@@ -289,14 +292,25 @@ export const ToolStep = memo(function ToolStep({
             {parsedArgs?.query && (
               <Box sx={{ mb: parsedResult && !isRunning ? 1.5 : 0 }}>
                 <Typography
+                  component="span"
                   sx={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    px: 0.75,
+                    py: 0.2,
+                    mb: 0.75,
+                    borderRadius: '5px',
+                    bgcolor: isDark
+                      ? alpha(theme.palette.text.primary, 0.07)
+                      : alpha(theme.palette.text.primary, 0.05),
+                    border: '1px solid',
+                    borderColor: theme.palette.border.subtle,
                     fontFamily: theme.typography.fontFamilyMono,
                     ...theme.typography.uiMonoLabel,
-                    fontWeight: 500,
-                    letterSpacing: '0.05em',
+                    fontWeight: 600,
+                    letterSpacing: '0.06em',
                     textTransform: 'uppercase',
                     color: theme.palette.text?.hint,
-                    mb: 0.75,
                   }}
                 >
                   Query
@@ -328,14 +342,25 @@ export const ToolStep = memo(function ToolStep({
             {parsedResult && !isRunning && (
               <Box>
                 <Typography
+                  component="span"
                   sx={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    px: 0.75,
+                    py: 0.2,
+                    mb: 0.5,
+                    borderRadius: '5px',
+                    bgcolor: isDark
+                      ? alpha(theme.palette.text.primary, 0.07)
+                      : alpha(theme.palette.text.primary, 0.05),
+                    border: '1px solid',
+                    borderColor: theme.palette.border.subtle,
                     fontFamily: theme.typography.fontFamilyMono,
                     ...theme.typography.uiMonoLabel,
-                    fontWeight: 500,
-                    letterSpacing: '0.05em',
+                    fontWeight: 600,
+                    letterSpacing: '0.06em',
                     textTransform: 'uppercase',
                     color: theme.palette.text?.hint,
-                    mb: 0.5,
                   }}
                 >
                   Result
@@ -368,18 +393,41 @@ export const DoneIndicator = memo(function DoneIndicator() {
   }), [isDark, theme.palette.success.main]);
 
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 1.5 }, position: 'relative', pl: TIMELINE_CONTENT_PL, py: { xs: 0.75, sm: 1 }, animation: `${slideIn} 0.3s cubic-bezier(0.4, 0, 0.2, 1)` }}>
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        position: 'relative',
+        pl: TIMELINE_CONTENT_PL,
+        py: { xs: 0.75, sm: 1 },
+        animation: `${slideIn} 0.3s cubic-bezier(0.4, 0, 0.2, 1)`,
+      }}
+    >
       <CheckCircleOutlineRoundedIcon sx={doneNodeSx} />
-      <Typography
+      <Box
         sx={{
-          color: alpha(theme.palette.text.primary, isDark ? 0.7 : 0.6),
-          ...theme.typography.uiBodySm,
-          fontFamily: theme.typography.fontFamily,
-          fontWeight: 500,
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 0.5,
+          px: 1,
+          py: 0.3,
+          borderRadius: '6px',
+          bgcolor: alpha(theme.palette.success.main, isDark ? 0.08 : 0.07),
+          border: '1px solid',
+          borderColor: alpha(theme.palette.success.main, isDark ? 0.18 : 0.14),
         }}
       >
-        Done
-      </Typography>
+        <Typography
+          sx={{
+            color: alpha(theme.palette.success.main, isDark ? 0.75 : 0.68),
+            ...theme.typography.uiCaptionSm,
+            fontFamily: theme.typography.fontFamily,
+            fontWeight: 500,
+          }}
+        >
+          Done
+        </Typography>
+      </Box>
     </Box>
   );
 });

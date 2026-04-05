@@ -32,87 +32,47 @@ async def connect_db(
     data: ConnectDBRequest,
     user: dict = Depends(get_current_user)
 ):
-    """Connect to a database (local or remote)."""
+    """Connect to a remote database via connection string or host/port credentials."""
     user_id = user.get('uid') or user
-    
+
     # Log connection request without sensitive fields
-    safe_log_data = {k: v for k, v in data.model_dump().items() 
+    safe_log_data = {k: v for k, v in data.model_dump().items()
                      if k not in ('password', 'connection_string')}
     logger.info(f"Connect request data: {safe_log_data}")
-    
+
     db_type = data.db_type
     connection_string = data.connection_string
-    
-    # If connection_string is provided, use remote connection
+
+    _REMOTE_STRING_HANDLERS = {
+        'postgresql': connection_handlers.connect_remote_postgresql,
+        'mysql':      connection_handlers.connect_remote_mysql,
+        'sqlserver':  connection_handlers.connect_remote_sqlserver,
+        'oracle':     connection_handlers.connect_remote_oracle,
+    }
+
+    _HOST_PORT_HANDLERS = {
+        'postgresql': connection_handlers.connect_postgresql,
+        'mysql':      connection_handlers.connect_mysql,
+        'sqlserver':  connection_handlers.connect_sqlserver,
+        'oracle':     connection_handlers.connect_oracle,
+    }
+
     if connection_string:
-        # Remote connection via connection string
-        if db_type == 'postgresql':
-            result = await run_in_threadpool(
-                connection_handlers.connect_remote_postgresql,
-                connection_string, user_id
-            )
-        elif db_type == 'mysql':
-            result = await run_in_threadpool(
-                connection_handlers.connect_remote_mysql,
-                connection_string, user_id
-            )
-        elif db_type == 'sqlserver':
-            result = await run_in_threadpool(
-                connection_handlers.connect_remote_sqlserver,
-                connection_string, user_id
-            )
-        elif db_type == 'oracle':
-            result = await run_in_threadpool(
-                connection_handlers.connect_remote_oracle,
-                connection_string, user_id
-            )
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail=f'Remote {db_type} not supported'
-            )
+        # Connection string path (remote)
+        handler = _REMOTE_STRING_HANDLERS.get(db_type)
+        if not handler:
+            raise HTTPException(status_code=400, detail=f'Remote {db_type} via connection string is not supported.')
+        result = await run_in_threadpool(handler, connection_string, user_id)
     else:
-        # Local connection
-        host = data.host
-        port = data.port
-        username = data.username
-        password = data.password
-        database = data.database
-        
-        if db_type == 'sqlite':
-            result = await run_in_threadpool(
-                connection_handlers.connect_local_sqlite,
-                database, user_id
-            )
-        elif db_type == 'mysql':
-            result = await run_in_threadpool(
-                connection_handlers.connect_local_mysql,
-                host, port, username, password,
-                database, user_id
-            )
-        elif db_type == 'postgresql':
-            result = await run_in_threadpool(
-                connection_handlers.connect_local_postgresql,
-                host, port, username, password,
-                database, user_id
-            )
-        elif db_type == 'sqlserver':
-            result = await run_in_threadpool(
-                connection_handlers.connect_local_sqlserver,
-                host, port, username, password,
-                database, user_id
-            )
-        elif db_type == 'oracle':
-            result = await run_in_threadpool(
-                connection_handlers.connect_local_oracle,
-                host, port, username, password,
-                database, user_id
-            )
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail=f'{db_type} local connection not implemented'
-            )
+        # Host/port/credentials path — loopback addresses are rejected inside the handler
+        handler = _HOST_PORT_HANDLERS.get(db_type)
+        if not handler:
+            raise HTTPException(status_code=400, detail=f'{db_type} is not supported.')
+        result = await run_in_threadpool(
+            handler,
+            data.host, data.port, data.username, data.password,
+            data.database, user_id,
+        )
     
     # Store db_config in session if connection successful
     if result.get('status') in ['connected', 'success'] and 'db_config' in result:
@@ -162,7 +122,7 @@ async def db_status(db_config: Optional[dict] = Depends(get_db_config)):
     Returns all state needed by frontend DatabaseContext:
     - connected: boolean connection status
     - current_database: currently selected database name
-    - db_type: database type (mysql, postgresql, sqlite)
+    - db_type: database type (mysql, postgresql, sqlserver, oracle)
     - is_remote: whether using connection string
     - databases: list of available databases for switching
     """

@@ -103,29 +103,11 @@ class ExecuteQueryArgs(BaseToolArgs):
         return v
 
 
-class GetRecentQueriesArgs(BaseToolArgs):
-    """Arguments for get_recent_queries tool."""
-    limit: Optional[int] = Field(
-        5,
-        description="Maximum number of queries to return.",
-        ge=1,
-        le=50
-    )
-
-
 class GetTableIndexesArgs(BaseToolArgs):
     """Arguments for get_table_indexes tool."""
     table_name: str = Field(
         ...,
         description="Name of the table to get indexes for."
-    )
-
-
-class GetTableConstraintsArgs(BaseToolArgs):
-    """Arguments for get_table_constraints tool."""
-    table_name: str = Field(
-        ...,
-        description="Name of the table to get constraints for."
     )
 
 
@@ -144,9 +126,7 @@ TOOL_ARG_SCHEMAS = {
     "get_database_schema": GetDatabaseSchemaArgs,
     "get_table_columns": GetTableColumnsArgs,
     "execute_query": ExecuteQueryArgs,
-    "get_recent_queries": GetRecentQueriesArgs,
     "get_table_indexes": GetTableIndexesArgs,
-    "get_table_constraints": GetTableConstraintsArgs,
     "get_foreign_keys": GetForeignKeysArgs,
 }
 
@@ -212,10 +192,6 @@ class QueryResult(ToolResultBase):
     preview_note: Optional[str] = None
 
 
-class RecentQueriesResult(ToolResultBase):
-    """Structured result for recent queries."""
-    count: int = 0
-    queries: List[str] = []  # Just the query strings
 
 
 class TableIndexesResult(ToolResultBase):
@@ -225,11 +201,6 @@ class TableIndexesResult(ToolResultBase):
     indexes: List[Dict[str, Any]] = []
 
 
-class TableConstraintsResult(ToolResultBase):
-    """Structured result for table constraints."""
-    table: Optional[str] = None
-    count: int = 0
-    constraints: List[Dict[str, Any]] = []
 
 
 class ForeignKeysResult(ToolResultBase):
@@ -355,32 +326,12 @@ def structure_tool_result(tool_name: str, raw_result: Dict[str, Any]) -> Dict[st
                 preview_note=preview_note
             ).model_dump()
         
-        elif tool_name == "get_recent_queries":
-            queries = raw_result.get('queries', [])
-            # Extract just query strings if queries are dicts
-            if queries and isinstance(queries[0], dict):
-                query_strings = [q.get('query', str(q)) for q in queries]
-            else:
-                query_strings = queries
-            return RecentQueriesResult(
-                count=len(query_strings),
-                queries=query_strings[:5]  # Limit for display
-            ).model_dump()
-        
         elif tool_name == "get_table_indexes":
             indexes = raw_result.get('indexes', [])
             return TableIndexesResult(
                 table=raw_result.get('table'),
                 count=len(indexes),
                 indexes=indexes
-            ).model_dump()
-        
-        elif tool_name == "get_table_constraints":
-            constraints = raw_result.get('constraints', [])
-            return TableConstraintsResult(
-                table=raw_result.get('table'),
-                count=len(constraints),
-                constraints=constraints
             ).model_dump()
         
         elif tool_name == "get_foreign_keys":

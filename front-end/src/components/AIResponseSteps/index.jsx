@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef, memo } from 'react';
+import { useState, useMemo, useCallback, memo } from 'react';
 import { Box, Typography, Collapse, useTheme, ButtonBase, useMediaQuery } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
@@ -21,7 +21,6 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
   const theme = useTheme();
   const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isDark = theme.palette.mode === 'dark';
-  const prevStreamingRef = useRef(isStreaming);
   const effectiveExpanded = isStreaming || expanded;
 
   const normalizedSteps = useMemo(() => normalizeSteps(steps), [steps]);
@@ -31,17 +30,6 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
     () => areAllStepsComplete(normalizedSteps, isStreaming),
     [normalizedSteps, isStreaming]
   );
-
-  useEffect(() => {
-    const wasStreaming = prevStreamingRef.current;
-    if (wasStreaming && !isStreaming && normalizedSteps.length > 0) {
-      const timer = setTimeout(() => setExpanded(false), 800);
-      prevStreamingRef.current = isStreaming;
-      return () => clearTimeout(timer);
-    }
-    prevStreamingRef.current = isStreaming;
-    return undefined;
-  }, [isStreaming, normalizedSteps.length]);
 
   const handleToggle = useCallback(() => {
     if (isStreaming) return;
@@ -90,7 +78,7 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
             ...theme.typography.uiBodySm,
             fontFamily: theme.typography.fontFamily,
             fontWeight: 500,
-            width: '100%',
+            flex: 1,
             minWidth: 0,
             textAlign: 'left',
             whiteSpace: 'normal',
@@ -101,6 +89,31 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
         >
           {summaryText}
         </Typography>
+        <Box
+          sx={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minWidth: 18,
+            height: 18,
+            px: 0.5,
+            borderRadius: '9px',
+            bgcolor: alpha(theme.palette.text.secondary, isDark ? 0.1 : 0.08),
+            flexShrink: 0,
+          }}
+        >
+          <Typography
+            sx={{
+              color: alpha(theme.palette.text.secondary, isDark ? 0.6 : 0.55),
+              fontSize: '10px',
+              fontWeight: 600,
+              lineHeight: 1,
+              fontFamily: theme.typography.fontFamilyMono,
+            }}
+          >
+            {normalizedSteps.length}
+          </Typography>
+        </Box>
         <KeyboardArrowDownIcon
           className="summary-arrow"
           sx={{
@@ -128,7 +141,7 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
               top: 8,
               bottom: 8,
               width: '1px',
-              backgroundColor: alpha(theme.palette.border.subtle, isDark ? 0.95 : 1),
+              background: `linear-gradient(180deg, transparent, ${alpha(theme.palette.border.subtle, isDark ? 0.95 : 1)} 10%, ${alpha(theme.palette.border.subtle, isDark ? 0.95 : 1)} 85%, transparent)`,
             },
           }}
         >

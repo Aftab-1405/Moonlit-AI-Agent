@@ -19,7 +19,7 @@ export const FONTS = {
 };
 
 export const SYNTAX_COLORS = {
-  sql: '#4fc3f7', mysql: '#4fc3f7', postgresql: '#4fc3f7', sqlite: '#4fc3f7',
+  sql: '#4fc3f7', mysql: '#4fc3f7', postgresql: '#4fc3f7',
   sqlserver: '#4fc3f7', oracle: '#4fc3f7', tsql: '#4fc3f7', plsql: '#4fc3f7',
   javascript: '#f7c948', js: '#f7c948',
   typescript: '#5b8dd9', ts: '#5b8dd9',
@@ -59,7 +59,7 @@ export const PALETTE_MODES = {
       disabledBackground: alpha(HEX_WHITE, 0.1),
     },
     scrollbar: { track: 'transparent', thumb: '#1e2d42', thumbHover: '#2a3f5a' },
-    code: { background: alpha(HEX_WHITE, 0.055), text: '#d8e4f2', border: alpha(HEX_WHITE, 0.08) },
+    code: { background: alpha('#6e9fd4', 0.1), text: '#94bce4', border: alpha('#6e9fd4', 0.18) },
     glassmorphism: {
       background: alpha('#10151e', 0.84),
       backdropFilter: 'blur(16px)',
@@ -92,7 +92,7 @@ export const PALETTE_MODES = {
       disabledBackground: alpha(HEX_BLACK, 0.06),
     },
     scrollbar: { track: 'transparent', thumb: '#c8d0e0', thumbHover: '#b0bcd0' },
-    code: { background: alpha(HEX_BLACK, 0.035), text: '#0f1623', border: alpha(HEX_BLACK, 0.08) },
+    code: { background: alpha('#2e5fa8', 0.07), text: '#2e5fa8', border: alpha('#2e5fa8', 0.18) },
     glassmorphism: {
       background: alpha('#ffffff', 0.92),
       backdropFilter: 'blur(16px)',

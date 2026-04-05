@@ -326,8 +326,7 @@ function Hero({ onGetStarted }) {
               {[
                 { src: '/logo-postgresql.svg', alt: 'PostgreSQL' },
                 { src: '/logo-mysql.svg', alt: 'MySQL' },
-                { src: '/logo-sqlite.svg', alt: 'SQLite' },
-                { src: '/logo-microsoft-sql-server.svg', alt: 'SQL Server', hideXs: true },
+{ src: '/logo-microsoft-sql-server.svg', alt: 'SQL Server', hideXs: true },
                 { src: '/logo-oracle.svg', alt: 'Oracle', hideXs: true },
               ].map((db) => (
                 <Box

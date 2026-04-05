@@ -27,9 +27,8 @@ import { useSettings } from '../contexts/SettingsContext';
 import { useLocalStorage } from '../hooks';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
-import FolderOpenOutlinedIcon from '@mui/icons-material/FolderOpenOutlined';
 import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
-import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
+import VpnKeyRoundedIcon from '@mui/icons-material/VpnKeyRounded';
 import PowerSettingsNewRoundedIcon from '@mui/icons-material/PowerSettingsNewRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
@@ -45,7 +44,6 @@ import {
   useFormValidation,
   credentialsSchema,
   connectionStringSchema,
-  sqliteSchema,
   dbFieldSchemas,
 } from '../validation';
 import { DB_TYPES } from '../config/databases';
@@ -186,7 +184,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [mobileSection, setMobileSection] = useState('connect');
   const [formData, setFormData] = useState({
-    host: 'localhost',
+    host: '',
     port: '5432',
     user: '',
     password: '',
@@ -202,7 +200,6 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
   const { errors: fieldErrors, validateForm, clearError } = useFormValidation(dbFieldSchemas);
   const timeoutRefs = useRef([]);
   const currentDbConfig = useMemo(() => DB_TYPES.find((db) => db.value === dbType) || DB_TYPES[1], [dbType]);
-  const isSQLite = dbType === 'sqlite';
   const supportsConnectionString = currentDbConfig.supportsConnectionString;
   const hasDatabases = databases.length > 0;
   const mobileHeaderTitle = mobileSection === 'databases' ? 'Available Databases' : 'Connection Details';
@@ -282,10 +279,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
       let payload;
       let isValid = false;
 
-      if (isSQLite) {
-        isValid = validateForm(sqliteSchema, { database: formData.database });
-        payload = { db_type: dbType, db_name: formData.database };
-      } else if (connectionMode === 'connection_string' && supportsConnectionString) {
+      if (connectionMode === 'connection_string' && supportsConnectionString) {
         isValid = validateForm(connectionStringSchema, { connectionString });
         payload = { db_type: dbType, connection_string: connectionString };
       } else {
@@ -335,7 +329,6 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
     connectionString,
     dbType,
     formData,
-    isSQLite,
     onClose,
     onConnect,
     rememberConnection,
@@ -428,7 +421,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
         },
       }}
     >
-      {!isSQLite && supportsConnectionString ? (
+      {supportsConnectionString ? (
         <FormCard>
           <ToggleButtonGroup
             value={connectionMode}
@@ -445,53 +438,18 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
             }}
           >
             <ToggleButton value="credentials">
-              <HomeRoundedIcon sx={{ fontSize: 18 }} />
-              <Typography variant="body2" fontWeight={500}>Local</Typography>
+              <VpnKeyRoundedIcon sx={{ fontSize: 18 }} />
+              <Typography variant="body2" fontWeight={500}>Credentials</Typography>
             </ToggleButton>
             <ToggleButton value="connection_string">
               <LinkRoundedIcon sx={{ fontSize: 18 }} />
-              <Typography variant="body2" fontWeight={500}>Remote</Typography>
+              <Typography variant="body2" fontWeight={500}>Connection String</Typography>
             </ToggleButton>
           </ToggleButtonGroup>
         </FormCard>
       ) : null}
       <FormCard title="Connection Details">
-        {isSQLite ? (
-          <TextField
-            fullWidth
-            name="database"
-            label="Database Path"
-            placeholder="e.g., C:\\data\\mydb.sqlite"
-            value={formData.database}
-            onChange={handleInputChange}
-            error={!!fieldErrors.database}
-            helperText={fieldErrors.database || 'Full path to your SQLite file'}
-            size="small"
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  <Tooltip title="Paste from clipboard">
-                    <IconButton
-                      size="small"
-                      aria-label="Paste path from clipboard"
-                      sx={getCompactActionSx(theme)}
-                      onClick={async () => {
-                        try {
-                          const text = await navigator.clipboard.readText();
-                          if (text) setFormData((prev) => ({ ...prev, database: text.trim() }));
-                        } catch (err) {
-                          logger.warn('Clipboard access denied:', err);
-                        }
-                      }}
-                    >
-                      <FolderOpenOutlinedIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                </InputAdornment>
-              ),
-            }}
-          />
-        ) : connectionMode === 'connection_string' && supportsConnectionString ? (
+        {connectionMode === 'connection_string' && supportsConnectionString ? (
           <TextField
             fullWidth
             label="Connection String"
@@ -515,7 +473,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
                 fullWidth
                 name="host"
                 label="Host"
-                placeholder="localhost"
+                placeholder="e.g., db.example.com"
                 value={formData.host}
                 onChange={handleInputChange}
                 error={!!fieldErrors.host}

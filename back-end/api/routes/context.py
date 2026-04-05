@@ -58,7 +58,7 @@ async def refresh_user_context(
 ):
     """Refresh schema cache for current database."""
     from services.context_service import ContextService
-    from services.ai_tools import AIToolExecutor
+    from services.db_tool_executors import AIToolExecutor
     
     user_id = user.get('uid') or user
     database = db_config.get('database')

@@ -15,6 +15,7 @@ import redis.asyncio as redis
 from config import get_config, ProductionConfig
 from services.firestore_service import FirestoreService
 from services.rate_limiting import create_rate_limiter, create_user_quota_service
+from agent.checkpointing import init_checkpointer, shutdown_checkpointer
 
 
 # Configure logging
@@ -68,15 +69,23 @@ async def lifespan(app: FastAPI):
         if AppConfig.RATELIMIT_ENABLED and str(AppConfig.RATELIMIT_STORAGE_URL).lower().startswith('memory'):
             logger.error("RATELIMIT_STORAGE_URL must not use memory storage in staging/production")
             raise RuntimeError("RATELIMIT_STORAGE_URL must be a shared backend (e.g., Redis) in staging/production")
+    checkpoint_redis_url: str | None = None
     if redis_url:
         # Convert redis:// to rediss:// for TLS (Upstash requires TLS)
         if redis_url.startswith('redis://'):
             redis_url = redis_url.replace('redis://', 'rediss://', 1)
-        
+
+        checkpoint_redis_url = redis_url
         redis_client = redis.from_url(redis_url, decode_responses=True)
         logger.info("✅ Redis session storage enabled (Upstash)")
     else:
         logger.warning("⚠️ UPSTASH_REDIS_URL not set, using in-memory sessions (not recommended for production)")
+
+    # LangGraph thread persistence (Redis in staging/production; in-memory in dev)
+    await init_checkpointer(
+        app_env=env,
+        redis_url=checkpoint_redis_url if is_prod_like else None,
+    )
     
     # Initialize per-user quota service (needs Redis)
     app.state.user_quota = create_user_quota_service(redis_client, AppConfig)
@@ -88,8 +97,9 @@ async def lifespan(app: FastAPI):
     logger.info("✅ Application initialized successfully")
     
     yield
-    
+
     # Shutdown
+    await shutdown_checkpointer()
     if redis_client:
         await redis_client.close()
         logger.info("Redis connection closed")

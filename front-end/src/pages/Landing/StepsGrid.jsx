@@ -12,7 +12,7 @@ function StepsGrid() {
     {
       num: '01',
       title: 'Connect',
-      desc: 'Link your PostgreSQL, MySQL, SQL Server, Oracle, or SQLite database in seconds.',
+      desc: 'Link your PostgreSQL, MySQL, SQL Server, or Oracle database in seconds.',
     },
     {
       num: '02',

@@ -12,7 +12,11 @@ from fastapi.concurrency import run_in_threadpool
 from config import Config
 from dependencies import get_current_user, get_db_config
 from services.conversation_service import ConversationService
-from services.llm.client import LLMClient
+from agent.model_factory import (
+    get_supported_providers,
+    get_provider_models,
+    get_default_model,
+)
 from api.request_schemas import ChatRequest
 
 logger = logging.getLogger(__name__)
@@ -34,38 +38,25 @@ def _dedupe(values: list[str]) -> list[str]:
 
 
 def _provider_has_dedicated_key(provider_name: str) -> bool:
+    """Check whether *provider_name* has at least one API key configured."""
     provider = provider_name.strip().lower()
-    if provider == "cerebras":
-        return bool(_split_csv(os.getenv("CEREBRAS_API_KEYS", "")) or os.getenv("CEREBRAS_API_KEY", "").strip())
-    if provider == "gemini":
-        return bool(
-            _split_csv(os.getenv("GEMINI_API_KEYS", ""))
-            or os.getenv("GEMINI_API_KEY", "").strip()
-            or os.getenv("GOOGLE_API_KEY", "").strip()
-        )
+    key_vars = {
+        "cerebras": ["CEREBRAS_API_KEYS", "CEREBRAS_API_KEY"],
+        "gemini": ["GEMINI_API_KEYS", "GEMINI_API_KEY", "GOOGLE_API_KEY"],
+        "anthropic": ["ANTHROPIC_API_KEYS", "ANTHROPIC_API_KEY"],
+        "openai": ["OPENAI_API_KEYS", "OPENAI_API_KEY"],
+    }
+    for var in key_vars.get(provider, []):
+        if os.getenv(var, "").strip():
+            return True
     return False
 
 
-def _get_provider_models(provider_name: str) -> list[str]:
-    provider = provider_name.strip().lower()
-    env_models = _split_csv(os.getenv(f"{provider.upper()}_MODELS", ""))
-    provider_model = os.getenv(f"{provider.upper()}_MODEL", "").strip()
-
-    if provider_model:
-        return _dedupe([provider_model, *env_models])
-
-    if env_models:
-        return _dedupe(env_models)
-
-    default_model = LLMClient.get_provider(provider).get_default_model()
-    return _dedupe([default_model])
-
-
 def _build_provider_options() -> tuple[list[dict], str]:
-    supported = LLMClient.get_supported_providers()
+    supported = get_supported_providers()
     options = []
     for provider_name in supported:
-        models = _get_provider_models(provider_name)
+        models = get_provider_models(provider_name)
         options.append({
             "name": provider_name,
             "label": provider_name.capitalize(),
@@ -107,16 +98,16 @@ async def pass_user_prompt_to_llm(
     conversation_id = ConversationService.create_or_get_conversation_id(data.conversation_id)
     user_id = user.get('uid') or user
 
-    supported_providers = set(LLMClient.get_supported_providers())
-    if provider not in supported_providers:
+    supported = set(get_supported_providers())
+    if provider not in supported:
         raise HTTPException(
             status_code=400,
             detail={
                 "error": "invalid_provider",
-                "message": f"Unsupported provider '{provider}'. Supported values: {sorted(supported_providers)}",
+                "message": f"Unsupported provider '{provider}'. Supported values: {sorted(supported)}",
             },
         )
-    
+
     logger.info(
         "LLM selection requested: provider=%s, model=%s, conversation_id=%s",
         provider,
@@ -124,19 +115,17 @@ async def pass_user_prompt_to_llm(
         conversation_id,
     )
 
-    logger.debug(f'Received prompt for conversation: {conversation_id}')
-
     # Ownership check for existing conversation IDs
     if data.conversation_id:
         try:
             _ = ConversationService.get_conversation_data(conversation_id, user_id)
         except PermissionError as e:
             raise HTTPException(status_code=403, detail=str(e))
-    
+
     # 1. Check user quota (fast, Redis-based)
     user_quota = request.app.state.user_quota
     quota_allowed, usage = await user_quota.check_and_increment(user_id)
-    
+
     if not quota_allowed:
         logger.warning(f'User {user_id} quota exceeded')
         raise HTTPException(
@@ -147,26 +136,25 @@ async def pass_user_prompt_to_llm(
                 'usage': usage.to_dict()
             }
         )
-    
+
     # 2. Acquire global LLM rate limiter slot and get API key
     llm_rate_limiter = request.app.state.llm_rate_limiter
     success, api_key = await llm_rate_limiter.acquire()
-    
+
     if not success:
         logger.warning(f'Global rate limit timeout for user {user_id}')
         raise HTTPException(
-            status_code=429, 
+            status_code=429,
             detail={
                 'error': 'server_busy',
                 'message': 'Server is busy. Please try again in a moment.'
             }
         )
-    
+
     try:
-        async def async_generator():
+        async def sse_generator():
             try:
-                generator = await run_in_threadpool(
-                    ConversationService.create_streaming_generator,
+                async for sse_line in ConversationService.create_streaming_generator(
                     conversation_id, prompt, user_id,
                     db_config=db_config,
                     enable_reasoning=enable_reasoning,
@@ -176,25 +164,22 @@ async def pass_user_prompt_to_llm(
                     api_key=api_key if provider == Config.LLM_PROVIDER else None,
                     provider=provider,
                     model=model,
-                )
-                for chunk in generator:
-                    yield chunk
+                ):
+                    yield sse_line
             finally:
-                # Release rate limiter when streaming completes
                 llm_rate_limiter.release()
-        
+
         headers = ConversationService.get_streaming_headers(
             conversation_id,
             provider=provider,
             model=model,
         )
         return StreamingResponse(
-            async_generator(),
-            media_type='text/plain',
-            headers=headers
+            sse_generator(),
+            media_type='text/event-stream',
+            headers=headers,
         )
     except Exception as e:
-        # Release rate limiter on error
         llm_rate_limiter.release()
         logger.error(f'Error initializing chat: {e}')
         if ConversationService.check_quota_error(str(e)):
@@ -215,7 +200,7 @@ async def get_llm_options(user: dict = Depends(get_current_user)):
     default_model = (
         default_option["default_model"]
         if default_option and default_option.get("default_model")
-        else LLMClient.get_model_name(provider_name=default_provider)
+        else get_default_model(default_provider)
     )
 
     return {

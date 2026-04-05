@@ -1,33 +1,32 @@
 /**
  * useMessageStreaming Hook
- * 
- * Handles sending messages and streaming AI responses.
+ *
+ * Handles sending messages and streaming AI responses via SSE events.
  * Manages abort controller for cancellation support.
- * 
+ *
  * @module hooks/useMessageStreaming
  */
 
 import { useCallback, useRef } from 'react';
 import { sendMessage } from '../../api';
 import logger from '../../utils/logger';
+import { parseSSEStream } from '../../utils/streamParser';
 import {
   createAssistantMessage,
   createMessageId,
   createUserMessage,
   MESSAGE_STATUS,
 } from '../../utils/chatMessages';
+
 const UPDATE_THROTTLE_MS = 16;
 
 /**
  * Get user-friendly error message based on error type
- * @param {Error} error - The error object
- * @returns {string} User-friendly error message
  */
 function getErrorMessage(error) {
   if (!navigator.onLine) {
     return "You appear to be offline. Please check your internet connection and try again.";
   }
-  
   if (error.name === 'TypeError' && error.message.includes('fetch')) {
     return "Unable to connect to the server. Please check your connection and try again.";
   }
@@ -60,10 +59,11 @@ function getErrorMessage(error) {
   return "Something went wrong. Please try again.";
 }
 
-function upsertAssistantMessage(prevMessages, assistantId, rawContent, status) {
+function upsertAssistantMessage(prevMessages, assistantId, messageData, status) {
   const nextAssistant = createAssistantMessage({
     id: assistantId,
-    rawContent,
+    textOverride: messageData.text,
+    stepsOverride: messageData.steps,
     status,
   });
   const messageIndex = prevMessages.findIndex((message) => message.id === assistantId);
@@ -82,15 +82,6 @@ function upsertAssistantMessage(prevMessages, assistantId, rawContent, status) {
 
 /**
  * Hook for message streaming functionality
- * @param {Object} params - Hook parameters
- * @param {string|null} params.currentConversationId - Current conversation ID
- * @param {Function} params.setCurrentConversationId - Setter for conversation ID
- * @param {Function} params.setMessages - Setter for messages array
- * @param {Function} params.setConversations - Setter for conversations list
- * @param {Function} params.navigate - React Router navigate function
- * @param {Function} params.fetchConversations - Function to refresh conversations
- * @param {Object} params.settings - User settings object
- * @returns {Object} Streaming handlers and state
  */
 export function useMessageStreaming({
   currentConversationId,
@@ -114,16 +105,16 @@ export function useMessageStreaming({
       createUserMessage(prompt),
       createAssistantMessage({
         id: assistantMessageId,
-        rawContent: '',
+        textOverride: '',
+        stepsOverride: [],
         status: MESSAGE_STATUS.WAITING,
       }),
     ]);
+
     const enableReasoning = settings.enableReasoning ?? true;
     const reasoningEffort = settings.reasoningEffort ?? 'medium';
     const responseStyle = settings.responseStyle ?? 'balanced';
     const maxRows = settings.maxRows ?? 1000;
-    // Read provider/model from immediate UI selection overrides first so model switches
-    // apply to the very next message even before settings persistence settles.
     const provider = overrides?.provider ?? settings.llmProvider ?? null;
     const model = overrides?.model ?? settings.llmModel ?? null;
 
@@ -140,6 +131,7 @@ export function useMessageStreaming({
         provider,
         model,
       }, abortControllerRef.current.signal);
+
       const newConversationId = response.headers.get('X-Conversation-Id');
       if (newConversationId && !currentConversationId) {
         registerStreamingConversation?.(newConversationId);
@@ -152,42 +144,116 @@ export function useMessageStreaming({
           ...prev,
         ]);
       }
+
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let aiResponse = '';
+
+      // Accumulate structured data from SSE events
+      const contentParts = [];
+      const toolSteps = [];
+      let thinkingContent = '';
       let lastUpdateTime = 0;
 
-      const updateMessage = (status) => {
-        setMessages((prev) => {
-          return upsertAssistantMessage(prev, assistantMessageId, aiResponse, status);
+      const buildMessageData = (isDone = false) => {
+        const steps = [];
+        // Add thinking step if present
+        if (thinkingContent) {
+          steps.push({ type: 'thinking', content: thinkingContent, isComplete: isDone });
+        }
+        // Add tool steps
+        toolSteps.forEach((tool, index) => {
+          steps.push({
+            type: 'tool',
+            id: `tool-${tool.name}-${index}`,
+            name: tool.name,
+            status: tool.status,
+            args: typeof tool.args === 'string' ? tool.args : JSON.stringify(tool.args || {}),
+            result: typeof tool.result === 'string' ? tool.result : JSON.stringify(tool.result || null),
+          });
         });
+        return {
+          text: contentParts.join(''),
+          steps,
+        };
       };
 
-      while (true) {
-        const { done, value } = await reader.read();
-
-        if (!done) {
-          const chunk = decoder.decode(value, { stream: true });
-          aiResponse += chunk;
-        }
-
+      const throttledUpdate = (status) => {
         const now = Date.now();
-        if (done || now - lastUpdateTime >= UPDATE_THROTTLE_MS) {
-          if (aiResponse || done) {
-            updateMessage(done ? MESSAGE_STATUS.DONE : MESSAGE_STATUS.STREAMING);
-          }
+        if (now - lastUpdateTime >= UPDATE_THROTTLE_MS) {
+          setMessages((prev) =>
+            upsertAssistantMessage(prev, assistantMessageId, buildMessageData(), status)
+          );
           lastUpdateTime = now;
-          if (done) break;
         }
-      }
+      };
+
+      await parseSSEStream(reader, decoder, (event) => {
+        switch (event.type) {
+          case 'token':
+            contentParts.push(event.content);
+            throttledUpdate(MESSAGE_STATUS.STREAMING);
+            break;
+
+          case 'tool_start':
+            toolSteps.push({
+              name: event.name,
+              status: 'running',
+              args: event.args,
+              result: null,
+            });
+            throttledUpdate(MESSAGE_STATUS.STREAMING);
+            break;
+
+          case 'tool_end': {
+            const step = toolSteps.find(
+              (s) => s.name === event.name && s.status === 'running'
+            );
+            if (step) {
+              step.status = 'done';
+              step.args = event.args;
+              step.result = event.result;
+            }
+            throttledUpdate(MESSAGE_STATUS.STREAMING);
+            break;
+          }
+
+          case 'thinking_token':
+            thinkingContent += event.content;
+            throttledUpdate(MESSAGE_STATUS.STREAMING);
+            break;
+
+          case 'error':
+            contentParts.push(`\n\n⚠️ **Error**: ${event.message}`);
+            throttledUpdate(MESSAGE_STATUS.ERROR);
+            break;
+
+          case 'done':
+            // Mark thinking as complete
+            // Final update handled below
+            break;
+
+          default:
+            break;
+        }
+      });
+
+      // Final update — ensure the last state is flushed with thinking marked complete
+      setMessages((prev) =>
+        upsertAssistantMessage(prev, assistantMessageId, buildMessageData(true), MESSAGE_STATUS.DONE)
+      );
 
       fetchConversations(undefined, { showLoading: false });
     } catch (error) {
       if (error.name === 'AbortError') {
         setMessages((prev) => {
           const existingAssistant = prev.find((msg) => msg.id === assistantMessageId);
-          const rawContent = existingAssistant?.rawContent || '';
-          return upsertAssistantMessage(prev, assistantMessageId, rawContent, MESSAGE_STATUS.STOPPED);
+          const currentText = existingAssistant?.text || '';
+          return upsertAssistantMessage(
+            prev,
+            assistantMessageId,
+            { text: currentText, steps: existingAssistant?.steps || [] },
+            MESSAGE_STATUS.STOPPED,
+          );
         });
         return;
       }
@@ -196,10 +262,15 @@ export function useMessageStreaming({
 
       setMessages((prev) => {
         const existingAssistant = prev.find((msg) => msg.id === assistantMessageId);
-        const rawContent = existingAssistant?.rawContent
-          ? `${existingAssistant.rawContent}\n\n${errorMessage}`
+        const currentText = existingAssistant?.text
+          ? `${existingAssistant.text}\n\n${errorMessage}`
           : errorMessage;
-        return upsertAssistantMessage(prev, assistantMessageId, rawContent, MESSAGE_STATUS.ERROR);
+        return upsertAssistantMessage(
+          prev,
+          assistantMessageId,
+          { text: currentText, steps: existingAssistant?.steps || [] },
+          MESSAGE_STATUS.ERROR,
+        );
       });
     } finally {
       abortControllerRef.current = null;

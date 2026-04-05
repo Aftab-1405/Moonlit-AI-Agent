@@ -114,10 +114,6 @@ function ChatInput({
     dbType?.toLowerCase() === 'postgresql',
   [dbType]);
 
-  const isSQLite = useMemo(() =>
-    dbType?.toLowerCase() === 'sqlite',
-  [dbType]);
-
   const showSchemaSelector = useMemo(() =>
     isConnected && isPostgreSQL && schemas.length > 0,
   [isConnected, isPostgreSQL, schemas.length]);
@@ -125,8 +121,8 @@ function ChatInput({
     isConnected && currentDatabase,
   [isConnected, currentDatabase]);
   const canSwitchDatabase = useMemo(() =>
-    availableDatabases.length > 1 && !isSQLite,
-  [availableDatabases.length, isSQLite]);
+    availableDatabases.length > 1,
+  [availableDatabases.length]);
 
   const hasText = useMemo(() =>
     message.trim().length > 0,

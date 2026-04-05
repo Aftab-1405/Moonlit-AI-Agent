@@ -1,13 +1,8 @@
 """
-AI Tools Module
+Database Tool Executors
 
-Defines tools (functions) that the AI can call to get real-time context.
-Implements the tool executor that processes AI function calls.
-
-Separation of Concerns:
-- Tool definitions (schemas) are separate from implementations
-- Tool executor is the bridge between AI and actual services
-- Each tool implementation delegates to appropriate service
+Contains the actual DB execution logic for each LangGraph tool.
+Called directly by @tool functions in agent/tools.py — no dispatcher needed.
 """
 
 import logging
@@ -30,7 +25,6 @@ def get_tool_connection(db_config: dict):
     Uses the adapter pattern to support all database types:
     - PostgreSQL (psycopg2)
     - MySQL (mysql-connector)
-    - SQLite (sqlite3)
     - SQL Server (pyodbc)
     - Oracle (oracledb)
     
@@ -72,285 +66,12 @@ def get_tool_connection(db_config: dict):
                 pass
 
 # =============================================================================
-# TOOL DEFINITIONS (Schemas)
-# =============================================================================
-
-# Raw tool definitions in provider-neutral JSON schema format.
-_RAW_TOOL_DEFINITIONS = [
-    {
-        "name": "get_connection_status",
-        "description": "Check if user is connected to a database and get connection details like database type, name, host, and whether it's a remote connection.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "rationale": {
-                    "type": "string",
-                    "description": "A natural, friendly sentence explaining to the user what you are checking. Example: 'Let me check your current connection status...'"
-                }
-            },
-            "required": ["rationale"]
-        }
-    },
-    {
-        "name": "get_database_list",
-        "description": "Get list of all databases available on the connected server.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "rationale": {
-                    "type": "string",
-                    "description": "A natural, friendly sentence explaining what you are looking up. Example: 'I'll list the available databases for you...'"
-                }
-            },
-            "required": ["rationale"]
-        }
-    },
-    {
-        "name": "get_database_schema",
-        "description": "Get all tables and their columns for the current database or a specified database.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "database": {
-                    "type": "string",
-                    "description": "Database name. If not provided, uses current database."
-                },
-                "rationale": {
-                    "type": "string",
-                    "description": "A natural, friendly sentence explaining what you are fetching. Example: 'Let me fetch the schema for the sales database...'"
-                }
-            },
-            "required": ["rationale"]
-        }
-    },
-    {
-        "name": "get_table_columns",
-        "description": "Get detailed column information for a specific table including column names and data types.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "table_name": {
-                    "type": "string",
-                    "description": "Name of the table to get columns for."
-                },
-                "rationale": {
-                    "type": "string",
-                    "description": "A natural, friendly sentence explaining what you are checking. Example: 'I'll look up the columns for table Users...'"
-                }
-            },
-            "required": ["table_name", "rationale"]
-        }
-    },
-    {
-        "name": "execute_query",
-        "description": "Execute a SQL SELECT query against the connected database. Only SELECT queries are allowed for safety.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "SQL SELECT query to execute."
-                },
-                "max_rows": {
-                    "type": "integer",
-                    "description": "Maximum number of rows to return. Default is 100."
-                },
-                "rationale": {
-                    "type": "string",
-                    "description": "A natural, friendly sentence explaining the query. Example: 'Running a query to fetch top 5 customers...'"
-                }
-            },
-            "required": ["query", "rationale"]
-        }
-    },
-    {
-        "name": "get_recent_queries",
-        "description": "Get user's recent SQL query history.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "limit": {
-                    "type": "integer",
-                    "description": "Maximum number of queries to return. Default is 5."
-                },
-                "rationale": {
-                    "type": "string",
-                    "description": "A natural, friendly sentence explaining you are checking history. Example: 'Let me look at your recent queries...'"
-                }
-            },
-            "required": ["rationale"]
-        }
-    },
-    {
-        "name": "get_table_indexes",
-        "description": "Get all indexes defined on a specific table, including index name, columns, uniqueness, and whether it's a primary key index.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "table_name": {
-                    "type": "string",
-                    "description": "Name of the table to get indexes for."
-                },
-                "rationale": {
-                    "type": "string",
-                    "description": "A natural, friendly sentence explaining what you are checking. Example: 'Let me check the indexes on the Users table...'"
-                }
-            },
-            "required": ["table_name", "rationale"]
-        }
-    },
-    {
-        "name": "get_table_constraints",
-        "description": "Get all constraints (PRIMARY KEY, FOREIGN KEY, UNIQUE, CHECK) defined on a specific table.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "table_name": {
-                    "type": "string",
-                    "description": "Name of the table to get constraints for."
-                },
-                "rationale": {
-                    "type": "string",
-                    "description": "A natural, friendly sentence explaining what you are checking. Example: 'Let me look up the constraints on the Orders table...'"
-                }
-            },
-            "required": ["table_name", "rationale"]
-        }
-    },
-    {
-        "name": "get_foreign_keys",
-        "description": "Get foreign key relationships for a table or all tables in the database. Returns the FK column, referenced table, and referenced column.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "table_name": {
-                    "type": "string",
-                    "description": "Optional table name. If not provided, returns all FK relationships in the database."
-                },
-                "rationale": {
-                    "type": "string",
-                    "description": "A natural, friendly sentence explaining what you are checking. Example: 'Let me find the foreign key relationships...'"
-                }
-            },
-            "required": ["rationale"]
-        }
-    }
-]
-
-def get_raw_tool_definitions() -> List[Dict]:
-    """
-    Return provider-neutral tool definitions.
-
-    Provider adapters are responsible for mapping these definitions to the
-    provider-specific request format.
-    """
-    return list(_RAW_TOOL_DEFINITIONS)
-
-
-def get_cerebras_tool_definitions() -> List[Dict]:
-    """Backward-compatible helper for Cerebras-style tool definitions."""
-    return [
-        {
-            "type": "function",
-            "function": tool
-        }
-        for tool in _RAW_TOOL_DEFINITIONS
-    ]
-
-
-# Backward compatibility for any legacy imports.
-ai_tools_list = get_cerebras_tool_definitions()
-
-
-# =============================================================================
 # TOOL EXECUTOR
 # =============================================================================
 
 class AIToolExecutor:
-    """
-    Executes AI tool calls and returns results.
-    
-    This class is the bridge between the AI and the application.
-    It receives tool calls from AI and dispatches to appropriate handlers.
-    """
-    
-    @staticmethod
-    def execute(tool_name: str, parameters: Dict, user_id: str, 
-                db_config: dict = None, max_rows: int = None) -> Dict:
-        """
-        Execute a tool and return the result.
-        
-        Args:
-            tool_name: Name of the tool to execute
-            parameters: Parameters passed by AI
-            user_id: Current user ID
-            db_config: Database connection config for query execution
-            max_rows: User's max_rows setting (None = use server config)
-            
-        Returns:
-            Dict with tool execution result
-        """
-        logger.info(f"Executing tool: {tool_name} with params: {parameters}")
-        
-        # Ensure parameters is a dict (can be None if AI calls tool without args)
-        if parameters is None:
-            parameters = {}
-        
-        # Normalize user_id: can be dict (new auth) or string (legacy)
-        # Use uid for Firestore doc ID (stable, matches routes and context)
-        if isinstance(user_id, dict):
-            user_id = user_id.get('uid') or user_id.get('email') or str(user_id)
-        
-        try:
-            if tool_name == "get_connection_status":
-                return AIToolExecutor._get_connection_status(user_id)
-            
-            elif tool_name == "get_database_list":
-                return AIToolExecutor._get_database_list(user_id, db_config=db_config)
-            
-            elif tool_name == "get_database_schema":
-                database = parameters.get("database")
-                return AIToolExecutor._get_database_schema(user_id, database, db_config=db_config)
-            
-            elif tool_name == "get_table_columns":
-                table_name = parameters.get("table_name")
-                return AIToolExecutor._get_table_columns(user_id, table_name, db_config=db_config)
-            
-            elif tool_name == "execute_query":
-                query = parameters.get("query")
-                # Priority: user's setting > AI's param > default
-                # If user passed max_rows (from settings), use it
-                # If None (no limit selected), use Config.MAX_QUERY_RESULTS
-                effective_max_rows = max_rows
-                if effective_max_rows is None:
-                    # No limit from user - use server config as safety net
-                    from config import Config
-                    effective_max_rows = Config.MAX_QUERY_RESULTS  # 10000
-                return AIToolExecutor._execute_query(user_id, query, effective_max_rows, db_config=db_config)
-            
-            elif tool_name == "get_recent_queries":
-                limit = parameters.get("limit", 5)
-                return AIToolExecutor._get_recent_queries(user_id, limit)
-            
-            elif tool_name == "get_table_indexes":
-                table_name = parameters.get("table_name")
-                return AIToolExecutor._get_table_indexes(user_id, table_name, db_config=db_config)
-            
-            elif tool_name == "get_table_constraints":
-                table_name = parameters.get("table_name")
-                return AIToolExecutor._get_table_constraints(user_id, table_name, db_config=db_config)
-            
-            elif tool_name == "get_foreign_keys":
-                table_name = parameters.get("table_name")  # Optional
-                return AIToolExecutor._get_foreign_keys(user_id, table_name, db_config=db_config)
-            
-            else:
-                return {"error": f"Unknown tool: {tool_name}"}
-                
-        except Exception as e:
-            logger.exception(f"Error executing tool {tool_name}")
-            return {"error": str(e)}
-    
+    """Database tool implementations called directly by LangGraph @tool functions."""
+
     # =========================================================================
     # Tool Implementations
     # =========================================================================
@@ -502,25 +223,14 @@ class AIToolExecutor:
                     for table in tables:
                         try:
                             table_schema = DatabaseOperations.get_table_schema(db_config, table, database)
-                            # get_table_schema returns tuples:
-                            # - SQLite: (cid, name, type, notnull, dflt_value, pk)
-                            # - Others: (name, type, nullable, default, key)
-                            if db_type == 'sqlite':
-                                columns[table] = [
-                                    {
-                                        'name': col[1],
-                                        'is_primary_key': bool(col[5]) if len(col) > 5 else False
-                                    }
-                                    for col in table_schema
-                                ]
-                            else:
-                                columns[table] = [
-                                    {
-                                        'name': col[0],
-                                        'is_primary_key': len(col) > 4 and col[4] == 'PRI'
-                                    }
-                                    for col in table_schema
-                                ]
+                            # get_table_schema returns tuples: (name, type, nullable, default, key)
+                            columns[table] = [
+                                {
+                                    'name': col[0],
+                                    'is_primary_key': len(col) > 4 and col[4] == 'PRI'
+                                }
+                                for col in table_schema
+                            ]
                         except Exception as e:
                             logger.warning(f"Could not get columns for table {table}: {e}")
                             columns[table] = []
@@ -708,21 +418,12 @@ class AIToolExecutor:
             cursor.execute(query, params) if params else cursor.execute(query)
             
             for row in cursor.fetchall():
-                if db_type == 'sqlite':
-                    # PRAGMA table_info: (cid, name, type, notnull, dflt_value, pk)
-                    columns.append({
-                        "name": row[1],
-                        "type": row[2] if len(row) > 2 else 'unknown',
-                        "nullable": not bool(row[3]) if len(row) > 3 else True,
-                        "default": row[4] if len(row) > 4 else None
-                    })
-                else:
-                    columns.append({
-                        "name": row[0],
-                        "type": row[1] if len(row) > 1 else 'unknown',
-                        "nullable": (row[2] == 'YES') if len(row) > 2 else True,
-                        "default": row[3] if len(row) > 3 else None
-                    })
+                columns.append({
+                    "name": row[0],
+                    "type": row[1] if len(row) > 1 else 'unknown',
+                    "nullable": (row[2] == 'YES') if len(row) > 2 else True,
+                    "default": row[3] if len(row) > 3 else None,
+                })
             
             cursor.close()
         
@@ -904,18 +605,6 @@ class AIToolExecutor:
         return result_data
     
     @staticmethod
-    def _get_recent_queries(user_id: str, limit: int = 5) -> Dict:
-        """Get recent query history."""
-        from services.context_service import ContextService
-        
-        queries = ContextService.get_recent_queries(user_id, limit)
-        
-        return {
-            "queries": queries,
-            "count": len(queries)
-        }
-    
-    @staticmethod
     def _get_table_indexes(user_id: str, table_name: str, db_config: dict = None) -> Dict:
         """Get indexes for a specific table."""
         from services.context_service import ContextService
@@ -960,52 +649,6 @@ class AIToolExecutor:
             }
         except Exception as e:
             logger.exception(f"Error getting indexes for {table_name}")
-            return {"error": str(e)}
-    
-    @staticmethod
-    def _get_table_constraints(user_id: str, table_name: str, db_config: dict = None) -> Dict:
-        """Get constraints for a specific table."""
-        from services.context_service import ContextService
-        from database.adapters import get_adapter
-        
-        if not table_name:
-            return {"error": "Table name is required"}
-        
-        connection = ContextService.get_connection(user_id)
-        if not connection.get('connected'):
-            return {"error": "Not connected to any database"}
-        
-        db_type = connection.get('db_type', 'postgresql')
-        database = connection.get('database')
-        schema = connection.get('schema', 'public')
-        
-        try:
-            adapter = get_adapter(db_type)
-            query, params = adapter.get_constraints_query(table_name, db_name=database, schema=schema)
-            
-            if query is None:
-                return {"error": f"Constraints query not supported for {db_type}"}
-            
-            constraints = []
-            with get_tool_connection(db_config) as conn:
-                cursor = conn.cursor()
-                cursor.execute(query, params)
-                
-                for row in cursor.fetchall():
-                    constraints.append({
-                        "constraint_name": row[0],
-                        "constraint_type": row[1] if len(row) > 1 else None,
-                        "column_name": row[2] if len(row) > 2 else None
-                    })
-                cursor.close()
-            
-            return {
-                "table": table_name,
-                "constraints": constraints,
-                "count": len(constraints)
-            }
-        except Exception as e:
-            logger.exception(f"Error getting constraints for {table_name}")
             return {"error": str(e)}
     
     @staticmethod

@@ -1,11 +1,10 @@
 """
-PromptBuilder - System prompt construction and message formatting.
+PromptBuilder — system prompt construction for the Moonlit agent.
 
-Handles the Moonlit personality, style injection, and message array building.
+Handles personality, style injection, and safety rules.
 """
 
 import textwrap
-from typing import List, Dict, Optional
 
 # Response style prompts - injected into system prompt based on user preference
 STYLE_PROMPTS = {
@@ -27,7 +26,7 @@ STYLE_PROMPTS = {
 
 class PromptBuilder:
     """System prompt construction and message formatting."""
-    
+
     @staticmethod
     def get_system_prompt() -> str:
         """Returns Moonlit's system prompt with structured agentic workflow rules."""
@@ -35,7 +34,7 @@ class PromptBuilder:
             <identity>
             You are Moonlit, an agentic AI assistant for database operations built by ABN Alliance.
             You help database engineers, developers, and analysts work productively with relational databases.
-            Supported: PostgreSQL, MySQL, SQL Server, Oracle, SQLite (remote and local).
+            Supported: PostgreSQL, MySQL, SQL Server, Oracle.
             </identity>
 
             <instruction_priority>
@@ -83,9 +82,9 @@ class PromptBuilder:
             </agent_workflow>
 
             <sql_dialects>
-            - LIMIT: PostgreSQL/MySQL/SQLite=`LIMIT n`, SQL Server=`TOP n`, Oracle=`FETCH FIRST n ROWS`
+            - LIMIT: PostgreSQL/MySQL=`LIMIT n`, SQL Server=`TOP n`, Oracle=`FETCH FIRST n ROWS`
             - CASE-INSENSITIVE: PostgreSQL=`ILIKE`, others=`LIKE`
-            - IDENTIFIERS: PostgreSQL/Oracle/SQLite=`"col"`, MySQL=`` `col` ``, SQL Server=`[col]`
+            - IDENTIFIERS: PostgreSQL/Oracle=`"col"`, MySQL=`` `col` ``, SQL Server=`[col]`
             </sql_dialects>
 
             <communication_style>
@@ -119,43 +118,10 @@ class PromptBuilder:
             - Empty results: Explain that no rows matched and suggest a broader filter.
             </error_handling>
         """)
-    
+
     @staticmethod
     def build_system_prompt(response_style: str = 'balanced') -> str:
         """Build system prompt with optional style prefix."""
         style_prefix = STYLE_PROMPTS.get(response_style, '')
         base_prompt = PromptBuilder.get_system_prompt()
         return style_prefix + base_prompt if style_prefix else base_prompt
-    
-    @staticmethod
-    def build_messages(
-        history: Optional[List[Dict]] = None,
-        user_message: str = "",
-        response_style: str = 'balanced'
-    ) -> List[Dict[str, str]]:
-        """
-        Build the messages array for LLM API call.
-        
-        Args:
-            history: Previous conversation messages
-            user_message: Current user message
-            response_style: 'concise', 'balanced', or 'detailed'
-            
-        Returns:
-            List of message dicts with role and content
-        """
-        messages = [
-            {"role": "system", "content": PromptBuilder.build_system_prompt(response_style)}
-        ]
-        
-        if history:
-            for msg in history:
-                role = "user" if msg.get("role") == "user" else "assistant"
-                parts = msg.get("parts", [])
-                content = " ".join(parts) if parts else ""
-                messages.append({"role": role, "content": content})
-        
-        if user_message:
-            messages.append({"role": "user", "content": user_message})
-        
-        return messages

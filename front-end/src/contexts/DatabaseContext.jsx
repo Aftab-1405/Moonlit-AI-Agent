@@ -8,7 +8,7 @@
  * STATE MANAGED:
  * - isConnected: Whether a database connection is active
  * - currentDatabase: Name of the currently selected database
- * - dbType: Type of database (mysql, postgresql, sqlite)
+ * - dbType: Type of database (mysql, postgresql, sqlserver, oracle)
  * - isRemote: Whether connection is via connection string (remote)
  * - availableDatabases: List of databases available on the server
  * - isLoading: Whether a connection operation is in progress

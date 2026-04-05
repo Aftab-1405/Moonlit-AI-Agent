@@ -35,8 +35,6 @@ function isSemanticFailure(name, result) {
       return (result.table_count ?? result.tables?.length ?? 0) === 0;
     case 'get_table_columns':
       return (result.column_count ?? result.columns?.length ?? 0) === 0;
-    case 'get_sample_data':
-      return (result.row_count ?? 0) === 0;
     default:
       return false;
   }
@@ -77,10 +75,7 @@ export function getDetailedResult(name, result) {
       }
       return msg;
     },
-    get_recent_queries: () => `Found ${result.count ?? 0} recent queries`,
-    get_sample_data: () => `Retrieved ${result.row_count ?? 0} sample rows from ${result.table || 'table'}`,
     get_table_indexes: () => `Found ${result.count ?? result.indexes?.length ?? 0} indexes`,
-    get_table_constraints: () => `Found ${result.count ?? result.constraints?.length ?? 0} constraints`,
     get_foreign_keys: () => `Found ${result.count ?? result.foreign_keys?.length ?? 0} foreign key relationships`,
   };
 
@@ -124,11 +119,20 @@ export function normalizeSteps(steps) {
 
 export function buildStepsSummary(normalizedSteps) {
   if (normalizedSteps.length === 0) return '';
-  const actions = normalizedSteps
-    .filter((step) => step.type === 'tool' && !step.isRunning)
-    .map((step) => step.actionText);
 
-  if (actions.length === 0) return 'Processing...';
+  const completedTools = normalizedSteps.filter((s) => s.type === 'tool' && !s.isRunning);
+  const thinkingSteps = normalizedSteps.filter((s) => s.type === 'thinking');
+  const isAnyActive =
+    normalizedSteps.some((s) => s.type === 'tool' && s.isRunning) ||
+    thinkingSteps.some((s) => !s.isComplete);
+
+  if (completedTools.length === 0) {
+    if (isAnyActive) return 'Processing...';
+    if (thinkingSteps.length > 0) return 'Reasoned through the request';
+    return 'Processing...';
+  }
+
+  const actions = completedTools.map((s) => s.actionText);
   if (actions.length === 1) return actions[0];
   if (actions.length === 2) return actions.join(', ');
   return `${actions.slice(0, 2).join(', ')}, and more`;

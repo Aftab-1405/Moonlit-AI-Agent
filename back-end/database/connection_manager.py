@@ -3,7 +3,7 @@ Multi-User Connection Manager
 
 Manages database connection pools for multiple users with different configurations.
 Each unique database configuration gets its own connection pool.
-Supports MySQL, PostgreSQL, and SQLite through adapter pattern.
+Supports MySQL, PostgreSQL, SQL Server, and Oracle through the adapter pattern.
 """
 
 import threading
@@ -31,7 +31,7 @@ class ConnectionManager:
     """
 
     def __init__(self):
-        self._pools: Dict[str, Any] = {}  # Supports MySQL, PostgreSQL, SQLite pools
+        self._pools: Dict[str, Any] = {}
         self._adapters: Dict[str, Any] = {}  # Database adapter per pool
         self._pool_locks: Dict[str, threading.Lock] = {}
         self._pool_last_used: Dict[str, float] = {}
@@ -60,14 +60,8 @@ class ConnectionManager:
                 'connection_string',
                 config.get('connection_string')
             ]
-        # For SQLite, key is based on file path only
-        elif db_type == 'sqlite':
-            key_parts = [
-                'sqlite',
-                config.get('file_path') or config.get('database', ':memory:')
-            ]
         else:
-            # For server-based databases (MySQL, PostgreSQL)
+            # For server-based databases
             adapter = get_adapter(db_type)
             default_port = adapter.default_port
             key_parts = [
@@ -114,9 +108,9 @@ class ConnectionManager:
 
         Args:
             config: Database configuration dict with:
-                   - db_type: 'mysql', 'postgresql', or 'sqlite'
-                   - host, port, user, password (for MySQL/PostgreSQL)
-                   - database (path for SQLite, name for others)
+                   - db_type: 'mysql', 'postgresql', 'sqlserver', or 'oracle'
+                   - host, port, user, password
+                   - database: database name
 
         Returns:
             Database connection from the appropriate pool
@@ -124,10 +118,7 @@ class ConnectionManager:
         db_type = config.get('db_type', 'mysql').lower()
 
         # Validate config based on database type
-        # Skip validation for connection string based configs
-        if config.get('connection_string'):
-            pass  # Connection string has all info embedded
-        elif db_type != 'sqlite':
+        if not config.get('connection_string'):
             if not config.get('host') or not config.get('user'):
                 raise ValueError(f"{db_type.upper()} configuration must include 'host' and 'user'")
 
