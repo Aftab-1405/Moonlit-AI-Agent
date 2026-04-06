@@ -16,8 +16,8 @@ logger = logging.getLogger(__name__)
 
 # Default models per provider (overridden by env vars)
 _DEFAULT_MODELS = {
-    "gemini": "gemini-2.0-flash",
-    "cerebras": "llama-4-scout-17b-16e-instruct",
+    "gemini": "gemini-2.5-flash-lite",
+    "cerebras": "llama3.1-8b",
     "anthropic": "claude-sonnet-4-20250514",
     "openai": "gpt-4o-mini",
 }
