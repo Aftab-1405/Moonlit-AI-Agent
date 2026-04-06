@@ -221,6 +221,60 @@ def get_foreign_keys(
     )
 
 
+@tool
+def web_search(query: str, rationale: str, *, config: RunnableConfig) -> str:
+    """Search the web for current information, recent news, external documentation, or any topic not available in the connected database. Use this when the user needs up-to-date knowledge, real-world context, or information that cannot be answered from database data alone."""
+    writer = _try_writer()
+    writer({"type": "tool_start", "name": "web_search", "args": {"query": query}})
+
+    try:
+        from langchain_tavily import TavilySearch
+        searcher = TavilySearch(max_results=5, topic="general")
+        raw = searcher.invoke({"query": query})
+
+        # Normalize: may return a list of result dicts or a dict with a 'results' key
+        if isinstance(raw, list):
+            results = raw
+        elif isinstance(raw, dict):
+            results = raw.get("results", [])
+        else:
+            results = []
+
+        parsed = {
+            "success": True,
+            "query": query,
+            "count": len(results),
+            "results": [
+                {
+                    "title": r.get("title", ""),
+                    "url": r.get("url", ""),
+                    "content": r.get("content", ""),
+                }
+                for r in results
+            ],
+        }
+    except Exception as e:
+        logger.error("web_search failed: %s", e)
+        parsed = {"success": False, "query": query, "error": str(e), "count": 0, "results": []}
+
+    writer({"type": "tool_end", "name": "web_search", "args": {"query": query}, "result": parsed})
+
+    if not parsed["success"]:
+        return f"Web search failed: {parsed.get('error', 'Unknown error')}"
+
+    if not parsed["results"]:
+        return f"No results found for: {query}"
+
+    lines = [f"Web search results for '{query}':\n"]
+    for i, r in enumerate(parsed["results"], 1):
+        title = r["title"] or "Untitled"
+        url = r["url"]
+        snippet = r["content"][:400].strip() if r["content"] else ""
+        lines.append(f"{i}. {title}\n   {url}\n   {snippet}\n")
+
+    return "\n".join(lines)
+
+
 # ── public list ──────────────────────────────────────────────────────
 
 ALL_TOOLS = [
@@ -231,4 +285,5 @@ ALL_TOOLS = [
     execute_query,
     get_table_indexes,
     get_foreign_keys,
+    web_search,
 ]

@@ -34,6 +34,7 @@ langgraph-checkpoint = ">=2.0.0"
 langgraph-checkpoint-redis = ">=0.1.0"
 pydantic = "<3.0.0,>=2.0.0"
 uvicorn = {extras = ["standard"], version = "<1.0.0,>=0.27.0"}
+langchain-tavily = "*"
 
 [dev-packages]
 ruff = "*"

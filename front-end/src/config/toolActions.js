@@ -6,4 +6,5 @@ export const TOOL_ACTIONS = {
   execute_query: { running: 'Executing SQL query', done: 'Executed SQL query' },
   get_table_indexes: { running: 'Fetching indexes', done: 'Fetched indexes' },
   get_foreign_keys: { running: 'Fetching foreign keys', done: 'Fetched foreign keys' },
+  web_search: { running: 'Searching the web', done: 'Searched the web' },
 };

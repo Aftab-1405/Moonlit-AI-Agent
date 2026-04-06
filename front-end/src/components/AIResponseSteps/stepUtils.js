@@ -77,6 +77,11 @@ export function getDetailedResult(name, result) {
     },
     get_table_indexes: () => `Found ${result.count ?? result.indexes?.length ?? 0} indexes`,
     get_foreign_keys: () => `Found ${result.count ?? result.foreign_keys?.length ?? 0} foreign key relationships`,
+    web_search: () => {
+      const count = result.count ?? result.results?.length ?? 0;
+      const query = result.query ? ` for "${result.query}"` : '';
+      return `Found ${count} result${count !== 1 ? 's' : ''}${query}`;
+    },
   };
 
   return details[name]?.() || 'Completed successfully';
