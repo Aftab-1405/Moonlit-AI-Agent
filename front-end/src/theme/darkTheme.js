@@ -43,7 +43,7 @@ const palette = {
     main:         H.brand000,
     light:        H.brand200,
     dark:         H.brandDark,
-    contrastText: '#ffffff',
+    contrastText: H.bg200,  // dark text on light Selene brand
   },
 
   secondary: {

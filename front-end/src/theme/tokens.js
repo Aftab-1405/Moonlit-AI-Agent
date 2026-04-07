@@ -1,10 +1,10 @@
 /**
- * Claude.ai design tokens
+ * Moonlit design tokens
  *
- * HSL values extracted from Claude.ai's CSS design system and pre-computed to hex
- * so MUI's alpha() / color manipulation utilities work correctly.
+ * Brand identity: Selene — HSL(230°, 70%, 69%) on dark / HSL(230°, 63%, 40%) on light.
+ * Named after the Greek goddess of the moon. Reflected moonlight cool blue-silver.
  *
- * Token scale convention (Claude):
+ * Token scale convention:
  *   000 = most prominent / foreground
  *   200 = mid-weight
  *   400 = subtle / muted
@@ -38,14 +38,14 @@ export const LIGHT = {
   text200:    hslToHex(60,  2.5,  23.3),   // #3c3c39  — dark gray (secondary)
   text400:    hslToHex(51,  3.1,  43.7),   // #706f6a  — muted (disabled / hint)
 
-  // Primary / secondary neutrals for the monochrome UI
-  brand000:   hslToHex(45,  4.5, 12),
-  brand200:   hslToHex(45,  4,   22),
-  brandDark:  hslToHex(45,  5,   7),
+  // Brand — Selene (darkened for WCAG AA on white bg)
+  brand000:   hslToHex(230, 63,  40),   // #263AA6  — deep Selene (9:1 on white)
+  brand200:   hslToHex(230, 55,  54),   // #5170C8  — mid Selene
+  brandDark:  hslToHex(230, 70,  28),   // #152088  — deep navy
 
-  accent000:  hslToHex(45,  3,   34),
-  accentLight:hslToHex(45,  3,   46),
-  accentDark: hslToHex(45,  3,   22),
+  accent000:  hslToHex(230, 38,  50),   // #5566AA  — muted support
+  accentLight:hslToHex(230, 35,  63),   // #7A8ABD  — soft support
+  accentDark: hslToHex(230, 45,  36),   // #324797  — deep support
 
   // Semantic info remains blue
   info000:    hslToHex(210, 73.7, 40.2),
@@ -75,14 +75,14 @@ export const DARK = {
   text200:    hslToHex(50,  9,    73.7),    // #c2c0b5  — gray (secondary)
   text400:    hslToHex(48,  4.8,  59.2),   // #989590  — muted (disabled / hint)
 
-  // Primary / secondary neutrals for the monochrome UI
-  brand000:   hslToHex(48,  18,  95),
-  brand200:   hslToHex(48,  18,  99),
-  brandDark:  hslToHex(48,  8,   82),
+  // Brand — Selene (moon-blue identity color, light on dark bg)
+  brand000:   hslToHex(230, 70,  69),   // #7B8FE8  — Selene main
+  brand200:   hslToHex(230, 75,  80),   // #AEBCF2  — Selene light
+  brandDark:  hslToHex(230, 62,  55),   // #5469D0  — Selene dark
 
-  accent000:  hslToHex(48,  6,   72),
-  accentLight:hslToHex(48,  6,   82),
-  accentDark: hslToHex(48,  6,   58),
+  accent000:  hslToHex(230, 35,  74),   // #A3AAD9  — muted Selene support
+  accentLight:hslToHex(230, 38,  83),   // #B8BFE7  — softest support
+  accentDark: hslToHex(230, 32,  60),   // #808DC0  — deeper support
 
   // Semantic info remains blue
   info000:    hslToHex(210, 65.5, 67.1),
