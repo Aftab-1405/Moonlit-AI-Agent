@@ -34,6 +34,7 @@ const AppPopover = memo(function AppPopover({
   ...rest
 }) {
   const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
 
   return (
     <Popover
@@ -51,22 +52,34 @@ const AppPopover = memo(function AppPopover({
                   ? { xs: `min(${width}px, calc(100vw - 24px))`, sm: width }
                   : width,
             }),
-            borderRadius: '14px',
-            border: `0.5px solid ${alpha(theme.palette.text.primary, 0.1)}`,
-            backgroundColor:
-              theme.palette.mode === 'dark'
-                ? alpha(theme.palette.background.elevated, 0.97)
-                : alpha(theme.palette.background.paper, 0.99),
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
-            boxShadow:
-              theme.palette.mode === 'dark'
-                ? `0 2px 8px ${alpha(theme.palette.common.black, 0.32)}`
-                : `0 2px 8px ${alpha(theme.palette.common.black, 0.08)}`,
+            borderRadius: '16px',
+            border: `1px solid ${
+              isDark
+                ? alpha(theme.palette.primary.main, 0.28)
+                : alpha(theme.palette.primary.main, 0.2)
+            }`,
+            backgroundColor: isDark
+              ? alpha(theme.palette.background.elevated, 0.94)
+              : alpha(theme.palette.background.paper, 0.97),
+            backgroundImage: isDark
+              ? `linear-gradient(180deg, ${alpha('#ffffff', 0.03)}, transparent 60%)`
+              : `linear-gradient(180deg, ${alpha('#000000', 0.012)}, transparent 60%)`,
+            backdropFilter: 'blur(24px)',
+            WebkitBackdropFilter: 'blur(24px)',
+            boxShadow: isDark
+              ? `0 1px 2px ${alpha('#000', 0.44)},
+                 0 8px 20px -4px ${alpha('#000', 0.48)},
+                 0 24px 48px -8px ${alpha('#000', 0.32)}`
+              : `0 1px 2px ${alpha('#000', 0.06)},
+                 0 8px 20px -4px ${alpha('#000', 0.1)},
+                 0 24px 48px -8px ${alpha('#000', 0.08)}`,
             p: 0.75,
             [BACKDROP_FILTER_FALLBACK_QUERY]: {
               backdropFilter: 'none',
               WebkitBackdropFilter: 'none',
+              backgroundColor: isDark
+                ? theme.palette.background.elevated
+                : theme.palette.background.paper,
             },
             ...paperSx,
           },

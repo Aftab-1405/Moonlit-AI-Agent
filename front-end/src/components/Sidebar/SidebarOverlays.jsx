@@ -121,7 +121,8 @@ function SidebarOverlays({
         onClose={handleCloseHistoryPopover}
         anchorOrigin={{ vertical: 'center', horizontal: 'right' }}
         transformOrigin={{ vertical: 'center', horizontal: 'left' }}
-        paperSx={{ ml: 1, minWidth: 240, maxWidth: 320 }}
+        paperSx={{ ml: 1 }}
+        width={240}
       >
         <Typography sx={{ px: 1, pt: 0.5, pb: 0.25, fontSize: '0.635rem', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'text.disabled', display: 'block', lineHeight: 1 }}>
           Conversation History
