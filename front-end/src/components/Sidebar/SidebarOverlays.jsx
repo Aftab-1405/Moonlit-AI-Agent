@@ -3,23 +3,20 @@ import {
   Box,
   Typography,
   IconButton,
-  Divider,
-  Popover,
   List,
-  ListItemButton,
-  ListItemText,
-  ListItemIcon,
   Dialog,
   DialogTitle,
   DialogContent,
   Chip,
   CircularProgress,
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import StorageOutlinedIcon from '@mui/icons-material/StorageOutlined';
 import AddCircleOutlineRoundedIcon from '@mui/icons-material/AddCircleOutlineRounded';
-import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
+import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
 import CloseIcon from '@mui/icons-material/Close';
+import AppPopover from '../AppPopover';
 import { HistoryPopoverItem } from './SidebarPrimitives';
 import SchemaFlowDiagram from '../SchemaFlowDiagram';
 
@@ -46,88 +43,113 @@ function SidebarOverlays({
 }) {
   return (
     <>
-      <Popover
+      <AppPopover
         open={isPopoverOpen}
         anchorEl={dbPopoverAnchor}
         onClose={handleCloseDbPopover}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         transformOrigin={{ vertical: 'top', horizontal: 'left' }}
-        PaperProps={{ sx: { mt: 1, minWidth: 200, maxHeight: 300, overflow: 'auto' } }}
+        width={220}
+        paperSx={{ mt: 1 }}
       >
-        <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
-          <Typography variant="overline" color={theme.palette.text.secondary}>
-            Switch Database
+        <Typography sx={{ px: 1, pt: 0.5, pb: 0.25, fontSize: '0.635rem', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'text.disabled', display: 'block', lineHeight: 1 }}>
+          Switch Database
+        </Typography>
+        <Box sx={{ maxHeight: 280, overflowY: 'auto', mt: 0.5 }}>
+          {availableDatabases.map((db) => {
+            const isActive = db === currentDatabase;
+            return (
+              <Box
+                component="div"
+                role="menuitemradio"
+                aria-checked={isActive}
+                key={db}
+                onClick={() => handleDatabaseSelect(db)}
+                sx={{
+                  borderRadius: '8px',
+                  px: 1,
+                  py: 0.875,
+                  minHeight: 32,
+                  cursor: 'pointer',
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(0, 1fr) auto',
+                  gap: 1,
+                  alignItems: 'center',
+                  userSelect: 'none',
+                  transition: 'background-color 120ms',
+                  backgroundColor: isActive ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.12 : 0.08) : 'transparent',
+                  '&:hover': { backgroundColor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? (isActive ? 0.16 : 0.07) : (isActive ? 0.11 : 0.05)) },
+                }}
+              >
+                <Typography sx={{ fontSize: '0.875rem', color: isActive ? 'primary.main' : 'text.primary', lineHeight: 1.4, fontWeight: isActive ? 500 : 400 }}>
+                  {db}
+                </Typography>
+                {isActive && <CheckRoundedIcon sx={{ fontSize: 14, color: 'primary.main', flexShrink: 0 }} />}
+              </Box>
+            );
+          })}
+        </Box>
+        <Box sx={{ height: '0.5px', backgroundColor: alpha(theme.palette.text.primary, 0.07), my: 0.75, mx: 0.5 }} />
+        <Box
+          component="div"
+          role="menuitem"
+          onClick={handleOpenNewConnection}
+          sx={{
+            borderRadius: '8px',
+            px: 1,
+            py: 0.875,
+            minHeight: 32,
+            cursor: 'pointer',
+            display: 'flex',
+            gap: 1,
+            alignItems: 'center',
+            userSelect: 'none',
+            transition: 'background-color 120ms',
+            '&:hover': { backgroundColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.07 : 0.05) },
+          }}
+        >
+          <AddCircleOutlineRoundedIcon sx={{ fontSize: 16, color: 'text.secondary', flexShrink: 0 }} />
+          <Typography sx={{ fontSize: '0.875rem', color: 'text.primary', lineHeight: 1.4 }}>
+            New Connection
           </Typography>
         </Box>
-        <List dense sx={{ p: 0.5 }}>
-          {availableDatabases.map((db) => (
-            <ListItemButton
-              key={db}
-              selected={db === currentDatabase}
-              onClick={() => handleDatabaseSelect(db)}
-              sx={{ borderRadius: 1, py: 0.75, minHeight: { xs: 40, sm: 34 } }}
-            >
-              <ListItemIcon sx={{ minWidth: 28 }}>
-                {db === currentDatabase ? (
-                  <CheckCircleOutlineRoundedIcon sx={{ fontSize: 16, color: theme.palette.success.main }} />
-                ) : (
-                  <StorageOutlinedIcon sx={{ fontSize: 14, color: theme.palette.text.secondary }} />
-                )}
-              </ListItemIcon>
-              <ListItemText primary={db} primaryTypographyProps={{ variant: 'body2' }} />
-            </ListItemButton>
-          ))}
-          <Divider sx={{ my: 0.5 }} />
-          <ListItemButton
-            onClick={handleOpenNewConnection}
-            sx={{ borderRadius: 1, py: 0.75, minHeight: { xs: 40, sm: 34 } }}
-          >
-            <ListItemIcon sx={{ minWidth: 28 }}>
-              <AddCircleOutlineRoundedIcon sx={{ fontSize: 16, color: theme.palette.text.primary }} />
-            </ListItemIcon>
-            <ListItemText
-              primary="New Connection"
-              primaryTypographyProps={{ variant: 'body2', color: theme.palette.text.primary }}
-            />
-          </ListItemButton>
-        </List>
-      </Popover>
+      </AppPopover>
 
-      <Popover
+      <AppPopover
         open={isHistoryPopoverOpen}
         anchorEl={historyPopoverAnchor}
         onClose={handleCloseHistoryPopover}
         anchorOrigin={{ vertical: 'center', horizontal: 'right' }}
         transformOrigin={{ vertical: 'center', horizontal: 'left' }}
-        PaperProps={{ sx: { ml: 1, minWidth: 240, maxWidth: 320, maxHeight: 400, overflow: 'auto' } }}
+        paperSx={{ ml: 1, minWidth: 240, maxWidth: 320 }}
       >
-        <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
-          <Typography variant="overline" color="text.secondary">
-            Conversation History
-          </Typography>
-        </Box>
-        <List dense sx={{ p: 0.5 }}>
+        <Typography sx={{ px: 1, pt: 0.5, pb: 0.25, fontSize: '0.635rem', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'text.disabled', display: 'block', lineHeight: 1 }}>
+          Conversation History
+        </Typography>
+        <Box sx={{ maxHeight: 360, overflowY: 'auto', mt: 0.5 }}>
           {conversations.length === 0 ? (
-            <Box sx={{ p: 2, textAlign: 'center' }}>
-              <Typography variant="caption" color="text.secondary">
+            <Box sx={{ px: 1, py: 1.5 }}>
+              <Typography sx={{ fontSize: '0.875rem', color: 'text.secondary', lineHeight: 1.4 }}>
                 No conversations yet
               </Typography>
             </Box>
           ) : (
-            conversations.map((conv) => (
-              <HistoryPopoverItem
-                key={conv.id}
-                conv={conv}
-                isActive={conv.id === currentConversationId}
-                onSelect={onSelectConversation}
-                onDelete={onDeleteConversation}
-                onClosePopover={handleCloseHistoryPopover}
-                theme={theme}
-              />
-            ))
+            <List disablePadding>
+              {conversations.map((conv) => (
+                <HistoryPopoverItem
+                  key={conv.id}
+                  conv={conv}
+                  isActive={conv.id === currentConversationId}
+                  onSelect={onSelectConversation}
+                  onDelete={onDeleteConversation}
+                  onClosePopover={handleCloseHistoryPopover}
+                  theme={theme}
+                />
+              ))}
+            </List>
           )}
-        </List>
-      </Popover>
+        </Box>
+      </AppPopover>
 
       <Dialog
         open={mindmapOpen}

@@ -7,7 +7,6 @@ import {
   Tooltip,
   Typography,
   Chip,
-  Popover,
   Switch,
   Skeleton,
   useMediaQuery,
@@ -21,12 +20,10 @@ import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import CloudUploadOutlinedIcon from '@mui/icons-material/CloudUploadOutlined';
 import CodeRoundedIcon from '@mui/icons-material/CodeRounded';
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
+import AppPopover from './AppPopover';
 import { useTheme as useAppTheme } from '../contexts/ThemeContext';
 import { getSchemas, selectSchema } from '../api';
-import {
-  BACKDROP_FILTER_FALLBACK_QUERY,
-  HOVER_CAPABLE_QUERY,
-} from '../styles/mediaQueries';
+import { HOVER_CAPABLE_QUERY } from '../styles/mediaQueries';
 import logger from '../utils/logger';
 import { getToolbarChipSx, UI_LAYOUT } from '../styles/shared';
 
@@ -293,32 +290,14 @@ function ChatInput({
         pb: { xs: 'max(env(safe-area-inset-bottom), 8px)', sm: 0.75 },
       }}
     >
-      <Popover
+      <AppPopover
         anchorEl={dbAnchor}
         open={Boolean(dbAnchor)}
         onClose={handleCloseDbMenu}
         anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
         transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-        slotProps={{
-          paper: {
-            sx: {
-              width: { xs: 'min(220px, calc(100vw - 24px))', sm: 220 },
-              mt: -1,
-              borderRadius: '14px',
-              border: `0.5px solid ${alpha(theme.palette.text.primary, 0.1)}`,
-              backgroundColor: theme.palette.mode === 'dark'
-                ? alpha(theme.palette.background.elevated, 0.97)
-                : alpha(theme.palette.background.paper, 0.99),
-              backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)',
-              boxShadow: theme.palette.mode === 'dark'
-                ? `0 2px 8px ${alpha(theme.palette.common.black, 0.32)}`
-                : `0 2px 8px ${alpha(theme.palette.common.black, 0.08)}`,
-              p: 0.75,
-              [BACKDROP_FILTER_FALLBACK_QUERY]: { backdropFilter: 'none', WebkitBackdropFilter: 'none' },
-            },
-          },
-        }}
+        width={220}
+        paperSx={{ mt: -1 }}
       >
         <Typography sx={{ px: 1, pt: 0.5, pb: 0.25, fontSize: '0.635rem', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'text.disabled', display: 'block', lineHeight: 1 }}>
           Switch Database
@@ -357,33 +336,15 @@ function ChatInput({
             );
           })}
         </Box>
-      </Popover>
-      <Popover
+      </AppPopover>
+      <AppPopover
         anchorEl={schemaAnchor}
         open={Boolean(schemaAnchor)}
         onClose={handleCloseSchemaMenu}
         anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
         transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-        slotProps={{
-          paper: {
-            sx: {
-              width: { xs: 'min(200px, calc(100vw - 24px))', sm: 200 },
-              mt: -1,
-              borderRadius: '14px',
-              border: `0.5px solid ${alpha(theme.palette.text.primary, 0.1)}`,
-              backgroundColor: theme.palette.mode === 'dark'
-                ? alpha(theme.palette.background.elevated, 0.97)
-                : alpha(theme.palette.background.paper, 0.99),
-              backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)',
-              boxShadow: theme.palette.mode === 'dark'
-                ? `0 2px 8px ${alpha(theme.palette.common.black, 0.32)}`
-                : `0 2px 8px ${alpha(theme.palette.common.black, 0.08)}`,
-              p: 0.75,
-              [BACKDROP_FILTER_FALLBACK_QUERY]: { backdropFilter: 'none', WebkitBackdropFilter: 'none' },
-            },
-          },
-        }}
+        width={200}
+        paperSx={{ mt: -1 }}
       >
         <Typography sx={{ px: 1, pt: 0.5, pb: 0.25, fontSize: '0.635rem', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'text.disabled', display: 'block', lineHeight: 1 }}>
           PostgreSQL Schema
@@ -422,33 +383,15 @@ function ChatInput({
             );
           })}
         </Box>
-      </Popover>
-      <Popover
+      </AppPopover>
+      <AppPopover
         anchorEl={llmAnchor}
         open={Boolean(llmAnchor)}
         onClose={handleCloseLlmPopover}
         anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
         transformOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-        slotProps={{
-          paper: {
-            sx: {
-              width: { xs: 'min(288px, calc(100vw - 24px))', sm: 288 },
-              mt: -1,
-              borderRadius: '14px',
-              border: `0.5px solid ${alpha(theme.palette.text.primary, 0.1)}`,
-              backgroundColor: theme.palette.mode === 'dark'
-                ? alpha(theme.palette.background.elevated, 0.97)
-                : alpha(theme.palette.background.paper, 0.99),
-              backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)',
-              boxShadow: theme.palette.mode === 'dark'
-                ? `0 2px 8px ${alpha(theme.palette.common.black, 0.32)}`
-                : `0 2px 8px ${alpha(theme.palette.common.black, 0.08)}`,
-              p: 0.75,
-              [BACKDROP_FILTER_FALLBACK_QUERY]: { backdropFilter: 'none', WebkitBackdropFilter: 'none' },
-            },
-          },
-        }}
+        width={288}
+        paperSx={{ mt: -1 }}
       >
         {/* Model list */}
         <Box sx={{ maxHeight: 280, overflowY: 'auto' }}>
@@ -589,7 +532,7 @@ function ChatInput({
             }}
           />
         </Box>
-      </Popover>
+      </AppPopover>
       <Box
         sx={{
           maxWidth: UI_LAYOUT.chatInputMaxWidth,
