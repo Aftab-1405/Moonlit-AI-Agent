@@ -98,10 +98,15 @@ export const getToolbarChipSx = (
     px: 0.875,
     ...theme.typography.uiCaptionSm,
     lineHeight: 1,
+    display: 'flex',
+    alignItems: 'center',
   },
   '& .MuiChip-icon': {
-    fontSize: 13,
+    fontSize: 14,
     ml: 0.625,
+    mr: -0.125,
+    display: 'flex',
+    alignItems: 'center',
   },
   ...(interactive
     ? {

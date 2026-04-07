@@ -9,9 +9,9 @@ import {
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
-import StorageOutlinedIcon from '@mui/icons-material/StorageOutlined';
+import CloudUploadOutlinedIcon from '@mui/icons-material/CloudUploadOutlined';
 import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined';
-import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
+import StreamOutlinedIcon from '@mui/icons-material/StreamOutlined';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import { getUserContext } from '../../api';
 import { getScrollbarStyles } from '../../styles/shared';
@@ -142,7 +142,7 @@ function Sidebar({
         id: 'database',
         label: 'Database',
         tooltip: isConnected ? (currentDatabase || 'Connected database') : 'Connect database',
-        icon: <StorageOutlinedIcon sx={{ fontSize: 18 }} />,
+        icon: <CloudUploadOutlinedIcon sx={{ fontSize: 18 }} />,
         onClick: handleDatabaseAction,
         showStatus: isConnected,
       },
@@ -153,7 +153,7 @@ function Sidebar({
         id: 'mindmap',
         label: 'Mindmap',
         tooltip: 'Mindmap',
-        icon: <AccountTreeOutlinedIcon sx={{ fontSize: 18 }} />,
+        icon: <StreamOutlinedIcon sx={{ fontSize: 18 }} />,
         onClick: () => handleOpenMindmap(),
       });
     }

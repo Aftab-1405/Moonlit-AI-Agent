@@ -7,10 +7,6 @@ import {
   Tooltip,
   Typography,
   Chip,
-  Menu,
-  MenuItem,
-  ListItemIcon,
-  ListItemText,
   Popover,
   Switch,
   Skeleton,
@@ -20,9 +16,9 @@ import { alpha, useTheme, keyframes } from '@mui/material/styles';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import StopRoundedIcon from '@mui/icons-material/StopRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
+import StreamOutlinedIcon from '@mui/icons-material/StreamOutlined';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
-import StorageOutlinedIcon from '@mui/icons-material/StorageOutlined';
+import CloudUploadOutlinedIcon from '@mui/icons-material/CloudUploadOutlined';
 import CodeRoundedIcon from '@mui/icons-material/CodeRounded';
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import { useTheme as useAppTheme } from '../contexts/ThemeContext';
@@ -34,8 +30,6 @@ import {
 import logger from '../utils/logger';
 import { getToolbarChipSx, UI_LAYOUT } from '../styles/shared';
 
-const MENU_HEADER_STYLES = { px: 2, py: 0.5, display: 'block', color: 'text.secondary' };
-const LIST_ITEM_ICON_STYLES = { minWidth: 28 };
 
 /** Moves a concentrated glow around the rounded input shell like a traveling border light */
 const rgbBorderOrbit = keyframes`
@@ -262,12 +256,12 @@ function ChatInput({
   const suggestions = useMemo(() => [
     {
       label: 'Check Connection',
-      icon: <StorageOutlinedIcon sx={{ fontSize: 14 }} />,
+      icon: <CloudUploadOutlinedIcon sx={{ fontSize: 14 }} />,
       prompt: 'Check my database connection status and show connection details',
     },
     {
       label: 'Schema Details',
-      icon: <AccountTreeOutlinedIcon sx={{ fontSize: 14 }} />,
+      icon: <StreamOutlinedIcon sx={{ fontSize: 14 }} />,
       prompt: 'Show me the database schema with all tables and their columns',
     },
     {
@@ -290,13 +284,6 @@ function ChatInput({
     }
   }, [isConnected, currentDatabase, isPostgreSQL, fetchSchemas]);
 
-  const getMenuItemIcon = useCallback((isSelected, defaultIcon) =>
-    isSelected
-      ? <CheckRoundedIcon sx={{ fontSize: 16, color: 'success.main' }} />
-      : defaultIcon,
-    [],
-  );
-
   return (
     <Box
       component="form"
@@ -306,38 +293,136 @@ function ChatInput({
         pb: { xs: 'max(env(safe-area-inset-bottom), 8px)', sm: 0.75 },
       }}
     >
-      <Menu
+      <Popover
         anchorEl={dbAnchor}
         open={Boolean(dbAnchor)}
         onClose={handleCloseDbMenu}
-        PaperProps={{ sx: { minWidth: 180, maxHeight: 320, '& .MuiMenuItem-root': { minHeight: { xs: 40, sm: 36 } } } }}
+        anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        slotProps={{
+          paper: {
+            sx: {
+              width: { xs: 'min(220px, calc(100vw - 24px))', sm: 220 },
+              mt: -1,
+              borderRadius: '14px',
+              border: `0.5px solid ${alpha(theme.palette.text.primary, 0.1)}`,
+              backgroundColor: theme.palette.mode === 'dark'
+                ? alpha(theme.palette.background.elevated, 0.97)
+                : alpha(theme.palette.background.paper, 0.99),
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              boxShadow: theme.palette.mode === 'dark'
+                ? `0 2px 8px ${alpha(theme.palette.common.black, 0.32)}`
+                : `0 2px 8px ${alpha(theme.palette.common.black, 0.08)}`,
+              p: 0.75,
+              [BACKDROP_FILTER_FALLBACK_QUERY]: { backdropFilter: 'none', WebkitBackdropFilter: 'none' },
+            },
+          },
+        }}
       >
-        <Typography variant="overline" sx={MENU_HEADER_STYLES}>Switch Database</Typography>
-        {availableDatabases.map((db) => (
-          <MenuItem key={db} onClick={() => handleDatabaseChange(db)} selected={db === currentDatabase}>
-            <ListItemIcon sx={LIST_ITEM_ICON_STYLES}>
-              {getMenuItemIcon(db === currentDatabase, <StorageOutlinedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />)}
-            </ListItemIcon>
-            <ListItemText primary={db} />
-          </MenuItem>
-        ))}
-      </Menu>
-      <Menu
+        <Typography sx={{ px: 1, pt: 0.5, pb: 0.25, fontSize: '0.635rem', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'text.disabled', display: 'block', lineHeight: 1 }}>
+          Switch Database
+        </Typography>
+        <Box sx={{ maxHeight: 280, overflowY: 'auto', mt: 0.5 }}>
+          {availableDatabases.map((db) => {
+            const isActive = db === currentDatabase;
+            return (
+              <Box
+                component="div"
+                role="menuitemradio"
+                aria-checked={isActive}
+                key={db}
+                onClick={() => handleDatabaseChange(db)}
+                sx={{
+                  borderRadius: '8px',
+                  px: 1,
+                  py: 0.875,
+                  minHeight: 32,
+                  cursor: 'pointer',
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(0, 1fr) auto',
+                  gap: 1,
+                  alignItems: 'center',
+                  userSelect: 'none',
+                  transition: 'background-color 120ms',
+                  backgroundColor: isActive ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.12 : 0.08) : 'transparent',
+                  '&:hover': { backgroundColor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? (isActive ? 0.16 : 0.07) : (isActive ? 0.11 : 0.05)) },
+                }}
+              >
+                <Typography sx={{ fontSize: '0.875rem', color: isActive ? 'primary.main' : 'text.primary', lineHeight: 1.4, fontWeight: isActive ? 500 : 400 }}>
+                  {db}
+                </Typography>
+                {isActive && <CheckRoundedIcon sx={{ fontSize: 14, color: 'primary.main', flexShrink: 0 }} />}
+              </Box>
+            );
+          })}
+        </Box>
+      </Popover>
+      <Popover
         anchorEl={schemaAnchor}
         open={Boolean(schemaAnchor)}
         onClose={handleCloseSchemaMenu}
-        PaperProps={{ sx: { minWidth: 160, maxHeight: 280, '& .MuiMenuItem-root': { minHeight: { xs: 40, sm: 36 } } } }}
+        anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        slotProps={{
+          paper: {
+            sx: {
+              width: { xs: 'min(200px, calc(100vw - 24px))', sm: 200 },
+              mt: -1,
+              borderRadius: '14px',
+              border: `0.5px solid ${alpha(theme.palette.text.primary, 0.1)}`,
+              backgroundColor: theme.palette.mode === 'dark'
+                ? alpha(theme.palette.background.elevated, 0.97)
+                : alpha(theme.palette.background.paper, 0.99),
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              boxShadow: theme.palette.mode === 'dark'
+                ? `0 2px 8px ${alpha(theme.palette.common.black, 0.32)}`
+                : `0 2px 8px ${alpha(theme.palette.common.black, 0.08)}`,
+              p: 0.75,
+              [BACKDROP_FILTER_FALLBACK_QUERY]: { backdropFilter: 'none', WebkitBackdropFilter: 'none' },
+            },
+          },
+        }}
       >
-        <Typography variant="overline" sx={MENU_HEADER_STYLES}>PostgreSQL Schema</Typography>
-        {schemas.map((schema) => (
-          <MenuItem key={schema} onClick={() => handleSchemaChange(schema)} selected={schema === currentSchema}>
-            <ListItemIcon sx={LIST_ITEM_ICON_STYLES}>
-              {getMenuItemIcon(schema === currentSchema, <AccountTreeOutlinedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />)}
-            </ListItemIcon>
-            <ListItemText primary={schema} />
-          </MenuItem>
-        ))}
-      </Menu>
+        <Typography sx={{ px: 1, pt: 0.5, pb: 0.25, fontSize: '0.635rem', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'text.disabled', display: 'block', lineHeight: 1 }}>
+          PostgreSQL Schema
+        </Typography>
+        <Box sx={{ maxHeight: 260, overflowY: 'auto', mt: 0.5 }}>
+          {schemas.map((schema) => {
+            const isActive = schema === currentSchema;
+            return (
+              <Box
+                component="div"
+                role="menuitemradio"
+                aria-checked={isActive}
+                key={schema}
+                onClick={() => handleSchemaChange(schema)}
+                sx={{
+                  borderRadius: '8px',
+                  px: 1,
+                  py: 0.875,
+                  minHeight: 32,
+                  cursor: 'pointer',
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(0, 1fr) auto',
+                  gap: 1,
+                  alignItems: 'center',
+                  userSelect: 'none',
+                  transition: 'background-color 120ms',
+                  backgroundColor: isActive ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.12 : 0.08) : 'transparent',
+                  '&:hover': { backgroundColor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? (isActive ? 0.16 : 0.07) : (isActive ? 0.11 : 0.05)) },
+                }}
+              >
+                <Typography sx={{ fontSize: '0.875rem', color: isActive ? 'primary.main' : 'text.primary', lineHeight: 1.4, fontWeight: isActive ? 500 : 400 }}>
+                  {schema}
+                </Typography>
+                {isActive && <CheckRoundedIcon sx={{ fontSize: 14, color: 'primary.main', flexShrink: 0 }} />}
+              </Box>
+            );
+          })}
+        </Box>
+      </Popover>
       <Popover
         anchorEl={llmAnchor}
         open={Boolean(llmAnchor)}
@@ -651,7 +736,7 @@ function ChatInput({
             {showDatabaseSelector && (
               <Tooltip title={canSwitchDatabase ? `Database: ${currentDatabase} (click to switch)` : `Database: ${currentDatabase}`}>
                 <Chip
-                  icon={<StorageOutlinedIcon />}
+                  icon={<CloudUploadOutlinedIcon />}
                   label={currentDatabase}
                   onClick={canSwitchDatabase ? handleOpenDbMenu : undefined}
                   size="small"
@@ -662,7 +747,7 @@ function ChatInput({
             {showSchemaSelector && (
               <Tooltip title={`Schema: ${schemaLoading ? '...' : currentSchema}`}>
                 <Chip
-                  icon={<AccountTreeOutlinedIcon />}
+                  icon={<StreamOutlinedIcon />}
                   label={currentSchema}
                   onClick={handleOpenSchemaMenu}
                   size="small"
@@ -791,8 +876,10 @@ function ChatInput({
                   px: 1.125,
                   ...theme.typography.uiCaptionSm,
                   lineHeight: 1,
+                  display: 'flex',
+                  alignItems: 'center',
                 },
-                '& .MuiChip-icon': { color: 'inherit', ml: 0.875, mr: -0.25, fontSize: 13 },
+                '& .MuiChip-icon': { color: 'inherit', ml: 0.875, mr: -0.125, fontSize: 14, display: 'flex', alignItems: 'center' },
                 [HOVER_CAPABLE_QUERY]: {
                   '&:hover': {
                     borderColor: alpha(theme.palette.text.primary, 0.22),
