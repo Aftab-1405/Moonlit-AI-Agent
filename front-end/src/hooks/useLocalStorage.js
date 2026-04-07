@@ -3,7 +3,7 @@
  * @module useLocalStorage
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import logger from '../utils/logger';
 
 /**
@@ -65,29 +65,50 @@ export function useLocalStorage(key, initialValue) {
       return initialValue;
     }
   });
-  
-  const setValue = useCallback((value) => {
-    setStoredValue((prevValue) => {
-      try {
-        const valueToStore = value instanceof Function ? value(prevValue) : value;
 
-        if (isBrowser()) {
-          if (valueToStore === undefined || valueToStore === null) {
-            window.localStorage.removeItem(key);
-          } else {
-            window.localStorage.setItem(key, JSON.stringify(valueToStore));
-          }
-        }
+  // Track the latest value in a ref so setValue can resolve functional updates
+  // without adding storedValue to useCallback deps or using the state updater.
+  const storedValueRef = useRef(storedValue);
+  storedValueRef.current = storedValue;
 
-        return valueToStore;
-      } catch (error) {
-        logger.warn(`useLocalStorage: Error setting key "${key}":`, error);
-        if (error.name === 'QuotaExceededError') {
-          logger.error('localStorage quota exceeded. Consider clearing old data.');
-        }
-        return prevValue;
+  // Re-sync state when the key changes (useState initializer only runs at mount).
+  useEffect(() => {
+    if (!isBrowser()) return;
+    try {
+      const item = window.localStorage.getItem(key);
+      if (item === null) {
+        setStoredValue(initialValue);
+        return;
       }
-    });
+      const parsed = safeJsonParse(item);
+      setStoredValue(parsed !== undefined ? parsed : initialValue);
+    } catch (error) {
+      logger.warn(`useLocalStorage: Error reading key "${key}":`, error);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]); // intentionally excludes initialValue — read only when key identity changes
+
+  const setValue = useCallback((value) => {
+    try {
+      // Resolve functional updates using the ref — avoids side effects inside a
+      // state updater (which React 18 StrictMode calls twice to detect impurity).
+      const valueToStore = value instanceof Function ? value(storedValueRef.current) : value;
+
+      if (isBrowser()) {
+        if (valueToStore === undefined || valueToStore === null) {
+          window.localStorage.removeItem(key);
+        } else {
+          window.localStorage.setItem(key, JSON.stringify(valueToStore));
+        }
+      }
+
+      setStoredValue(valueToStore);
+    } catch (error) {
+      logger.warn(`useLocalStorage: Error setting key "${key}":`, error);
+      if (error.name === 'QuotaExceededError') {
+        logger.error('localStorage quota exceeded. Consider clearing old data.');
+      }
+    }
   }, [key]);
   
   const removeValue = useCallback(() => {

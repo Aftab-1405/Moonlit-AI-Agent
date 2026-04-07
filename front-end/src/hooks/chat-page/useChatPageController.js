@@ -14,6 +14,7 @@ import { useChatPageLlmSelection } from './useChatPageLlmSelection';
 import { useChatPageSessionLifecycle } from './useChatPageSessionLifecycle';
 import { isMessageActive } from '../../utils/chatMessages';
 import { UI_LAYOUT } from '../../styles/shared';
+import { useLocalStorage } from '../../hooks';
 
 const DRAWER_WIDTH = UI_LAYOUT.sidebarExpandedWidth;
 const COLLAPSED_WIDTH = UI_LAYOUT.sidebarCollapsedWidth;
@@ -48,7 +49,7 @@ export function useChatPageController() {
     handleDeleteConversation,
     navigate,
   } = useConversations();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useLocalStorage('moonlit-sidebar-open', true);
   const currentSidebarWidth = useMemo(() =>
     sidebarOpen ? DRAWER_WIDTH : COLLAPSED_WIDTH,
   [sidebarOpen]);
