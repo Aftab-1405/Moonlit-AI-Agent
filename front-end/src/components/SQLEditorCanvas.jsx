@@ -15,8 +15,8 @@ import { useTheme as useMuiTheme, alpha, keyframes } from '@mui/material/styles'
 import { useTheme as useAppTheme } from '../contexts/ThemeContext';
 import Editor from '@monaco-editor/react';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
-import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
-import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
+import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
+import HighlightOffSharpIcon from '@mui/icons-material/HighlightOffSharp';
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import TableChartOutlinedIcon from '@mui/icons-material/TableChartOutlined';
 import BarChartRoundedIcon from '@mui/icons-material/BarChartRounded';
@@ -24,7 +24,7 @@ import TerminalRoundedIcon from '@mui/icons-material/TerminalRounded';
 import SQLResultsTable from './SQLResultsTable';
 import ChartVisualization from './ChartVisualization';
 import { registerMonacoThemes, getMonacoThemeName } from '../theme';
-import { getAccentEffects, TRANSITIONS } from '../styles/themeEffects';
+import { TRANSITIONS } from '../styles/themeEffects';
 import { getGlassmorphismStyles, UI_LAYOUT } from '../styles/shared';
 import { runQuery } from '../api';
 
@@ -324,7 +324,6 @@ function SQLEditorCanvas({
   const handleCloseResults = useCallback(() => {
     setResults(null);
   }, []);
-  const accentFx = useMemo(() => getAccentEffects(theme), [theme]);
   const artifactChromeBg = useMemo(
     () => theme.palette.background.paper,
     [theme.palette.background.paper]
@@ -376,54 +375,21 @@ function SQLEditorCanvas({
       : `0 -1px 0 ${alpha(theme.palette.common.white, 0.85)} inset`,
   }), [artifactBorder, footerBarBg, isCompactMobile, isDark, theme.palette.common.black, theme.palette.common.white]);
 
-  const runPrimaryStyles = useMemo(() => ({
-    width: 42,
-    height: 42,
-    borderRadius: '13px',
-    color: theme.palette.getContrastText(theme.palette.primary.main),
-    background: accentFx.gradient,
-    border: `1px solid ${alpha(theme.palette.primary.main, isDark ? 0.45 : 0.3)}`,
-    boxShadow: `${accentFx.glow}, 0 1px 0 ${alpha(theme.palette.common.white, isDark ? 0.14 : 0.28)} inset`,
-    transition: TRANSITIONS.smooth,
-    '&:hover': {
-      background: accentFx.gradient,
-      filter: 'brightness(1.07)',
-      boxShadow: `${accentFx.glow}, 0 4px 16px ${alpha(theme.palette.primary.main, isDark ? 0.4 : 0.28)}`,
-      transform: 'translateY(-1px)',
-    },
-    '&:active': { transform: 'scale(0.96) translateY(0)' },
-    '@media (prefers-reduced-motion: reduce)': {
-      transition: TRANSITIONS.fade,
-      '&:hover': { transform: 'none' },
-      '&:active': { transform: 'none' },
-    },
-    '&.Mui-disabled': {
-      color: 'text.disabled',
-      background: alpha(theme.palette.text.primary, isDark ? 0.1 : 0.06),
-      border: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06)}`,
-      boxShadow: 'none',
-      filter: 'none',
-    },
-  }), [accentFx.glow, accentFx.gradient, isDark, theme.palette.common.white, theme.palette.primary.main, theme.palette.text.primary]);
-
   const toolbarGhostStyles = useMemo(() => ({
     width: 42,
     height: 42,
     borderRadius: '13px',
     color: 'text.secondary',
     bgcolor: 'transparent',
-    border: '1px solid',
-    borderColor: alpha(textColor, isDark ? 0.12 : 0.09),
+    border: 'none',
     transition: TRANSITIONS.default,
     '&:hover': {
       color: 'text.primary',
       bgcolor: alpha(textColor, isDark ? 0.08 : 0.06),
-      borderColor: alpha(textColor, isDark ? 0.18 : 0.14),
     },
     '&.Mui-disabled': {
       color: 'text.disabled',
       bgcolor: 'transparent',
-      borderColor: 'transparent',
     },
   }), [isDark, textColor]);
 
@@ -851,10 +817,10 @@ function SQLEditorCanvas({
             size="small"
             onClick={handleRunQuery}
             disabled={isRunning || !query.trim() || activeTab !== 0}
-            sx={runPrimaryStyles}
+            sx={toolbarGhostStyles}
             aria-label="Run query"
           >
-            {isRunning ? <CircularProgress size={20} thickness={4} sx={{ color: 'inherit' }} /> : <PlayArrowRoundedIcon sx={{ fontSize: 24 }} />}
+            {isRunning ? <CircularProgress size={20} thickness={4} sx={{ color: 'inherit' }} /> : <PlayCircleOutlineIcon sx={{ fontSize: 22 }} />}
           </IconButton>
         </span>
       </Tooltip>
@@ -870,7 +836,7 @@ function SQLEditorCanvas({
       />
       <Tooltip title="Clear query and results">
         <IconButton size="small" onClick={handleClear} sx={toolbarGhostStyles} aria-label="Clear all">
-          <DeleteOutlineRoundedIcon sx={{ fontSize: 20 }} />
+          <HighlightOffSharpIcon sx={{ fontSize: 20 }} />
         </IconButton>
       </Tooltip>
     </Box>
