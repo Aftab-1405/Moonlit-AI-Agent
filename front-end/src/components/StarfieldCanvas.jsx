@@ -45,27 +45,33 @@ const CONFIG = {
 
 const COLORS = {
   stars: [
+    // Neutral white-silver (majority)
     [175, 175, 180],
     [195, 195, 200],
     [215, 215, 220],
     [235, 235, 240],
     [248, 248, 252],
     [185, 185, 190],
+    // Selene blue-white (~27% of picks — hot O/B class stars)
+    [180, 190, 235],
+    [200, 208, 242],
+    [158, 172, 228],
   ],
   nebulas: [
-    { r: 28, g: 28, b: 32, name: 'deepCharcoal' },
-    { r: 38, g: 38, b: 42, name: 'darkSteel' },
-    { r: 22, g: 22, b: 26, name: 'nearBlack' },
-    { r: 48, g: 48, b: 52, name: 'midCharcoal' },
+    { r: 28, g: 28, b: 32,  name: 'deepCharcoal' },
+    { r: 38, g: 38, b: 42,  name: 'darkSteel' },
+    { r: 22, g: 22, b: 26,  name: 'nearBlack' },
+    { r: 48, g: 48, b: 52,  name: 'midCharcoal' },
+    { r: 50, g: 60, b: 115, name: 'seleneDeep' },
   ],
   meteor: {
-    head: [252, 252, 255],
+    head: [238, 242, 255],
     trail: [175, 175, 180],
   },
   glow: {
-    inner: [205, 205, 210],
-    mid: [165, 165, 170],
-    outer: [125, 125, 130],
+    inner: [188, 198, 242],
+    mid:   [148, 160, 215],
+    outer: [110, 122, 178],
   },
 };
 
@@ -163,8 +169,11 @@ class NebulaSystem {
   }
 
   init(width, height) {
+    const seleneColor = COLORS.nebulas.find(n => n.name === 'seleneDeep');
     for (let i = 0; i < CONFIG.nebulas.count; i++) {
-      const color = pickRandom(COLORS.nebulas);
+      // Last slot is always Selene-tinted for brand identity
+      const isSelene = i === CONFIG.nebulas.count - 1;
+      const color = isSelene ? seleneColor : pickRandom(COLORS.nebulas.slice(0, 4));
       this.nebulas.push({
         x: rand(0, width),
         y: rand(0, height),
@@ -173,7 +182,7 @@ class NebulaSystem {
         rotation: rand(0, Math.PI),
         rotationSpeed: (Math.random() - 0.5) * 0.007,
         color,
-        baseOpacity: rand(0.09, 0.18),
+        baseOpacity: isSelene ? rand(0.15, 0.26) : rand(0.09, 0.18),
         vx: (Math.random() - 0.5) * 0.05,
         vy: (Math.random() - 0.5) * 0.05,
         pulsePhase: Math.random() * TWO_PI,
@@ -423,10 +432,13 @@ function StarfieldCanvas({ active = false, intensity = 'medium' }) {
       if (opacity < 0.02) continue;
 
       const shimmer = Math.sin(star.shimmerPhase);
-      const brightness = clamp(Math.round(star.color[0] + shimmer * 12), 0, 255);
+      const shimmerAmt = shimmer * 12;
+      const r = clamp(Math.round(star.color[0] + shimmerAmt), 0, 255);
+      const g = clamp(Math.round(star.color[1] + shimmerAmt), 0, 255);
+      const b = clamp(Math.round(star.color[2] + shimmerAmt), 0, 255);
 
       ctx.globalAlpha = opacity;
-      ctx.fillStyle = `rgb(${brightness},${brightness},${brightness})`;
+      ctx.fillStyle = `rgb(${r},${g},${b})`;
       ctx.beginPath();
       ctx.arc(star.x, star.y, star.size, 0, TWO_PI);
       ctx.fill();
@@ -529,6 +541,18 @@ function StarfieldCanvas({ active = false, intensity = 'medium' }) {
       vignette.addColorStop(0, 'rgba(0,0,0,0)');
       vignette.addColorStop(1, 'rgba(0,0,0,0.4)');
       bg.fillStyle = vignette;
+      bg.fillRect(0, 0, state.width, state.height);
+
+      // Selene moonrise bloom — brand tint at top-center
+      const brand = hexToRgb(theme.palette.primary.main);
+      const moonBloom = bg.createRadialGradient(
+        state.width * 0.52, state.height * -0.05, 0,
+        state.width * 0.52, state.height * -0.05, state.height * 0.55
+      );
+      moonBloom.addColorStop(0,    `rgba(${brand.r},${brand.g},${brand.b},0.08)`);
+      moonBloom.addColorStop(0.45, `rgba(${brand.r},${brand.g},${brand.b},0.035)`);
+      moonBloom.addColorStop(1,    `rgba(${brand.r},${brand.g},${brand.b},0)`);
+      bg.fillStyle = moonBloom;
       bg.fillRect(0, 0, state.width, state.height);
 
       const noiseSize = 100;
