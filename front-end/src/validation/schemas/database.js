@@ -61,9 +61,3 @@ export const dbFieldSchemas = {
     .string()
     .min(1, 'Database name is required'),
 };
-
-export default {
-  credentialsSchema,
-  connectionStringSchema,
-  dbFieldSchemas,
-};

@@ -297,5 +297,3 @@ export function useMessageStreaming({
     handleStopStreaming,
   };
 }
-
-export default useMessageStreaming;

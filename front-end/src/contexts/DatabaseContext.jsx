@@ -298,5 +298,3 @@ export function DatabaseProvider({ children }) {
     </DatabaseContext.Provider>
   );
 }
-
-export default DatabaseContext;

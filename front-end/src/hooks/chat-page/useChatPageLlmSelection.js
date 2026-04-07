@@ -128,5 +128,3 @@ export function useChatPageLlmSelection({ settings, updateSetting }) {
     handleModelChange,
   };
 }
-
-export default useChatPageLlmSelection;

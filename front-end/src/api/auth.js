@@ -35,15 +35,6 @@ export async function setSession(payload) {
 }
 
 /**
- * Check if user has an active server session.
- * 
- * @returns {Promise<Object>} Session status
- */
-export async function checkSession() {
-  return get(AUTH.CHECK_SESSION);
-}
-
-/**
  * Logout and destroy server session.
  * 
  * @returns {Promise<Object>} Logout response
@@ -51,10 +42,3 @@ export async function checkSession() {
 export async function logout() {
   return post(AUTH.LOGOUT);
 }
-
-export default {
-  getFirebaseConfig,
-  setSession,
-  checkSession,
-  logout,
-};

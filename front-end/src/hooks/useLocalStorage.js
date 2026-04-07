@@ -123,5 +123,3 @@ export function useLocalStorage(key, initialValue) {
   
   return [storedValue, setValue, removeValue];
 }
-
-export default useLocalStorage;

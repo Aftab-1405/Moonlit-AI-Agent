@@ -8,7 +8,7 @@ const IS_DEV = import.meta.env.DEV;
 import logger from '../utils/logger';
 
 /** API error with HTTP status and optional response payload. */
-export class ApiError extends Error {
+class ApiError extends Error {
   constructor(message, status, data = null) {
     super(message);
     this.name = 'ApiError';
@@ -25,7 +25,7 @@ export class ApiError extends Error {
  * @returns {Promise<any>} Parsed JSON response
  * @throws {ApiError} On non-2xx responses
  */
-export async function apiClient(endpoint, options = {}) {
+async function apiClient(endpoint, options = {}) {
   const config = {
     ...options,
     credentials: 'include',
@@ -95,15 +95,6 @@ export function post(endpoint, body, options = {}) {
   });
 }
 
-/** PUT wrapper. */
-export function put(endpoint, body, options = {}) {
-  return apiClient(endpoint, {
-    ...options,
-    method: 'PUT',
-    body: JSON.stringify(body),
-  });
-}
-
 /** DELETE wrapper. */
 export function del(endpoint, options = {}) {
   return apiClient(endpoint, { ...options, method: 'DELETE' });
@@ -138,13 +129,3 @@ export async function postRaw(endpoint, body, options = {}) {
 
   return response;
 }
-
-export default {
-  apiClient,
-  get,
-  post,
-  put,
-  del,
-  postRaw,
-  ApiError,
-};

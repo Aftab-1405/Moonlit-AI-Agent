@@ -85,5 +85,3 @@ export function SettingsProvider({ children }) {
     </SettingsContext.Provider>
   );
 }
-
-export default SettingsContext;

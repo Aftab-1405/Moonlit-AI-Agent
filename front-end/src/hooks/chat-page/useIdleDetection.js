@@ -67,5 +67,3 @@ export function useIdleDetection(timeout = 12000) {
 
   return isIdle;
 }
-
-export default useIdleDetection;

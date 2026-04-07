@@ -59,15 +59,6 @@ export async function getDatabases() {
 }
 
 /**
- * List tables in current database.
- * 
- * @returns {Promise<{status: string, tables: Array}>}
- */
-export async function getTables() {
-  return get(DATABASE.LIST_TABLES);
-}
-
-/**
  * Switch to a different database (for remote connections).
  * 
  * @param {string} database - Target database name
@@ -106,14 +97,3 @@ export async function getSchemas() {
 export async function selectSchema(schemaId) {
   return post(DATABASE.SELECT_SCHEMA, { schema_id: schemaId });
 }
-
-export default {
-  getStatus,
-  connect,
-  disconnect,
-  getDatabases,
-  getTables,
-  switchDatabase,
-  getSchemas,
-  selectSchema,
-};

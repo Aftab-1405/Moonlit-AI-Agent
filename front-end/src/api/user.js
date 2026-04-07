@@ -41,9 +41,3 @@ export async function sessionActive(sessionInstanceId) {
   });
 }
 
-export default {
-  getContext,
-  saveSettings,
-  sessionActive,
-};
-

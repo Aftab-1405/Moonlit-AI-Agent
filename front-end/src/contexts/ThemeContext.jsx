@@ -85,5 +85,3 @@ export function ThemeProvider({ children }) {
     </SettingsProvider>
   );
 }
-
-export default ThemeContext;

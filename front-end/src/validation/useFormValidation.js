@@ -130,5 +130,3 @@ export function useFormValidation(fieldSchemas = {}) {
     hasErrors,
   };
 }
-
-export default useFormValidation;

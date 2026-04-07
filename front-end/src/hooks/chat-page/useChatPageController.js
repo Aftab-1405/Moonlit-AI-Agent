@@ -355,5 +355,3 @@ export function useChatPageController() {
     handleConfirmDialogClose,
   };
 }
-
-export default useChatPageController;

@@ -8,4 +8,3 @@
  * To add or modify theme tokens/themes, edit files under src/theme/.
  */
 export * from './theme/index.js';
-export { default } from './theme/index.js';

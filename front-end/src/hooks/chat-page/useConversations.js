@@ -193,5 +193,3 @@ export function useConversations() {
   };
 }
 
-export default useConversations;
-

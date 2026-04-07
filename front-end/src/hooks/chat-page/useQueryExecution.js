@@ -127,5 +127,3 @@ export function useQueryExecution({
   };
 }
 
-export default useQueryExecution;
-

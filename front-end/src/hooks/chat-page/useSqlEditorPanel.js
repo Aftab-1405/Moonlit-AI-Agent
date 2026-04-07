@@ -99,5 +99,3 @@ export function useSqlEditorPanel({ sidebarWidth = 260 } = {}) {
     handlePanelResize,
   };
 }
-
-export default useSqlEditorPanel;

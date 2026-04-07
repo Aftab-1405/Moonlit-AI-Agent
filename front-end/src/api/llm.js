@@ -18,7 +18,3 @@ import { LLM } from './endpoints';
 export async function getLlmOptions(signal) {
   return get(LLM.OPTIONS, { signal });
 }
-
-export default {
-  getLlmOptions,
-};

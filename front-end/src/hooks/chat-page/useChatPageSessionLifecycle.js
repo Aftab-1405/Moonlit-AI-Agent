@@ -67,5 +67,3 @@ export function useChatPageSessionLifecycle({ isDbConnected, connectionPersisten
     };
   }, [isDbConnected]);
 }
-
-export default useChatPageSessionLifecycle;

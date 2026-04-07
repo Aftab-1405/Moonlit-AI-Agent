@@ -95,11 +95,3 @@ export async function sendMessage({
     { signal }
   );
 }
-
-export default {
-  getConversations,
-  getConversation,
-  createConversation,
-  deleteConversation,
-  sendMessage,
-};

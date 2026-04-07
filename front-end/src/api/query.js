@@ -26,7 +26,3 @@ export async function runQuery({ sql, maxRows = 1000, timeout = 30 }, signal) {
     timeout,
   }, { signal });
 }
-
-export default {
-  runQuery,
-};

@@ -51,10 +51,3 @@ export const authFieldSchemas = {
   confirmPassword: z.string().min(1, 'Please confirm your password'),
   displayName: z.string().optional(),
 };
-
-export default {
-  signInSchema,
-  signUpSchema,
-  resetPasswordSchema,
-  authFieldSchemas,
-};

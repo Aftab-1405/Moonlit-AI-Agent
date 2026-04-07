@@ -12,7 +12,7 @@
  */
 
 /** Converts HSL components (h: 0-360, s: 0-100, l: 0-100) to a hex color string. */
-export const hslToHex = (h, s, l) => {
+const hslToHex = (h, s, l) => {
   s /= 100;
   l /= 100;
   const a = s * Math.min(l, 1 - l);
@@ -22,49 +22,6 @@ export const hslToHex = (h, s, l) => {
     return Math.round(255 * color).toString(16).padStart(2, '0');
   };
   return `#${f(0)}${f(8)}${f(4)}`;
-};
-
-/**
- * Raw HSL token definitions — [h, s, l] tuples.
- * Grouped by theme mode for reference / tooling.
- */
-export const RAW_TOKENS = {
-  light: {
-    'bg-000':      [0,   0,    100],
-    'bg-100':      [48,  33.3, 97.1],
-    'bg-200':      [53,  28.6, 94.5],
-    'bg-300':      [48,  25,   92.2],
-    'bg-400':      [50,  20.7, 88.6],
-    'text-000':    [60,  2.6,  7.6],
-    'text-200':    [60,  2.5,  23.3],
-    'text-400':    [51,  3.1,  43.7],
-    'brand-000':   [45,  4.5, 12],
-    'brand-200':   [45,  4,   22],
-    'accent-000':  [45,  3,   34],
-    'info-000':    [210, 73.7, 40.2],
-    'danger-000':  [0,   58.6, 34.1],
-    'success-000': [125, 100,  18],
-    'warning-000': [45,  91.8, 19],
-    'border-200':  [30,  3.3,  11.8],
-  },
-  dark: {
-    'bg-000':      [60,  2.1,  18.4],
-    'bg-100':      [60,  2.7,  14.5],
-    'bg-200':      [30,  3.3,  11.8],
-    'bg-300':      [60,  2.6,  7.6],
-    'bg-400':      [0,   0,    0],
-    'text-000':    [48,  33.3, 97.1],
-    'text-200':    [50,  9,    73.7],
-    'text-400':    [48,  4.8,  59.2],
-    'brand-000':   [48,  18,  95],
-    'brand-200':   [48,  18,  99],
-    'accent-000':  [48,  6,   72],
-    'info-000':    [210, 65.5, 67.1],
-    'danger-000':  [0,   98.4, 75.1],
-    'success-000': [97,  59.1, 46.1],
-    'warning-000': [40,  71,   50],
-    'border-200':  [51,  16.5, 84.5],
-  },
 };
 
 /** Pre-computed hex values — light theme */

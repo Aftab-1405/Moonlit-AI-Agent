@@ -16,11 +16,6 @@ import {
 
 export const REDUCED_MOTION_QUERY = SHARED_REDUCED_MOTION_QUERY;
 export const HOVER_CAPABLE_QUERY = SHARED_HOVER_CAPABLE_QUERY;
-export { default as Hero } from './Hero';
-export { default as ValueGrid } from './ValueGrid';
-export { default as DemoSection } from './DemoSection';
-export { default as StepsGrid } from './StepsGrid';
-export { default as FinalCTA } from './FinalCTA';
 
 export const Section = ({ children, sx = {}, id, fullHeight = true, tinted = false }) => {
   const theme = useTheme();

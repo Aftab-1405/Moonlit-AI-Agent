@@ -60,5 +60,3 @@ export async function parseSSEStream(reader, decoder, onEvent) {
     }
   }
 }
-
-export default parseSSEStream;

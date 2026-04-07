@@ -864,6 +864,3 @@ export const createDarkTheme = () => {
   _cached = responsiveFontSizes(base);
   return _cached;
 };
-
-export const darkTheme = createDarkTheme();
-export default darkTheme;

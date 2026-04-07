@@ -877,6 +877,3 @@ export const createLightTheme = () => {
   _cached = responsiveFontSizes(base);
   return _cached;
 };
-
-export const lightTheme = createLightTheme();
-export default lightTheme;

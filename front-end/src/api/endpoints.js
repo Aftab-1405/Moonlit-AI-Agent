@@ -48,16 +48,3 @@ export const USER = {
   SESSION_CLOSE: '/api/v1/user/session/close',
   SESSION_ACTIVE: '/api/v1/user/session/active',
 };
-
-export const QUOTA = {
-  STATUS: '/api/v1/quota/status',
-};
-export default {
-  AUTH,
-  CONVERSATIONS,
-  LLM,
-  DATABASE,
-  QUERY,
-  USER,
-  QUOTA,
-};
