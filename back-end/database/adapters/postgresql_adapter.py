@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 try:
     import psycopg2
     from psycopg2 import pool, extras
+
     POSTGRESQL_AVAILABLE = True
     _ = psycopg2  # Mark as used for import check pattern
 except ImportError:
@@ -33,7 +34,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
 
     @property
     def db_type(self) -> str:
-        return 'postgresql'
+        return "postgresql"
 
     @property
     def default_port(self) -> Optional[int]:
@@ -45,55 +46,58 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
 
     def create_connection_pool(self, config: Dict) -> Any:
         """Create PostgreSQL connection pool.
-        
+
         Supports either:
         1. Connection string (DSN) via 'connection_string' key
         2. Individual parameters (host, port, user, password, database)
-        
+
         Connection strings support remote databases with SSL (Neon, Supabase, etc.)
         """
         try:
             # Check if connection string is provided
-            connection_string = config.get('connection_string')
-            
+            connection_string = config.get("connection_string")
+
             if connection_string:
                 # Use connection string directly - supports SSL, remote DBs
                 # Parse to get database name for logging
                 import re
-                db_match = re.search(r'/([^/?]+)(\?|$)', connection_string)
-                db_name = db_match.group(1) if db_match else 'unknown'
-                
+
+                db_match = re.search(r"/([^/?]+)(\?|$)", connection_string)
+                db_name = db_match.group(1) if db_match else "unknown"
+
                 connection_pool = pool.ThreadedConnectionPool(
-                    minconn=1,
-                    maxconn=20,
-                    dsn=connection_string
+                    minconn=1, maxconn=20, dsn=connection_string
                 )
-                logger.info(f"Created PostgreSQL connection pool using connection string for database: {db_name}")
+                logger.info(
+                    f"Created PostgreSQL connection pool using connection string for database: {db_name}"
+                )
                 return connection_pool
             else:
                 # Use individual parameters for local connections
                 pool_config = {
-                    'host': config['host'],
-                    'port': config.get('port', 5432),
-                    'user': config['user'],
-                    'password': config['password'],
-                    'minconn': 1,
-                    'maxconn': 20,
+                    "host": config["host"],
+                    "port": config.get("port", 5432),
+                    "user": config["user"],
+                    "password": config["password"],
+                    "minconn": 1,
+                    "maxconn": 20,
                 }
 
                 # Add SSL mode if specified (for remote DBs)
-                if config.get('sslmode'):
-                    pool_config['sslmode'] = config['sslmode']
+                if config.get("sslmode"):
+                    pool_config["sslmode"] = config["sslmode"]
 
                 # Add database if specified
-                if config.get('database'):
-                    pool_config['database'] = config['database']
+                if config.get("database"):
+                    pool_config["database"] = config["database"]
                 else:
                     # Connect to default 'postgres' database if none specified
-                    pool_config['database'] = 'postgres'
+                    pool_config["database"] = "postgres"
 
                 connection_pool = pool.ThreadedConnectionPool(**pool_config)
-                logger.info(f"Created PostgreSQL connection pool for {config['user']}@{config['host']}")
+                logger.info(
+                    f"Created PostgreSQL connection pool for {config['user']}@{config['host']}"
+                )
                 return connection_pool
 
         except Exception as err:
@@ -131,7 +135,9 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
                 pass
 
     @contextmanager
-    def get_cursor(self, connection: Any, dictionary: bool = False, buffered: bool = True):
+    def get_cursor(
+        self, connection: Any, dictionary: bool = False, buffered: bool = True
+    ):
         """Get PostgreSQL cursor from connection."""
         cursor = None
         try:
@@ -166,7 +172,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
             ORDER BY schema_name
         """
 
-    def get_tables_query(self, schema: str = 'public') -> str:
+    def get_tables_query(self, schema: str = "public") -> str:
         """SQL query to list PostgreSQL tables in a specific schema."""
         # Use format to inject schema name safely (schema names are identifiers)
         return f"""
@@ -176,7 +182,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
             AND table_type = 'BASE TABLE'
         """
 
-    def get_table_schema_query(self, schema: str = 'public') -> str:
+    def get_table_schema_query(self, schema: str = "public") -> str:
         """SQL query to get PostgreSQL table schema in a specific schema."""
         return f"""
             SELECT
@@ -208,7 +214,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
 
     def get_system_databases(self) -> set:
         """PostgreSQL system databases to filter out."""
-        return {'template0', 'template1'}
+        return {"template0", "template1"}
 
     def get_databases_for_remote(self) -> str:
         """SQL query for remote PostgreSQL (excludes postgres db for cleaner list)."""
@@ -219,27 +225,27 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
             ORDER BY datname
         """
 
-    def get_schema_info_for_ai(self, schema: str = 'public') -> dict:
+    def get_schema_info_for_ai(self, schema: str = "public") -> dict:
         """
         Return queries to get full schema info for AI context.
-        
+
         Returns:
             dict with 'tables' and 'columns' SQL queries
         """
         return {
-            'tables': f"""
+            "tables": f"""
                 SELECT table_name 
                 FROM information_schema.tables 
                 WHERE table_schema = '{schema}' 
                 AND table_type = 'BASE TABLE'
                 ORDER BY table_name
             """,
-            'columns': f"""
+            "columns": f"""
                 SELECT table_name, column_name, data_type 
                 FROM information_schema.columns 
                 WHERE table_schema = '{schema}'
                 ORDER BY table_name, ordinal_position
-            """
+            """,
         }
 
     def validate_connection(self, connection: Any) -> bool:
@@ -259,22 +265,22 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
         """Format PostgreSQL column information."""
         if isinstance(raw_column, dict):
             # Build type string with precision/scale if applicable
-            type_str = raw_column.get('data_type', '')
-            if raw_column.get('character_maximum_length'):
+            type_str = raw_column.get("data_type", "")
+            if raw_column.get("character_maximum_length"):
                 type_str += f"({raw_column['character_maximum_length']})"
-            elif raw_column.get('numeric_precision'):
-                if raw_column.get('numeric_scale'):
+            elif raw_column.get("numeric_precision"):
+                if raw_column.get("numeric_scale"):
                     type_str += f"({raw_column['numeric_precision']},{raw_column['numeric_scale']})"
                 else:
                     type_str += f"({raw_column['numeric_precision']})"
 
             return {
-                'name': raw_column.get('column_name', ''),
-                'type': type_str,
-                'nullable': raw_column.get('is_nullable', 'NO') == 'YES',
-                'key': raw_column.get('column_key', ''),
-                'default': raw_column.get('column_default'),
-                'extra': ''  # PostgreSQL doesn't have EXTRA like MySQL
+                "name": raw_column.get("column_name", ""),
+                "type": type_str,
+                "nullable": raw_column.get("is_nullable", "NO") == "YES",
+                "key": raw_column.get("column_key", ""),
+                "default": raw_column.get("column_default"),
+                "extra": "",  # PostgreSQL doesn't have EXTRA like MySQL
             }
         else:
             # Tuple format: (name, type, nullable, default, key, max_length, precision, scale)
@@ -288,19 +294,19 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
                     type_str += f"({raw_column[6]})"
 
             return {
-                'name': raw_column[0],
-                'type': type_str,
-                'nullable': raw_column[2] == 'YES',
-                'key': raw_column[4],
-                'default': raw_column[3],
-                'extra': ''
+                "name": raw_column[0],
+                "type": type_str,
+                "nullable": raw_column[2] == "YES",
+                "key": raw_column[4],
+                "default": raw_column[3],
+                "extra": "",
             }
-    
+
     # =========================================================================
     # Schema Caching Methods (for AI context)
     # =========================================================================
-    
-    def get_all_tables_for_cache(self, db_name: str, schema: str = 'public') -> tuple:
+
+    def get_all_tables_for_cache(self, db_name: str, schema: str = "public") -> tuple:
         """Return SQL query and params to get all tables for schema caching."""
         query = f"""
             SELECT table_name 
@@ -309,8 +315,10 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
             ORDER BY table_name
         """
         return query, ()  # No params needed, schema is embedded
-    
-    def get_columns_for_table_cache(self, db_name: str, table_name: str, schema: str = 'public') -> tuple:
+
+    def get_columns_for_table_cache(
+        self, db_name: str, table_name: str, schema: str = "public"
+    ) -> tuple:
         """Return SQL query and params to get column names for a table."""
         query = f"""
             SELECT column_name
@@ -319,8 +327,10 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
             ORDER BY ordinal_position
         """
         return query, (table_name,)
-    
-    def get_column_details_for_table(self, db_name: str, table_name: str, schema: str = 'public') -> tuple:
+
+    def get_column_details_for_table(
+        self, db_name: str, table_name: str, schema: str = "public"
+    ) -> tuple:
         """Return SQL query and params to get full column details for a table."""
         query = f"""
             SELECT column_name, data_type, is_nullable, column_default
@@ -329,17 +339,17 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
             ORDER BY ordinal_position
         """
         return query, (table_name,)
-    
+
     def get_set_timeout_sql(self, timeout_seconds: int) -> str:
         """Return PostgreSQL query timeout SQL."""
         return f"SET statement_timeout = '{timeout_seconds * 1000}ms'"
-    
+
     def get_column_names_from_cursor(self, cursor: Any) -> list:
         """Extract column names from PostgreSQL cursor."""
         if cursor.description:
             return [desc[0] for desc in cursor.description]
         return []
-    
+
     def get_databases_for_cache(self) -> tuple:
         """Return SQL query and params to get all databases for caching."""
         query = """
@@ -349,15 +359,17 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
             ORDER BY datname
         """
         return query, ()
-    
-    def get_batch_columns_for_tables(self, db_name: str, tables: list, schema: str = 'public') -> tuple:
+
+    def get_batch_columns_for_tables(
+        self, db_name: str, tables: list, schema: str = "public"
+    ) -> tuple:
         """Return SQL query and params to batch fetch columns for multiple tables.
-        
+
         Returns (table_name, column_name, column_key) where column_key is 'PRI' for primary keys.
         """
         if not tables:
             return None, []
-        
+
         query = f"""
             SELECT 
                 c.table_name, 
@@ -378,12 +390,14 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
             ORDER BY c.table_name, c.ordinal_position
         """
         return query, (tables,)
-    
+
     # =========================================================================
     # Schema Metadata Methods (for AI tools)
     # =========================================================================
-    
-    def get_indexes_query(self, table_name: str, db_name: str = None, schema: str = 'public') -> tuple:
+
+    def get_indexes_query(
+        self, table_name: str, db_name: str = None, schema: str = "public"
+    ) -> tuple:
         """Return SQL query and params to get indexes for a PostgreSQL table."""
         query = f"""
             SELECT 
@@ -401,8 +415,10 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
             ORDER BY i.relname, a.attnum
         """
         return query, (table_name,)
-    
-    def get_constraints_query(self, table_name: str, db_name: str = None, schema: str = 'public') -> tuple:
+
+    def get_constraints_query(
+        self, table_name: str, db_name: str = None, schema: str = "public"
+    ) -> tuple:
         """Return SQL query and params to get constraints for a PostgreSQL table."""
         query = f"""
             SELECT 
@@ -418,8 +434,10 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
             ORDER BY tc.constraint_type, tc.constraint_name, kcu.ordinal_position
         """
         return query, (table_name,)
-    
-    def get_foreign_keys_query(self, table_name: str = None, db_name: str = None, schema: str = 'public') -> tuple:
+
+    def get_foreign_keys_query(
+        self, table_name: str = None, db_name: str = None, schema: str = "public"
+    ) -> tuple:
         """Return SQL query and params to get foreign key relationships in PostgreSQL."""
         if table_name:
             query = f"""
@@ -460,4 +478,3 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
                 ORDER BY tc.table_name, kcu.column_name
             """
             return query, ()
-

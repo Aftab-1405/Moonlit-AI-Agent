@@ -8,14 +8,14 @@ import textwrap
 
 # Response style prompts - injected into system prompt based on user preference
 STYLE_PROMPTS = {
-    'concise': """RESPONSE STYLE: Be extremely concise.
+    "concise": """RESPONSE STYLE: Be extremely concise.
 - Use bullet points when listing items
 - Avoid unnecessary explanation or preamble
 - Get straight to the answer
 - Keep responses brief and actionable
 """,
-    'balanced': "",  # Default behavior, no modification
-    'detailed': """RESPONSE STYLE: Provide comprehensive, detailed responses.
+    "balanced": "",  # Default behavior, no modification
+    "detailed": """RESPONSE STYLE: Provide comprehensive, detailed responses.
 - Explain your reasoning step by step
 - Include relevant context and background
 - Offer examples when helpful
@@ -131,8 +131,8 @@ class PromptBuilder:
         """)
 
     @staticmethod
-    def build_system_prompt(response_style: str = 'balanced') -> str:
+    def build_system_prompt(response_style: str = "balanced") -> str:
         """Build system prompt with optional style prefix."""
-        style_prefix = STYLE_PROMPTS.get(response_style, '')
+        style_prefix = STYLE_PROMPTS.get(response_style, "")
         base_prompt = PromptBuilder.get_system_prompt()
         return style_prefix + base_prompt if style_prefix else base_prompt

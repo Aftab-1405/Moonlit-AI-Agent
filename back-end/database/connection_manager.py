@@ -24,7 +24,7 @@ class ConnectionManager:
     for each unique database configuration.
 
     Thread-safe and supports multiple concurrent users with different database configs.
-    
+
     Usage:
         Use get_connection_manager() dependency for FastAPI routes.
         For testing, call get_connection_manager.cache_clear() to reset.
@@ -51,35 +51,31 @@ class ConnectionManager:
         Uses db_type, host, port, user, and database to create hash.
         For connection strings, uses the connection string itself.
         """
-        db_type = config.get('db_type', 'mysql').lower()
+        db_type = config.get("db_type", "mysql").lower()
 
         # For connection string based configs
-        if config.get('connection_string'):
-            key_parts = [
-                db_type,
-                'connection_string',
-                config.get('connection_string')
-            ]
+        if config.get("connection_string"):
+            key_parts = [db_type, "connection_string", config.get("connection_string")]
         else:
             # For server-based databases
             adapter = get_adapter(db_type)
             default_port = adapter.default_port
             key_parts = [
                 db_type,
-                config.get('host', ''),
-                str(config.get('port', default_port)),
-                config.get('user', ''),
-                config.get('database', '')
+                config.get("host", ""),
+                str(config.get("port", default_port)),
+                config.get("user", ""),
+                config.get("database", ""),
             ]
 
-        key_string = '|'.join(key_parts)
+        key_string = "|".join(key_parts)
         return hashlib.md5(key_string.encode()).hexdigest()
 
     def _create_pool(self, config: dict, pool_key: str) -> Any:
         """
         Create a new connection pool for the given configuration using the appropriate adapter.
         """
-        db_type = config.get('db_type', 'mysql').lower()
+        db_type = config.get("db_type", "mysql").lower()
 
         try:
             # Get the appropriate database adapter
@@ -92,9 +88,13 @@ class ConnectionManager:
             self._adapters[pool_key] = adapter
 
             if adapter.requires_server:
-                logger.info(f"Created {db_type.upper()} connection pool {pool_key[:8]} for {config.get('user')}@{config.get('host')}/{config.get('database', 'N/A')}")
+                logger.info(
+                    f"Created {db_type.upper()} connection pool {pool_key[:8]} for {config.get('user')}@{config.get('host')}/{config.get('database', 'N/A')}"
+                )
             else:
-                logger.info(f"Created {db_type.upper()} connection pool {pool_key[:8]} for {config.get('database', ':memory:')}")
+                logger.info(
+                    f"Created {db_type.upper()} connection pool {pool_key[:8]} for {config.get('database', ':memory:')}"
+                )
 
             return pool
         except Exception as e:
@@ -115,12 +115,14 @@ class ConnectionManager:
         Returns:
             Database connection from the appropriate pool
         """
-        db_type = config.get('db_type', 'mysql').lower()
+        db_type = config.get("db_type", "mysql").lower()
 
         # Validate config based on database type
-        if not config.get('connection_string'):
-            if not config.get('host') or not config.get('user'):
-                raise ValueError(f"{db_type.upper()} configuration must include 'host' and 'user'")
+        if not config.get("connection_string"):
+            if not config.get("host") or not config.get("user"):
+                raise ValueError(
+                    f"{db_type.upper()} configuration must include 'host' and 'user'"
+                )
 
         pool_key = self._get_pool_key(config)
 
@@ -138,10 +140,14 @@ class ConnectionManager:
         try:
             adapter = self._adapters[pool_key]
             connection = adapter.get_connection_from_pool(self._pools[pool_key])
-            logger.debug(f"Connection acquired from {db_type.upper()} pool {pool_key[:8]}")
+            logger.debug(
+                f"Connection acquired from {db_type.upper()} pool {pool_key[:8]}"
+            )
             return connection
         except Exception as e:
-            logger.error(f"Failed to get connection from {db_type.upper()} pool {pool_key[:8]}: {e}")
+            logger.error(
+                f"Failed to get connection from {db_type.upper()} pool {pool_key[:8]}: {e}"
+            )
             raise
 
     @contextmanager
@@ -172,7 +178,9 @@ class ConnectionManager:
 
         try:
             # Use adapter's cursor context manager
-            with adapter.get_cursor(conn, dictionary=dictionary, buffered=buffered) as cursor:
+            with adapter.get_cursor(
+                conn, dictionary=dictionary, buffered=buffered
+            ) as cursor:
                 yield cursor
         finally:
             # CRITICAL: Return connection to pool after cursor is closed
@@ -266,6 +274,7 @@ class ConnectionManager:
         """
         Start background thread for cleaning up idle pools.
         """
+
         def cleanup_loop():
             while True:
                 time.sleep(self._cleanup_interval)
@@ -290,8 +299,10 @@ class ConnectionManager:
             for pool_key, pool in self._pools.items():
                 try:
                     stats[pool_key[:8]] = {
-                        'pool_size': pool.pool_size,
-                        'last_used_seconds_ago': int(time.time() - self._pool_last_used.get(pool_key, 0))
+                        "pool_size": pool.pool_size,
+                        "last_used_seconds_ago": int(
+                            time.time() - self._pool_last_used.get(pool_key, 0)
+                        ),
                     }
                 except Exception as e:
                     logger.error(f"Error getting stats for pool {pool_key[:8]}: {e}")
@@ -303,7 +314,7 @@ class ConnectionManager:
 def get_connection_manager() -> ConnectionManager:
     """
     Get the ConnectionManager instance.
-    
+
     Uses @lru_cache for lazy initialization and singleton behavior.
     For testing, call get_connection_manager.cache_clear() to reset.
     """

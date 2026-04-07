@@ -18,7 +18,7 @@ class SQLServerAdapter(BaseDatabaseAdapter):
 
     @property
     def db_type(self) -> str:
-        return 'sqlserver'
+        return "sqlserver"
 
     @property
     def default_port(self) -> Optional[int]:
@@ -31,17 +31,17 @@ class SQLServerAdapter(BaseDatabaseAdapter):
     def create_connection_pool(self, config: Dict) -> Any:
         """
         Create SQL Server connection pool.
-        
+
         Supports:
         1. Connection string (for Azure SQL, AWS RDS, etc.)
         2. Individual parameters (host, port, user, password, database)
-        
+
         Note: pyodbc doesn't have built-in pooling, so we create a connection factory.
         """
-        
+
         try:
-            connection_string = config.get('connection_string')
-            
+            connection_string = config.get("connection_string")
+
             if connection_string:
                 # Remote connection via connection string
                 # Expected format: Driver={ODBC Driver 17};Server=xxx;Database=xxx;UID=xxx;PWD=xxx
@@ -49,13 +49,13 @@ class SQLServerAdapter(BaseDatabaseAdapter):
                 logger.info("Creating SQL Server connection using connection string")
             else:
                 # Local connection via individual parameters
-                host = config.get('host', 'localhost')
-                port = config.get('port', 1433)
-                user = config.get('user', '')
-                password = config.get('password', '')
-                database = config.get('database', 'master')
-                driver = config.get('driver', 'ODBC Driver 17 for SQL Server')
-                
+                host = config.get("host", "localhost")
+                port = config.get("port", 1433)
+                user = config.get("user", "")
+                password = config.get("password", "")
+                database = config.get("database", "master")
+                driver = config.get("driver", "ODBC Driver 17 for SQL Server")
+
                 conn_str = (
                     f"Driver={{{driver}}};"
                     f"Server={host},{port};"
@@ -65,13 +65,13 @@ class SQLServerAdapter(BaseDatabaseAdapter):
                     f"TrustServerCertificate=yes;"
                 )
                 logger.info(f"Creating SQL Server connection for {user}@{host}:{port}")
-            
+
             # Store connection string in config for later use
-            config['_connection_string'] = conn_str
-            
+            config["_connection_string"] = conn_str
+
             # Return config as "pool" - we'll create connections on demand
             return config
-                
+
         except Exception as err:
             logger.error(f"Failed to create SQL Server connection config: {err}")
             raise
@@ -79,12 +79,12 @@ class SQLServerAdapter(BaseDatabaseAdapter):
     def get_connection_from_pool(self, pool: Any) -> Any:
         """Get SQL Server connection from pool (creates new connection)."""
         import pyodbc
-        
+
         try:
-            conn_str = pool.get('_connection_string')
+            conn_str = pool.get("_connection_string")
             if not conn_str:
                 raise ValueError("No connection string found in pool config")
-            
+
             connection = pyodbc.connect(conn_str, timeout=30)
             return connection
         except Exception as err:
@@ -105,7 +105,9 @@ class SQLServerAdapter(BaseDatabaseAdapter):
             logger.warning(f"Failed to close SQL Server connection: {err}")
 
     @contextmanager
-    def get_cursor(self, connection: Any, dictionary: bool = False, buffered: bool = True):
+    def get_cursor(
+        self, connection: Any, dictionary: bool = False, buffered: bool = True
+    ):
         """Get SQL Server cursor from connection."""
         cursor = None
         try:
@@ -153,7 +155,7 @@ class SQLServerAdapter(BaseDatabaseAdapter):
 
     def get_system_databases(self) -> set:
         """SQL Server system databases to filter out."""
-        return {'master', 'tempdb', 'model', 'msdb'}
+        return {"master", "tempdb", "model", "msdb"}
 
     def validate_connection(self, connection: Any) -> bool:
         """Validate SQL Server connection is alive."""
@@ -172,29 +174,29 @@ class SQLServerAdapter(BaseDatabaseAdapter):
         """Format SQL Server column information."""
         if isinstance(raw_column, dict):
             return {
-                'name': raw_column.get('COLUMN_NAME', ''),
-                'type': raw_column.get('DATA_TYPE', ''),
-                'nullable': raw_column.get('IS_NULLABLE', 'NO') == 'YES',
-                'key': '',
-                'default': raw_column.get('COLUMN_DEFAULT'),
-                'extra': ''
+                "name": raw_column.get("COLUMN_NAME", ""),
+                "type": raw_column.get("DATA_TYPE", ""),
+                "nullable": raw_column.get("IS_NULLABLE", "NO") == "YES",
+                "key": "",
+                "default": raw_column.get("COLUMN_DEFAULT"),
+                "extra": "",
             }
         else:
             # Tuple format: (name, type, nullable, default)
             return {
-                'name': raw_column[0],
-                'type': raw_column[1],
-                'nullable': raw_column[2] == 'YES',
-                'key': '',
-                'default': raw_column[3] if len(raw_column) > 3 else None,
-                'extra': ''
+                "name": raw_column[0],
+                "type": raw_column[1],
+                "nullable": raw_column[2] == "YES",
+                "key": "",
+                "default": raw_column[3] if len(raw_column) > 3 else None,
+                "extra": "",
             }
 
     # =========================================================================
     # Schema Caching Methods (for AI context)
     # =========================================================================
-    
-    def get_all_tables_for_cache(self, db_name: str, schema: str = 'dbo') -> tuple:
+
+    def get_all_tables_for_cache(self, db_name: str, schema: str = "dbo") -> tuple:
         """Return SQL query and params to get all tables for schema caching."""
         query = """
             SELECT TABLE_NAME 
@@ -203,8 +205,10 @@ class SQLServerAdapter(BaseDatabaseAdapter):
             ORDER BY TABLE_NAME
         """
         return query, (db_name,)
-    
-    def get_columns_for_table_cache(self, db_name: str, table_name: str, schema: str = 'dbo') -> tuple:
+
+    def get_columns_for_table_cache(
+        self, db_name: str, table_name: str, schema: str = "dbo"
+    ) -> tuple:
         """Return SQL query and params to get column names for a table."""
         query = """
             SELECT COLUMN_NAME
@@ -213,8 +217,10 @@ class SQLServerAdapter(BaseDatabaseAdapter):
             ORDER BY ORDINAL_POSITION
         """
         return query, (db_name, table_name)
-    
-    def get_column_details_for_table(self, db_name: str, table_name: str, schema: str = 'dbo') -> tuple:
+
+    def get_column_details_for_table(
+        self, db_name: str, table_name: str, schema: str = "dbo"
+    ) -> tuple:
         """Return SQL query and params to get full column details for a table."""
         query = """
             SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT
@@ -223,31 +229,33 @@ class SQLServerAdapter(BaseDatabaseAdapter):
             ORDER BY ORDINAL_POSITION
         """
         return query, (db_name, table_name)
-    
+
     def get_set_timeout_sql(self, timeout_seconds: int) -> Optional[str]:
         """Return SQL Server query timeout SQL."""
         # SQL Server handles timeout at connection level, not per query
         return None
-    
+
     def get_column_names_from_cursor(self, cursor: Any) -> List[str]:
         """Extract column names from SQL Server cursor."""
-        if hasattr(cursor, 'description') and cursor.description:
+        if hasattr(cursor, "description") and cursor.description:
             return [desc[0] for desc in cursor.description]
         return []
-    
+
     def get_databases_for_cache(self) -> tuple:
         """Return SQL query and params to get all databases for caching."""
         return self.get_databases_query(), ()
-    
-    def get_batch_columns_for_tables(self, db_name: str, tables: List[str], schema: str = 'dbo') -> tuple:
+
+    def get_batch_columns_for_tables(
+        self, db_name: str, tables: List[str], schema: str = "dbo"
+    ) -> tuple:
         """Return SQL query and params to batch fetch columns for multiple tables.
-        
+
         Returns (TABLE_NAME, COLUMN_NAME, column_key) where column_key is 'PRI' for primary keys.
         """
         if not tables:
             return None, []
-        
-        placeholders = ','.join(['?'] * len(tables))
+
+        placeholders = ",".join(["?"] * len(tables))
         query = f"""
             SELECT 
                 c.TABLE_NAME, 
@@ -269,12 +277,14 @@ class SQLServerAdapter(BaseDatabaseAdapter):
         """
         params = [db_name, db_name] + list(tables)
         return query, params
-    
+
     # =========================================================================
     # Schema Metadata Methods (for AI tools)
     # =========================================================================
-    
-    def get_indexes_query(self, table_name: str, db_name: str = None, schema: str = 'dbo') -> tuple:
+
+    def get_indexes_query(
+        self, table_name: str, db_name: str = None, schema: str = "dbo"
+    ) -> tuple:
         """Return SQL query and params to get indexes for a SQL Server table."""
         query = """
             SELECT 
@@ -290,8 +300,10 @@ class SQLServerAdapter(BaseDatabaseAdapter):
             ORDER BY i.name, ic.key_ordinal
         """
         return query, (table_name,)
-    
-    def get_constraints_query(self, table_name: str, db_name: str = None, schema: str = 'dbo') -> tuple:
+
+    def get_constraints_query(
+        self, table_name: str, db_name: str = None, schema: str = "dbo"
+    ) -> tuple:
         """Return SQL query and params to get constraints for a SQL Server table."""
         query = """
             SELECT 
@@ -306,8 +318,10 @@ class SQLServerAdapter(BaseDatabaseAdapter):
             ORDER BY tc.CONSTRAINT_TYPE, tc.CONSTRAINT_NAME
         """
         return query, (table_name,)
-    
-    def get_foreign_keys_query(self, table_name: str = None, db_name: str = None, schema: str = 'dbo') -> tuple:
+
+    def get_foreign_keys_query(
+        self, table_name: str = None, db_name: str = None, schema: str = "dbo"
+    ) -> tuple:
         """Return SQL query and params to get foreign key relationships in SQL Server."""
         if table_name:
             query = """
@@ -334,4 +348,3 @@ class SQLServerAdapter(BaseDatabaseAdapter):
                 ORDER BY OBJECT_NAME(fk.parent_object_id), fk.name
             """
             return query, ()
-

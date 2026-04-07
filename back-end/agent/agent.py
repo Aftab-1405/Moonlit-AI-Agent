@@ -114,7 +114,9 @@ async def stream_conversation(
                     for block in content:
                         if not isinstance(block, dict):
                             if block:
-                                yield sse_encode({"type": "token", "content": str(block)})
+                                yield sse_encode(
+                                    {"type": "token", "content": str(block)}
+                                )
                             continue
                         block_type = block.get("type")
                         if block_type == "thinking":
@@ -156,9 +158,7 @@ async def _load_firestore_history(conversation_id: str) -> list:
     try:
         from repositories import ConversationRepository
 
-        conv_data = await run_in_threadpool(
-            ConversationRepository.get, conversation_id
-        )
+        conv_data = await run_in_threadpool(ConversationRepository.get, conversation_id)
         if not conv_data or not conv_data.get("messages"):
             return []
 

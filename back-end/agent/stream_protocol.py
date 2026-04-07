@@ -28,7 +28,9 @@ def sse_tool_start(name: str, args: dict) -> str:
 
 
 def sse_tool_end(name: str, args: dict, result: Any) -> str:
-    return sse_encode({"type": "tool_end", "name": name, "args": args, "result": result})
+    return sse_encode(
+        {"type": "tool_end", "name": name, "args": args, "result": result}
+    )
 
 
 def sse_thinking(content: str) -> str:

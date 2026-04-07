@@ -58,10 +58,12 @@ class ToolExecutor:
         # Remove full data field for execute_query - LLM only needs preview.
         # Add explicit anti-hallucination guardrails because preview rows may be partial.
         if tool_name == "execute_query":
-            if 'data' in structured:
-                del structured['data']
+            if "data" in structured:
+                del structured["data"]
             structured["llm_guardrails"] = {
-                "preview_only_context": bool(structured.get("preview_is_partial", False)),
+                "preview_only_context": bool(
+                    structured.get("preview_is_partial", False)
+                ),
                 "do_not_fabricate_unseen_rows": True,
                 "when_user_requests_full_results": (
                     "Tell the user complete data is available in SQL editor results pane/canvas."

@@ -17,10 +17,11 @@ combined_router = APIRouter(tags=["api"])
 # HEALTH CHECK ROUTES (kept here as they're minimal)
 # =============================================================================
 
-@combined_router.get('/')
+
+@combined_router.get("/")
 async def landing():
     """API health check."""
-    return {'status': 'success', 'message': 'API is running'}
+    return {"status": "success", "message": "API is running"}
 
 
 # Include domain routers

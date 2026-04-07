@@ -12,11 +12,11 @@ from .sqlserver_adapter import SQLServerAdapter
 from .oracle_adapter import OracleAdapter
 
 __all__ = [
-    'BaseDatabaseAdapter',
-    'MySQLAdapter',
-    'PostgreSQLAdapter',
-    'SQLServerAdapter',
-    'OracleAdapter',
+    "BaseDatabaseAdapter",
+    "MySQLAdapter",
+    "PostgreSQLAdapter",
+    "SQLServerAdapter",
+    "OracleAdapter",
 ]
 
 
@@ -34,14 +34,16 @@ def get_adapter(db_type: str) -> BaseDatabaseAdapter:
         ValueError: If database type is not supported
     """
     adapters = {
-        'mysql': MySQLAdapter,
-        'postgresql': PostgreSQLAdapter,
-        'sqlserver': SQLServerAdapter,
-        'oracle': OracleAdapter,
+        "mysql": MySQLAdapter,
+        "postgresql": PostgreSQLAdapter,
+        "sqlserver": SQLServerAdapter,
+        "oracle": OracleAdapter,
     }
 
     db_type = db_type.lower()
     if db_type not in adapters:
-        raise ValueError(f"Unsupported database type: {db_type}. Supported types: {', '.join(adapters.keys())}")
+        raise ValueError(
+            f"Unsupported database type: {db_type}. Supported types: {', '.join(adapters.keys())}"
+        )
 
     return adapters[db_type]()

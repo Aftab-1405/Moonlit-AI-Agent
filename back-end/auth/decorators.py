@@ -15,22 +15,22 @@ from dependencies import (
 
 # Re-export for backward compatibility
 __all__ = [
-    'get_current_user',
-    'get_current_user_optional', 
-    'get_session_data',
+    "get_current_user",
+    "get_current_user_optional",
+    "get_session_data",
 ]
 
 
 def get_user_id_from_user(user: dict) -> str:
     """
     Extract user ID from user dict.
-    
+
     Args:
         user: User dict from get_current_user dependency
-        
+
     Returns:
         User ID string
     """
     if isinstance(user, dict):
-        return user.get('uid') or user.get('id') or str(user)
+        return user.get("uid") or user.get("id") or str(user)
     return str(user)

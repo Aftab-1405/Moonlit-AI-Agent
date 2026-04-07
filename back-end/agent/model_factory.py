@@ -66,7 +66,9 @@ def get_chat_model(
     if provider == "gemini":
         from langchain_google_genai import ChatGoogleGenerativeAI
 
-        key = api_key or _resolve_key("GEMINI_API_KEY", "GOOGLE_API_KEY", "GEMINI_API_KEYS")
+        key = api_key or _resolve_key(
+            "GEMINI_API_KEY", "GOOGLE_API_KEY", "GEMINI_API_KEYS"
+        )
         kwargs = dict(model=model, google_api_key=key, temperature=temperature)
         if enable_reasoning:
             # thinking_budget: positive int enables thinking on Gemini 2.5+ models.
@@ -91,7 +93,9 @@ def get_chat_model(
     if provider == "anthropic":
         from langchain_anthropic import ChatAnthropic
 
-        key = api_key or _resolve_key("ANTHROPIC_API_KEY", keys_env="ANTHROPIC_API_KEYS")
+        key = api_key or _resolve_key(
+            "ANTHROPIC_API_KEY", keys_env="ANTHROPIC_API_KEYS"
+        )
         kwargs = dict(model=model, anthropic_api_key=key)
         if enable_reasoning:
             # Anthropic requires temperature=1 when thinking is enabled.
@@ -113,7 +117,9 @@ def get_chat_model(
             temperature=temperature,
         )
 
-    raise ValueError(f"Unknown provider: {provider!r}. Supported: gemini, cerebras, anthropic, openai")
+    raise ValueError(
+        f"Unknown provider: {provider!r}. Supported: gemini, cerebras, anthropic, openai"
+    )
 
 
 @lru_cache(maxsize=1)

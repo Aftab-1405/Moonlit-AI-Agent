@@ -89,7 +89,9 @@ class BaseDatabaseAdapter(ABC):
 
     @abstractmethod
     @contextmanager
-    def get_cursor(self, connection: Any, dictionary: bool = False, buffered: bool = True):
+    def get_cursor(
+        self, connection: Any, dictionary: bool = False, buffered: bool = True
+    ):
         """
         Context manager to get a cursor from a connection.
 
@@ -168,175 +170,186 @@ class BaseDatabaseAdapter(ABC):
             Dict with keys: name, type, nullable, key, default, extra
         """
         pass
-    
+
     # =========================================================================
     # Schema Caching Methods (for AI context)
     # =========================================================================
-    
-    def get_all_tables_for_cache(self, db_name: str, schema: str = 'public') -> str:
+
+    def get_all_tables_for_cache(self, db_name: str, schema: str = "public") -> str:
         """
         Return SQL query to get all tables for schema caching.
-        
+
         Args:
             db_name: Database name (used by MySQL, ignored by PostgreSQL)
             schema: Schema name (used by PostgreSQL, ignored by MySQL)
-            
+
         Returns:
             Tuple of (query_string, params_tuple)
-            
+
         Note: Default implementation calls get_tables_query.
               Override for database-specific behavior.
         """
         # Default: return the standard tables query
         return self.get_tables_query(), (db_name,)
-    
-    def get_columns_for_table_cache(self, db_name: str, table_name: str, schema: str = 'public') -> tuple:
+
+    def get_columns_for_table_cache(
+        self, db_name: str, table_name: str, schema: str = "public"
+    ) -> tuple:
         """
         Return SQL query and params to get columns for a table (for caching).
-        
+
         Args:
-            db_name: Database name  
+            db_name: Database name
             table_name: Table name
             schema: Schema name (PostgreSQL)
-            
+
         Returns:
             Tuple of (query_string, params_tuple)
         """
         # Default: use standard table schema query but only return column names
         return self.get_table_schema_query(), (db_name, table_name)
-    
-    def get_column_details_for_table(self, db_name: str, table_name: str, schema: str = 'public') -> tuple:
+
+    def get_column_details_for_table(
+        self, db_name: str, table_name: str, schema: str = "public"
+    ) -> tuple:
         """
         Return SQL query and params to get full column details for a table.
         Query should return: column_name, data_type, is_nullable, column_default
-        
+
         Args:
-            db_name: Database name  
+            db_name: Database name
             table_name: Table name
             schema: Schema name (PostgreSQL)
-            
+
         Returns:
             Tuple of (query_string, params_tuple)
         """
         # Default: use standard table schema query
         return self.get_table_schema_query(), (db_name, table_name)
-    
+
     def get_set_timeout_sql(self, timeout_seconds: int) -> Optional[str]:
         """
         Return SQL statement to set query timeout, or None if not supported.
-        
+
         Args:
             timeout_seconds: Timeout in seconds
-            
+
         Returns:
             SQL statement string or None
         """
         return None  # Default: no timeout support
-    
+
     def get_column_names_from_cursor(self, cursor: Any) -> List[str]:
         """
         Extract column names from a cursor after query execution.
-        
+
         Args:
             cursor: Database cursor after executing a query
-            
+
         Returns:
             List of column names
         """
         # Default implementation - subclasses should override
-        if hasattr(cursor, 'description') and cursor.description:
+        if hasattr(cursor, "description") and cursor.description:
             return [desc[0] for desc in cursor.description]
         return []
-    
+
     def extract_database_names(self, rows: list) -> list:
         """
         Extract database names from the result of get_databases_query.
-        
+
         Args:
             rows: Raw rows from cursor.fetchall()
-            
+
         Returns:
             List of database names
         """
         # Default: first column contains the database name
         return [row[0] for row in rows]
-    
+
     def get_databases_for_cache(self) -> tuple:
         """
         Return SQL query and params to get all databases for caching.
         Filters out system databases.
-        
+
         Returns:
             Tuple of (query_string, params_tuple)
         """
         return self.get_databases_query(), ()
-    
-    def get_batch_columns_for_tables(self, db_name: str, tables: List[str], schema: str = 'public') -> tuple:
+
+    def get_batch_columns_for_tables(
+        self, db_name: str, tables: List[str], schema: str = "public"
+    ) -> tuple:
         """
         Return SQL query and params to batch fetch columns for multiple tables.
-        
+
         Args:
             db_name: Database name
             tables: List of table names
             schema: Schema name (PostgreSQL)
-            
+
         Returns:
             Tuple of (query_string, params_list)
-            
+
         Note: Override in subclasses for database-specific syntax.
         """
         # Default: not supported, return empty
         return None, []
-    
+
     # =========================================================================
     # Schema Metadata Methods (for AI tools)
     # =========================================================================
-    
-    def get_indexes_query(self, table_name: str, db_name: str = None, schema: str = 'public') -> tuple:
+
+    def get_indexes_query(
+        self, table_name: str, db_name: str = None, schema: str = "public"
+    ) -> tuple:
         """
         Return SQL query and params to get indexes for a table.
-        
+
         Query should return: index_name, column_name, is_unique, is_primary
-        
+
         Args:
             table_name: Table name
             db_name: Database name (MySQL)
             schema: Schema name (PostgreSQL)
-            
-        Returns:
-            Tuple of (query_string, params_tuple)
-        """
-        return None, ()  # Default: not supported
-    
-    def get_constraints_query(self, table_name: str, db_name: str = None, schema: str = 'public') -> tuple:
-        """
-        Return SQL query and params to get constraints for a table.
-        
-        Query should return: constraint_name, constraint_type, column_name
-        
-        Args:
-            table_name: Table name
-            db_name: Database name (MySQL)
-            schema: Schema name (PostgreSQL)
-            
-        Returns:
-            Tuple of (query_string, params_tuple)
-        """
-        return None, ()  # Default: not supported
-    
-    def get_foreign_keys_query(self, table_name: str = None, db_name: str = None, schema: str = 'public') -> tuple:
-        """
-        Return SQL query and params to get foreign key relationships.
-        
-        Query should return: table_name, column_name, referenced_table, referenced_column
-        
-        Args:
-            table_name: Optional table name (None = all tables)
-            db_name: Database name (MySQL)
-            schema: Schema name (PostgreSQL)
-            
+
         Returns:
             Tuple of (query_string, params_tuple)
         """
         return None, ()  # Default: not supported
 
+    def get_constraints_query(
+        self, table_name: str, db_name: str = None, schema: str = "public"
+    ) -> tuple:
+        """
+        Return SQL query and params to get constraints for a table.
+
+        Query should return: constraint_name, constraint_type, column_name
+
+        Args:
+            table_name: Table name
+            db_name: Database name (MySQL)
+            schema: Schema name (PostgreSQL)
+
+        Returns:
+            Tuple of (query_string, params_tuple)
+        """
+        return None, ()  # Default: not supported
+
+    def get_foreign_keys_query(
+        self, table_name: str = None, db_name: str = None, schema: str = "public"
+    ) -> tuple:
+        """
+        Return SQL query and params to get foreign key relationships.
+
+        Query should return: table_name, column_name, referenced_table, referenced_column
+
+        Args:
+            table_name: Optional table name (None = all tables)
+            db_name: Database name (MySQL)
+            schema: Schema name (PostgreSQL)
+
+        Returns:
+            Tuple of (query_string, params_tuple)
+        """
+        return None, ()  # Default: not supported

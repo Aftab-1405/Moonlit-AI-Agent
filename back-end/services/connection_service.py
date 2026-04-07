@@ -30,39 +30,42 @@ class ConnectionService:
         """
         from database import connection_handlers
 
-        db_type = connection_params.get('db_type', 'mysql')
-        connection_string = connection_params.get('connection_string')
+        db_type = connection_params.get("db_type", "mysql")
+        connection_string = connection_params.get("connection_string")
 
         _REMOTE_STRING_HANDLERS = {
-            'postgresql': connection_handlers.connect_remote_postgresql,
-            'mysql':      connection_handlers.connect_remote_mysql,
-            'sqlserver':  connection_handlers.connect_remote_sqlserver,
-            'oracle':     connection_handlers.connect_remote_oracle,
+            "postgresql": connection_handlers.connect_remote_postgresql,
+            "mysql": connection_handlers.connect_remote_mysql,
+            "sqlserver": connection_handlers.connect_remote_sqlserver,
+            "oracle": connection_handlers.connect_remote_oracle,
         }
 
         _HOST_PORT_HANDLERS = {
-            'mysql':      connection_handlers.connect_mysql,
-            'postgresql': connection_handlers.connect_postgresql,
-            'sqlserver':  connection_handlers.connect_sqlserver,
-            'oracle':     connection_handlers.connect_oracle,
+            "mysql": connection_handlers.connect_mysql,
+            "postgresql": connection_handlers.connect_postgresql,
+            "sqlserver": connection_handlers.connect_sqlserver,
+            "oracle": connection_handlers.connect_oracle,
         }
 
         if connection_string:
             handler = _REMOTE_STRING_HANDLERS.get(db_type)
             if not handler:
-                return {'status': 'error', 'message': f'Remote {db_type} via connection string is not supported.'}
+                return {
+                    "status": "error",
+                    "message": f"Remote {db_type} via connection string is not supported.",
+                }
             return handler(connection_string, user_id)
 
         handler = _HOST_PORT_HANDLERS.get(db_type)
         if not handler:
-            return {'status': 'error', 'message': f'Unknown database type: {db_type}'}
+            return {"status": "error", "message": f"Unknown database type: {db_type}"}
 
         return handler(
-            connection_params.get('host'),
-            connection_params.get('port'),
-            connection_params.get('username'),
-            connection_params.get('password'),
-            connection_params.get('database'),
+            connection_params.get("host"),
+            connection_params.get("port"),
+            connection_params.get("username"),
+            connection_params.get("password"),
+            connection_params.get("database"),
             user_id,
         )
 
@@ -79,16 +82,16 @@ class ConnectionService:
         """
         if not db_config:
             return {
-                'status': 'disconnected',
-                'connected': False,
-                'message': 'Not connected to any database',
+                "status": "disconnected",
+                "connected": False,
+                "message": "Not connected to any database",
             }
 
         try:
             from database.connection_manager import get_connection_manager
             from database.adapters import get_adapter
 
-            db_type = db_config.get('db_type', 'mysql')
+            db_type = db_config.get("db_type", "mysql")
             manager = get_connection_manager()
             adapter = get_adapter(db_type)
 
@@ -97,20 +100,20 @@ class ConnectionService:
 
             if is_valid:
                 return {
-                    'status': 'connected',
-                    'connected': True,
-                    'db_type': db_type,
-                    'database': db_config.get('database'),
-                    'is_remote': db_config.get('is_remote', False),
+                    "status": "connected",
+                    "connected": True,
+                    "db_type": db_type,
+                    "database": db_config.get("database"),
+                    "is_remote": db_config.get("is_remote", False),
                 }
             return {
-                'status': 'error',
-                'connected': False,
-                'message': 'Connection validation failed',
+                "status": "error",
+                "connected": False,
+                "message": "Connection validation failed",
             }
         except Exception as e:
             logger.warning(f"Connection status check failed: {e}")
-            return {'status': 'error', 'connected': False, 'message': str(e)}
+            return {"status": "error", "connected": False, "message": str(e)}
 
     @staticmethod
     def check_connection_health(db_config: dict) -> dict:
@@ -124,20 +127,20 @@ class ConnectionService:
             Dict with health status
         """
         if not db_config:
-            return {'status': 'error', 'connected': False}
+            return {"status": "error", "connected": False}
 
         try:
             from database.connection_manager import get_connection_manager
             from database.adapters import get_adapter
 
-            db_type = db_config.get('db_type', 'mysql')
+            db_type = db_config.get("db_type", "mysql")
             manager = get_connection_manager()
             adapter = get_adapter(db_type)
 
             conn = manager.get_connection(db_config)
             is_valid = adapter.validate_connection(conn)
 
-            return {'status': 'success', 'connected': is_valid}
+            return {"status": "success", "connected": is_valid}
         except Exception as e:
             logger.debug(f"Health check failed: {e}")
-            return {'status': 'error', 'connected': False}
+            return {"status": "error", "connected": False}

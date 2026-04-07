@@ -35,6 +35,7 @@ CACHEABLE_TOOLS = {
 
 # ── internal helpers ─────────────────────────────────────────────────
 
+
 def _cfg(config: RunnableConfig) -> dict:
     """Shortcut to ``config["configurable"]``."""
     return config.get("configurable", {})
@@ -44,6 +45,7 @@ def _try_writer():
     """Return the LangGraph stream writer, or a no-op if unavailable."""
     try:
         from langgraph.config import get_stream_writer
+
         return get_stream_writer()
     except Exception:
         return lambda _data: None
@@ -54,6 +56,7 @@ def _effective_max_rows(user_max_rows):
     if user_max_rows is not None:
         return user_max_rows
     from config import Config
+
     return Config.MAX_QUERY_RESULTS
 
 
@@ -85,7 +88,10 @@ def _execute_tool(
             display_args["max_rows"] = user_max_rows
         else:
             from config import Config
-            display_args["max_rows"] = f"No Limit (server max: {Config.MAX_QUERY_RESULTS})"
+
+            display_args["max_rows"] = (
+                f"No Limit (server max: {Config.MAX_QUERY_RESULTS})"
+            )
 
     # 3. Emit tool_start
     writer({"type": "tool_start", "name": tool_name, "args": display_args})
@@ -117,12 +123,14 @@ def _execute_tool(
     llm_summary = ToolExecutor.summarize_for_llm(tool_name, parsed)
 
     # 7. Emit tool_end with full UI data
-    writer({
-        "type": "tool_end",
-        "name": tool_name,
-        "args": display_args,
-        "result": json.loads(ui_summary),
-    })
+    writer(
+        {
+            "type": "tool_end",
+            "name": tool_name,
+            "args": display_args,
+            "result": json.loads(ui_summary),
+        }
+    )
 
     # 8. Return LLM summary (becomes ToolMessage.content)
     return llm_summary
@@ -130,11 +138,14 @@ def _execute_tool(
 
 # ── tool definitions ─────────────────────────────────────────────────
 
+
 @tool
 def get_connection_status(rationale: str, *, config: RunnableConfig) -> str:
     """Check if user is connected to a database and get connection details like database type, name, host, and whether it's a remote connection."""
     return _execute_tool(
-        "get_connection_status", {"rationale": rationale}, config,
+        "get_connection_status",
+        {"rationale": rationale},
+        config,
         lambda v, uid, db_cfg, mx: DBTools._get_connection_status(uid),
     )
 
@@ -143,7 +154,9 @@ def get_connection_status(rationale: str, *, config: RunnableConfig) -> str:
 def get_database_list(rationale: str, *, config: RunnableConfig) -> str:
     """Get list of all databases available on the connected server."""
     return _execute_tool(
-        "get_database_list", {"rationale": rationale}, config,
+        "get_database_list",
+        {"rationale": rationale},
+        config,
         lambda v, uid, db_cfg, mx: DBTools._get_database_list(uid, db_config=db_cfg),
     )
 
@@ -157,8 +170,12 @@ def get_database_schema(
 ) -> str:
     """Get all tables and their columns for the current database or a specified database."""
     return _execute_tool(
-        "get_database_schema", {"rationale": rationale, "database": database}, config,
-        lambda v, uid, db_cfg, mx: DBTools._get_database_schema(uid, v.get("database"), db_config=db_cfg),
+        "get_database_schema",
+        {"rationale": rationale, "database": database},
+        config,
+        lambda v, uid, db_cfg, mx: DBTools._get_database_schema(
+            uid, v.get("database"), db_config=db_cfg
+        ),
     )
 
 
@@ -171,8 +188,12 @@ def get_table_columns(
 ) -> str:
     """Get detailed column information for a specific table including column names and data types."""
     return _execute_tool(
-        "get_table_columns", {"table_name": table_name, "rationale": rationale}, config,
-        lambda v, uid, db_cfg, mx: DBTools._get_table_columns(uid, v["table_name"], db_config=db_cfg),
+        "get_table_columns",
+        {"table_name": table_name, "rationale": rationale},
+        config,
+        lambda v, uid, db_cfg, mx: DBTools._get_table_columns(
+            uid, v["table_name"], db_config=db_cfg
+        ),
     )
 
 
@@ -186,7 +207,9 @@ def execute_query(
 ) -> str:
     """Execute a SQL SELECT query against the connected database. Only SELECT queries are allowed for safety."""
     return _execute_tool(
-        "execute_query", {"query": query, "rationale": rationale, "max_rows": max_rows}, config,
+        "execute_query",
+        {"query": query, "rationale": rationale, "max_rows": max_rows},
+        config,
         lambda v, uid, db_cfg, mx: DBTools._execute_query(
             uid, v["query"], _effective_max_rows(mx), db_config=db_cfg
         ),
@@ -202,8 +225,12 @@ def get_table_indexes(
 ) -> str:
     """Get all indexes defined on a specific table, including index name, columns, uniqueness, and whether it's a primary key index."""
     return _execute_tool(
-        "get_table_indexes", {"table_name": table_name, "rationale": rationale}, config,
-        lambda v, uid, db_cfg, mx: DBTools._get_table_indexes(uid, v["table_name"], db_config=db_cfg),
+        "get_table_indexes",
+        {"table_name": table_name, "rationale": rationale},
+        config,
+        lambda v, uid, db_cfg, mx: DBTools._get_table_indexes(
+            uid, v["table_name"], db_config=db_cfg
+        ),
     )
 
 
@@ -216,8 +243,12 @@ def get_foreign_keys(
 ) -> str:
     """Get foreign key relationships for a table or all tables in the database. Returns the FK column, referenced table, and referenced column."""
     return _execute_tool(
-        "get_foreign_keys", {"rationale": rationale, "table_name": table_name}, config,
-        lambda v, uid, db_cfg, mx: DBTools._get_foreign_keys(uid, v.get("table_name"), db_config=db_cfg),
+        "get_foreign_keys",
+        {"rationale": rationale, "table_name": table_name},
+        config,
+        lambda v, uid, db_cfg, mx: DBTools._get_foreign_keys(
+            uid, v.get("table_name"), db_config=db_cfg
+        ),
     )
 
 
@@ -229,6 +260,7 @@ def web_search(query: str, rationale: str, *, config: RunnableConfig) -> str:
 
     try:
         from langchain_tavily import TavilySearch
+
         searcher = TavilySearch(max_results=5, topic="general")
         raw = searcher.invoke({"query": query})
 
@@ -255,9 +287,22 @@ def web_search(query: str, rationale: str, *, config: RunnableConfig) -> str:
         }
     except Exception as e:
         logger.error("web_search failed: %s", e)
-        parsed = {"success": False, "query": query, "error": str(e), "count": 0, "results": []}
+        parsed = {
+            "success": False,
+            "query": query,
+            "error": str(e),
+            "count": 0,
+            "results": [],
+        }
 
-    writer({"type": "tool_end", "name": "web_search", "args": {"query": query}, "result": parsed})
+    writer(
+        {
+            "type": "tool_end",
+            "name": "web_search",
+            "args": {"query": query},
+            "result": parsed,
+        }
+    )
 
     if not parsed["success"]:
         return f"Web search failed: {parsed.get('error', 'Unknown error')}"

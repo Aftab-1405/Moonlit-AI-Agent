@@ -31,16 +31,19 @@ class ConversationService:
     @staticmethod
     def get_conversation_data(conversation_id: str, user_id: str) -> Optional[dict]:
         from repositories import ConversationRepository
+
         return ConversationRepository.get_for_user(conversation_id, user_id)
 
     @staticmethod
     def delete_user_conversation(conversation_id: str, user_id: str) -> None:
         from repositories import ConversationRepository
+
         ConversationRepository.delete(conversation_id, user_id)
 
     @staticmethod
     def get_user_conversations(user_id: str) -> list:
         from repositories import ConversationRepository
+
         return ConversationRepository.get_by_user(user_id)
 
     # ── AI Streaming (LangGraph SSE) ─────────────────────────────────
@@ -122,20 +125,26 @@ class ConversationService:
                             conversation_id, "user", prompt, user_id
                         )
                         prompt_stored = True
-                    tools_used.append({
-                        "name": event.get("name", ""),
-                        "status": "running",
-                        "args": json.dumps(event.get("args", {}), default=str),
-                        "result": "null",
-                    })
+                    tools_used.append(
+                        {
+                            "name": event.get("name", ""),
+                            "status": "running",
+                            "args": json.dumps(event.get("args", {}), default=str),
+                            "result": "null",
+                        }
+                    )
 
                 elif event_type == "tool_end":
                     name = event.get("name", "")
                     for tool in tools_used:
                         if tool["name"] == name and tool["status"] == "running":
                             tool["status"] = "done"
-                            tool["args"] = json.dumps(event.get("args", {}), default=str)
-                            tool["result"] = json.dumps(event.get("result", {}), default=str)
+                            tool["args"] = json.dumps(
+                                event.get("args", {}), default=str
+                            )
+                            tool["result"] = json.dumps(
+                                event.get("result", {}), default=str
+                            )
                             break
 
                 elif event_type == "thinking_token":
@@ -161,7 +170,9 @@ class ConversationService:
 
         except PermissionError:
             has_error = True
-            yield _make_sse_error("You don't have permission to access this conversation.")
+            yield _make_sse_error(
+                "You don't have permission to access this conversation."
+            )
 
         except Exception as err:
             has_error = True
@@ -241,7 +252,7 @@ def _parse_sse_event(sse_line: str) -> Optional[dict]:
 
 def _make_sse_error(message: str) -> str:
     """Build a single SSE error event string."""
-    return f'data: {json.dumps({"type": "error", "message": message})}\n\n'
+    return f"data: {json.dumps({'type': 'error', 'message': message})}\n\n"
 
 
 def _classify_error(raw: str) -> str:

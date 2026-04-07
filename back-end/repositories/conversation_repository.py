@@ -177,7 +177,9 @@ class ConversationRepository:
             conversation_ref.update({"messages": firestore.ArrayUnion([message_data])})
             logger.debug(f"Conversation {conversation_id} updated successfully")
         except Exception as e:
-            logger.error(f"Error storing message in conversation {conversation_id}: {e}")
+            logger.error(
+                f"Error storing message in conversation {conversation_id}: {e}"
+            )
             raise
 
     @staticmethod
