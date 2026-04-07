@@ -3,10 +3,8 @@ import {
   Box,
   Typography,
   Tooltip,
-  List,
   Avatar,
   Drawer,
-  ListItemButton,
   useMediaQuery,
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
@@ -25,8 +23,10 @@ import {
 } from './SidebarPrimitives';
 import SidebarOverlays from './SidebarOverlays';
 import {
-  StyledDesktopSidebarPanel,
+  buildDesktopNavSx,
   buildMobileDrawerPaperStyles,
+  EXPANDED_WIDTH,
+  COLLAPSED_WIDTH,
 } from './sidebarStyles';
 
 const MOBILE_DRAWER_SLIDE_PROPS = {
@@ -68,6 +68,7 @@ function Sidebar({
     () => buildMobileDrawerPaperStyles(theme),
     [theme],
   );
+  const desktopNavSx = useMemo(() => buildDesktopNavSx(theme, open), [theme, open]);
   const userInitials = useMemo(() => {
     const name = user?.displayName?.trim();
     if (!name) return 'M';
@@ -151,7 +152,7 @@ function Sidebar({
       items.push({
         id: 'mindmap',
         label: 'Mindmap',
-        tooltip: 'View database mindmap',
+        tooltip: 'Mindmap',
         icon: <AccountTreeOutlinedIcon sx={{ fontSize: 18 }} />,
         onClick: () => handleOpenMindmap(),
       });
@@ -187,13 +188,14 @@ function Sidebar({
 
     return (
       <Box
+        component="header"
         sx={{
-          px: 1.25,
+          px: collapsed ? 0.75 : 1.25,
           pt: 1.25,
           pb: 1,
           minHeight: 52,
           display: 'flex',
-          flexDirection: 'row',        // FIXED: never flips — flexDirection is not CSS-animatable
+          flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'flex-start',
           gap: 1,
@@ -205,6 +207,8 @@ function Sidebar({
             type="button"
             onClick={mobile ? onMobileClose : onToggleOpen}
             aria-label={toggleLabel}
+            aria-expanded={mobile ? undefined : !collapsed}
+            aria-pressed={mobile ? undefined : !collapsed}
             sx={{
               width: 36,
               height: 36,
@@ -221,12 +225,13 @@ function Sidebar({
               color: 'inherit',
               flexShrink: 0,
               WebkitTapHighlightColor: 'transparent',
-              transition: theme.transitions.create('background-color', {
+              transition: theme.transitions.create('opacity', {
                 easing: theme.transitions.easing.easeInOut,
                 duration: theme.transitions.duration.shorter,
               }),
+              opacity: 0.82,
               '&:hover': {
-                backgroundColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.06),
+                opacity: 1,
               },
               '&:focus-visible': {
                 boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.28)}`,
@@ -241,7 +246,6 @@ function Sidebar({
                 width: 22,
                 height: 22,
                 flexShrink: 0,
-                opacity: 0.95,
                 display: 'block',
               }}
             />
@@ -279,27 +283,26 @@ function Sidebar({
   };
 
   const renderNavigation = (items, collapsed) => (
-    <Box sx={{ px: 0.25, py: 0.25 }}>
-      <List disablePadding>
-        {items.map((item) => (
-          <SidebarNavItem
-            key={item.id}
-            label={item.label}
-            tooltip={item.tooltip}
-            icon={item.icon}
-            onClick={item.onClick}
-            isCollapsed={collapsed}
-            showStatus={item.showStatus}
-            disabled={item.disabled}
-          />
-        ))}
-      </List>
+    <Box role="group" aria-label="Navigation" sx={{ display: 'flex', flexDirection: 'column', gap: '1px', pt: 0.5, px: 0.75 }}>
+      {items.map((item) => (
+        <SidebarNavItem
+          key={item.id}
+          label={item.label}
+          tooltip={item.tooltip}
+          icon={item.icon}
+          onClick={item.onClick}
+          isCollapsed={collapsed}
+          showStatus={item.showStatus}
+          disabled={item.disabled}
+        />
+      ))}
     </Box>
   );
 
   const renderHistorySection = () => (
     <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <Typography
+        component="h2"
         variant="caption"
         color="text.secondary"
         sx={{
@@ -308,16 +311,19 @@ function Sidebar({
           pt: 1.5,
           pb: 0.75,
           fontSize: '0.7rem',
+          fontWeight: 400,
           letterSpacing: '0.04em',
           textTransform: 'uppercase',
         }}
       >
         Recent chats
       </Typography>
-      <List
-        dense
-        disablePadding
+      <Box
+        component="ul"
+        role="list"
         sx={{
+          listStyle: 'none',
+          m: 0,
           px: 0.75,
           pb: 0.75,
           flex: 1,
@@ -345,7 +351,7 @@ function Sidebar({
             />
           ))
         )}
-      </List>
+      </Box>
     </Box>
   );
 
@@ -353,9 +359,11 @@ function Sidebar({
   // Label + chevron always mounted, fades + shrinks instead of unmounting.
   const renderFooter = ({ collapsed = false } = {}) => {
     const profileTooltipTitle = collapsed ? (user?.displayName || 'Profile') : '';
+    const profileAriaLabel = `${user?.displayName || 'Profile'}, Settings`;
 
     return (
       <Box
+        component="footer"
         sx={{
           borderTop: `1px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.06)}`,
           px: 0.75,
@@ -370,16 +378,37 @@ function Sidebar({
           disableFocusListener={!profileTooltipTitle}
           disableTouchListener={!profileTooltipTitle}
         >
-          <ListItemButton
+          <Box
+            component="button"
+            type="button"
             onClick={handleProfileClick}
-            aria-label="Open profile menu"
+            aria-label={profileAriaLabel}
             sx={{
-              minHeight: collapsed ? 40 : 44,
-              px: collapsed ? 0.5 : 1,
-              py: collapsed ? 0.5 : 0.75,
+              display: 'flex',
+              alignItems: 'center',
+              width: '100%',
+              border: 'none',
+              outline: 'none',
+              appearance: 'none',
+              cursor: 'pointer',
+              minHeight: 40,
+              px: 0.75,
+              py: 0.75,
               borderRadius: '12px',
-              justifyContent: collapsed ? 'center' : 'flex-start',
-              gap: collapsed ? 0 : 1,
+              justifyContent: 'flex-start',
+              gap: 0.75,
+              backgroundColor: 'transparent',
+              color: 'inherit',
+              opacity: 0.78,
+              transition: theme.transitions.create('opacity', {
+                duration: theme.transitions.duration.shorter,
+              }),
+              '&:hover': {
+                opacity: 1,
+              },
+              '&:focus-visible': {
+                boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.28)}`,
+              },
             }}
           >
             {/* FIXED: stable 30px — no size reflow during collapse animation */}
@@ -408,9 +437,6 @@ function Sidebar({
               <Typography noWrap sx={{ fontSize: '0.86rem', fontWeight: 500, lineHeight: 1.2, color: 'text.primary' }}>
                 {user?.displayName || 'Profile'}
               </Typography>
-              <Typography noWrap sx={{ fontSize: '0.72rem', lineHeight: 1.2, color: 'text.secondary', mt: 0.2 }}>
-                Settings
-              </Typography>
             </Box>
 
             {/* FIXED: chevron always mounted, fades out */}
@@ -428,7 +454,7 @@ function Sidebar({
             >
               <ExpandMoreRoundedIcon sx={{ fontSize: 18, color: 'text.secondary', display: 'block' }} />
             </Box>
-          </ListItemButton>
+          </Box>
         </Tooltip>
       </Box>
     );
@@ -447,11 +473,23 @@ function Sidebar({
   // always mounted inside a stable flex:1 container. They crossfade via opacity + visibility
   // instead of unmounting and remounting, which was the primary cause of layout jitter.
   const desktopSidebarContent = (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <>
       {renderHeader({ collapsed: !open })}
-      {renderNavigation(primaryNavItems, !open)}
+      {/* Content zone — matches Claude's flex-grow overflow-hidden min-h-0 wrapper */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', minHeight: 0 }}>
+        {renderNavigation(primaryNavItems, !open)}
 
-      <Box sx={{ flex: 1, minHeight: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}>
+        {/* Scrollable zone — border-top separator like Claude */}
+        <Box
+          sx={{
+            flex: 1,
+            minHeight: 0,
+            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
+            borderTop: `0.5px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.06)}`,
+          }}
+        >
         {/* Expanded: full history list — always mounted, hidden when collapsed */}
         <Box
           sx={{
@@ -476,7 +514,7 @@ function Sidebar({
         {/* Collapsed: history icon — always mounted, hidden when expanded */}
         <Box
           sx={{
-            px: 0.25,
+            px: 0.75,
             py: 0.25,
             opacity: open ? 0 : 1,
             visibility: open ? 'hidden' : 'visible',
@@ -486,7 +524,7 @@ function Sidebar({
             }),
           }}
         >
-          <List disablePadding>
+          <Box>
             <SidebarNavItem
               label="History"
               tooltip="Recent chats"
@@ -495,12 +533,13 @@ function Sidebar({
               isCollapsed
               disabled={conversations.length === 0}
             />
-          </List>
+          </Box>
+        </Box>
         </Box>
       </Box>
 
       {renderFooter({ collapsed: !open })}
-    </Box>
+    </>
   );
 
   if (isMobile) {
@@ -542,9 +581,20 @@ function Sidebar({
 
   return (
     <>
-      <StyledDesktopSidebarPanel variant="permanent" open={open}>
-        {desktopSidebarContent}
-      </StyledDesktopSidebarPanel>
+      {/* Outer clip wrapper — prevents content overflow during width transition.
+          Mirrors Claude's div.shrink-0(overflow:hidden) > div.sticky > nav pattern. */}
+      <Box
+        sx={{
+          flexShrink: 0,
+          overflow: 'hidden',
+          width: 'auto',
+          opacity: 1,
+        }}
+      >
+        <Box component="nav" aria-label="Sidebar" sx={desktopNavSx}>
+          {desktopSidebarContent}
+        </Box>
+      </Box>
       <SidebarOverlays
         theme={theme}
         isPopoverOpen={isPopoverOpen}

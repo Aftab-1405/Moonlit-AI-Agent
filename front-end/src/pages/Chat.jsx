@@ -5,8 +5,6 @@ import {
   Typography,
   Menu,
   MenuItem,
-  Divider,
-  ListItemIcon,
   Snackbar,
   Dialog,
   Grow,
@@ -88,38 +86,85 @@ function Chat() {
     <Box
       id="app-shell"
       sx={{
-        flex: 1,
         display: 'flex',
         flexDirection: 'row',
-        alignItems: 'stretch',
         width: '100%',
         minWidth: 0,
         minHeight: 0,
-        bgcolor: 'background.default',
         overflow: 'hidden',
-        position: 'relative',
+        bgcolor: 'background.default',
       }}
     >
       <Menu
         anchorEl={anchorEl}
         open={Boolean(anchorEl)}
         onClose={handleMenuClose}
-        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        anchorOrigin={{ vertical: 'top', horizontal: sidebarOpen ? 'left' : 'right' }}
         transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-        PaperProps={{ sx: { minWidth: 180 } }}
+        MenuListProps={{ sx: { py: 0 } }}
+        PaperProps={{
+          sx: {
+            width: 240,
+            borderRadius: '14px',
+            border: `0.5px solid ${alpha(theme.palette.text.primary, 0.1)}`,
+            backgroundColor: theme.palette.mode === 'dark'
+              ? alpha(theme.palette.background.paper, 0.97)
+              : alpha(theme.palette.background.paper, 0.99),
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            boxShadow: theme.palette.mode === 'dark'
+              ? `0 2px 8px ${alpha(theme.palette.common.black, 0.32)}`
+              : `0 2px 8px ${alpha(theme.palette.common.black, 0.08)}`,
+            p: 0.75,
+            overflow: 'hidden',
+          },
+        }}
       >
-        <Box sx={{ px: 2, py: 1.5 }}>
-          <Typography variant="subtitle2">{user?.displayName}</Typography>
-          <Typography variant="caption" color="text.secondary">{user?.email}</Typography>
+        {/* Email header */}
+        <Box sx={{ px: 1, pt: 0.5, pb: 1 }}>
+          <Typography
+            sx={{
+              fontSize: '0.75rem',
+              color: 'text.secondary',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {user?.email}
+          </Typography>
         </Box>
-        <Divider sx={{ borderColor: alpha(theme.palette.divider, 0.5) }} />
-        <MenuItem onClick={handleOpenSettings}>
-          <ListItemIcon><SettingsOutlinedIcon fontSize="small" /></ListItemIcon>
-          Settings
+        <MenuItem
+          onClick={handleOpenSettings}
+          sx={{
+            borderRadius: '8px',
+            px: 1,
+            py: 0.875,
+            minHeight: 32,
+            gap: 1,
+            '&:hover': { backgroundColor: alpha(theme.palette.text.primary, 0.05) },
+            '&.Mui-focusVisible': { backgroundColor: alpha(theme.palette.text.primary, 0.05) },
+          }}
+        >
+          <SettingsOutlinedIcon sx={{ fontSize: 18, color: 'text.secondary', flexShrink: 0 }} />
+          <Typography sx={{ fontSize: '0.875rem', color: 'text.primary' }}>Settings</Typography>
         </MenuItem>
-        <MenuItem onClick={handleLogout}>
-          <ListItemIcon><LogoutOutlinedIcon fontSize="small" /></ListItemIcon>
-          Sign out
+        {/* Separator */}
+        <Box sx={{ height: '0.5px', backgroundColor: alpha(theme.palette.text.primary, 0.07), my: 0.75, mx: 0.5 }} />
+        <MenuItem
+          onClick={handleLogout}
+          sx={{
+            borderRadius: '8px',
+            px: 1,
+            py: 0.875,
+            minHeight: 32,
+            gap: 1,
+            '&:hover': { backgroundColor: alpha(theme.palette.text.primary, 0.05) },
+            '&.Mui-focusVisible': { backgroundColor: alpha(theme.palette.text.primary, 0.05) },
+          }}
+        >
+          <LogoutOutlinedIcon sx={{ fontSize: 18, color: 'text.secondary', flexShrink: 0 }} />
+          <Typography sx={{ fontSize: '0.875rem', color: 'text.primary' }}>Sign out</Typography>
         </MenuItem>
       </Menu>
       <Sidebar

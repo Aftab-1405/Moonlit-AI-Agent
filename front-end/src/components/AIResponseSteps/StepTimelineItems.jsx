@@ -79,7 +79,7 @@ const getTimelineNodeSx = ({
   ...(animation ? { animation } : {}),
 });
 
-export const ThinkingStep = memo(function ThinkingStep({ content = '', isComplete, isCurrent = false }) {
+export const ThinkingStep = memo(function ThinkingStep({ content = '', isComplete, isCurrent = false, animDelay = 0 }) {
   const [showMore, setShowMore] = useState(false);
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -100,7 +100,7 @@ export const ThinkingStep = memo(function ThinkingStep({ content = '', isComplet
   }), [isActive, isCurrent, isDark, nodeColor, theme.palette.info.main]);
 
   return (
-    <Box sx={{ animation: `${slideIn} 0.3s cubic-bezier(0.4, 0, 0.2, 1)`, position: 'relative', pl: TIMELINE_CONTENT_PL, py: { xs: 1, sm: 1.5 } }}>
+    <Box sx={{ animation: `${slideIn} 0.42s cubic-bezier(0.4, 0, 0.2, 1) ${animDelay}ms both`, position: 'relative', pl: TIMELINE_CONTENT_PL, py: { xs: 1, sm: 1.5 } }}>
       <AccessTimeRoundedIcon sx={thinkingNodeSx} />
       <Box sx={{ flex: 1, minWidth: 0 }}>
         {content ? (
@@ -175,6 +175,7 @@ export const ToolStep = memo(function ToolStep({
   isRunning,
   isCurrent = false,
   isCompactMobile = false,
+  animDelay = 0,
 }) {
   const [expanded, setExpanded] = useState(false);
   const theme = useTheme();
@@ -226,7 +227,7 @@ export const ToolStep = memo(function ToolStep({
   ]);
 
   return (
-    <Box sx={{ animation: `${slideIn} 0.3s cubic-bezier(0.4, 0, 0.2, 1)`, position: 'relative', pl: TIMELINE_CONTENT_PL, py: { xs: 0.75, sm: 1 } }}>
+    <Box sx={{ animation: `${slideIn} 0.42s cubic-bezier(0.4, 0, 0.2, 1) ${animDelay}ms both`, position: 'relative', pl: TIMELINE_CONTENT_PL, py: { xs: 0.75, sm: 1 } }}>
       <StatusIcon sx={statusNodeSx} />
       <ButtonBase
         onClick={() => hasDetails && setExpanded(!expanded)}
@@ -400,7 +401,7 @@ export const DoneIndicator = memo(function DoneIndicator() {
         position: 'relative',
         pl: TIMELINE_CONTENT_PL,
         py: { xs: 0.75, sm: 1 },
-        animation: `${slideIn} 0.3s cubic-bezier(0.4, 0, 0.2, 1)`,
+        animation: `${slideIn} 0.42s cubic-bezier(0.4, 0, 0.2, 1) both`,
       }}
     >
       <CheckCircleOutlineRoundedIcon sx={doneNodeSx} />

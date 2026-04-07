@@ -27,7 +27,7 @@ import {
   useTheme,
   useMediaQuery,
 } from '@mui/material';
-import { alpha, lighten } from '@mui/material/styles';
+import { alpha } from '@mui/material/styles';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import BarChartRoundedIcon from '@mui/icons-material/BarChartRounded';
 import ShowChartRoundedIcon from '@mui/icons-material/ShowChartRounded';
@@ -61,16 +61,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
   const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const chartRef = useRef(null);
   const containerRef = useRef(null);
-  const chartColors = useMemo(() => [
-    theme.palette.info.main,
-    theme.palette.error.main,
-    theme.palette.warning.main,
-    theme.palette.success.main,
-    theme.palette.primary.main,
-    theme.palette.secondary.main,
-    lighten(theme.palette.info.main, 0.12),
-    lighten(theme.palette.error.main, 0.08),
-  ], [theme.palette.error.main, theme.palette.info.main, theme.palette.primary.main, theme.palette.secondary.main, theme.palette.success.main, theme.palette.warning.main]);
+  const chartColors = useMemo(() => theme.palette.chart, [theme.palette.chart]);
   const chartColorsBg = chartColors;
 
   const { columns = [], result = [] } = data || {};

@@ -12,7 +12,6 @@ import {
   ListItemIcon,
   ListItemText,
   Popover,
-  Divider,
   Switch,
   Skeleton,
   useMediaQuery,
@@ -348,148 +347,155 @@ function ChatInput({
         slotProps={{
           paper: {
             sx: {
-              width: { xs: 'min(268px, calc(100vw - 24px))', sm: 276 },
+              width: { xs: 'min(288px, calc(100vw - 24px))', sm: 288 },
               mt: -1,
               borderRadius: '14px',
-              border: '1px solid',
-              borderColor: alpha(theme.palette.text.primary, 0.09),
+              border: `0.5px solid ${alpha(theme.palette.text.primary, 0.1)}`,
               backgroundColor: theme.palette.mode === 'dark'
                 ? alpha(theme.palette.background.elevated, 0.97)
                 : alpha(theme.palette.background.paper, 0.99),
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              boxShadow: `0 8px 28px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.3 : 0.1)}`,
-              overflow: 'hidden',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              boxShadow: theme.palette.mode === 'dark'
+                ? `0 2px 8px ${alpha(theme.palette.common.black, 0.32)}`
+                : `0 2px 8px ${alpha(theme.palette.common.black, 0.08)}`,
+              p: 0.75,
               [BACKDROP_FILTER_FALLBACK_QUERY]: { backdropFilter: 'none', WebkitBackdropFilter: 'none' },
             },
           },
         }}
       >
-        <Box sx={{ px: 1.5, pt: 1.25, pb: 1 }}>
-          <Typography sx={{
-            ...theme.typography.uiCaption2xs,
-            textTransform: 'uppercase',
-            letterSpacing: '0.08em',
-            color: 'text.secondary',
-            fontWeight: 600,
-          }}>
-            Model
-          </Typography>
-        </Box>
-
-        <Divider sx={{ borderColor: alpha(theme.palette.text.primary, 0.07) }} />
-
-        <Box sx={{ py: 0.5, maxHeight: 232, overflowY: 'auto' }}>
+        {/* Model list */}
+        <Box sx={{ maxHeight: 280, overflowY: 'auto' }}>
           {llmOptionsLoading ? (
-            <Box sx={{ px: 1.25, py: 0.5, display: 'grid', gap: 0.5 }}>
+            <Box sx={{ display: 'grid', gap: 0.5 }}>
               {[0, 1, 2].map((i) => (
-                <Skeleton key={i} variant="rounded" height={36} sx={{ borderRadius: '8px' }} />
+                <Skeleton key={i} variant="rounded" height={44} sx={{ borderRadius: '8px' }} />
               ))}
             </Box>
           ) : hasLlmOptions ? (
             llmSections.map((section, sectionIndex) => (
-              <Box key={section.name} sx={{ px: 0.75, pt: sectionIndex === 0 ? 0.25 : 0.75 }}>
-                <Typography sx={{
-                  ...theme.typography.uiCaption2xs,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.07em',
-                  color: 'text.disabled',
-                  fontWeight: 600,
-                  px: 0.75,
-                  pb: 0.25,
-                  display: 'block',
-                }}>
-                  {section.label}
-                </Typography>
-                {section.models.map((model) => {
+              <Box key={section.name}>
+                {sectionIndex > 0 && (
+                  <Box sx={{ height: '0.5px', backgroundColor: alpha(theme.palette.text.primary, 0.07), my: 0.75, mx: 0.5 }} />
+                )}
+                <Typography sx={{ px: 1, pt: 0.75, pb: 0.25, fontSize: '0.635rem', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'text.disabled', display: 'block', lineHeight: 1 }}>
+                {section.label}
+              </Typography>
+          {section.models.map((model) => {
                   const isActive = section.name === selectedProvider && model === selectedModel;
                   return (
-                    <MenuItem
+                    <Box
+                      component="div"
                       role="menuitemradio"
                       aria-checked={isActive}
                       key={`${section.name}-${model}`}
-                      selected={isActive}
                       onClick={() => handleLlmSelection(section.name, model)}
                       sx={{
                         borderRadius: '8px',
                         px: 1,
-                        py: 0.625,
-                        minHeight: 'unset',
+                        py: 0.875,
+                        minHeight: 32,
+                        cursor: 'pointer',
+                        display: 'grid',
+                        gridTemplateColumns: 'minmax(0, 1fr) auto',
                         gap: 1,
-                        '&.Mui-selected': { backgroundColor: alpha(theme.palette.text.primary, 0.07) },
-                        '&.Mui-selected:hover': { backgroundColor: alpha(theme.palette.text.primary, 0.1) },
+                        alignItems: 'center',
+                        userSelect: 'none',
+                        transition: 'background-color 120ms',
+                        backgroundColor: isActive ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.12 : 0.08) : 'transparent',
+                        '&:hover': { backgroundColor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? (isActive ? 0.16 : 0.07) : (isActive ? 0.11 : 0.05)) },
                       }}
                     >
-                      <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography sx={{
-                          ...theme.typography.uiCaptionSm,
-                          fontWeight: isActive ? 600 : 400,
-                          color: 'text.primary',
-                          lineHeight: 1.3,
-                        }}>
+                      <Box>
+                        <Typography sx={{ fontSize: '0.875rem', color: isActive ? 'primary.main' : 'text.primary', lineHeight: 1.4, fontWeight: isActive ? 500 : 400 }}>
                           {model}
                         </Typography>
                         {model === section.defaultModel && (
-                          <Typography sx={{
-                            ...theme.typography.uiCaption2xs,
-                            color: 'text.disabled',
-                            lineHeight: 1.2,
-                            mt: 0.125,
-                          }}>
+                          <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', lineHeight: 1.3, mt: 0.25 }}>
                             Default
                           </Typography>
                         )}
                       </Box>
                       {isActive && (
-                        <CheckRoundedIcon sx={{ fontSize: 13, color: 'text.primary', flexShrink: 0 }} />
+                        <CheckRoundedIcon sx={{ fontSize: 14, color: 'primary.main', flexShrink: 0 }} />
                       )}
-                    </MenuItem>
+                    </Box>
                   );
                 })}
               </Box>
             ))
           ) : (
-            <Box sx={{ px: 1.75, py: 1.25 }}>
-              <Typography sx={{ ...theme.typography.uiCaptionSm, fontWeight: 500, color: 'text.primary' }}>
+            <Box sx={{ px: 1, py: 1 }}>
+              <Typography sx={{ fontSize: '0.875rem', fontWeight: 500, color: 'text.primary' }}>
                 No models available
               </Typography>
-              <Typography sx={{ ...theme.typography.uiCaption2xs, color: 'text.secondary', mt: 0.25 }}>
+              <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', mt: 0.25 }}>
                 Model options could not be loaded.
               </Typography>
             </Box>
           )}
         </Box>
 
-        <Divider sx={{ borderColor: alpha(theme.palette.text.primary, 0.07) }} />
+        {/* Separator */}
+        <Box sx={{ height: '0.5px', backgroundColor: alpha(theme.palette.text.primary, 0.07), my: 0.75, mx: 0.5 }} />
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 1.5, py: 1 }}>
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography sx={{ ...theme.typography.uiCaptionSm, fontWeight: 500, color: 'text.primary' }}>
+        {/* Extended thinking row */}
+        <Box
+          sx={{
+            borderRadius: '8px',
+            px: 1,
+            py: 0.875,
+            minHeight: 32,
+            cursor: 'pointer',
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1fr) auto',
+            gap: 1.5,
+            alignItems: 'center',
+            transition: 'background-color 150ms, border-color 150ms',
+            border: '1px solid',
+            borderColor: reasoningEnabled
+              ? alpha(theme.palette.success.main, theme.palette.mode === 'dark' ? 0.3 : 0.25)
+              : 'transparent',
+            backgroundColor: reasoningEnabled
+              ? alpha(theme.palette.success.main, theme.palette.mode === 'dark' ? 0.08 : 0.06)
+              : 'transparent',
+            '&:hover': {
+              backgroundColor: reasoningEnabled
+                ? alpha(theme.palette.success.main, theme.palette.mode === 'dark' ? 0.13 : 0.1)
+                : alpha(theme.palette.text.primary, 0.05),
+            },
+          }}
+          onClick={toggleReasoning}
+        >
+          <Box sx={{ minWidth: 0 }}>
+            <Typography sx={{ fontSize: '0.875rem', color: reasoningEnabled ? 'success.main' : 'text.primary', lineHeight: 1.4, fontWeight: reasoningEnabled ? 500 : 400, transition: 'color 150ms' }}>
               Extended thinking
             </Typography>
-            <Typography sx={{ ...theme.typography.uiCaption2xs, color: 'text.secondary', mt: 0.25 }}>
+            <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', lineHeight: 1.3, mt: 0.25 }}>
               Think longer for complex tasks
             </Typography>
           </Box>
           <Switch
             checked={reasoningEnabled}
             onChange={toggleReasoning}
+            onClick={(e) => e.stopPropagation()}
             inputProps={{ 'aria-label': 'Toggle extended thinking' }}
             sx={{
-              width: 32,
+              width: 36,
               height: 20,
               p: 0,
               flexShrink: 0,
               '& .MuiSwitch-switchBase': {
-                p: '3px',
+                p: '2px',
                 transitionDuration: '180ms',
                 '&.Mui-checked': {
-                  transform: 'translateX(12px)',
-                  color: '#fff',
-                  '& + .MuiSwitch-track': { opacity: 1, backgroundColor: theme.palette.primary.main },
+                  transform: 'translateX(16px)',
+                  color: theme.palette.common.white,
+                  '& + .MuiSwitch-track': { opacity: 1, backgroundColor: theme.palette.success.main },
                 },
               },
-              '& .MuiSwitch-thumb': { boxShadow: 'none', width: 14, height: 14 },
+              '& .MuiSwitch-thumb': { boxShadow: 'none', width: 16, height: 16 },
               '& .MuiSwitch-track': {
                 borderRadius: 10,
                 opacity: 1,
@@ -732,7 +738,7 @@ function ChatInput({
                     borderRadius: '10px',
                     color: isStreaming
                       ? theme.palette.error.main
-                      : (hasText ? theme.palette.primary.contrastText : alpha(theme.palette.text.primary, 0.28)),
+                      : (hasText ? theme.palette.getContrastText(theme.palette.primary.main) : alpha(theme.palette.text.primary, 0.28)),
                     backgroundColor: isStreaming
                       ? alpha(theme.palette.error.main, 0.1)
                       : (hasText ? theme.palette.primary.main : alpha(theme.palette.text.primary, 0.05)),

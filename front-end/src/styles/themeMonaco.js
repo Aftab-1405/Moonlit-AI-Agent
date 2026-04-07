@@ -14,7 +14,9 @@ const createMonacoTheme = (mode, transparent = false) => {
     rules: [],
     colors: {
       'editor.background': transparent ? TRANSPARENT_MONACO_BG : palette.monaco.background,
-      'editor.lineHighlightBackground': palette.monaco.lineHighlight,
+      'editor.lineHighlightBackground': transparent
+        ? (mode === 'dark' ? '#ffffff09' : '#00000009')
+        : palette.monaco.lineHighlight,
       'editorGutter.background': transparent ? TRANSPARENT_MONACO_BG : palette.monaco.gutter,
     },
   };

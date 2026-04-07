@@ -11,7 +11,7 @@ import {
   MenuItem,
   useMediaQuery,
 } from '@mui/material';
-import { styled, useTheme as useMuiTheme, alpha, keyframes } from '@mui/material/styles';
+import { useTheme as useMuiTheme, alpha, keyframes } from '@mui/material/styles';
 import { useTheme as useAppTheme } from '../contexts/ThemeContext';
 import Editor from '@monaco-editor/react';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
@@ -25,7 +25,7 @@ import SQLResultsTable from './SQLResultsTable';
 import ChartVisualization from './ChartVisualization';
 import { registerMonacoThemes, getMonacoThemeName } from '../theme';
 import { getAccentEffects, TRANSITIONS } from '../styles/themeEffects';
-import { getGlassmorphismStyles, getScrollbarStyles, UI_LAYOUT } from '../styles/shared';
+import { getGlassmorphismStyles, UI_LAYOUT } from '../styles/shared';
 import { runQuery } from '../api';
 
 const fadeIn = keyframes`
@@ -89,18 +89,17 @@ const closedMixin = (theme) => ({
   ...getGlassmorphismStyles(theme),
 });
 
-const StyledPanel = styled(Box, {
-  shouldForwardProp: (prop) => !['open', 'panelWidth'].includes(prop),
-})(({ theme, open, panelWidth }) => ({
-  display: 'flex',
-  flexDirection: 'column',
-  height: '100%',
-  flexShrink: 0,
-  whiteSpace: 'nowrap',
-  boxSizing: 'border-box',
-  ...(open && openedMixin(theme, panelWidth)),
-  ...(!open && closedMixin(theme)),
-}));
+function buildPanelSx(theme, open, panelWidth) {
+  return {
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100%',
+    flexShrink: 0,
+    whiteSpace: 'nowrap',
+    boxSizing: 'border-box',
+    ...(open ? openedMixin(theme, panelWidth) : closedMixin(theme)),
+  };
+}
 
 const EmptyState = memo(function EmptyState({ icon: _Icon, title, subtitle, textColor, accent }) {
   const Icon = _Icon;
@@ -352,63 +351,74 @@ function SQLEditorCanvas({
     ),
     [artifactChromeBg, isDark, theme.palette.common.white]
   );
+  const headerActionBg = useMemo(
+    () => artifactChromeBg,
+    [artifactChromeBg]
+  );
+  const headerActionHoverBg = useMemo(
+    () => theme.palette.action.hover,
+    [theme.palette.action.hover]
+  );
 
   const actionBarStyles = useMemo(() => ({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: isCompactMobile ? 0.75 : 1.75,
+    gap: isCompactMobile ? 0.5 : 0.75,
     px: { xs: 1.5, sm: 2.5 },
-    py: { xs: 1.1, sm: 1.35 },
+    py: { xs: 0.9, sm: 1.1 },
     flexShrink: 0,
     borderTop: '1px solid',
     borderColor: artifactBorder,
     background: footerBarBg,
     boxShadow: isDark
-      ? `0 -1px 0 ${alpha(theme.palette.common.white, 0.04)} inset, 0 -12px 40px ${alpha(theme.palette.common.black, 0.35)}`
-      : `0 -1px 0 ${alpha(theme.palette.common.white, 0.9)} inset, 0 -8px 32px ${alpha(theme.palette.common.black, 0.04)}`,
+      ? `0 -1px 0 ${alpha(theme.palette.common.white, 0.04)} inset`
+      : `0 -1px 0 ${alpha(theme.palette.common.white, 0.85)} inset`,
   }), [artifactBorder, footerBarBg, isCompactMobile, isDark, theme.palette.common.black, theme.palette.common.white]);
 
   const runPrimaryStyles = useMemo(() => ({
-    width: 44,
-    height: 44,
-    borderRadius: '12px',
-    color: theme.palette.primary.contrastText,
+    width: 42,
+    height: 42,
+    borderRadius: '13px',
+    color: theme.palette.getContrastText(theme.palette.primary.main),
     background: accentFx.gradient,
-    border: 'none',
-    boxShadow: `${accentFx.glow}, 0 1px 0 ${alpha(theme.palette.common.white, isDark ? 0.12 : 0.25)} inset`,
+    border: `1px solid ${alpha(theme.palette.primary.main, isDark ? 0.45 : 0.3)}`,
+    boxShadow: `${accentFx.glow}, 0 1px 0 ${alpha(theme.palette.common.white, isDark ? 0.14 : 0.28)} inset`,
     transition: TRANSITIONS.smooth,
     '&:hover': {
       background: accentFx.gradient,
-      filter: 'brightness(1.06)',
-      boxShadow: `${accentFx.glow}, 0 2px 12px ${alpha(theme.palette.primary.main, isDark ? 0.35 : 0.22)}`,
+      filter: 'brightness(1.07)',
+      boxShadow: `${accentFx.glow}, 0 4px 16px ${alpha(theme.palette.primary.main, isDark ? 0.4 : 0.28)}`,
+      transform: 'translateY(-1px)',
     },
-    '&:active': { transform: 'scale(0.97)' },
+    '&:active': { transform: 'scale(0.96) translateY(0)' },
     '@media (prefers-reduced-motion: reduce)': {
       transition: TRANSITIONS.fade,
+      '&:hover': { transform: 'none' },
       '&:active': { transform: 'none' },
     },
     '&.Mui-disabled': {
       color: 'text.disabled',
-      background: alpha(theme.palette.text.primary, isDark ? 0.12 : 0.08),
+      background: alpha(theme.palette.text.primary, isDark ? 0.1 : 0.06),
+      border: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06)}`,
       boxShadow: 'none',
       filter: 'none',
     },
-  }), [accentFx.glow, accentFx.gradient, isDark, theme.palette.common.white, theme.palette.primary.contrastText, theme.palette.primary.main, theme.palette.text.primary]);
+  }), [accentFx.glow, accentFx.gradient, isDark, theme.palette.common.white, theme.palette.primary.main, theme.palette.text.primary]);
 
   const toolbarGhostStyles = useMemo(() => ({
-    width: 44,
-    height: 44,
-    borderRadius: '12px',
+    width: 42,
+    height: 42,
+    borderRadius: '13px',
     color: 'text.secondary',
-    bgcolor: alpha(textColor, isDark ? 0.06 : 0.04),
+    bgcolor: 'transparent',
     border: '1px solid',
-    borderColor: alpha(textColor, isDark ? 0.1 : 0.08),
+    borderColor: alpha(textColor, isDark ? 0.12 : 0.09),
     transition: TRANSITIONS.default,
     '&:hover': {
       color: 'text.primary',
-      bgcolor: alpha(textColor, isDark ? 0.11 : 0.08),
-      borderColor: alpha(textColor, isDark ? 0.16 : 0.12),
+      bgcolor: alpha(textColor, isDark ? 0.08 : 0.06),
+      borderColor: alpha(textColor, isDark ? 0.18 : 0.14),
     },
     '&.Mui-disabled': {
       color: 'text.disabled',
@@ -487,7 +497,7 @@ function SQLEditorCanvas({
           minHeight: 0,
           overflow: 'hidden',
           '& .monaco-editor, & .monaco-editor-background, & .monaco-editor .margin': {
-            backgroundColor: `${alpha(artifactChromeBg, 1)} !important`,
+            backgroundColor: `${artifactChromeBg} !important`,
           },
         }}
         onKeyDown={handleKeyDown}
@@ -540,6 +550,11 @@ function SQLEditorCanvas({
       )}
     </Box>
   ), [artifactTabPaneStyles, centeredEmptyWrapStyles, results, textColor, theme.palette.info.main]);
+  const panelSx = useMemo(
+    () => buildPanelSx(theme, isOpen, panelWidth),
+    [theme, isOpen, panelWidth],
+  );
+
   const tabContent = activeTab === 0 ? editorTabContent : activeTab === 1 ? resultsTabContent : chartTabContent;
 
   const tabTitleSuffix = ['SQL', 'Results', 'Chart'][activeTab];
@@ -589,16 +604,16 @@ function SQLEditorCanvas({
           sx={{
             display: 'inline-flex',
             alignItems: 'center',
-            gap: 0.25,
-            p: 0.5,
+            gap: 0.375,
+            p: 0.375,
             height: 34,
             flexShrink: 0,
-            borderRadius: '10px',
+            borderRadius: '11px',
             bgcolor: segmentTrackBg,
             border: '1px solid',
-            borderColor: alpha(theme.palette.text.primary, isDark ? 0.12 : 0.09),
+            borderColor: alpha(theme.palette.text.primary, isDark ? 0.1 : 0.08),
             boxSizing: 'border-box',
-            boxShadow: `0 1px 2px ${alpha(theme.palette.common.black, isDark ? 0.35 : 0.06)} inset`,
+            boxShadow: `0 1px 3px ${alpha(theme.palette.common.black, isDark ? 0.3 : 0.05)} inset`,
           }}
         >
           {navSegments.map((seg) => {
@@ -615,33 +630,33 @@ function SQLEditorCanvas({
                 onClick={() => !seg.disabled && handleTabChange(seg.id)}
                 sx={{
                   position: 'relative',
-                  width: 34,
-                  height: 28,
-                  minWidth: 34,
-                  borderRadius: '8px',
+                  width: 32,
+                  height: 27,
+                  minWidth: 32,
+                  borderRadius: '9px',
                   color: selected ? 'text.primary' : 'text.secondary',
-                  transition: theme.transitions.create(['background-color', 'color', 'box-shadow', 'transform'], {
-                    duration: 250,
+                  transition: theme.transitions.create(['background-color', 'color', 'box-shadow'], {
+                    duration: 180,
                     easing: theme.transitions.easing.easeInOut,
                   }),
                   '@media (prefers-reduced-motion: reduce)': {
                     transition: 'none',
                   },
-                  bgcolor: selected ? alpha(theme.palette.background.paper, isDark ? 0.96 : 1) : 'transparent',
+                  bgcolor: selected ? alpha(theme.palette.background.paper, isDark ? 0.97 : 1) : 'transparent',
                   boxShadow: selected
-                    ? `0 0 0 1px ${alpha(theme.palette.primary.main, isDark ? 0.35 : 0.22)}, 0 1px 3px ${alpha(theme.palette.common.black, isDark ? 0.4 : 0.07)}`
+                    ? `0 0 0 1px ${alpha(theme.palette.primary.main, isDark ? 0.3 : 0.18)}, 0 1px 4px ${alpha(theme.palette.common.black, isDark ? 0.45 : 0.08)}`
                     : 'none',
                   '&:hover': {
                     color: 'text.primary',
                     bgcolor: selected
-                      ? alpha(theme.palette.background.paper, 1)
-                      : alpha(theme.palette.text.primary, 0.07),
+                      ? theme.palette.background.paper
+                      : alpha(theme.palette.text.primary, 0.06),
                   },
                   '&:focus-visible': {
                     outline: `2px solid ${alpha(theme.palette.primary.main, 0.45)}`,
                     outlineOffset: 1,
                   },
-                  '&.Mui-disabled': { opacity: 0.35 },
+                  '&.Mui-disabled': { opacity: 0.3 },
                 }}
               >
                 <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -706,15 +721,15 @@ function SQLEditorCanvas({
             display: 'inline-flex',
             alignItems: 'stretch',
             height: 34,
-            borderRadius: '10px',
+            borderRadius: '11px',
             overflow: 'hidden',
             border: '1px solid',
             borderColor: artifactBorder,
-            boxShadow: `0 1px 2px ${alpha(theme.palette.common.black, isDark ? 0.25 : 0.05)}`,
+            boxShadow: `0 1px 2px ${alpha(theme.palette.common.black, isDark ? 0.2 : 0.04)}`,
             transition: TRANSITIONS.default,
             '&:hover': {
-              borderColor: alpha(theme.palette.primary.main, isDark ? 0.35 : 0.25),
-              boxShadow: `0 2px 8px ${alpha(theme.palette.primary.main, isDark ? 0.15 : 0.1)}`,
+              borderColor: alpha(theme.palette.primary.main, isDark ? 0.4 : 0.28),
+              boxShadow: `0 2px 10px ${alpha(theme.palette.primary.main, isDark ? 0.18 : 0.12)}`,
             },
           }}
         >
@@ -723,23 +738,24 @@ function SQLEditorCanvas({
             onClick={handleCopy}
             disabled={!query.trim()}
             sx={{
-              px: 1.5,
+              px: 1.75,
               minWidth: 0,
               height: '100%',
               fontSize: '0.75rem',
               fontWeight: 600,
-              letterSpacing: '0.02em',
+              letterSpacing: '0.01em',
               textTransform: 'none',
               borderRadius: 0,
               borderRight: '1px solid',
               borderColor: artifactBorder,
-              bgcolor: alpha(artifactChromeBg, 1),
+              bgcolor: headerActionBg,
               color: copied ? 'success.main' : 'text.primary',
               transition: TRANSITIONS.default,
-              '&:hover': { bgcolor: alpha(theme.palette.action.hover, 1) },
+              '&:hover': { bgcolor: headerActionHoverBg },
+              '&.Mui-disabled': { opacity: 0.4 },
             }}
           >
-            {copied ? 'Copied' : 'Copy'}
+            {copied ? 'Copied!' : 'Copy'}
           </Button>
           <IconButton
             size="small"
@@ -751,10 +767,10 @@ function SQLEditorCanvas({
               width: 32,
               height: '100%',
               borderRadius: 0,
-              bgcolor: alpha(artifactChromeBg, 1),
+              bgcolor: headerActionBg,
               color: 'text.secondary',
               transition: TRANSITIONS.default,
-              '&:hover': { bgcolor: alpha(theme.palette.action.hover, 1), color: 'text.primary' },
+              '&:hover': { bgcolor: headerActionHoverBg, color: 'text.primary' },
             }}
           >
             <KeyboardArrowDownRoundedIcon sx={{ fontSize: 18 }} />
@@ -786,14 +802,14 @@ function SQLEditorCanvas({
           <MenuItem
             onClick={handleCopyMenuSql}
             disabled={!query.trim()}
-            sx={{ fontSize: '0.8125rem', py: 1.1, borderRadius: 1, mx: 0.5, my: 0.25 }}
+            sx={{ fontSize: '0.8125rem', py: 1, borderRadius: '8px', mx: 0.5, my: 0.25 }}
           >
             Copy SQL
           </MenuItem>
           <MenuItem
             onClick={handleCopyCsv}
             disabled={!results?.columns?.length}
-            sx={{ fontSize: '0.8125rem', py: 1.1, borderRadius: 1, mx: 0.5, mb: 0.5 }}
+            sx={{ fontSize: '0.8125rem', py: 1, borderRadius: '8px', mx: 0.5, mb: 0.5 }}
           >
             Copy results as CSV
           </MenuItem>
@@ -805,9 +821,9 @@ function SQLEditorCanvas({
             onClick={onClose}
             aria-label="Close SQL editor"
             sx={{
-              width: 38,
-              height: 38,
-              ml: 0.25,
+              width: 34,
+              height: 34,
+              ml: 0.5,
               borderRadius: '10px',
               color: 'text.secondary',
               border: '1px solid',
@@ -816,7 +832,7 @@ function SQLEditorCanvas({
               '&:hover': {
                 color: 'text.primary',
                 bgcolor: alpha(theme.palette.text.primary, 0.06),
-                borderColor: alpha(theme.palette.text.primary, isDark ? 0.14 : 0.1),
+                borderColor: alpha(theme.palette.text.primary, isDark ? 0.12 : 0.09),
               },
             }}
           >
@@ -842,38 +858,21 @@ function SQLEditorCanvas({
           </IconButton>
         </span>
       </Tooltip>
+      <Box
+        sx={{
+          width: '1px',
+          height: 22,
+          bgcolor: alpha(theme.palette.divider, isDark ? 0.8 : 0.9),
+          borderRadius: 1,
+          mx: isCompactMobile ? 0.25 : 0.5,
+          flexShrink: 0,
+        }}
+      />
       <Tooltip title="Clear query and results">
         <IconButton size="small" onClick={handleClear} sx={toolbarGhostStyles} aria-label="Clear all">
-          <DeleteOutlineRoundedIcon sx={{ fontSize: 21 }} />
+          <DeleteOutlineRoundedIcon sx={{ fontSize: 20 }} />
         </IconButton>
       </Tooltip>
-      <Box
-        component="span"
-        sx={{
-          ml: { xs: 0, sm: 1.25 },
-          display: { xs: 'none', sm: 'inline-flex' },
-          alignItems: 'center',
-          px: 1.25,
-          py: 0.35,
-          borderRadius: 999,
-          border: '1px solid',
-          borderColor: alpha(theme.palette.text.primary, isDark ? 0.12 : 0.08),
-          bgcolor: alpha(theme.palette.text.primary, isDark ? 0.06 : 0.03),
-        }}
-      >
-        <Typography
-          component="span"
-          variant="caption"
-          sx={{
-            color: 'text.secondary',
-            fontWeight: 500,
-            ...theme.typography.uiCaption2xs,
-            letterSpacing: '0.04em',
-          }}
-        >
-          Ctrl+Enter
-        </Typography>
-      </Box>
     </Box>
   );
   if (fullscreen) {
@@ -909,7 +908,7 @@ function SQLEditorCanvas({
     );
   }
   return (
-    <StyledPanel open={isOpen} panelWidth={panelWidth}>
+    <Box component="section" aria-label="SQL editor panel" sx={panelSx}>
       {unifiedHeader}
       <Box
         sx={{
@@ -919,13 +918,12 @@ function SQLEditorCanvas({
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          bgcolor: 'transparent',
         }}
       >
         {tabContent}
       </Box>
       {actionBarComponent}
-    </StyledPanel>
+    </Box>
   );
 }
 

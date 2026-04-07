@@ -146,6 +146,7 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
           }}
         >
           {normalizedSteps.map((step, idx) => {
+            const animDelay = Math.min(idx * 55, 220);
             if (step.type === 'thinking') {
               return (
                 <ThinkingStep
@@ -153,6 +154,7 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
                   content={step.content}
                   isComplete={step.isComplete}
                   isCurrent={idx === currentStepIndex}
+                  animDelay={animDelay}
                 />
               );
             }
@@ -169,6 +171,7 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
                   isRunning={step.isRunning}
                   isCurrent={idx === currentStepIndex}
                   isCompactMobile={isCompactMobile}
+                  animDelay={animDelay}
                 />
               );
             }

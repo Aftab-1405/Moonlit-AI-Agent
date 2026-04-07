@@ -4,10 +4,9 @@ import {
   Typography,
   IconButton,
   Tooltip,
-  ListItem,
   ListItemButton,
-  ListItemText,
   ListItemIcon,
+  ListItemText,
   Skeleton,
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
@@ -31,86 +30,99 @@ export const ConversationItem = memo(function ConversationItem({
   }, [onDelete, conv.id]);
 
   return (
-    <ListItem disablePadding sx={{ mb: 0.25 }}>
-      <ListItemButton
-        selected={isActive}
+    <Box component="li" sx={{ listStyle: 'none' }}>
+      <Box
+        component="button"
+        type="button"
         onClick={handleClick}
+        aria-current={isActive ? 'true' : undefined}
         sx={{
+          display: 'flex',
+          alignItems: 'center',
+          width: '100%',
+          mb: 0.25,
           px: 1.25,
           py: 0.75,
           minHeight: 38,
           borderRadius: '10px',
-          alignItems: 'center',
-          color: isActive ? theme.palette.text.primary : theme.palette.text.secondary,
-          backgroundColor: 'transparent',
-          transition: theme.transitions.create(['background-color', 'color', 'box-shadow'], {
-            duration: theme.transitions.duration.shorter,
-          }),
-          '& .delete-btn': { opacity: 0 },
-          '&:hover .delete-btn, &:focus-within .delete-btn': { opacity: 1 },
-          [TOUCH_DEVICE_QUERY]: { '& .delete-btn': { opacity: 1 } },
+          border: 'none',
+          outline: 'none',
+          appearance: 'none',
+          cursor: 'pointer',
+          textAlign: 'left',
+          gap: 1.25,
+        color: isActive ? theme.palette.text.primary : theme.palette.text.secondary,
+        backgroundColor: isActive
+          ? alpha(theme.palette.primary.main, isDark ? 0.1 : 0.08)
+          : 'transparent',
+        boxShadow: isActive
+          ? `inset 2px 0 0 ${alpha(theme.palette.primary.main, isDark ? 0.6 : 0.5)}`
+          : 'none',
+        transition: theme.transitions.create(['background-color', 'color', 'box-shadow'], {
+          duration: theme.transitions.duration.shorter,
+        }),
+        '& .delete-btn': { opacity: 0 },
+        '&:hover .delete-btn, &:focus-within .delete-btn': { opacity: 1 },
+        [TOUCH_DEVICE_QUERY]: { '& .delete-btn': { opacity: 1 } },
+        '&:hover': {
+          backgroundColor: isActive
+            ? alpha(theme.palette.primary.main, isDark ? 0.14 : 0.11)
+            : alpha(theme.palette.text.primary, isDark ? 0.06 : 0.05),
+          color: theme.palette.text.primary,
+        },
+        '&:focus-visible': {
+          boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.28)}`,
+        },
+      }}
+    >
+      <Box
+        component="span"
+        sx={{
+          display: 'inline-flex',
+          flexShrink: 0,
+          color: isActive
+            ? alpha(theme.palette.primary.main, isDark ? 0.75 : 0.65)
+            : 'inherit',
+          transition: theme.transitions.create('color', { duration: theme.transitions.duration.shorter }),
+        }}
+      >
+        <QuestionAnswerOutlinedIcon sx={{ fontSize: 16 }} />
+      </Box>
+      <Typography
+        noWrap
+        sx={{
+          flex: '1 1 auto',
+          minWidth: 0,
+          fontSize: '0.84rem',
+          lineHeight: 1.3,
+          fontWeight: isActive ? 500 : 400,
+        }}
+      >
+        {conv.title || 'New Conversation'}
+      </Typography>
+      <IconButton
+        className="delete-btn"
+        size="small"
+        onClick={handleDelete}
+        aria-label="Delete conversation"
+        sx={{
+          ml: 0.5,
+          p: 0.5,
+          minWidth: { xs: 34, sm: 'auto' },
+          minHeight: { xs: 34, sm: 'auto' },
+          borderRadius: '6px',
+          color: theme.palette.text.secondary,
+          transition: 'opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease',
           '&:hover': {
-            backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.06 : 0.05),
-            color: theme.palette.text.primary,
-          },
-          '&.Mui-selected': {
-            backgroundColor: alpha(theme.palette.primary.main, isDark ? 0.1 : 0.08),
-            color: theme.palette.text.primary,
-            boxShadow: `inset 2px 0 0 ${alpha(theme.palette.primary.main, isDark ? 0.6 : 0.5)}`,
-          },
-          '&.Mui-selected:hover': {
-            backgroundColor: alpha(theme.palette.primary.main, isDark ? 0.14 : 0.11),
-            boxShadow: `inset 2px 0 0 ${alpha(theme.palette.primary.main, isDark ? 0.6 : 0.5)}`,
+            color: theme.palette.error.main,
+            backgroundColor: alpha(theme.palette.error.main, isDark ? 0.1 : 0.08),
           },
         }}
       >
-        <ListItemIcon
-          sx={{
-            minWidth: 0,
-            mr: 1.25,
-            color: isActive
-              ? alpha(theme.palette.primary.main, isDark ? 0.75 : 0.65)
-              : 'inherit',
-            transition: theme.transitions.create('color', { duration: theme.transitions.duration.shorter }),
-          }}
-        >
-          <QuestionAnswerOutlinedIcon sx={{ fontSize: 16 }} />
-        </ListItemIcon>
-        <ListItemText
-          primary={conv.title || 'New Conversation'}
-          primaryTypographyProps={{
-            noWrap: true,
-            sx: {
-              fontSize: '0.84rem',
-              lineHeight: 1.3,
-              fontWeight: isActive ? 500 : 400,
-            },
-          }}
-          sx={{ minWidth: 0, m: 0 }}
-        />
-        <IconButton
-          className="delete-btn"
-          size="small"
-          onClick={handleDelete}
-          aria-label="Delete conversation"
-          sx={{
-            ml: 0.5,
-            p: 0.5,
-            minWidth: { xs: 34, sm: 'auto' },
-            minHeight: { xs: 34, sm: 'auto' },
-            borderRadius: '6px',
-            color: theme.palette.text.secondary,
-            transition: 'opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease',
-            '&:hover': {
-              color: theme.palette.error.main,
-              backgroundColor: alpha(theme.palette.error.main, isDark ? 0.1 : 0.08),
-            },
-          }}
-        >
-          <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
-        </IconButton>
-      </ListItemButton>
-    </ListItem>
+        <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
+      </IconButton>
+    </Box>
+    </Box>
   );
 });
 
@@ -136,94 +148,99 @@ export const SidebarNavItem = memo(function SidebarNavItem({
       disableFocusListener={!isCollapsed || !tooltip}
       disableTouchListener={!isCollapsed || !tooltip}
     >
-      <Box sx={{ px: 0.75, py: 0.25 }}>
-        <ListItemButton
-          onClick={onClick}
-          disabled={disabled}
-          aria-label={label}
+      <Box
+        component="button"
+        type="button"
+        onClick={disabled ? undefined : onClick}
+        disabled={disabled}
+        aria-label={label}
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          width: '100%',
+          minHeight: 38,
+          my: 0.25,
+          px: 1,
+          py: 0.75,
+          border: 'none',
+          outline: 'none',
+          appearance: 'none',
+          cursor: disabled ? 'default' : 'pointer',
+          textAlign: 'left',
+          borderRadius: '10px',
+          gap: 1,
+          overflow: 'hidden',
+          color: isActive ? theme.palette.text.primary : theme.palette.text.secondary,
+          backgroundColor: isActive
+            ? alpha(theme.palette.primary.main, isDark ? 0.1 : 0.08)
+            : 'transparent',
+          boxShadow: isActive
+            ? `inset 2px 0 0 ${alpha(theme.palette.primary.main, isDark ? 0.6 : 0.5)}`
+            : 'none',
+          opacity: disabled ? 0.5 : (isActive ? 1 : 0.72),
+          transition: theme.transitions.create(['opacity', 'background-color', 'box-shadow'], {
+            duration: theme.transitions.duration.shorter,
+          }),
+          '&:hover:not(:disabled)': {
+            opacity: 1,
+          },
+          '&:focus-visible': {
+            boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.28)}`,
+          },
+        }}
+      >
+        <Box
+          component="span"
           sx={{
-            minHeight: 38,
-            px: 1,
-            py: 0.75,
-            borderRadius: '10px',
-            justifyContent: 'flex-start',
-            gap: 1,
-            overflow: 'hidden',
-            color: isActive ? theme.palette.text.primary : theme.palette.text.secondary,
-            backgroundColor: isActive
-              ? alpha(theme.palette.primary.main, isDark ? 0.1 : 0.08)
-              : 'transparent',
-            boxShadow: isActive
-              ? `inset 2px 0 0 ${alpha(theme.palette.primary.main, isDark ? 0.6 : 0.5)}`
-              : 'none',
-            transition: theme.transitions.create(['background-color', 'color', 'box-shadow'], {
-              duration: theme.transitions.duration.shorter,
-            }),
-            '&:hover': {
-              backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.07 : 0.05),
-              color: theme.palette.text.primary,
-            },
+            display: 'inline-flex',
+            flexShrink: 0,
+            width: 20,
+            justifyContent: 'center',
+            color: 'inherit',
+            position: 'relative',
           }}
         >
-          <ListItemIcon
-            sx={{
-              minWidth: 20,
-              width: 20,
-              color: 'inherit',
-              position: 'relative',
-              justifyContent: 'center',
-              flexShrink: 0,
-            }}
-          >
-            {icon}
-            {showStatus && (
-              <Box
-                sx={{
-                  position: 'absolute',
-                  top: -1,
-                  right: -2,
-                  width: 6,
-                  height: 6,
-                  borderRadius: '50%',
-                  backgroundColor: theme.palette.success.main,
-                  boxShadow: `0 0 0 1.5px ${theme.palette.background.paper}`,
-                }}
-              />
-            )}
-          </ListItemIcon>
-
-          {/*
-            FIX: Removed `flex: isCollapsed ? '0 0 0px' : '1 1 auto'`.
-            Changing the flex shorthand triggers a layout reflow mid-transition
-            because the browser recalculates flex-grow, flex-shrink, and flex-basis
-            simultaneously. maxWidth + opacity is sufficient and avoids reflow.
-          */}
-          <Box
-            sx={{
-              flex: '1 1 auto',
-              minWidth: 0,
-              maxWidth: isCollapsed ? 0 : 160,
-              opacity: isCollapsed ? 0 : 1,
-              overflow: 'hidden',
-              transition: theme.transitions.create(['max-width', 'opacity'], {
-                easing: theme.transitions.easing.sharp,
-                duration: theme.transitions.duration.shorter,
-              }),
-            }}
-          >
-            <Typography
-              noWrap
+          {icon}
+          {showStatus && (
+            <Box
               sx={{
-                fontSize: '0.88rem',
-                lineHeight: 1.3,
-                fontWeight: isActive ? 500 : 400,
-                color: 'inherit',
+                position: 'absolute',
+                top: -1,
+                right: -2,
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                backgroundColor: theme.palette.success.main,
+                boxShadow: `0 0 0 1.5px ${theme.palette.background.paper}`,
               }}
-            >
-              {label}
-            </Typography>
-          </Box>
-        </ListItemButton>
+            />
+          )}
+        </Box>
+        <Box
+          sx={{
+            flex: '1 1 auto',
+            minWidth: 0,
+            maxWidth: isCollapsed ? 0 : 160,
+            opacity: isCollapsed ? 0 : 1,
+            overflow: 'hidden',
+            transition: theme.transitions.create(['max-width', 'opacity'], {
+              easing: theme.transitions.easing.sharp,
+              duration: theme.transitions.duration.shorter,
+            }),
+          }}
+        >
+          <Typography
+            noWrap
+            sx={{
+              fontSize: '0.88rem',
+              lineHeight: 1.3,
+              fontWeight: isActive ? 500 : 400,
+              color: 'inherit',
+            }}
+          >
+            {label}
+          </Typography>
+        </Box>
       </Box>
     </Tooltip>
   );

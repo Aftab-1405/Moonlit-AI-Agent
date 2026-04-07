@@ -15,15 +15,17 @@ const Chat = lazy(() =>
 function App() {
   return (
     <Box
+      id="app-root"
       sx={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        minHeight: 0,
-        minWidth: 0,
+        display: 'grid',
+        gridTemplateRows: '0px 1fr',
+        height: '100vh',
         width: '100%',
+        overflow: 'hidden',
       }}
     >
+      {/* Row 0: reserved header slot (0px) — mirrors Claude's grid-template-rows: 0px 1fr */}
+      <Box />
       <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/" element={<Landing />} />

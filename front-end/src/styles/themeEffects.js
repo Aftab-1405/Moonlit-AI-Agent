@@ -56,7 +56,7 @@ const accentEffectsCache = new WeakMap();
 export const getMoonlitGradient = (theme) => {
   if (gradientCache.has(theme)) return gradientCache.get(theme);
   const isDark = theme.palette.mode === 'dark';
-  // Moon blue → violet haze: the core brand gradient
+  // Neutral graphite gradient for monochrome surfaces and text accents
   const gradient = isDark
     ? `linear-gradient(135deg, ${alpha(theme.palette.primary.light, 0.92)}, ${alpha(theme.palette.secondary.main, 0.82)})`
     : `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.94)}, ${alpha(theme.palette.secondary.main, 0.80)})`;
