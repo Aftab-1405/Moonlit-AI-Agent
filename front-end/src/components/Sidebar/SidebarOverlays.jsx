@@ -5,20 +5,24 @@ import {
   IconButton,
   List,
   Dialog,
-  DialogTitle,
   DialogContent,
-  Chip,
   CircularProgress,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
-import StorageOutlinedIcon from '@mui/icons-material/StorageOutlined';
+import CloudUploadOutlinedIcon from '@mui/icons-material/CloudUploadOutlined';
 import AddCircleOutlineRoundedIcon from '@mui/icons-material/AddCircleOutlineRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
-import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
-import CloseIcon from '@mui/icons-material/Close';
+import StreamOutlinedIcon from '@mui/icons-material/StreamOutlined';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import AppPopover from '../AppPopover';
 import { HistoryPopoverItem } from './SidebarPrimitives';
 import SchemaFlowDiagram from '../SchemaFlowDiagram';
+import {
+  getDialogPaperSx,
+  getDialogHeaderSx,
+  getCompactActionSx,
+  DIALOG_VIEWPORT_SUPPORT_QUERY,
+} from '../../styles/shared';
 
 function SidebarOverlays({
   theme,
@@ -155,38 +159,61 @@ function SidebarOverlays({
       <Dialog
         open={mindmapOpen}
         onClose={handleCloseMindmap}
-        maxWidth="lg"
-        fullWidth
-        sx={{
-          '& .MuiDialog-paper': {
-            margin: { xs: 0, sm: 2 },
-            width: { xs: '100%', sm: 'calc(100% - 32px)' },
-            height: { xs: '100%', sm: '80vh' },
-            maxHeight: { xs: '100%', sm: 700 },
-            borderRadius: { xs: 0, sm: 2 },
+        fullScreen
+        PaperProps={{
+          sx: {
+            ...getDialogPaperSx(theme, { isMobile: true }),
+            backgroundColor: theme.palette.background.paper,
+            backgroundImage: theme.palette.mode === 'dark'
+              ? `linear-gradient(160deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, transparent 40%)`
+              : `linear-gradient(160deg, ${alpha(theme.palette.primary.main, 0.06)} 0%, transparent 40%)`,
+            [DIALOG_VIEWPORT_SUPPORT_QUERY]: { height: '100dvh', maxHeight: '100dvh', minHeight: '100dvh' },
           },
         }}
-        PaperProps={{ sx: { bgcolor: 'background.paper', backgroundImage: 'none' } }}
       >
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <AccountTreeOutlinedIcon color="primary" />
-            <Typography variant="h6" fontWeight={600}>
-              Schema Mindmap
-            </Typography>
-            {currentDatabase && (
-              <Chip
-                size="small"
-                icon={<StorageOutlinedIcon sx={{ fontSize: 14 }} />}
-                label={currentDatabase}
-                sx={{ ml: 1, display: { xs: 'none', sm: 'flex' } }}
-              />
-            )}
+        {/* Header */}
+        <Box sx={{
+          ...getDialogHeaderSx(),
+          backgroundImage: theme.palette.mode === 'dark'
+            ? `linear-gradient(90deg, ${alpha(theme.palette.primary.main, 0.1)} 0%, transparent 60%)`
+            : `linear-gradient(90deg, ${alpha(theme.palette.primary.main, 0.07)} 0%, transparent 60%)`,
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0, flex: 1 }}>
+            <Box sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 36,
+              height: 36,
+              borderRadius: '10px',
+              backgroundColor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.15 : 0.1),
+              flexShrink: 0,
+            }}>
+              <StreamOutlinedIcon sx={{ fontSize: 20, color: 'primary.main' }} />
+            </Box>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="h6" fontWeight={600} sx={{ lineHeight: 1.3 }}>
+                Schema Mindmap
+              </Typography>
+              {currentDatabase && (
+                <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1, display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
+                  <CloudUploadOutlinedIcon sx={{ fontSize: 11 }} />
+                  {currentDatabase}
+                </Typography>
+              )}
+            </Box>
           </Box>
-          <IconButton size="small" onClick={handleCloseMindmap} aria-label="Close schema mindmap" sx={{ color: theme.palette.text.secondary }}>
-            <CloseIcon fontSize="small" />
+          <IconButton
+            onClick={handleCloseMindmap}
+            size="small"
+            aria-label="Close schema mindmap"
+            sx={getCompactActionSx(theme)}
+          >
+            <CloseRoundedIcon />
           </IconButton>
-        </DialogTitle>
+        </Box>
+
+        {/* Content */}
         <DialogContent
           sx={{
             p: { xs: 1, sm: 2 },
@@ -216,7 +243,7 @@ function SidebarOverlays({
             </Box>
           ) : (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
-              <Typography color={theme.palette.text.secondary}>
+              <Typography color="text.secondary">
                 No schema data available. Connect to a database first.
               </Typography>
             </Box>
