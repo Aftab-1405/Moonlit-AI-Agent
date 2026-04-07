@@ -223,10 +223,15 @@ function MermaidDiagram({ code }) {
         sx={{
           my: { xs: 1.5, sm: 2 },
           overflow: 'hidden',
-          bgcolor: isDark ? theme.palette.background.elevated : alpha(theme.palette.text.primary, 0.02),
+          bgcolor: 'background.elevated',
           border: '1px solid',
           borderColor: theme.palette.border.subtle,
           borderRadius: { xs: '8px', sm: '10px' },
+          transition: 'border-color 0.18s ease, box-shadow 0.18s ease',
+          '&:hover': {
+            borderColor: alpha(theme.palette.primary.main, isDark ? 0.35 : 0.3),
+            boxShadow: `0 0 0 1px ${alpha(theme.palette.primary.main, isDark ? 0.1 : 0.07)}`,
+          },
         }}
       >
         <Box sx={headerStyles}>
@@ -356,7 +361,7 @@ function MermaidDiagram({ code }) {
           sx={{
             my: { xs: 1.5, sm: 2 },
             overflow: 'hidden',
-            bgcolor: 'background.paper',
+            bgcolor: 'background.elevated',
             border: '1px solid',
             borderColor: theme.palette.border.subtle,
             borderRadius: { xs: '8px', sm: '10px' },
@@ -408,12 +413,17 @@ function MermaidDiagram({ code }) {
       sx={{
         my: { xs: 1.5, sm: 2 },
         overflow: 'hidden',
-        bgcolor: 'background.paper',
+        bgcolor: 'background.elevated',
         border: '1px solid',
         borderColor: theme.palette.border.subtle,
         borderRadius: { xs: '8px', sm: '10px' },
         display: 'flex',
         flexDirection: 'column',
+        transition: 'border-color 0.18s ease, box-shadow 0.18s ease',
+        '&:hover': {
+          borderColor: alpha(theme.palette.primary.main, isDark ? 0.35 : 0.3),
+          boxShadow: `0 0 0 1px ${alpha(theme.palette.primary.main, isDark ? 0.1 : 0.07)}`,
+        },
       }}
     >
       {diagramContent}

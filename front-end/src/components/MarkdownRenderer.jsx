@@ -10,7 +10,6 @@ import WrapTextRoundedIcon from '@mui/icons-material/WrapTextRounded';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus, vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import MermaidDiagram from './MermaidDiagram';
-import { SYNTAX_COLORS } from '../styles/themeFoundation';
 
 const SQL_LANGUAGES = new Set([
   'sql', 'mysql', 'postgresql', 'sqlite', 'sqlserver', 'oracle', 'tsql', 'plsql'
@@ -39,10 +38,9 @@ const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isD
   const isMermaid = language.toLowerCase() === 'mermaid';
   const lineCount = code.split('\n').length;
   const showLineNumbers = lineCount >= 4;
-  const langColor = SYNTAX_COLORS[language.toLowerCase()] || null;
 
-  // Dark mode: use Monaco's near-black for a crisper editor feel
-  const codeBg = isDarkMode ? theme.palette.monaco.background : theme.palette.background.elevated;
+  // Use the same surface level as the page — no dark pit, consistent with tables
+  const codeBg = theme.palette.background.elevated;
   const headerBg = isDarkMode
     ? alpha(theme.palette.background.elevated, 0.9)
     : alpha(theme.palette.background.paper, 0.95);
@@ -76,14 +74,10 @@ const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isD
     width: '100%',
     transition: 'border-color 0.18s ease, box-shadow 0.18s ease',
     '&:hover': {
-      borderColor: langColor
-        ? alpha(langColor, isDarkMode ? 0.35 : 0.3)
-        : theme.palette.border.default,
-      boxShadow: langColor
-        ? `0 0 0 1px ${alpha(langColor, isDarkMode ? 0.1 : 0.07)}`
-        : `0 0 0 1px ${alpha(theme.palette.text.primary, 0.04)}`,
+      borderColor: alpha(theme.palette.primary.main, isDarkMode ? 0.35 : 0.3),
+      boxShadow: `0 0 0 1px ${alpha(theme.palette.primary.main, isDarkMode ? 0.1 : 0.07)}`,
     },
-  }), [theme, codeBg, langColor, isDarkMode]);
+  }), [theme, codeBg, isDarkMode]);
 
   if (isMermaid) {
     return <MermaidDiagram code={code} />;
@@ -268,7 +262,7 @@ const MarkdownRenderer = memo(function MarkdownRenderer({ content, onRunQuery })
     },
     pre: ({ children }) => <>{children}</>,
     table: ({ children }) => (
-      <Box sx={{ overflowX: 'auto', my: 2, borderRadius: '12px', border: `1px solid ${theme.palette.divider}` }}>
+      <Box sx={{ overflowX: 'auto', my: 2, borderRadius: '12px', border: '1px solid', borderColor: theme.palette.border.subtle, transition: 'border-color 0.18s ease, box-shadow 0.18s ease', '&:hover': { borderColor: alpha(theme.palette.primary.main, isDarkMode ? 0.35 : 0.3), boxShadow: `0 0 0 1px ${alpha(theme.palette.primary.main, isDarkMode ? 0.1 : 0.07)}` } }}>
         <Box component="table" sx={{ minWidth: 'max-content', width: '100%', borderCollapse: 'collapse' }}>
           {children}
         </Box>

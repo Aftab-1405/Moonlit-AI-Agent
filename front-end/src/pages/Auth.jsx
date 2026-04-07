@@ -110,34 +110,34 @@ function QueryMockup({ isDark }) {
 
   const C = {
     panelBg: isDark
-      ? 'rgba(255,255,255,0.04)'
+      ? alpha(theme.palette.common.white, 0.04)
       : alpha(theme.palette.text.primary, 0.035),
     panelBorder: isDark
-      ? 'rgba(255,255,255,0.10)'
+      ? alpha(theme.palette.common.white, 0.10)
       : alpha(theme.palette.text.primary, 0.12),
     text: isDark
-      ? 'rgba(255,255,255,0.9)'
+      ? alpha(theme.palette.common.white, 0.9)
       : alpha(theme.palette.text.primary, 0.92),
     muted: isDark
-      ? 'rgba(255,255,255,0.5)'
+      ? alpha(theme.palette.common.white, 0.5)
       : alpha(theme.palette.text.primary, 0.62),
     subtle: isDark
-      ? 'rgba(255,255,255,0.03)'
+      ? alpha(theme.palette.common.white, 0.03)
       : alpha(theme.palette.text.primary, 0.025),
     codeBg: isDark
-      ? 'rgba(0,0,0,0.22)'
+      ? alpha(theme.palette.common.black, 0.22)
       : alpha(theme.palette.text.primary, 0.055),
     keyword: isDark
-      ? 'rgba(255,255,255,0.95)'
+      ? alpha(theme.palette.common.white, 0.95)
       : alpha(theme.palette.text.primary, 0.92),
     codeText: isDark
-      ? 'rgba(255,255,255,0.58)'
+      ? alpha(theme.palette.common.white, 0.58)
       : alpha(theme.palette.text.primary, 0.7),
     highlight: isDark
-      ? 'rgba(255,255,255,0.05)'
+      ? alpha(theme.palette.common.white, 0.05)
       : alpha(theme.palette.text.primary, 0.05),
     dot: isDark
-      ? 'rgba(255,255,255,0.32)'
+      ? alpha(theme.palette.common.white, 0.32)
       : alpha(theme.palette.text.primary, 0.22),
   };
 
