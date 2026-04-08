@@ -251,13 +251,6 @@ async def get_conversations(user: dict = Depends(get_current_user)):
     return {"status": "success", "conversations": conversations}
 
 
-@router.post("/new_conversation")
-async def new_conversation(user: dict = Depends(get_current_user)):
-    """Create a new conversation."""
-    conversation_id = ConversationService.create_or_get_conversation_id()
-    return {"status": "success", "conversation_id": conversation_id}
-
-
 @router.delete("/delete_conversation/{conversation_id}")
 async def delete_conversation(
     conversation_id: str, user: dict = Depends(get_current_user)
