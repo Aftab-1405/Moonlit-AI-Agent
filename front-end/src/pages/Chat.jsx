@@ -236,9 +236,9 @@ function Chat() {
                 borderColor: alpha(theme.palette.text.primary, 0.1),
                 backgroundColor: alpha(theme.palette.background.paper, 0.96),
                 boxShadow: `0 6px 18px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.18 : 0.08)}`,
-                '&:hover': {
-                  backgroundColor: alpha(theme.palette.background.paper, 1),
-                },
+                opacity: 0.82,
+                transition: 'opacity 0.15s ease',
+                '&:hover': { opacity: 1, backgroundColor: alpha(theme.palette.background.paper, 0.96) },
               }}
             >
               <MenuRoundedIcon sx={{ fontSize: 20 }} />

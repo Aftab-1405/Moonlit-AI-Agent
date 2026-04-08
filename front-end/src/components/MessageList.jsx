@@ -122,9 +122,10 @@ const CopyButton = memo(function CopyButton({ copied, onClick, className = 'mess
           width: 32,
           height: 32,
           color: copied ? 'text.primary' : 'text.secondary',
-          transition: 'color 0.2s',
+          opacity: 0.65,
+          transition: 'opacity 0.15s ease',
           [HOVER_CAPABLE_QUERY]: {
-            '&:hover': { color: 'text.primary' },
+            '&:hover': { opacity: 1, backgroundColor: 'transparent' },
           },
           ...sx,
         }}
@@ -438,6 +439,8 @@ const MessageList = memo(function MessageList({
         {hiddenCount > 0 && (
           <Box sx={{ pb: 1 }}>
             <Button
+              variant="outlined"
+              color="inherit"
               size="small"
               onClick={() => setVisibleCount((c) => c + 50)}
               sx={{ minHeight: { xs: 36, sm: 'auto' } }}

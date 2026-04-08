@@ -29,7 +29,6 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
 import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
 import VpnKeyRoundedIcon from '@mui/icons-material/VpnKeyRounded';
-import PowerSettingsNewRoundedIcon from '@mui/icons-material/PowerSettingsNewRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
@@ -588,9 +587,9 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
           <>
             {isConnected ? (
               <Button
+                variant="outlined"
                 onClick={handleDisconnect}
                 color="error"
-                startIcon={<PowerSettingsNewRoundedIcon />}
                 disabled={loading}
                 size="small"
                 sx={{ minHeight: { xs: UI_LAYOUT.compactTouchTarget, sm: 'auto' } }}
@@ -599,6 +598,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
               </Button>
             ) : <Box />}
             <Button
+              variant="outlined"
               onClick={handleConnect}
               disabled={loading || isConnected}
               startIcon={loading ? <CircularProgress size={18} color="inherit" /> : null}

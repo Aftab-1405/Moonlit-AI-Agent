@@ -16,12 +16,11 @@ import {
   ListItemText,
   Fade,
   useMediaQuery,
-  Drawer,
 } from '@mui/material';
 import { alpha, useTheme as useMuiTheme } from '@mui/material/styles';
+import AppPopover, { getAppPopoverPaperSx } from './AppPopover';
 import DarkModeRoundedIcon from '@mui/icons-material/DarkModeRounded';
 import LightModeRoundedIcon from '@mui/icons-material/LightModeRounded';
-import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded';
 import PaletteOutlinedIcon from '@mui/icons-material/PaletteOutlined';
 import PsychologyOutlinedIcon from '@mui/icons-material/PsychologyOutlined';
 import StorageOutlinedIcon from '@mui/icons-material/StorageOutlined';
@@ -32,7 +31,6 @@ import UserDBContextManagerForAI from './UserDBContextManagerForAI';
 import DialogShell from './DialogShell';
 import { saveUserSettings } from '../api';
 import {
-  DIALOG_VIEWPORT_SUPPORT_QUERY,
   getCompactActionSx,
   getDialogNavPaneSx,
   getDialogScrollablePaneSx,
@@ -105,9 +103,13 @@ function SectionTitle({ children, visible = true }) {
 function SettingsModal({ open, onClose }) {
   const { settings, updateSetting, resetSettings } = useAppTheme();
   const [activeSection, setActiveSection] = useState('appearance');
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [mobileNavAnchor, setMobileNavAnchor] = useState(null);
   const theme = useMuiTheme();
+  const isDark = theme.palette.mode === 'dark';
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const selectMenuProps = useMemo(() => ({
+    PaperProps: { sx: getAppPopoverPaperSx(theme, isDark) },
+  }), [theme, isDark]);
   const activeSectionLabel = SECTIONS.find((section) => section.id === activeSection)?.label || 'Settings';
   const isDarkTheme = settings.theme === 'dark';
   const idleAnimationEnabled = isDarkTheme && (settings.idleAnimation ?? true);
@@ -131,7 +133,7 @@ function SettingsModal({ open, onClose }) {
           selected={activeSection === section.id}
           onClick={() => {
             setActiveSection(section.id);
-            if (isMobile) setMobileNavOpen(false);
+            if (isMobile) setMobileNavAnchor(null);
           }}
           sx={{
             borderRadius: 1.5,
@@ -260,6 +262,7 @@ function SettingsModal({ open, onClose }) {
                       <Select
                         value={settings.responseStyle ?? 'balanced'}
                         onChange={(e) => updateSetting('responseStyle', e.target.value)}
+                        MenuProps={selectMenuProps}
                       >
                         <MenuItem value="concise">Concise</MenuItem>
                         <MenuItem value="balanced">Balanced</MenuItem>
@@ -292,6 +295,7 @@ function SettingsModal({ open, onClose }) {
                       <Select
                         value={settings.queryTimeout ?? 30}
                         onChange={(e) => updateSetting('queryTimeout', e.target.value)}
+                        MenuProps={selectMenuProps}
                       >
                         <MenuItem value={10}>10 sec</MenuItem>
                         <MenuItem value={30}>30 sec</MenuItem>
@@ -309,6 +313,7 @@ function SettingsModal({ open, onClose }) {
                       <Select
                         value={settings.maxRows ?? 1000}
                         onChange={(e) => updateSetting('maxRows', e.target.value)}
+                        MenuProps={selectMenuProps}
                       >
                         <MenuItem value={100}>100</MenuItem>
                         <MenuItem value={500}>500</MenuItem>
@@ -326,6 +331,7 @@ function SettingsModal({ open, onClose }) {
                       <Select
                         value={settings.nullDisplay ?? 'NULL'}
                         onChange={(e) => updateSetting('nullDisplay', e.target.value)}
+                        MenuProps={selectMenuProps}
                       >
                         <MenuItem value="NULL">NULL</MenuItem>
                         <MenuItem value="(null)">(null)</MenuItem>
@@ -346,6 +352,7 @@ function SettingsModal({ open, onClose }) {
                     <FormControl size="small" sx={{ minWidth: { sm: 110 }, width: { xs: '100%', sm: 'auto' } }}>
                       <Select
                         value={settings.connectionPersistence ?? 0}
+                        MenuProps={selectMenuProps}
                         onChange={(e) => {
                           const value = e.target.value;
                           updateSetting('connectionPersistence', value);
@@ -366,6 +373,7 @@ function SettingsModal({ open, onClose }) {
                       <Select
                         value={settings.defaultDbType ?? 'postgresql'}
                         onChange={(e) => updateSetting('defaultDbType', e.target.value)}
+                        MenuProps={selectMenuProps}
                       >
                         <MenuItem value="mysql">MySQL</MenuItem>
                         <MenuItem value="postgresql">PostgreSQL</MenuItem>
@@ -397,7 +405,7 @@ function SettingsModal({ open, onClose }) {
   const mobileNavButton = isMobile ? (
     <IconButton
       size="small"
-      onClick={() => setMobileNavOpen(true)}
+      onClick={(e) => setMobileNavAnchor(e.currentTarget)}
       aria-label="Open settings sections"
       sx={getCompactActionSx(theme)}
     >
@@ -418,7 +426,7 @@ function SettingsModal({ open, onClose }) {
         footer={(
           <>
             <Button
-              startIcon={<RestartAltRoundedIcon />}
+              variant="outlined"
               onClick={resetSettings}
               color="inherit"
               size="small"
@@ -426,7 +434,7 @@ function SettingsModal({ open, onClose }) {
             >
               Reset All
             </Button>
-            <Button onClick={onClose} size="small" sx={{ minHeight: { xs: UI_LAYOUT.compactTouchTarget, sm: 'auto' } }}>
+            <Button variant="outlined" onClick={onClose} size="small" sx={{ minHeight: { xs: UI_LAYOUT.compactTouchTarget, sm: 'auto' } }}>
               Done
             </Button>
           </>
@@ -442,33 +450,18 @@ function SettingsModal({ open, onClose }) {
         </Box>
       </DialogShell>
       {isMobile ? (
-        <Drawer
-          anchor="left"
-          open={mobileNavOpen}
-          onClose={() => setMobileNavOpen(false)}
-          ModalProps={{ keepMounted: true }}
+        <AppPopover
+          anchorEl={mobileNavAnchor}
+          open={Boolean(mobileNavAnchor)}
+          onClose={() => setMobileNavAnchor(null)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+          width={220}
+          paperSx={{ p: 0 }}
           sx={{ zIndex: (muiTheme) => muiTheme.zIndex.modal + 2 }}
-          PaperProps={{
-            sx: {
-              width: 240,
-              maxWidth: '85vw',
-              height: '100vh',
-              [DIALOG_VIEWPORT_SUPPORT_QUERY]: {
-                height: '100dvh',
-              },
-              overflowY: 'auto',
-              paddingBottom: 'env(safe-area-inset-bottom)',
-              backgroundColor: theme.palette.background.paper,
-            },
-          }}
         >
-          <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-            <Typography variant="subtitle1" fontWeight={600}>
-              Settings
-            </Typography>
-          </Box>
           {NavContent}
-        </Drawer>
+        </AppPopover>
       ) : null}
     </>
   );

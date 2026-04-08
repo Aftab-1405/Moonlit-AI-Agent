@@ -247,7 +247,7 @@ function MermaidDiagram({ code }) {
             mermaid
           </Typography>
           <Tooltip title={copied ? 'Copied!' : 'Copy'}>
-            <IconButton size="small" onClick={handleCopy} sx={{ width: 30, height: 30, borderRadius: '6px', color: copied ? theme.palette.success.main : theme.palette.text.secondary, transition: 'color 0.15s ease, background-color 0.15s ease', '&:hover': { color: theme.palette.text.primary, bgcolor: alpha(theme.palette.text.primary, 0.06) } }}>
+            <IconButton size="small" onClick={handleCopy} sx={{ width: 30, height: 30, borderRadius: '6px', color: copied ? theme.palette.success.main : theme.palette.text.secondary, opacity: 0.65, transition: 'opacity 0.15s ease', '&:hover': { opacity: 1, backgroundColor: 'transparent' } }}>
               {copied ? <CheckRoundedIcon sx={{ fontSize: 14 }} /> : <ContentCopyRoundedIcon sx={{ fontSize: 14 }} />}
             </IconButton>
           </Tooltip>
@@ -284,21 +284,21 @@ function MermaidDiagram({ code }) {
         </Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           <Tooltip title={copied ? 'Copied!' : 'Copy code'}>
-            <IconButton size="small" onClick={handleCopy} sx={{ width: 30, height: 30, borderRadius: '6px', color: copied ? theme.palette.success.main : theme.palette.text.secondary, transition: 'color 0.15s ease, background-color 0.15s ease', '&:hover': { color: theme.palette.text.primary, bgcolor: alpha(theme.palette.text.primary, 0.06) } }}>
+            <IconButton size="small" onClick={handleCopy} sx={{ width: 30, height: 30, borderRadius: '6px', color: copied ? theme.palette.success.main : theme.palette.text.secondary, opacity: 0.65, transition: 'opacity 0.15s ease', '&:hover': { opacity: 1, backgroundColor: 'transparent' } }}>
               {copied ? <CheckRoundedIcon sx={{ fontSize: 14 }} /> : <ContentCopyRoundedIcon sx={{ fontSize: 14 }} />}
             </IconButton>
           </Tooltip>
 
           <Tooltip title="Download SVG">
             <span>
-              <IconButton size="small" onClick={handleDownload} disabled={!svg} sx={{ width: 30, height: 30, borderRadius: '6px', color: theme.palette.text.secondary, '&:hover': { color: theme.palette.text.primary, bgcolor: alpha(theme.palette.text.primary, 0.06) } }}>
+              <IconButton size="small" onClick={handleDownload} disabled={!svg} sx={{ width: 30, height: 30, borderRadius: '6px', color: theme.palette.text.secondary, opacity: 0.65, transition: 'opacity 0.15s ease', '&:hover': { opacity: 1, backgroundColor: 'transparent' } }}>
                 <FileDownloadOutlinedIcon sx={{ fontSize: 14 }} />
               </IconButton>
             </span>
           </Tooltip>
 
           <Tooltip title={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
-            <IconButton size="small" onClick={toggleFullscreen} sx={{ width: 30, height: 30, borderRadius: '6px', color: theme.palette.text.secondary, '&:hover': { color: theme.palette.text.primary, bgcolor: alpha(theme.palette.text.primary, 0.06) } }}>
+            <IconButton size="small" onClick={toggleFullscreen} sx={{ width: 30, height: 30, borderRadius: '6px', color: theme.palette.text.secondary, opacity: 0.65, transition: 'opacity 0.15s ease', '&:hover': { opacity: 1, backgroundColor: 'transparent' } }}>
               {fullscreen ? <FullscreenExitRoundedIcon sx={{ fontSize: 16 }} /> : <FullscreenRoundedIcon sx={{ fontSize: 16 }} />}
             </IconButton>
           </Tooltip>

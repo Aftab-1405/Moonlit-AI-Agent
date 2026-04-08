@@ -123,10 +123,11 @@ const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isD
                 borderRadius: '6px',
                 color: wrapLongLines ? theme.palette.primary.main : theme.palette.text.secondary,
                 bgcolor: wrapLongLines ? alpha(theme.palette.primary.main, isDarkMode ? 0.12 : 0.08) : 'transparent',
-                transition: 'color 0.15s ease, background-color 0.15s ease',
+                opacity: 0.65,
+                transition: 'opacity 0.15s ease',
                 '&:hover': {
-                  color: wrapLongLines ? theme.palette.primary.light : theme.palette.text.primary,
-                  bgcolor: alpha(theme.palette.text.primary, 0.06),
+                  opacity: 1,
+                  backgroundColor: wrapLongLines ? alpha(theme.palette.primary.main, isDarkMode ? 0.12 : 0.08) : 'transparent',
                 },
               }}
             >
@@ -145,10 +146,9 @@ const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isD
                     height: 30,
                     color: isRunning ? 'text.disabled' : theme.palette.success.main,
                     borderRadius: '6px',
-                    '&:hover': {
-                      color: theme.palette.success.light,
-                      bgcolor: alpha(theme.palette.success.main, isDarkMode ? 0.12 : 0.08),
-                    },
+                    opacity: 0.65,
+                    transition: 'opacity 0.15s ease',
+                    '&:hover': { opacity: 1, backgroundColor: 'transparent' },
                   }}
                 >
                   {isRunning
@@ -167,11 +167,9 @@ const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isD
                 height: 30,
                 borderRadius: '6px',
                 color: copied ? theme.palette.success.main : theme.palette.text.secondary,
-                transition: 'color 0.15s ease, background-color 0.15s ease',
-                '&:hover': {
-                  color: theme.palette.text.primary,
-                  bgcolor: alpha(theme.palette.text.primary, 0.06),
-                },
+                opacity: 0.65,
+                transition: 'opacity 0.15s ease',
+                '&:hover': { opacity: 1, backgroundColor: 'transparent' },
               }}
             >
               {copied

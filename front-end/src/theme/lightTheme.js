@@ -27,9 +27,9 @@ const palette = {
 
   background: {
     default:  H.bg000,   // #ffffff
-    paper:    H.bg100,   // warm off-white
+    paper:    H.bg100,   // barely-warm white
     elevated: H.bg000,   // popovers sit at the same white level
-    sunken:   H.bg200,   // inset / input bg
+    sunken:   H.bg200,   // soft neutral inset / input bg
   },
 
   text: {

@@ -303,7 +303,9 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
                     height: 32,
                     color: 'text.secondary',
                     borderRadius: 1.5,
-                    '&:hover': { bgcolor: alpha(theme.palette.text.primary, 0.06) },
+                    opacity: 0.65,
+                    transition: 'opacity 0.15s ease',
+                    '&:hover': { opacity: 1, backgroundColor: 'transparent' },
                   }}
                 >
                   <FileDownloadOutlinedIcon sx={{ fontSize: 18 }} />
@@ -319,7 +321,9 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
                     height: 32,
                     color: 'text.secondary',
                     borderRadius: 1.5,
-                    '&:hover': { bgcolor: alpha(theme.palette.text.primary, 0.06) },
+                    opacity: 0.65,
+                    transition: 'opacity 0.15s ease',
+                    '&:hover': { opacity: 1, backgroundColor: 'transparent' },
                   }}
                 >
                   {fullscreen ? (
@@ -420,7 +424,9 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
                     height: 36,
                     borderRadius: 1.5,
                     color: 'text.secondary',
-                    '&:hover': { backgroundColor: theme.palette.action.hover },
+                    opacity: 0.65,
+                    transition: 'opacity 0.15s ease',
+                    '&:hover': { opacity: 1, backgroundColor: 'transparent' },
                   }}
                 >
                   <FileDownloadOutlinedIcon sx={{ fontSize: 18 }} />

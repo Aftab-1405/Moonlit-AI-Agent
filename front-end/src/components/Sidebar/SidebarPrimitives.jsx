@@ -112,10 +112,10 @@ export const ConversationItem = memo(function ConversationItem({
           minHeight: { xs: 34, sm: 'auto' },
           borderRadius: '6px',
           color: theme.palette.text.secondary,
-          transition: 'opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease',
+          transition: 'opacity 0.15s ease, color 0.15s ease',
           '&:hover': {
             color: theme.palette.error.main,
-            backgroundColor: alpha(theme.palette.error.main, isDark ? 0.1 : 0.08),
+            backgroundColor: 'transparent',
           },
         }}
       >
@@ -298,10 +298,10 @@ export const HistoryPopoverItem = memo(function HistoryPopoverItem({
         aria-label="Delete conversation"
         sx={{
           opacity: 0.5,
-          '&:hover': { opacity: 1 },
           padding: 0.5,
           color: theme.palette.text.secondary,
           transition: 'opacity 0.15s ease',
+          '&:hover': { opacity: 1, backgroundColor: 'transparent' },
         }}
       >
         <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />

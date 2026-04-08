@@ -28,10 +28,10 @@ const hslToHex = (h, s, l) => {
 export const LIGHT = {
   // Backgrounds (lighter → darker)
   bg000:      hslToHex(0,   0,    100),    // #ffffff  — pure white
-  bg100:      hslToHex(48,  33.3, 97.1),   // #faf9f5  — warm off-white (paper)
-  bg200:      hslToHex(53,  28.6, 94.5),   // #f5f4ee  — cream (sunken / input)
-  bg300:      hslToHex(48,  25,   92.2),   // #eeeadf  — deeper cream (hover bg)
-  bg400:      hslToHex(50,  20.7, 88.6),   // #e5e2d7  — strongest hover surface
+  bg100:      hslToHex(48,  12,   98.2),   // #fbfbfa  — barely-warm white (paper)
+  bg200:      hslToHex(48,  10,   95.8),   // #f5f5f4  — soft neutral (sunken / input)
+  bg300:      hslToHex(48,  9,    92.5),   // #eeeeed  — light neutral (hover bg)
+  bg400:      hslToHex(48,  8,    88.8),   // #e3e3e2  — mid neutral (strongest surface)
 
   // Text (prominent → muted)
   text000:    hslToHex(60,  2.6,  7.6),    // #141413  — near black (primary)

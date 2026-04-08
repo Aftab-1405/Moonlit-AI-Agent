@@ -81,6 +81,9 @@ export const getCompactActionSx = (
   minHeight: size,
   flexShrink: 0,
   color,
+  opacity: 0.65,
+  transition: 'opacity 0.15s ease',
+  '&:hover': { opacity: 1, backgroundColor: 'transparent' },
 });
 
 export const getToolbarChipSx = (

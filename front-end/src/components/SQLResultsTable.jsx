@@ -396,7 +396,9 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                   height: 32,
                   color: copied ? 'text.primary' : 'text.secondary',
                   borderRadius: 1.5,
-                  '&:hover': { bgcolor: alpha(theme.palette.text.primary, 0.06) },
+                  opacity: 0.65,
+                  transition: 'opacity 0.15s ease',
+                  '&:hover': { opacity: 1, backgroundColor: 'transparent' },
                 }}
               >
                 {copied ? <CheckRoundedIcon sx={{ fontSize: 18 }} /> : <ContentCopyRoundedIcon sx={{ fontSize: 18 }} />}
@@ -412,7 +414,9 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                   height: 32,
                   color: 'text.secondary',
                   borderRadius: 1.5,
-                  '&:hover': { bgcolor: alpha(theme.palette.text.primary, 0.06) },
+                  opacity: 0.65,
+                  transition: 'opacity 0.15s ease',
+                  '&:hover': { opacity: 1, backgroundColor: 'transparent' },
                 }}
               >
                 <FileDownloadOutlinedIcon sx={{ fontSize: 18 }} />
@@ -460,7 +464,6 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                   ...getCompactActionSx(theme, { size: 36 }),
                   borderRadius: 1.5,
                   color: 'text.secondary',
-                  '&:hover': { backgroundColor: theme.palette.action.hover },
                 }}
               >
                 <BarChartOutlinedIcon sx={{ fontSize: 20 }} />
@@ -519,7 +522,6 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                   ...getCompactActionSx(theme, { size: 36 }),
                   borderRadius: 1.5,
                   color: copied ? 'text.primary' : 'text.secondary',
-                  '&:hover': { backgroundColor: theme.palette.action.hover },
                 }}
               >
                 {copied ? (
@@ -537,7 +539,6 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                   ...getCompactActionSx(theme, { size: 36 }),
                   borderRadius: 1.5,
                   color: 'text.secondary',
-                  '&:hover': { backgroundColor: theme.palette.action.hover },
                 }}
               >
                 <FileDownloadOutlinedIcon sx={{ fontSize: 18 }} />

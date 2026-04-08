@@ -8,7 +8,6 @@ import {
   useMediaQuery,
 } from '@mui/material';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
-import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import DialogShell from './DialogShell';
 import {
   getInsetPanelSx,
@@ -67,6 +66,7 @@ function ConfirmDialog({
       footer={(
         <>
           <Button
+            variant="outlined"
             onClick={handleClose}
             color="inherit"
             disabled={isExecuting}
@@ -76,11 +76,12 @@ function ConfirmDialog({
             {cancelText}
           </Button>
           <Button
+            variant="outlined"
             onClick={handleExecute}
             disabled={isExecuting}
             color={confirmColor}
             fullWidth={isCompactMobile}
-            startIcon={isExecuting ? <CircularProgress size={16} color="inherit" /> : (sqlQuery ? <PlayArrowRoundedIcon /> : null)}
+            startIcon={isExecuting ? <CircularProgress size={16} color="inherit" /> : null}
             sx={{ minWidth: 100, minHeight: UI_LAYOUT.touchTarget }}
           >
             {isExecuting ? 'Executing...' : confirmText}

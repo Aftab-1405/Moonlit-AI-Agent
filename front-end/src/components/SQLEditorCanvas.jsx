@@ -382,16 +382,14 @@ function SQLEditorCanvas({
     color: 'text.secondary',
     bgcolor: 'transparent',
     border: 'none',
-    transition: TRANSITIONS.default,
-    '&:hover': {
-      color: 'text.primary',
-      bgcolor: alpha(textColor, isDark ? 0.08 : 0.06),
-    },
+    opacity: 0.65,
+    transition: 'opacity 0.15s ease',
+    '&:hover': { opacity: 1, backgroundColor: 'transparent' },
     '&.Mui-disabled': {
       color: 'text.disabled',
       bgcolor: 'transparent',
     },
-  }), [isDark, textColor]);
+  }), []);
 
   /** Fills canvas body; overflow stays inside table/chart (not this wrapper). */
   const artifactTabPaneStyles = useMemo(() => ({
@@ -735,8 +733,9 @@ function SQLEditorCanvas({
               borderRadius: 0,
               bgcolor: headerActionBg,
               color: 'text.secondary',
-              transition: TRANSITIONS.default,
-              '&:hover': { bgcolor: headerActionHoverBg, color: 'text.primary' },
+              opacity: 0.65,
+              transition: 'opacity 0.15s ease',
+              '&:hover': { opacity: 1, bgcolor: headerActionBg },
             }}
           >
             <KeyboardArrowDownRoundedIcon sx={{ fontSize: 18 }} />
@@ -794,10 +793,11 @@ function SQLEditorCanvas({
               color: 'text.secondary',
               border: '1px solid',
               borderColor: 'transparent',
-              transition: TRANSITIONS.default,
+              opacity: 0.65,
+              transition: 'opacity 0.15s ease',
               '&:hover': {
-                color: 'text.primary',
-                bgcolor: alpha(theme.palette.text.primary, 0.06),
+                opacity: 1,
+                backgroundColor: 'transparent',
                 borderColor: alpha(theme.palette.text.primary, isDark ? 0.12 : 0.09),
               },
             }}
