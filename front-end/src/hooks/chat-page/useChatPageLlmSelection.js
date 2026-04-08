@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getLlmOptions } from '../../api';
 import logger from '../../utils/logger';
 
-export function useChatPageLlmSelection({ settings, updateSetting }) {
+export function useChatPageLlmSelection({ settings, updateSetting, updateSettings }) {
   const [llmOptions, setLlmOptions] = useState({
     providers: [],
     default_provider: null,
@@ -41,9 +41,8 @@ export function useChatPageLlmSelection({ settings, updateSetting }) {
       ? modelName
       : (providerOption.default_model || providerOption.models?.[0] || null);
 
-    updateSetting('llmProvider', providerName);
-    updateSetting('llmModel', nextModel);
-  }, [providerOptions, updateSetting]);
+    updateSettings({ llmProvider: providerName, llmModel: nextModel });
+  }, [providerOptions, updateSettings]);
 
   const handleProviderChange = useCallback((event) => {
     const nextProvider = event.target.value;
@@ -83,10 +82,6 @@ export function useChatPageLlmSelection({ settings, updateSetting }) {
           ? providerFromSettings
           : (response.default_provider || providers[0].name);
 
-        if (validProvider !== settings.llmProvider) {
-          updateSetting('llmProvider', validProvider);
-        }
-
         const providerConfig = providers.find((provider) => provider.name === validProvider) || providers[0];
         const candidateModels = providerConfig?.models || [];
         const modelFromSettings = settings.llmModel;
@@ -94,9 +89,10 @@ export function useChatPageLlmSelection({ settings, updateSetting }) {
           ? modelFromSettings
           : (providerConfig?.default_model || response.default_model || candidateModels[0] || null);
 
-        if (validModel && validModel !== settings.llmModel) {
-          updateSetting('llmModel', validModel);
-        }
+        const patch = {};
+        if (validProvider !== settings.llmProvider) patch.llmProvider = validProvider;
+        if (validModel && validModel !== settings.llmModel) patch.llmModel = validModel;
+        if (Object.keys(patch).length > 0) updateSettings(patch);
       } catch (error) {
         logger.warn('Failed to fetch LLM options:', error);
       } finally {
@@ -113,7 +109,7 @@ export function useChatPageLlmSelection({ settings, updateSetting }) {
     };
     // Only initialize from backend once on first load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [updateSetting]);
+  }, [updateSettings]);
 
   return {
     providerOptions,

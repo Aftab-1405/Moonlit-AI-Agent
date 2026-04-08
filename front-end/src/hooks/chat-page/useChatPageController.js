@@ -24,7 +24,7 @@ export function useChatPageController() {
   const isDarkMode = theme.palette.mode === 'dark';
   const { isDesktop } = useResponsive();
   const isNarrowLayout = !isDesktop;
-  const { settings, updateSetting } = useAppTheme();
+  const { settings, updateSetting, updateSettings } = useAppTheme();
   const { user, logout } = useAuth();
   const {
     isConnected: isDbConnected,
@@ -69,7 +69,7 @@ export function useChatPageController() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
 
-  const llmSelection = useChatPageLlmSelection({ settings, updateSetting });
+  const llmSelection = useChatPageLlmSelection({ settings, updateSetting, updateSettings });
   const {
     providerOptions,
     selectedProvider,

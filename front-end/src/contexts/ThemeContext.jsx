@@ -20,7 +20,7 @@ export const useTheme = () => {
   return context;
 };
 function ThemeProviderInner({ children }) {
-  const { settings, isDarkMode, updateSetting, resetSettings } = useSettings();
+  const { settings, isDarkMode, updateSetting, updateSettings, resetSettings } = useSettings();
   const previousThemeRef = useRef(settings.theme);
   
   const theme = useMemo(() => {
@@ -30,9 +30,10 @@ function ThemeProviderInner({ children }) {
   const value = useMemo(() => ({
     settings,
     updateSetting,
+    updateSettings,
     resetSettings,
     isDarkMode,
-  }), [settings, updateSetting, resetSettings, isDarkMode]);
+  }), [settings, updateSetting, updateSettings, resetSettings, isDarkMode]);
 
   useLayoutEffect(() => {
     if (typeof window === 'undefined') return;
