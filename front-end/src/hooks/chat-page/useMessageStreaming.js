@@ -156,25 +156,20 @@ export function useMessageStreaming({
 
       const buildMessageData = (isDone = false) => {
         const steps = [];
-        // Add thinking step if present
         if (thinkingContent) {
           steps.push({ type: 'thinking', content: thinkingContent, isComplete: isDone });
         }
-        // Add tool steps
         toolSteps.forEach((tool, index) => {
           steps.push({
             type: 'tool',
             id: `tool-${tool.name}-${index}`,
             name: tool.name,
             status: tool.status,
-            args: typeof tool.args === 'string' ? tool.args : JSON.stringify(tool.args || {}),
-            result: typeof tool.result === 'string' ? tool.result : JSON.stringify(tool.result || null),
+            args: tool.args,
+            result: tool.result,
           });
         });
-        return {
-          text: contentParts.join(''),
-          steps,
-        };
+        return { text: contentParts.join(''), steps };
       };
 
       const throttledUpdate = (status) => {

@@ -6,7 +6,7 @@ import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import { useState, useMemo, useRef, useEffect, useCallback, memo } from 'react';
 import { StepsAccordion } from './AIResponseSteps';
 import MarkdownRenderer from './MarkdownRenderer';
-import { MESSAGE_STATUS, parseAssistantContent } from '../utils/chatMessages';
+import { MESSAGE_STATUS } from '../utils/chatMessages';
 import { useCharacterPacing } from '../hooks/useCharacterPacing';
 import {
   HOVER_CAPABLE_QUERY,
@@ -378,30 +378,11 @@ const ConversationLoadingSkeleton = memo(function ConversationLoadingSkeleton() 
 });
 
 function normalizeAssistantMessage(message) {
-  const status = message.status || (
-    message.isWaiting ? MESSAGE_STATUS.WAITING :
-      message.isStreaming ? MESSAGE_STATUS.STREAMING :
-        message.isError ? MESSAGE_STATUS.ERROR :
-          message.wasStopped ? MESSAGE_STATUS.STOPPED :
-            MESSAGE_STATUS.DONE
-  );
-
-  if (Array.isArray(message.steps) && typeof message.text === 'string') {
-    return {
-      id: message.id,
-      text: message.text,
-      steps: message.steps,
-      status,
-    };
-  }
-
-  const fallbackContent = message.rawContent || message.content || '';
-  const parsed = parseAssistantContent(fallbackContent, message.thinking, message.tools);
   return {
     id: message.id,
-    text: message.text ?? parsed.text,
-    steps: parsed.steps,
-    status,
+    text: message.text || '',
+    steps: message.steps || [],
+    status: message.status || MESSAGE_STATUS.DONE,
   };
 }
 
@@ -414,20 +395,11 @@ const MessageList = memo(function MessageList({
   const [visibleCount, setVisibleCount] = useState(60);
   const normalizedMessages = useMemo(() => (
     messages.map((message, index) => {
-      const role = message.role || (message.sender === 'user' ? 'user' : 'assistant');
       const id = message.id || `message-${index}`;
-      if (role === 'user') {
-        return {
-          id,
-          role,
-          text: message.text ?? message.content ?? '',
-        };
+      if (message.role === 'user') {
+        return { id, role: 'user', text: message.text };
       }
-      return {
-        id,
-        role,
-        ...normalizeAssistantMessage(message),
-      };
+      return { id, role: 'assistant', ...normalizeAssistantMessage(message) };
     })
   ), [messages]);
   const effectiveVisibleCount = normalizedMessages.length <= 50 ? 60 : visibleCount;

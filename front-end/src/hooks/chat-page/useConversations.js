@@ -12,7 +12,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
   getConversations,
   getConversation,
-  createConversation,
   deleteConversation,
 } from '../../api';
 import logger from '../../utils/logger';
@@ -109,27 +108,6 @@ export function useConversations() {
       }
     }
   }, [getAbortSignal]);
-  const handleNewChat = useCallback(async () => {
-    navigate('/chat');
-    setIsConversationLoading(false);
-    const signal = getAbortSignal();
-    try {
-      const data = await createConversation(signal);
-      if (data.status === 'success') {
-        const newId = data.conversation_id;
-        newlyCreatedConvIdRef.current = newId;
-        setCurrentConversationId(newId);
-        setMessages([]);
-        prevConversationIdRef.current = newId;
-        lastLoadedConversationIdRef.current = newId;
-        navigate(`/chat/${newId}`, { replace: true });
-        fetchConversations(signal);
-      }
-    } catch (error) {
-      if (error.name === 'AbortError') return; // Ignore abort errors
-      logger.error('Failed to create new conversation:', error);
-    }
-  }, [navigate, fetchConversations, getAbortSignal]);
   const handleDeleteConversation = useCallback(async (convId) => {
     try {
       await deleteConversation(convId);
@@ -185,10 +163,7 @@ export function useConversations() {
     setCurrentConversationId,
     fetchConversations,
     registerStreamingConversation,
-    handleSelectConversation,
-    handleNewChat,
     handleDeleteConversation,
-    resetChatState,
     navigate,
   };
 }

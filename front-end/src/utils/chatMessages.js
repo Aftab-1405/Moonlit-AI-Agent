@@ -1,8 +1,12 @@
 /**
  * Chat message utilities: assistant content parsing and message factories.
  *
- * Stored and streamed messages use structured fields (content, thinking, tools);
- * no legacy [[THINKING:...]] / [[TOOL:...]] markers in text.
+ * Every message in React state has exactly this shape:
+ *   { id, role, text, steps, status }
+ *
+ * Streamed messages are built with textOverride/stepsOverride.
+ * Firestore-loaded messages are built with rawContent/thinking/tools, which
+ * are parsed into the same text/steps fields.
  */
 
 export const MESSAGE_STATUS = Object.freeze({
@@ -15,56 +19,21 @@ export const MESSAGE_STATUS = Object.freeze({
 
 let messageCounter = 0;
 
-function getNowTimestamp() {
-  return Date.now().toString(36);
-}
-
 export function createMessageId(prefix = 'msg') {
   messageCounter += 1;
-  const suffix = messageCounter.toString(36);
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return `${prefix}-${crypto.randomUUID()}`;
   }
-  return `${prefix}-${getNowTimestamp()}-${suffix}`;
-}
-
-function getStatusFlags(status) {
-  return {
-    isWaiting: status === MESSAGE_STATUS.WAITING,
-    isStreaming: status === MESSAGE_STATUS.STREAMING,
-    isError: status === MESSAGE_STATUS.ERROR,
-    wasStopped: status === MESSAGE_STATUS.STOPPED,
-  };
-}
-
-function normalizeToolSteps(steps) {
-  return steps
-    .filter((step) => step.type === 'tool')
-    .map(({ name, status, args, result }) => ({ name, status, args, result }));
-}
-
-function normalizeThinkingText(steps) {
-  const thinking = steps
-    .filter((step) => step.type === 'thinking' && step.content)
-    .map((step) => step.content)
-    .join('\n')
-    .trim();
-  return thinking || undefined;
+  return `${prefix}-${Date.now().toString(36)}-${messageCounter.toString(36)}`;
 }
 
 export function createUserMessage(text, options = {}) {
-  const id = options.id || createMessageId('user');
-  const normalizedText = String(text || '');
-
   return {
-    id,
+    id: options.id || createMessageId('user'),
     role: 'user',
-    sender: 'user',
-    text: normalizedText,
-    content: normalizedText,
-    status: MESSAGE_STATUS.DONE,
+    text: String(text || ''),
     steps: [],
-    ...getStatusFlags(MESSAGE_STATUS.DONE),
+    status: MESSAGE_STATUS.DONE,
   };
 }
 
@@ -84,21 +53,12 @@ export function createAssistantMessage({
     }
     : parseAssistantContent(rawContent, thinking, tools);
 
-  const toolSteps = normalizeToolSteps(parsed.steps);
-  const thinkingText = normalizeThinkingText(parsed.steps);
-
   return {
     id,
     role: 'assistant',
-    sender: 'ai',
     text: parsed.text,
-    content: parsed.text,
-    rawContent,
     steps: parsed.steps,
     status,
-    thinking: thinkingText,
-    tools: toolSteps.length > 0 ? toolSteps : undefined,
-    ...getStatusFlags(status),
   };
 }
 
@@ -129,54 +89,24 @@ export function normalizeConversationMessage(message, index = 0) {
 
 export function isMessageActive(message) {
   if (!message) return false;
-  if (message.status) {
-    return message.status === MESSAGE_STATUS.WAITING || message.status === MESSAGE_STATUS.STREAMING;
-  }
-  return Boolean(message.isWaiting || message.isStreaming);
+  return message.status === MESSAGE_STATUS.WAITING || message.status === MESSAGE_STATUS.STREAMING;
 }
 
 /**
- * Build display segments from plain assistant text plus optional thinking/tools fields.
+ * Build text + steps from stored assistant message fields.
+ * Used when loading conversations from Firestore.
  */
 export function parseAssistantContent(text, thinkingField = null, toolsField = null) {
-  const segments = parseMessageSegments(String(text || ''), thinkingField, toolsField);
-  const parsedSteps = segments
-    .filter((segment) => segment.type === 'thinking' || segment.type === 'tool')
-    .map((segment, index) => {
-      if (segment.type === 'tool') {
-        return {
-          ...segment,
-          id: `tool-${segment.name}-${index}`,
-        };
-      }
-      return {
-        ...segment,
-        id: `thinking-${index}`,
-      };
-    });
-
-  const parsedText = segments
-    .filter((segment) => segment.type === 'text' && segment.content.trim())
-    .map((segment) => segment.content)
-    .join('\n\n')
-    .trim();
-
-  return {
-    text: parsedText,
-    steps: parsedSteps,
-  };
-}
-
-function parseMessageSegments(text, thinkingField = null, toolsField = null) {
-  const segments = [];
+  const steps = [];
 
   if (thinkingField && thinkingField.trim()) {
-    segments.push({ type: 'thinking', content: thinkingField.trim(), isComplete: true });
+    steps.push({ type: 'thinking', content: thinkingField.trim(), isComplete: true });
   }
 
   if (Array.isArray(toolsField) && toolsField.length > 0) {
-    toolsField.forEach((tool) => {
-      segments.push({
+    toolsField.forEach((tool, index) => {
+      steps.push({
+        id: `tool-${tool.name}-${index}`,
         type: 'tool',
         name: tool.name,
         status: tool.status || 'done',
@@ -186,10 +116,7 @@ function parseMessageSegments(text, thinkingField = null, toolsField = null) {
     });
   }
 
-  const cleanText = text.trim();
-  if (cleanText) {
-    segments.push({ type: 'text', content: cleanText });
-  }
+  const parsedText = String(text || '').trim();
 
-  return segments;
+  return { text: parsedText, steps };
 }

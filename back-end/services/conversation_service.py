@@ -10,6 +10,8 @@ import uuid
 import logging
 from typing import Optional, AsyncGenerator
 
+from fastapi.concurrency import run_in_threadpool
+
 logger = logging.getLogger(__name__)
 
 
@@ -23,10 +25,6 @@ class ConversationService:
         if provided_id:
             return provided_id
         return str(uuid.uuid4())
-
-    @staticmethod
-    def initialize_conversation(conversation_id: str, history: list = None) -> None:
-        pass  # Stateless API
 
     @staticmethod
     def get_conversation_data(conversation_id: str, user_id: str) -> Optional[dict]:
@@ -113,7 +111,8 @@ class ConversationService:
 
                 if event_type == "token":
                     if not prompt_stored:
-                        ConversationRepository.store_message(
+                        await run_in_threadpool(
+                            ConversationRepository.store_message,
                             conversation_id, "user", prompt, user_id
                         )
                         prompt_stored = True
@@ -121,7 +120,8 @@ class ConversationService:
 
                 elif event_type == "tool_start":
                     if not prompt_stored:
-                        ConversationRepository.store_message(
+                        await run_in_threadpool(
+                            ConversationRepository.store_message,
                             conversation_id, "user", prompt, user_id
                         )
                         prompt_stored = True
@@ -149,7 +149,8 @@ class ConversationService:
 
                 elif event_type == "thinking_token":
                     if not prompt_stored:
-                        ConversationRepository.store_message(
+                        await run_in_threadpool(
+                            ConversationRepository.store_message,
                             conversation_id, "user", prompt, user_id
                         )
                         prompt_stored = True
@@ -189,7 +190,8 @@ class ConversationService:
                     if was_aborted and response_text:
                         response_text += "\n\n_(Response stopped by user)_"
 
-                    ConversationRepository.store_message(
+                    await run_in_threadpool(
+                        ConversationRepository.store_message,
                         conversation_id,
                         "ai",
                         response_text,
@@ -210,22 +212,13 @@ class ConversationService:
     # ── Response headers ─────────────────────────────────────────────
 
     @staticmethod
-    def get_streaming_headers(
-        conversation_id: str,
-        provider: str | None = None,
-        model: str | None = None,
-    ) -> dict:
-        headers = {
+    def get_streaming_headers(conversation_id: str) -> dict:
+        return {
             "X-Conversation-Id": conversation_id,
             "Cache-Control": "no-cache, no-transform",
             "X-Accel-Buffering": "no",
             "Connection": "keep-alive",
         }
-        if provider:
-            headers["X-LLM-Provider"] = provider
-        if model:
-            headers["X-LLM-Model"] = model
-        return headers
 
     @staticmethod
     def check_quota_error(error_message: str) -> bool:

@@ -181,11 +181,7 @@ async def pass_user_prompt_to_llm(
             finally:
                 llm_rate_limiter.release()
 
-        headers = ConversationService.get_streaming_headers(
-            conversation_id,
-            provider=provider,
-            model=model,
-        )
+        headers = ConversationService.get_streaming_headers(conversation_id)
         return StreamingResponse(
             sse_generator(),
             media_type="text/event-stream",

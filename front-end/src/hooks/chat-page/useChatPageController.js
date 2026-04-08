@@ -120,8 +120,7 @@ export function useChatPageController() {
   const isCurrentlyStreaming = useMemo(() => {
     if (messages.length === 0) return false;
     const lastMessage = messages[messages.length - 1];
-    const isAssistant = lastMessage?.role === 'assistant' || lastMessage?.sender === 'ai';
-    return isAssistant && isMessageActive(lastMessage);
+    return lastMessage?.role === 'assistant' && isMessageActive(lastMessage);
   }, [messages]);
   const showWelcomeState = messages.length === 0 && !isConversationLoading;
   const showConversationPanel = messages.length > 0 || isConversationLoading;
@@ -129,23 +128,9 @@ export function useChatPageController() {
   const streamActivityKey = useMemo(() => {
     const lastMessage = messages[messages.length - 1];
     if (!lastMessage) return 'empty';
-
-    const messageId = lastMessage.id || 'no-id';
-    const status = lastMessage.status || (
-      lastMessage.isWaiting ? 'waiting' :
-        lastMessage.isStreaming ? 'streaming' :
-          lastMessage.isError ? 'error' :
-            lastMessage.wasStopped ? 'stopped' : 'done'
-    );
-    const rawLen = (lastMessage.rawContent || '').length;
-    const textLen = (lastMessage.text || lastMessage.content || '').length;
-    const stepsLen = Array.isArray(lastMessage.steps)
-      ? lastMessage.steps.length
-      : Array.isArray(lastMessage.tools)
-        ? lastMessage.tools.length
-        : 0;
-
-    return `${messageId}|${status}|${rawLen}|${textLen}|${stepsLen}|${messages.length}`;
+    const textLen = (lastMessage.text || '').length;
+    const stepsLen = (lastMessage.steps || []).length;
+    return `${lastMessage.id}|${lastMessage.status}|${textLen}|${stepsLen}|${messages.length}`;
   }, [messages]);
   const snackbarContentProps = useMemo(() => {
     const severityColor = snackbar.severity === 'success' ? theme.palette.success.main :
