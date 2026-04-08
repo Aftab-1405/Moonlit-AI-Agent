@@ -1,16 +1,18 @@
 /**
- * Claude.ai-inspired MUI light theme for Moonlit.
+ * MUI light theme for Moonlit.
+ *
+ * Brand: Selene — deep indigo-violet (HSL 250°), evoking a night sky.
  *
  * Token mapping:
  *   bg-000  → background.default   (pure white canvas)
- *   bg-100  → background.paper     (warm off-white cards)
+ *   bg-100  → background.paper     (barely-warm white — cards, sidebar)
  *   bg-200  → background.sunken    (input fields, inset surfaces)
  *   bg-000  → background.elevated  (popovers float above default)
  *   text-000 → text.primary
  *   text-200 → text.secondary
  *   text-400 → text.disabled / text.hint
- *   brand-000 → primary.main       (monochrome emphasis)
- *   accent-000 → secondary.main    (monochrome support tone)
+ *   brand-000 → primary.main       (deep indigo-violet)
+ *   accent-000 → secondary.main    (muted violet support tone)
  */
 
 import { createTheme, alpha, responsiveFontSizes } from '@mui/material/styles';
