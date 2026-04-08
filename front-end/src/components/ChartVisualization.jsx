@@ -62,7 +62,6 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
   const chartRef = useRef(null);
   const containerRef = useRef(null);
   const chartColors = useMemo(() => theme.palette.chart, [theme.palette.chart]);
-  const chartColorsBg = chartColors;
 
   const { columns = [], result = [] } = data || {};
   const { numericColumns, stringColumns } = useMemo(() => {
@@ -128,7 +127,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
       datasets: [{
         label: valueColumn,
         data: values,
-        backgroundColor: isPieOrDoughnut ? chartColorsBg : chartColorsBg[0],
+        backgroundColor: isPieOrDoughnut ? chartColors : chartColors[0],
         borderColor: isPieOrDoughnut ? chartColors : chartColors[0],
         borderWidth: isPieOrDoughnut ? 2 : 2,
         borderRadius: chartType === 'bar' ? 4 : 0,
@@ -136,7 +135,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
         tension: 0.3,
       }],
     };
-  }, [labelColumn, valueColumn, result, chartType, chartColors, chartColorsBg]);
+  }, [labelColumn, valueColumn, result, chartType, chartColors]);
 
   const chartOptions = useMemo(() => ({
     responsive: true,

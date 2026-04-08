@@ -521,14 +521,14 @@ class AIToolExecutor:
 
             if result.get("status") == "success":
                 total_rows = result.get("row_count", 0)
-                truncated_data = result.get("result", [])[:max_rows]
+                result_data = result.get("result", [])
                 return {
                     "success": True,
                     "columns": result.get("columns", []),
-                    "data": truncated_data,
-                    "row_count": len(truncated_data),  # Actual rows returned
-                    "total_rows": total_rows,  # Total in DB before truncation
-                    "truncated": total_rows > max_rows,
+                    "data": result_data,
+                    "row_count": len(result_data),
+                    "total_rows": total_rows,
+                    "truncated": result.get("truncated", False),
                 }
             else:
                 return {"error": result.get("message", "Query execution failed")}
