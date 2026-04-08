@@ -11,6 +11,7 @@ import {
   Tooltip,
   Legend,
   Filler,
+  Colors,
 } from 'chart.js';
 import { Bar, Line, Pie, Doughnut } from 'react-chartjs-2';
 import {
@@ -48,7 +49,8 @@ ChartJS.register(
   Title,
   Tooltip,
   Legend,
-  Filler
+  Filler,
+  Colors
 );
 
 function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewModeChange }) {
@@ -61,7 +63,6 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
   const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const chartRef = useRef(null);
   const containerRef = useRef(null);
-  const chartColors = useMemo(() => theme.palette.chart, [theme.palette.chart]);
 
   const { columns = [], result = [] } = data || {};
   const { numericColumns, stringColumns } = useMemo(() => {
@@ -127,15 +128,13 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
       datasets: [{
         label: valueColumn,
         data: values,
-        backgroundColor: isPieOrDoughnut ? chartColors : chartColors[0],
-        borderColor: isPieOrDoughnut ? chartColors : chartColors[0],
         borderWidth: isPieOrDoughnut ? 2 : 2,
         borderRadius: chartType === 'bar' ? 4 : 0,
         fill: chartType === 'line',
         tension: 0.3,
       }],
     };
-  }, [labelColumn, valueColumn, result, chartType, chartColors]);
+  }, [labelColumn, valueColumn, result, chartType]);
 
   const chartOptions = useMemo(() => ({
     responsive: true,
