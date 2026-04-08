@@ -262,20 +262,6 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
     borderRadius: 0.5,
   }), [theme.palette.action.disabledBackground]);
 
-  if (!data || !columns.length) {
-    return null;
-  }
-  if (!embedded && viewMode === 'chart') {
-    return (
-      <ChartVisualization
-        data={data}
-        onClose={onClose}
-        viewMode={viewMode}
-        onViewModeChange={(v) => v && setViewMode(v)}
-      />
-    );
-  }
-
   const embeddedToolbarSx = useMemo(() => ({
     display: 'flex',
     alignItems: 'center',
@@ -290,6 +276,20 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
     borderColor: theme.palette.border.subtle,
     backgroundColor: theme.palette.background.paper,
   }), [theme.palette.background.paper, theme.palette.border.subtle]);
+
+  if (!data || !columns.length) {
+    return null;
+  }
+  if (!embedded && viewMode === 'chart') {
+    return (
+      <ChartVisualization
+        data={data}
+        onClose={onClose}
+        viewMode={viewMode}
+        onViewModeChange={(v) => v && setViewMode(v)}
+      />
+    );
+  }
 
   return (
     <Box
