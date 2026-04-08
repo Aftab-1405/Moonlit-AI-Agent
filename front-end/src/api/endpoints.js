@@ -13,7 +13,6 @@ export const AUTH = {
 export const CONVERSATIONS = {
   LIST: '/api/v1/get_conversations',
   GET: (id) => `/api/v1/get_conversation/${id}`,
-  CREATE: '/api/v1/new_conversation',
   DELETE: (id) => `/api/v1/delete_conversation/${id}`,
   SEND_MESSAGE: '/api/v1/pass_user_prompt_to_llm',
 };

@@ -19,7 +19,6 @@ export {
 export {
   getConversations,
   getConversation,
-  createConversation,
   deleteConversation,
   sendMessage,
 } from './conversations';

@@ -4,7 +4,6 @@
  * Handles conversation-related API calls:
  * - List conversations
  * - Get single conversation
- * - Create new conversation
  * - Delete conversation
  * - Send message to LLM (streaming)
  * 
@@ -33,16 +32,6 @@ export async function getConversations(signal) {
  */
 export async function getConversation(id, signal) {
   return get(CONVERSATIONS.GET(id), { signal });
-}
-
-/**
- * Create a new conversation.
- * 
- * @param {AbortSignal} [signal] - Optional abort signal for cancellation
- * @returns {Promise<{status: string, conversation_id: string}>}
- */
-export async function createConversation(signal) {
-  return post(CONVERSATIONS.CREATE, undefined, { signal });
 }
 
 /**

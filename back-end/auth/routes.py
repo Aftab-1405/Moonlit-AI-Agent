@@ -1,6 +1,5 @@
 """Authentication routes - FastAPI Router"""
 
-import uuid
 import logging
 from fastapi import APIRouter, Request, Response, HTTPException, status
 from pydantic import BaseModel
@@ -34,14 +33,6 @@ class SetSessionRequest(BaseModel):
 # =============================================================================
 
 
-@router.get("/auth")
-async def auth(request: Request, response: Response):
-    """Clear session and return success."""
-    await clear_session(request)
-    logger.debug("Session cleared on /auth")
-    return {"status": "success", "message": "Session cleared"}
-
-
 @router.post("/set_session")
 async def set_session(request: Request, response: Response, data: SetSessionRequest):
     """
@@ -68,28 +59,19 @@ async def set_session(request: Request, response: Response, data: SetSessionRequ
             "verified": True,
         }
 
-        # Get existing session data to preserve db_config if it exists
+        # Preserve existing session data (especially db_config) on re-login
         existing_session = await get_session_data(request)
-        conversation_id = (
-            existing_session.get("conversation_id")
-            if existing_session
-            else str(uuid.uuid4())
-        )
-
-        # Merge with existing session data to preserve db_config
         session_data = {
-            **(existing_session or {}),  # Preserve existing data (especially db_config)
-            "user": user_data,  # Update user info
-            "conversation_id": conversation_id,
+            **(existing_session or {}),
+            "user": user_data,
         }
 
-        # Store in Redis (use existing session_id if available to keep same cookie)
+        # Reuse existing session_id to keep the same cookie on re-login
         existing_session_id = request.cookies.get("session_id")
         session_id = await set_session_data(
             request, session_data, session_id=existing_session_id
         )
 
-        # Set session cookie using environment-specific config
         response.set_cookie(
             key="session_id",
             value=session_id,
@@ -100,11 +82,7 @@ async def set_session(request: Request, response: Response, data: SetSessionRequ
         )
 
         logger.info(f"Session established for verified user: {decoded_token['uid']}")
-        return {
-            "status": "success",
-            "conversation_id": conversation_id,
-            "user": user_data,
-        }
+        return {"status": "success", "user": user_data}
 
     except Exception as e:
         logger.error(f"Token verification failed: {e}")
@@ -119,12 +97,8 @@ async def check_session(request: Request):
     session_data = await get_session_data(request)
 
     if session_data and "user" in session_data:
-        return {
-            "status": "session_active",
-            "conversation_id": session_data.get("conversation_id"),
-        }
-    else:
-        return {"status": "no_session"}
+        return {"status": "session_active"}
+    return {"status": "no_session"}
 
 
 @router.post("/logout")
