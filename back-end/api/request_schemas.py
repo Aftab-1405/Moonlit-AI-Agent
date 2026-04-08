@@ -103,11 +103,7 @@ class SwitchDatabaseRequest(BaseModel):
 class SelectSchemaRequest(BaseModel):
     """Schema for /select_schema"""
 
-    schema_name: str = Field(
-        ..., min_length=1, max_length=255, validation_alias="schema_id"
-    )
-
-    model_config = {"populate_by_name": True}
+    schema_name: str = Field(..., min_length=1, max_length=255)
 
     @field_validator("schema_name")
     @classmethod

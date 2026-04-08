@@ -30,9 +30,6 @@ export function useChatPageLlmSelection({ settings, updateSetting, updateSetting
     return selectedProviderOption?.default_model || llmOptions.default_model || modelOptions[0];
   }, [modelOptions, settings.llmModel, selectedProviderOption, llmOptions.default_model]);
 
-  const providerSelectValue = selectedProvider || '';
-  const modelSelectValue = selectedModel || '';
-
   const handleLlmSelection = useCallback((providerName, modelName) => {
     const providerOption = providerOptions.find((provider) => provider.name === providerName);
     if (!providerOption) return;
@@ -43,21 +40,6 @@ export function useChatPageLlmSelection({ settings, updateSetting, updateSetting
 
     updateSettings({ llmProvider: providerName, llmModel: nextModel });
   }, [providerOptions, updateSettings]);
-
-  const handleProviderChange = useCallback((event) => {
-    const nextProvider = event.target.value;
-    const providerOption = providerOptions.find((provider) => provider.name === nextProvider);
-    const nextModels = providerOption?.models || [];
-    const nextModel = nextModels.includes(settings.llmModel)
-      ? settings.llmModel
-      : (providerOption?.default_model || nextModels[0] || null);
-
-    handleLlmSelection(nextProvider, nextModel);
-  }, [providerOptions, settings.llmModel, handleLlmSelection]);
-
-  const handleModelChange = useCallback((event) => {
-    handleLlmSelection(selectedProvider, event.target.value);
-  }, [handleLlmSelection, selectedProvider]);
 
   useEffect(() => {
     let isMounted = true;
@@ -113,14 +95,9 @@ export function useChatPageLlmSelection({ settings, updateSetting, updateSetting
 
   return {
     providerOptions,
-    modelOptions,
-    providerSelectValue,
-    modelSelectValue,
     selectedProvider,
     selectedModel,
     llmOptionsLoading,
     handleLlmSelection,
-    handleProviderChange,
-    handleModelChange,
   };
 }

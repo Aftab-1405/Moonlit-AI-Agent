@@ -91,9 +91,9 @@ export async function getSchemas() {
 /**
  * Select a schema for AI context.
  * 
- * @param {string} schemaId - Schema identifier
+ * @param {string} schemaName - Schema name
  * @returns {Promise<{status: string}>}
  */
-export async function selectSchema(schemaId) {
-  return post(DATABASE.SELECT_SCHEMA, { schema_id: schemaId });
+export async function selectSchema(schemaName) {
+  return post(DATABASE.SELECT_SCHEMA, { schema_name: schemaName });
 }

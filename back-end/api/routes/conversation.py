@@ -80,12 +80,6 @@ def _build_provider_options() -> tuple[list[dict], str]:
     return selected_options, default_provider
 
 
-@router.get("/index")
-async def index(user: dict = Depends(get_current_user)):
-    """Authenticated health check."""
-    return {"status": "success", "message": "Authenticated"}
-
-
 @router.post("/pass_user_prompt_to_llm")
 async def pass_user_prompt_to_llm(
     request: Request,

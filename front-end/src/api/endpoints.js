@@ -26,7 +26,6 @@ export const DATABASE = {
   CONNECT: '/api/v1/connect_db',
   DISCONNECT: '/api/v1/disconnect_db',
   LIST_DATABASES: '/api/v1/get_databases',
-  LIST_TABLES: '/api/v1/get_tables',
   SWITCH_DATABASE: '/api/v1/switch_remote_database',
   SELECT_DATABASE: '/api/v1/select_database',
   GET_SCHEMAS: '/api/v1/get_schemas',
