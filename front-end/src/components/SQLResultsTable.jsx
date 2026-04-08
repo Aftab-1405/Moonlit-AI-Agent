@@ -26,9 +26,9 @@ import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import TimerOutlinedIcon from '@mui/icons-material/TimerOutlined';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
-import AddchartIcon from '@mui/icons-material/Addchart';
+import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
 import ChartVisualization from './ChartVisualization';
-import { getCompactActionSx, getScrollbarStyles, UI_LAYOUT } from '../styles/shared';
+import { getCompactActionSx, getToolbarChipSx, getScrollbarStyles, UI_LAYOUT } from '../styles/shared';
 
 function SQLResultsTable({ data, onClose, embedded = false }) {
   const [page, setPage] = useState(0);
@@ -271,7 +271,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
     px: 2,
     py: 0.75,
     flexShrink: 0,
-    minHeight: 40,
+    minHeight: 44,
     borderBottom: '1px solid',
     borderColor: theme.palette.border.subtle,
     backgroundColor: theme.palette.background.paper,
@@ -282,17 +282,33 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
   }
   if (!embedded && viewMode === 'chart') {
     return (
-      <ChartVisualization
-        data={data}
-        onClose={onClose}
-        viewMode={viewMode}
-        onViewModeChange={(v) => v && setViewMode(v)}
-      />
+      <Box
+        key="chart"
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
+          minHeight: 400,
+          animation: 'moonlitFadeIn 0.2s ease',
+          '@keyframes moonlitFadeIn': {
+            from: { opacity: 0, transform: 'translateY(5px)' },
+            to:   { opacity: 1, transform: 'translateY(0)' },
+          },
+        }}
+      >
+        <ChartVisualization
+          data={data}
+          onClose={onClose}
+          viewMode={viewMode}
+          onViewModeChange={(v) => v && setViewMode(v)}
+        />
+      </Box>
     );
   }
 
   return (
     <Box
+      key="table"
       sx={{
         display: 'flex',
         flexDirection: 'column',
@@ -307,6 +323,11 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
           : {
             height: '100%',
             minHeight: 400,
+            animation: 'moonlitFadeIn 0.2s ease',
+            '@keyframes moonlitFadeIn': {
+              from: { opacity: 0, transform: 'translateY(5px)' },
+              to:   { opacity: 1, transform: 'translateY(0)' },
+            },
           }),
       }}
     >
@@ -324,39 +345,21 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
             <Chip
               size="small"
               label={`${searchQuery ? filteredData.length : row_count} rows`}
-              sx={{
-                height: 22,
-                ...theme.typography.uiCaption2xs,
-                backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.08 : 0.05),
-                border: '1px solid',
-                borderColor: theme.palette.border.subtle,
-              }}
+              sx={getToolbarChipSx(theme, { interactive: false })}
             />
             {execution_time != null && (
               <Chip
                 size="small"
-                icon={<TimerOutlinedIcon sx={{ fontSize: 11 }} />}
+                icon={<TimerOutlinedIcon />}
                 label={`${execution_time.toFixed(2)}s`}
-                sx={{
-                  height: 22,
-                  ...theme.typography.uiCaption2xs,
-                  backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.06 : 0.04),
-                  '& .MuiChip-icon': { ml: 0.35, color: 'text.secondary' },
-                }}
+                sx={getToolbarChipSx(theme, { interactive: false })}
               />
             )}
             {truncated && (
               <Chip
                 size="small"
                 label="Truncated"
-                sx={{
-                  height: 22,
-                  ...theme.typography.uiCaption2xs,
-                  color: 'text.secondary',
-                  border: '1px solid',
-                  borderColor: theme.palette.border.subtle,
-                  bgcolor: 'transparent',
-                }}
+                sx={getToolbarChipSx(theme, { interactive: false })}
               />
             )}
           </Box>
@@ -426,11 +429,13 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
             justifyContent: 'space-between',
             flexWrap: 'wrap',
             gap: { xs: 0.75, sm: 1 },
-            px: { xs: 1.25, sm: 2 },
-            py: { xs: 1, sm: 1.5 },
+            px: 2,
+            py: 1,
+            flexShrink: 0,
+            minHeight: 52,
             borderBottom: '1px solid',
             borderColor: theme.palette.border.subtle,
-            backgroundColor: theme.palette.action.hover,
+            backgroundColor: theme.palette.background.paper,
           }}
         >
           <Box
@@ -452,46 +457,33 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                 size="small"
                 onClick={() => setViewMode('chart')}
                 sx={{
-                  ...getCompactActionSx(theme),
+                  ...getCompactActionSx(theme, { size: 36 }),
+                  borderRadius: 1.5,
                   color: 'text.secondary',
                   '&:hover': { backgroundColor: theme.palette.action.hover },
                 }}
               >
-                <AddchartIcon sx={{ fontSize: 20 }} />
+                <BarChartOutlinedIcon sx={{ fontSize: 20 }} />
               </IconButton>
             </Tooltip>
             <Chip
               size="small"
               label={`${searchQuery ? filteredData.length : row_count} rows`}
-              sx={{
-                height: 24,
-                backgroundColor: theme.palette.action.hover,
-                color: 'text.primary',
-                border: '1px solid',
-                borderColor: theme.palette.border.subtle,
-              }}
+              sx={getToolbarChipSx(theme, { interactive: false })}
             />
             {execution_time && (
               <Chip
                 size="small"
-                icon={<TimerOutlinedIcon sx={{ fontSize: 12 }} />}
+                icon={<TimerOutlinedIcon />}
                 label={`${execution_time.toFixed(2)}s`}
-                sx={{
-                  height: 24,
-                  backgroundColor: theme.palette.action.disabledBackground,
-                  '& .MuiChip-icon': { ml: 0.5, color: 'text.secondary' },
-                }}
+                sx={getToolbarChipSx(theme, { interactive: false })}
               />
             )}
             {truncated && (
               <Chip
                 size="small"
                 label="Truncated"
-                sx={{
-                  height: 24,
-                  backgroundColor: theme.palette.action.hover,
-                  color: 'text.secondary',
-                }}
+                sx={getToolbarChipSx(theme, { interactive: false })}
               />
             )}
           </Box>
@@ -513,7 +505,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                 width: { xs: 120, sm: 160 },
                 '& .MuiOutlinedInput-root': {
                   height: 32,
-                  backgroundColor: theme.palette.action.disabledBackground,
+                  bgcolor: alpha(theme.palette.text.primary, isDark ? 0.06 : 0.04),
                   '& fieldset': { borderColor: theme.palette.border.subtle },
                 },
               }}
@@ -524,7 +516,8 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                 size="small"
                 onClick={handleCopyAsCSV}
                 sx={{
-                  ...getCompactActionSx(theme),
+                  ...getCompactActionSx(theme, { size: 36 }),
+                  borderRadius: 1.5,
                   color: copied ? 'text.primary' : 'text.secondary',
                   '&:hover': { backgroundColor: theme.palette.action.hover },
                 }}
@@ -541,7 +534,8 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                 size="small"
                 onClick={handleDownloadCSV}
                 sx={{
-                  ...getCompactActionSx(theme),
+                  ...getCompactActionSx(theme, { size: 36 }),
+                  borderRadius: 1.5,
                   color: 'text.secondary',
                   '&:hover': { backgroundColor: theme.palette.action.hover },
                 }}
@@ -555,7 +549,8 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                   size="small"
                   onClick={onClose}
                   sx={{
-                    ...getCompactActionSx(theme),
+                    ...getCompactActionSx(theme, { size: 36 }),
+                    borderRadius: 1.5,
                     color: 'text.secondary',
                     '&:hover': { backgroundColor: theme.palette.action.hover },
                   }}
@@ -573,6 +568,9 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
           flex: 1,
           minHeight: embedded ? 0 : 250,
           overflow: 'hidden',
+          px: embedded ? 0 : { xs: 1, sm: 1.5 },
+          pt: embedded ? 0 : { xs: 1, sm: 1.5 },
+          pb: embedded ? 0 : { xs: 0.5, sm: 1 },
           '&::before, &::after': isCompactMobile ? {
             content: '""',
             position: 'absolute',
@@ -702,6 +700,8 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
           position: 'relative',
           zIndex: 1,
           flexShrink: 0,
+          borderTop: '1px solid',
+          borderColor: theme.palette.border.subtle,
           '& .MuiTablePagination-toolbar': {
             px: { xs: 1, sm: 2 },
             minHeight: { xs: UI_LAYOUT.touchTarget + 8, sm: 56 },

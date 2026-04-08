@@ -20,15 +20,12 @@ import {
   IconButton,
   ToggleButton,
   ToggleButtonGroup,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
   Tooltip as MuiTooltip,
   useTheme,
   useMediaQuery,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
+import AppPopover from './AppPopover';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import BarChartRoundedIcon from '@mui/icons-material/BarChartRounded';
 import ShowChartRoundedIcon from '@mui/icons-material/ShowChartRounded';
@@ -39,6 +36,8 @@ import FullscreenExitRoundedIcon from '@mui/icons-material/FullscreenExitRounded
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
+import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -58,6 +57,8 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
   const [labelColumnOverride, setLabelColumn] = useState(null);
   const [valueColumnOverride, setValueColumn] = useState(null);
   const [fullscreen, setFullscreen] = useState(false);
+  const [labelAnchorEl, setLabelAnchorEl] = useState(null);
+  const [valueAnchorEl, setValueAnchorEl] = useState(null);
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -243,39 +244,53 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
               px: 2,
               py: 0.75,
               flexShrink: 0,
-              minHeight: 40,
+              minHeight: 44,
               borderBottom: '1px solid',
               borderColor: theme.palette.border.subtle,
               bgcolor: theme.palette.background.paper,
             }}
           >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1 }, flexWrap: 'wrap', minWidth: 0 }}>
-              <FormControl size="small" sx={{ minWidth: { xs: 88, sm: 100 } }}>
-                <InputLabel sx={{ ...theme.typography.uiCaptionMd }}>Label</InputLabel>
-                <Select
-                  value={labelColumn}
-                  label="Label"
-                  onChange={(e) => setLabelColumn(e.target.value)}
-                  sx={{ height: 30, ...theme.typography.uiCaptionMd }}
-                >
-                  {columns.map(col => (
-                    <MenuItem key={col} value={col} sx={{ fontSize: '0.8125rem' }}>{col}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <FormControl size="small" sx={{ minWidth: { xs: 88, sm: 100 } }}>
-                <InputLabel sx={{ ...theme.typography.uiCaptionMd }}>Value</InputLabel>
-                <Select
-                  value={valueColumn}
-                  label="Value"
-                  onChange={(e) => setValueColumn(e.target.value)}
-                  sx={{ height: 30, ...theme.typography.uiCaptionMd }}
-                >
-                  {numericColumns.map(col => (
-                    <MenuItem key={col} value={col} sx={{ fontSize: '0.8125rem' }}>{col}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 0.75 }, flexWrap: 'wrap', minWidth: 0 }}>
+              <Box
+                component="button"
+                onClick={(e) => setLabelAnchorEl(e.currentTarget)}
+                aria-haspopup="listbox"
+                sx={{
+                  display: 'inline-flex', alignItems: 'center', gap: 0.5,
+                  height: 30, minWidth: { xs: 80, sm: 96 }, maxWidth: { xs: 120, sm: 140 },
+                  px: 1, borderRadius: '8px', border: '1px solid',
+                  borderColor: theme.palette.border.subtle,
+                  bgcolor: alpha(theme.palette.text.primary, isDark ? 0.06 : 0.04),
+                  cursor: 'pointer', fontFamily: 'inherit', outline: 'none',
+                  transition: 'border-color 0.12s, background-color 0.12s',
+                  '&:hover': { borderColor: theme.palette.border.hover, bgcolor: alpha(theme.palette.text.primary, isDark ? 0.09 : 0.06) },
+                  '&:focus-visible': { outline: `2px solid ${theme.palette.primary.main}`, outlineOffset: 1 },
+                }}
+              >
+                <Typography component="span" sx={{ ...theme.typography.uiCaption2xs, color: 'text.disabled', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}>Label</Typography>
+                <Typography component="span" noWrap sx={{ ...theme.typography.uiCaptionMd, color: 'text.primary', flex: 1, minWidth: 0, lineHeight: 1, textAlign: 'left' }}>{labelColumn || '—'}</Typography>
+                <KeyboardArrowDownRoundedIcon sx={{ fontSize: 12, color: 'text.disabled', flexShrink: 0 }} />
+              </Box>
+              <Box
+                component="button"
+                onClick={(e) => setValueAnchorEl(e.currentTarget)}
+                aria-haspopup="listbox"
+                sx={{
+                  display: 'inline-flex', alignItems: 'center', gap: 0.5,
+                  height: 30, minWidth: { xs: 80, sm: 96 }, maxWidth: { xs: 120, sm: 140 },
+                  px: 1, borderRadius: '8px', border: '1px solid',
+                  borderColor: theme.palette.border.subtle,
+                  bgcolor: alpha(theme.palette.text.primary, isDark ? 0.06 : 0.04),
+                  cursor: 'pointer', fontFamily: 'inherit', outline: 'none',
+                  transition: 'border-color 0.12s, background-color 0.12s',
+                  '&:hover': { borderColor: theme.palette.border.hover, bgcolor: alpha(theme.palette.text.primary, isDark ? 0.09 : 0.06) },
+                  '&:focus-visible': { outline: `2px solid ${theme.palette.primary.main}`, outlineOffset: 1 },
+                }}
+              >
+                <Typography component="span" sx={{ ...theme.typography.uiCaption2xs, color: 'text.disabled', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}>Value</Typography>
+                <Typography component="span" noWrap sx={{ ...theme.typography.uiCaptionMd, color: 'text.primary', flex: 1, minWidth: 0, lineHeight: 1, textAlign: 'left' }}>{valueColumn || '—'}</Typography>
+                <KeyboardArrowDownRoundedIcon sx={{ fontSize: 12, color: 'text.disabled', flexShrink: 0 }} />
+              </Box>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
               <MuiTooltip title="Download PNG">
@@ -326,10 +341,12 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
               flexWrap: 'wrap',
               gap: 1,
               px: 2,
-              py: 1.5,
+              py: 1,
+              flexShrink: 0,
+              minHeight: 52,
               borderBottom: '1px solid',
               borderColor: theme.palette.border.subtle,
-              backgroundColor: theme.palette.action.hover,
+              backgroundColor: theme.palette.background.paper,
             }}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -339,8 +356,9 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
                     size="small"
                     onClick={() => onViewModeChange('table')}
                     sx={{
-                      width: 44,
-                      height: 44,
+                      width: 36,
+                      height: 36,
+                      borderRadius: 1.5,
                       color: 'text.secondary',
                       '&:hover': { backgroundColor: theme.palette.action.hover },
                     }}
@@ -350,32 +368,46 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
                 </MuiTooltip>
               )}
 
-              <FormControl size="small" sx={{ minWidth: 100 }}>
-                <InputLabel>Label</InputLabel>
-                <Select
-                  value={labelColumn}
-                  label="Label"
-                  onChange={(e) => setLabelColumn(e.target.value)}
-                  sx={{ height: 32 }}
-                >
-                  {columns.map(col => (
-                    <MenuItem key={col} value={col}>{col}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <FormControl size="small" sx={{ minWidth: 100 }}>
-                <InputLabel>Value</InputLabel>
-                <Select
-                  value={valueColumn}
-                  label="Value"
-                  onChange={(e) => setValueColumn(e.target.value)}
-                  sx={{ height: 32 }}
-                >
-                  {numericColumns.map(col => (
-                    <MenuItem key={col} value={col}>{col}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <Box
+                component="button"
+                onClick={(e) => setLabelAnchorEl(e.currentTarget)}
+                aria-haspopup="listbox"
+                sx={{
+                  display: 'inline-flex', alignItems: 'center', gap: 0.5,
+                  height: 32, minWidth: 100, maxWidth: 160,
+                  px: 1, borderRadius: '8px', border: '1px solid',
+                  borderColor: theme.palette.border.subtle,
+                  bgcolor: alpha(theme.palette.text.primary, isDark ? 0.06 : 0.04),
+                  cursor: 'pointer', fontFamily: 'inherit', outline: 'none',
+                  transition: 'border-color 0.12s, background-color 0.12s',
+                  '&:hover': { borderColor: theme.palette.border.hover, bgcolor: alpha(theme.palette.text.primary, isDark ? 0.09 : 0.06) },
+                  '&:focus-visible': { outline: `2px solid ${theme.palette.primary.main}`, outlineOffset: 1 },
+                }}
+              >
+                <Typography component="span" sx={{ fontSize: '0.635rem', fontWeight: 600, color: 'text.disabled', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}>Label</Typography>
+                <Typography component="span" noWrap sx={{ fontSize: '0.8125rem', color: 'text.primary', flex: 1, minWidth: 0, lineHeight: 1, textAlign: 'left' }}>{labelColumn || '—'}</Typography>
+                <KeyboardArrowDownRoundedIcon sx={{ fontSize: 13, color: 'text.disabled', flexShrink: 0 }} />
+              </Box>
+              <Box
+                component="button"
+                onClick={(e) => setValueAnchorEl(e.currentTarget)}
+                aria-haspopup="listbox"
+                sx={{
+                  display: 'inline-flex', alignItems: 'center', gap: 0.5,
+                  height: 32, minWidth: 100, maxWidth: 160,
+                  px: 1, borderRadius: '8px', border: '1px solid',
+                  borderColor: theme.palette.border.subtle,
+                  bgcolor: alpha(theme.palette.text.primary, isDark ? 0.06 : 0.04),
+                  cursor: 'pointer', fontFamily: 'inherit', outline: 'none',
+                  transition: 'border-color 0.12s, background-color 0.12s',
+                  '&:hover': { borderColor: theme.palette.border.hover, bgcolor: alpha(theme.palette.text.primary, isDark ? 0.09 : 0.06) },
+                  '&:focus-visible': { outline: `2px solid ${theme.palette.primary.main}`, outlineOffset: 1 },
+                }}
+              >
+                <Typography component="span" sx={{ fontSize: '0.635rem', fontWeight: 600, color: 'text.disabled', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}>Value</Typography>
+                <Typography component="span" noWrap sx={{ fontSize: '0.8125rem', color: 'text.primary', flex: 1, minWidth: 0, lineHeight: 1, textAlign: 'left' }}>{valueColumn || '—'}</Typography>
+                <KeyboardArrowDownRoundedIcon sx={{ fontSize: 13, color: 'text.disabled', flexShrink: 0 }} />
+              </Box>
             </Box>
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -384,31 +416,14 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
                   size="small"
                   onClick={handleDownload}
                   sx={{
-                    width: 44,
-                    height: 44,
+                    width: 36,
+                    height: 36,
+                    borderRadius: 1.5,
                     color: 'text.secondary',
                     '&:hover': { backgroundColor: theme.palette.action.hover },
                   }}
                 >
                   <FileDownloadOutlinedIcon sx={{ fontSize: 18 }} />
-                </IconButton>
-              </MuiTooltip>
-              <MuiTooltip title={fullscreen ? 'Exit Fullscreen' : 'Fullscreen'}>
-                <IconButton
-                  size="small"
-                  onClick={() => setFullscreen(!fullscreen)}
-                  sx={{
-                    width: 44,
-                    height: 44,
-                    color: 'text.secondary',
-                    '&:hover': { backgroundColor: theme.palette.action.hover },
-                  }}
-                >
-                  {fullscreen ? (
-                    <FullscreenExitRoundedIcon sx={{ fontSize: 18 }} />
-                  ) : (
-                    <FullscreenRoundedIcon sx={{ fontSize: 18 }} />
-                  )}
                 </IconButton>
               </MuiTooltip>
               {onClose && (
@@ -417,8 +432,9 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
                     size="small"
                     onClick={onClose}
                     sx={{
-                      width: 44,
-                      height: 44,
+                      width: 36,
+                      height: 36,
+                      borderRadius: 1.5,
                       color: 'text.secondary',
                       '&:hover': { backgroundColor: theme.palette.action.hover },
                     }}
@@ -436,8 +452,8 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
             flex: 1,
             minHeight: embedded ? 0 : 250,
             overflow: 'hidden',
-            px: embedded ? { xs: 2, md: 3 } : 0,
-            py: embedded ? 1.5 : 0,
+            px: embedded ? { xs: 2, md: 3 } : { xs: 2, sm: 3 },
+            py: embedded ? 1.5 : 2,
             boxSizing: 'border-box',
           }}
         >
@@ -453,12 +469,12 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
             position: 'relative',
             gap: 2,
             px: 2,
-            py: embedded ? 1 : 1.25,
-            minHeight: embedded ? 44 : 52,
+            py: 1,
+            minHeight: 48,
             flexShrink: 0,
             borderTop: '1px solid',
             borderColor: theme.palette.border.subtle,
-            bgcolor: embedded ? theme.palette.background.paper : 'transparent',
+            bgcolor: theme.palette.background.paper,
           }}
         >
           <Typography
@@ -475,20 +491,16 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
             {result.length > 50 ? `Showing 50 of ${result.length} data points` : `${result.length} data points`}
           </Typography>
           <Box
-            sx={
-              embedded
-                ? {
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 0.25,
-                  p: 0.5,
-                  borderRadius: '10px',
-                  bgcolor: alpha(theme.palette.text.primary, isDark ? 0.1 : 0.06),
-                  border: '1px solid',
-                  borderColor: alpha(theme.palette.text.primary, isDark ? 0.1 : 0.08),
-                }
-                : {}
-            }
+            sx={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 0.25,
+              p: 0.5,
+              borderRadius: '10px',
+              bgcolor: alpha(theme.palette.text.primary, isDark ? 0.1 : 0.06),
+              border: '1px solid',
+              borderColor: alpha(theme.palette.text.primary, isDark ? 0.1 : 0.08),
+            }}
           >
             <ToggleButtonGroup
               value={chartType}
@@ -496,26 +508,22 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
               onChange={(e, v) => v && setChartType(v)}
               size="small"
               sx={{
-                gap: embedded ? 0.25 : 0,
+                gap: 0.25,
                 '& .MuiToggleButton-root': {
                   border: 'none',
-                  borderRadius: embedded ? '8px' : `${theme.shape.borderRadius}px`,
-                  px: embedded ? 0.75 : 1.5,
-                  py: embedded ? 0.5 : 0.5,
-                  minWidth: embedded ? 36 : undefined,
-                  height: embedded ? 30 : undefined,
+                  borderRadius: '8px',
+                  px: 0.75,
+                  py: 0.5,
+                  minWidth: 36,
+                  height: 30,
                   color: 'text.secondary',
                   '&.Mui-selected': {
                     color: 'text.primary',
-                    bgcolor: embedded
-                      ? alpha(theme.palette.background.paper, isDark ? 0.95 : 1)
-                      : theme.palette.action.selected,
-                    boxShadow: embedded
-                      ? `0 0 0 1px ${alpha(theme.palette.text.primary, 0.08)}, 0 1px 2px ${alpha(theme.palette.common.black, isDark ? 0.35 : 0.08)}`
-                      : undefined,
+                    bgcolor: alpha(theme.palette.background.paper, isDark ? 0.95 : 1),
+                    boxShadow: `0 0 0 1px ${alpha(theme.palette.text.primary, 0.08)}, 0 1px 2px ${alpha(theme.palette.common.black, isDark ? 0.35 : 0.08)}`,
                   },
                   '&:hover': {
-                    bgcolor: embedded ? alpha(theme.palette.text.primary, 0.06) : theme.palette.action.hover,
+                    bgcolor: alpha(theme.palette.text.primary, 0.06),
                   },
                 },
               }}
@@ -558,6 +566,86 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
           }}
         />
       )}
+      <AppPopover
+        anchorEl={labelAnchorEl}
+        open={Boolean(labelAnchorEl)}
+        onClose={() => setLabelAnchorEl(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+        width={180}
+        paperSx={{ mt: 0.5 }}
+      >
+        <Typography sx={{ px: 1, pt: 0.5, pb: 0.25, fontSize: '0.635rem', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'text.disabled', display: 'block', lineHeight: 1 }}>
+          Label Column
+        </Typography>
+        <Box sx={{ maxHeight: 220, overflowY: 'auto', mt: 0.5 }}>
+          {columns.map((col) => {
+            const isActive = col === labelColumn;
+            return (
+              <Box
+                component="div"
+                role="option"
+                aria-selected={isActive}
+                key={col}
+                onClick={() => { setLabelColumn(col); setLabelAnchorEl(null); }}
+                sx={{
+                  borderRadius: '8px', px: 1, py: 0.875, minHeight: 32,
+                  cursor: 'pointer', display: 'flex', alignItems: 'center',
+                  justifyContent: 'space-between', gap: 1, userSelect: 'none',
+                  transition: 'background-color 120ms',
+                  backgroundColor: isActive ? alpha(theme.palette.primary.main, isDark ? 0.12 : 0.08) : 'transparent',
+                  '&:hover': { backgroundColor: alpha(theme.palette.primary.main, isDark ? (isActive ? 0.16 : 0.07) : (isActive ? 0.11 : 0.05)) },
+                }}
+              >
+                <Typography sx={{ fontSize: '0.875rem', color: isActive ? 'primary.main' : 'text.primary', lineHeight: 1.4, fontWeight: isActive ? 500 : 400 }}>
+                  {col}
+                </Typography>
+                {isActive && <CheckRoundedIcon sx={{ fontSize: 14, color: 'primary.main', flexShrink: 0 }} />}
+              </Box>
+            );
+          })}
+        </Box>
+      </AppPopover>
+      <AppPopover
+        anchorEl={valueAnchorEl}
+        open={Boolean(valueAnchorEl)}
+        onClose={() => setValueAnchorEl(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+        width={180}
+        paperSx={{ mt: 0.5 }}
+      >
+        <Typography sx={{ px: 1, pt: 0.5, pb: 0.25, fontSize: '0.635rem', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'text.disabled', display: 'block', lineHeight: 1 }}>
+          Value Column
+        </Typography>
+        <Box sx={{ maxHeight: 220, overflowY: 'auto', mt: 0.5 }}>
+          {numericColumns.map((col) => {
+            const isActive = col === valueColumn;
+            return (
+              <Box
+                component="div"
+                role="option"
+                aria-selected={isActive}
+                key={col}
+                onClick={() => { setValueColumn(col); setValueAnchorEl(null); }}
+                sx={{
+                  borderRadius: '8px', px: 1, py: 0.875, minHeight: 32,
+                  cursor: 'pointer', display: 'flex', alignItems: 'center',
+                  justifyContent: 'space-between', gap: 1, userSelect: 'none',
+                  transition: 'background-color 120ms',
+                  backgroundColor: isActive ? alpha(theme.palette.primary.main, isDark ? 0.12 : 0.08) : 'transparent',
+                  '&:hover': { backgroundColor: alpha(theme.palette.primary.main, isDark ? (isActive ? 0.16 : 0.07) : (isActive ? 0.11 : 0.05)) },
+                }}
+              >
+                <Typography sx={{ fontSize: '0.875rem', color: isActive ? 'primary.main' : 'text.primary', lineHeight: 1.4, fontWeight: isActive ? 500 : 400 }}>
+                  {col}
+                </Typography>
+                {isActive && <CheckRoundedIcon sx={{ fontSize: 14, color: 'primary.main', flexShrink: 0 }} />}
+              </Box>
+            );
+          })}
+        </Box>
+      </AppPopover>
     </>
   );
 }

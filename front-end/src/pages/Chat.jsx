@@ -28,7 +28,7 @@ import ResizeHandle from '../components/ResizeHandle';
 import WelcomeScreen from '../components/WelcomeScreen';
 import StarfieldCanvas from '../components/StarfieldCanvas';
 import { useChatPageController } from '../hooks/chat-page/useChatPageController';
-import { getScrollbarStyles } from '../styles/shared';
+import { getScrollbarStyles, getDialogPaperSx, DIALOG_VIEWPORT_SUPPORT_QUERY } from '../styles/shared';
 
 function Chat() {
   const {
@@ -373,26 +373,16 @@ function Chat() {
       <Dialog
         open={Boolean(queryResults)}
         onClose={handleCloseQueryResults}
-        maxWidth="xl"
-        fullWidth
-        fullScreen={isNarrowLayout}
+        fullScreen
         TransitionComponent={Grow}
-        sx={{
-          '& .MuiDialog-paper': {
-            margin: { xs: 0, sm: 2 },
-            width: { xs: '100%', sm: 'calc(100% - 32px)' },
-            height: { xs: '100%', sm: '85vh' },
-            maxHeight: { xs: '100%', sm: '85vh' },
-            borderRadius: { xs: 0, sm: 2 },
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-          },
-        }}
         PaperProps={{
           sx: {
-            bgcolor: 'background.paper',
-            backgroundImage: 'none',
+            ...getDialogPaperSx(theme, { isMobile: true }),
+            backgroundColor: theme.palette.background.paper,
+            backgroundImage: theme.palette.mode === 'dark'
+              ? `linear-gradient(160deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, transparent 40%)`
+              : `linear-gradient(160deg, ${alpha(theme.palette.primary.main, 0.06)} 0%, transparent 40%)`,
+            [DIALOG_VIEWPORT_SUPPORT_QUERY]: { height: '100dvh', maxHeight: '100dvh', minHeight: '100dvh' },
           },
         }}
       >
