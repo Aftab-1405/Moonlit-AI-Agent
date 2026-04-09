@@ -4,6 +4,7 @@
     { "source": "/set_session", "destination": "https://moonlit-ai-agent.onrender.com/set_session" },
     { "source": "/check_session", "destination": "https://moonlit-ai-agent.onrender.com/check_session" },
     { "source": "/logout", "destination": "https://moonlit-ai-agent.onrender.com/logout" },
-    { "source": "/api/:path*", "destination": "https://moonlit-ai-agent.onrender.com/api/:path*" }
+    { "source": "/api/:path*", "destination": "https://moonlit-ai-agent.onrender.com/api/:path*" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
