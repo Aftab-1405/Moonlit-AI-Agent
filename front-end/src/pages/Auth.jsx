@@ -71,42 +71,48 @@ const AUTH_KEYFRAMES = (
 );
 
 // ─── Shared submit button sx ──────────────────────────────────────────────────
-const getSubmitButtonSx = (theme) => ({
-  py: { xs: 1, sm: 1.125 },
-  borderRadius: 1.5,
-  fontWeight: 600,
-  backgroundColor: theme.palette.text.primary,
-  color: theme.palette.background.default,
-  border: 'none',
-  boxShadow:
-    theme.palette.mode === 'dark'
-      ? `0 4px 20px ${alpha(theme.palette.text.primary, 0.28)}`
-      : `0 4px 20px ${alpha(theme.palette.text.primary, 0.15)}`,
-  transition: theme.transitions.create(
-    ['background-color', 'transform', 'box-shadow'],
-    { duration: 200 }
-  ),
-  '@media (hover: hover)': {
-    '&:hover': {
-      backgroundColor: alpha(theme.palette.text.primary, 0.88),
-      transform: 'translateY(-1px)',
-      boxShadow:
-        theme.palette.mode === 'dark'
-          ? `0 6px 24px ${alpha(theme.palette.text.primary, 0.34)}`
-          : `0 6px 24px ${alpha(theme.palette.text.primary, 0.2)}`,
+const getSubmitButtonSx = (theme) => {
+  const isDark = theme.palette.mode === 'dark';
+  const brand = theme.palette.primary.main;
+  const brandLight = theme.palette.primary.light;
+  const accent = theme.palette.secondary.main;
+  const brandGradient = `linear-gradient(135deg, ${accent}, ${brandLight}, ${brand})`;
+  return {
+    py: { xs: 1, sm: 1.125 },
+    borderRadius: 1.5,
+    fontWeight: 600,
+    backgroundImage: brandGradient,
+    backgroundColor: 'transparent',
+    color: '#fff',
+    border: 'none',
+    boxShadow: `0 4px 20px ${alpha(brand, isDark ? 0.45 : 0.35)}`,
+    transition: theme.transitions.create(
+      ['filter', 'transform', 'box-shadow'],
+      { duration: 200 }
+    ),
+    '@media (hover: hover)': {
+      '&:hover': {
+        filter: 'brightness(1.12)',
+        transform: 'translateY(-1px)',
+        boxShadow: `0 6px 24px ${alpha(brand, isDark ? 0.55 : 0.45)}`,
+      },
     },
-  },
-  '&:active': { transform: 'scale(0.98)', boxShadow: 'none' },
-  '&.Mui-disabled': {
-    backgroundColor: alpha(theme.palette.text.primary, 0.3),
-    color: alpha(theme.palette.background.default, 0.6),
-    boxShadow: 'none',
-  },
-});
+    '&:active': { transform: 'scale(0.98)', boxShadow: 'none' },
+    '&.Mui-disabled': {
+      backgroundImage: 'none',
+      backgroundColor: alpha(theme.palette.text.primary, 0.3),
+      color: alpha('#fff', 0.6),
+      boxShadow: 'none',
+    },
+  };
+};
 
 // ─── SQL→NL Decorative Mockup ─────────────────────────────────────────────────
 function QueryMockup({ isDark }) {
   const theme = useTheme();
+  const brand = theme.palette.primary.main;
+  const brandLight = theme.palette.primary.light;
+  const accent = theme.palette.secondary.main;
 
   const C = {
     panelBg: isDark
@@ -127,18 +133,12 @@ function QueryMockup({ isDark }) {
     codeBg: isDark
       ? alpha(theme.palette.common.black, 0.22)
       : alpha(theme.palette.text.primary, 0.055),
-    keyword: isDark
-      ? alpha(theme.palette.common.white, 0.95)
-      : alpha(theme.palette.text.primary, 0.92),
+    keyword: isDark ? brandLight : brand,
     codeText: isDark
       ? alpha(theme.palette.common.white, 0.58)
       : alpha(theme.palette.text.primary, 0.7),
-    highlight: isDark
-      ? alpha(theme.palette.common.white, 0.05)
-      : alpha(theme.palette.text.primary, 0.05),
-    dot: isDark
-      ? alpha(theme.palette.common.white, 0.32)
-      : alpha(theme.palette.text.primary, 0.22),
+    highlight: alpha(brand, isDark ? 0.1 : 0.07),
+    dot: brand,
   };
 
   const SQL_LINES = [
@@ -274,7 +274,7 @@ function QueryMockup({ isDark }) {
             borderBottom: `1px solid ${C.panelBorder}`,
           }}
         >
-          <AutoAwesomeIcon sx={{ fontSize: 12, color: C.muted }} />
+          <AutoAwesomeIcon sx={{ fontSize: 12, color: accent }} />
           <Typography
             sx={{
               fontSize: '0.63rem',
@@ -595,7 +595,7 @@ function Auth() {
           overflow: 'hidden',
         }}
       >
-        <CircularProgress sx={{ color: 'text.primary', opacity: 0.45 }} size={28} />
+        <CircularProgress sx={{ color: 'primary.main' }} size={28} />
       </Box>
     );
   }
@@ -610,8 +610,9 @@ function Auth() {
     '& .MuiTabs-indicator': {
       height: '100%',
       borderRadius: 1,
-      backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.12 : 0.1),
-      boxShadow: `0 1px 4px ${alpha(theme.palette.text.primary, 0.1)}`,
+      backgroundImage: `linear-gradient(to right, ${theme.palette.secondary.main}, ${theme.palette.primary.light}, ${theme.palette.primary.main})`,
+      backgroundColor: 'transparent',
+      boxShadow: `0 1px 4px ${alpha(theme.palette.primary.main, 0.25)}`,
       zIndex: 0,
     },
     '& .MuiTab-root': {
@@ -622,7 +623,7 @@ function Auth() {
       color: 'text.secondary',
       zIndex: 1,
       transition: theme.transitions.create('color', { duration: 150 }),
-      '&.Mui-selected': { color: 'text.primary', fontWeight: 600 },
+      '&.Mui-selected': { color: theme.palette.primary.main, fontWeight: 600 },
     },
   };
 
@@ -699,8 +700,8 @@ function Auth() {
                 width: '60%',
                 height: '60%',
                 background: `radial-gradient(circle, ${alpha(
-                  theme.palette.text.primary,
-                  isDark ? 0.065 : 0.05
+                  theme.palette.primary.main,
+                  isDark ? 0.22 : 0.14
                 )} 0%, transparent 70%)`,
                 filter: 'blur(70px)',
                 pointerEvents: 'none',
@@ -716,8 +717,8 @@ function Auth() {
                 width: '50%',
                 height: '50%',
                 background: `radial-gradient(circle, ${alpha(
-                  theme.palette.text.primary,
-                  isDark ? 0.045 : 0.035
+                  theme.palette.secondary.main,
+                  isDark ? 0.18 : 0.11
                 )} 0%, transparent 70%)`,
                 filter: 'blur(60px)',
                 pointerEvents: 'none',
@@ -790,7 +791,10 @@ function Auth() {
                   component="span"
                   sx={{
                     ...theme.typography.uiBrandWordmark,
-                    color: 'text.primary',
+                    background: `linear-gradient(to right, ${theme.palette.secondary.main}, ${theme.palette.primary.light}, ${theme.palette.primary.main})`,
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text',
                     letterSpacing: '-0.02em',
                     animation: 'authFadeUp 0.5s ease-out 0.15s both',
                   }}
@@ -845,8 +849,8 @@ function Auth() {
               width: '80%',
               height: '50%',
               background: `radial-gradient(ellipse at center, ${alpha(
-                theme.palette.text.primary,
-                isDark ? 0.04 : 0.025
+                theme.palette.primary.main,
+                isDark ? 0.1 : 0.07
               )}, transparent 70%)`,
               filter: 'blur(50px)',
               pointerEvents: 'none',
@@ -879,7 +883,10 @@ function Auth() {
                   component="span"
                   sx={{
                     ...theme.typography.uiBrandWordmark,
-                    color: 'text.primary',
+                    background: `linear-gradient(to right, ${theme.palette.secondary.main}, ${theme.palette.primary.light}, ${theme.palette.primary.main})`,
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text',
                     letterSpacing: '-0.02em',
                   }}
                 >
@@ -1042,8 +1049,8 @@ function Auth() {
                           opacity: 0.72,
                           textDecoration: 'none',
                           ...theme.typography.uiCaptionXs,
-                          transition: theme.transitions.create('opacity', { duration: 150 }),
-                          '@media (hover: hover)': { '&:hover': { opacity: 1 } },
+                          transition: theme.transitions.create(['opacity', 'color'], { duration: 150 }),
+                          '@media (hover: hover)': { '&:hover': { opacity: 1, color: theme.palette.primary.main } },
                         }}
                       >
                         Forgot password?
@@ -1208,12 +1215,12 @@ function Auth() {
                         ),
                         '@media (hover: hover)': {
                           '&:hover': {
-                            borderColor: alpha(theme.palette.text.primary, isDark ? 0.25 : 0.2),
+                            borderColor: alpha(theme.palette.primary.main, isDark ? 0.45 : 0.35),
                             backgroundColor: alpha(
-                              theme.palette.text.primary,
-                              isDark ? 0.06 : 0.045
+                              theme.palette.primary.main,
+                              isDark ? 0.08 : 0.06
                             ),
-                            boxShadow: `0 2px 8px ${alpha(theme.palette.text.primary, 0.06)}`,
+                            boxShadow: `0 2px 8px ${alpha(theme.palette.primary.main, isDark ? 0.2 : 0.14)}`,
                           },
                         },
                       }}

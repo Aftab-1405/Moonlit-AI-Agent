@@ -7,12 +7,17 @@ import { Section, REDUCED_MOTION_QUERY, HOVER_CAPABLE_QUERY } from './index';
 const STATS = [
   { value: '10K+', label: 'Queries/day' },
   { value: '<100ms', label: 'Avg response' },
-  { value: '5', label: 'DB engines' },
+  { value: '4', label: 'DB engines' },
 ];
 
 function Hero({ onGetStarted }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
+  const brand = theme.palette.primary.main;
+  const brandLight = theme.palette.primary.light;
+  const accent = theme.palette.secondary.main;
+  const brandGradient = `linear-gradient(to right, ${accent}, ${brandLight}, ${brand}, ${brandLight}, ${accent})`;
+  const brandGradientStatic = `linear-gradient(135deg, ${accent}, ${brandLight}, ${brand})`;
 
   return (
     <Section sx={{ py: { xs: 8, md: 6 } }}>
@@ -41,7 +46,7 @@ function Hero({ onGetStarted }) {
             width: { xs: 280, md: 440 },
             height: { xs: 280, md: 440 },
             borderRadius: '50%',
-            background: `radial-gradient(circle, ${alpha(theme.palette.text.primary, isDark ? 0.05 : 0.035)}, transparent 70%)`,
+            background: `radial-gradient(circle, ${alpha(brand, isDark ? 0.22 : 0.14)}, transparent 70%)`,
             filter: { xs: 'blur(40px)', md: 'blur(80px)' },
             animation: 'float 8s ease-in-out infinite',
             [REDUCED_MOTION_QUERY]: { animation: 'none' },
@@ -55,7 +60,7 @@ function Hero({ onGetStarted }) {
             width: { xs: 200, md: 340 },
             height: { xs: 200, md: 340 },
             borderRadius: '50%',
-            background: `radial-gradient(circle, ${alpha(theme.palette.text.primary, isDark ? 0.035 : 0.025)}, transparent 70%)`,
+            background: `radial-gradient(circle, ${alpha(accent, isDark ? 0.18 : 0.12)}, transparent 70%)`,
             filter: { xs: 'blur(30px)', md: 'blur(60px)' },
             animation: 'float 10s ease-in-out infinite 1.5s',
             [REDUCED_MOTION_QUERY]: { animation: 'none' },
@@ -70,7 +75,7 @@ function Hero({ onGetStarted }) {
             width: { xs: 160, md: 280 },
             height: { xs: 160, md: 280 },
             borderRadius: '50%',
-            background: `radial-gradient(circle, ${alpha(theme.palette.text.primary, isDark ? 0.03 : 0.018)}, transparent 70%)`,
+            background: `radial-gradient(circle, ${alpha(brandLight, isDark ? 0.16 : 0.1)}, transparent 70%)`,
             filter: { xs: 'blur(25px)', md: 'blur(50px)' },
             animation: 'float 12s ease-in-out infinite 3s',
             [REDUCED_MOTION_QUERY]: { animation: 'none' },
@@ -84,7 +89,7 @@ function Hero({ onGetStarted }) {
         sx={{
           position: 'absolute',
           inset: 0,
-          background: `radial-gradient(ellipse 80% 50% at 50% -10%, ${alpha(theme.palette.text.primary, isDark ? 0.07 : 0.05)}, transparent)`,
+          background: `radial-gradient(ellipse 80% 50% at 50% -10%, ${alpha(brand, isDark ? 0.12 : 0.08)}, transparent)`,
           pointerEvents: 'none',
           zIndex: 0,
         }}
@@ -98,8 +103,8 @@ function Hero({ onGetStarted }) {
               px: 2,
               py: 0.625,
               borderRadius: 2,
-              backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.06 : 0.04),
-              border: `1px solid ${alpha(theme.palette.text.primary, 0.1)}`,
+              backgroundColor: alpha(brand, isDark ? 0.12 : 0.08),
+              border: `1px solid ${alpha(brand, isDark ? 0.28 : 0.2)}`,
               display: 'inline-flex',
               alignItems: 'center',
               gap: 1,
@@ -113,9 +118,7 @@ function Hero({ onGetStarted }) {
                 width: 6,
                 height: 6,
                 borderRadius: '50%',
-                backgroundColor: isDark
-                  ? alpha(theme.palette.text.primary, 0.6)
-                  : alpha(theme.palette.text.primary, 0.5),
+                backgroundColor: brand,
                 animation: 'pulse-dot 2s ease-in-out infinite',
                 flexShrink: 0,
                 [REDUCED_MOTION_QUERY]: { animation: 'none' },
@@ -151,9 +154,12 @@ function Hero({ onGetStarted }) {
             <Box
               component="span"
               sx={{
-                color: isDark
-                  ? alpha(theme.palette.text.primary, 0.45)
-                  : alpha(theme.palette.text.primary, 0.4),
+                background: brandGradient,
+                backgroundSize: '200% auto',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                animation: 'shimmer 5s linear infinite',
               }}
             >
               Start Asking Questions.
@@ -195,23 +201,18 @@ function Hero({ onGetStarted }) {
                 py: 1.5,
                 borderRadius: 2,
                 fontWeight: 600,
-                backgroundColor: 'text.primary',
-                color: 'background.default',
+                backgroundImage: brandGradientStatic,
+                backgroundColor: 'transparent',
+                color: '#fff',
                 border: 'none',
-                boxShadow: isDark
-                  ? `0 4px 24px ${alpha(theme.palette.text.primary, 0.3)}`
-                  : `0 4px 24px ${alpha(theme.palette.text.primary, 0.18)}`,
-                transition: theme.transitions.create(['background-color', 'transform', 'box-shadow'], { duration: 200 }),
+                boxShadow: `0 4px 24px ${alpha(brand, isDark ? 0.45 : 0.35)}`,
+                transition: theme.transitions.create(['filter', 'transform', 'box-shadow'], { duration: 200 }),
                 [REDUCED_MOTION_QUERY]: { transition: 'none' },
                 [HOVER_CAPABLE_QUERY]: {
                   '&:hover': {
-                    backgroundColor: isDark
-                      ? alpha(theme.palette.text.primary, 0.85)
-                      : alpha(theme.palette.text.primary, 0.9),
+                    filter: 'brightness(1.12)',
                     transform: 'translateY(-2px)',
-                    boxShadow: isDark
-                      ? `0 8px 28px ${alpha(theme.palette.text.primary, 0.38)}`
-                      : `0 8px 28px ${alpha(theme.palette.text.primary, 0.22)}`,
+                    boxShadow: `0 8px 28px ${alpha(brand, isDark ? 0.55 : 0.45)}`,
                   },
                 },
                 '&:active': { transform: 'scale(0.98)' },
@@ -234,12 +235,13 @@ function Hero({ onGetStarted }) {
                 borderColor: alpha(theme.palette.text.primary, 0.18),
                 borderWidth: 1,
                 color: 'text.primary',
-                transition: theme.transitions.create(['border-color', 'background-color', 'transform'], { duration: 200 }),
+                transition: theme.transitions.create(['border-color', 'background-color', 'color', 'transform'], { duration: 200 }),
                 [REDUCED_MOTION_QUERY]: { transition: 'none' },
                 [HOVER_CAPABLE_QUERY]: {
                   '&:hover': {
-                    borderColor: alpha(theme.palette.text.primary, 0.38),
-                    backgroundColor: alpha(theme.palette.text.primary, 0.04),
+                    borderColor: alpha(brand, 0.5),
+                    backgroundColor: alpha(brand, isDark ? 0.09 : 0.06),
+                    color: brand,
                     transform: 'translateY(-2px)',
                   },
                 },
@@ -275,7 +277,10 @@ function Hero({ onGetStarted }) {
                 <Typography
                   sx={{
                     fontWeight: 700,
-                    color: 'text.primary',
+                    background: brandGradientStatic,
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text',
                     ...theme.typography.uiHeadingLandingMd,
                     fontSize: { xs: '1.1rem', md: '1.25rem' },
                     lineHeight: 1.2,

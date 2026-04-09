@@ -29,15 +29,15 @@ const hexToRgb = (hex) => {
 
 const CONFIG = {
   layers: [
-    { count: 0.0001, sizeRange: [0.25, 0.55], opacityRange: [0.16, 0.3], speed: 0.4, twinkle: 0.12 },
-    { count: 0.00007, sizeRange: [0.55, 0.9], opacityRange: [0.26, 0.44], speed: 0.85, twinkle: 0.22 },
-    { count: 0.00003, sizeRange: [0.9, 1.35], opacityRange: [0.4, 0.62], speed: 1.5, twinkle: 0.3 },
-    { count: 0.000012, sizeRange: [1.3, 2.1], opacityRange: [0.55, 0.8], speed: 2.4, twinkle: 0.4 },
+    { count: 0.00016, sizeRange: [0.2, 0.5], opacityRange: [0.14, 0.28], speed: 1.8, twinkle: 0.1 },
+    { count: 0.0001, sizeRange: [0.5, 0.85], opacityRange: [0.24, 0.42], speed: 4, twinkle: 0.2 },
+    { count: 0.00005, sizeRange: [0.85, 1.3], opacityRange: [0.36, 0.58], speed: 7.5, twinkle: 0.28 },
+    { count: 0.00002, sizeRange: [1.2, 2.0], opacityRange: [0.5, 0.76], speed: 12, twinkle: 0.36 },
   ],
-  clusters: { count: 4, starsPerCluster: [10, 18], radius: [70, 140] },
-  nebulas: { count: 3, pulseSpeed: 0.06 },
-  meteors: { poolSize: 6, minDelay: 5000, maxDelay: 12000 },
-  ambientGlow: { enabled: true, intensity: 0.075 },
+  clusters: { count: 5, starsPerCluster: [12, 22], radius: [80, 160] },
+  nebulas: { count: 4, pulseSpeed: 0.08 },
+  meteors: { poolSize: 8, minDelay: 3500, maxDelay: 9000 },
+  ambientGlow: { enabled: true, intensity: 0.09 },
   maxDPR: 1.5,
   frameSkipThreshold: 0.02,
   targetFps: 60,
@@ -45,33 +45,37 @@ const CONFIG = {
 
 const COLORS = {
   stars: [
-    // Neutral white-silver (majority)
-    [175, 175, 180],
+    // Cool white-silver (O/A class — majority)
     [195, 195, 200],
     [215, 215, 220],
     [235, 235, 240],
     [248, 248, 252],
-    [185, 185, 190],
-    // Selene blue-white (~27% of picks — hot O/B class stars)
-    [180, 190, 235],
-    [200, 208, 242],
-    [158, 172, 228],
+    // Selene blue-white (B class)
+    [170, 185, 240],
+    [190, 202, 245],
+    [155, 168, 230],
+    // Ice blue
+    [180, 218, 255],
+    [200, 228, 250],
+    // Warm amber-gold (K class — rare warmth for depth)
+    [255, 218, 175],
+    [240, 200, 160],
   ],
   nebulas: [
-    { r: 28, g: 28, b: 32,  name: 'deepCharcoal' },
-    { r: 38, g: 38, b: 42,  name: 'darkSteel' },
-    { r: 22, g: 22, b: 26,  name: 'nearBlack' },
-    { r: 48, g: 48, b: 52,  name: 'midCharcoal' },
-    { r: 50, g: 60, b: 115, name: 'seleneDeep' },
+    { r: 12, g: 12, b: 22,  name: 'voidBlack' },
+    { r: 22, g: 18, b: 48,  name: 'deepPurple' },
+    { r: 12, g: 25, b: 55,  name: 'deepBlue' },
+    { r: 18, g: 38, b: 48,  name: 'deepTeal' },
+    { r: 45, g: 50, b: 115, name: 'seleneDeep' },
   ],
   meteor: {
     head: [238, 242, 255],
     trail: [175, 175, 180],
   },
   glow: {
-    inner: [188, 198, 242],
-    mid:   [148, 160, 215],
-    outer: [110, 122, 178],
+    inner: [180, 195, 250],
+    mid:   [130, 150, 225],
+    outer: [90, 110, 195],
   },
 };
 
@@ -124,6 +128,11 @@ class StarField {
     const size = rand(...layer.sizeRange);
     const baseOpacity = rand(...layer.opacityRange);
 
+    // Consistent drift direction with per-star spread — simulates traveling through space
+    const baseAngle = Math.PI * 0.82;
+    const angle = baseAngle + (Math.random() - 0.5) * 0.35;
+    const speed = layer.speed * (0.8 + Math.random() * 0.4);
+
     return {
       x: Math.random() * w,
       y: Math.random() * h,
@@ -131,8 +140,8 @@ class StarField {
       baseOpacity,
       color,
       colorStr: `rgb(${color[0]},${color[1]},${color[2]})`,
-      vx: (Math.random() - 0.5) * layer.speed,
-      vy: (Math.random() - 0.5) * layer.speed,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
       twinklePhase: Math.random() * TWO_PI,
       twinkleSpeed: 0.5 + Math.random() * 1.0,
       twinkleIntensity: layer.twinkle,
@@ -177,14 +186,14 @@ class NebulaSystem {
       this.nebulas.push({
         x: rand(0, width),
         y: rand(0, height),
-        radiusX: rand(250, 450),
-        radiusY: rand(180, 350),
+        radiusX: rand(300, 550),
+        radiusY: rand(220, 420),
         rotation: rand(0, Math.PI),
-        rotationSpeed: (Math.random() - 0.5) * 0.007,
+        rotationSpeed: (Math.random() - 0.5) * 0.012,
         color,
-        baseOpacity: isSelene ? rand(0.15, 0.26) : rand(0.09, 0.18),
-        vx: (Math.random() - 0.5) * 0.05,
-        vy: (Math.random() - 0.5) * 0.05,
+        baseOpacity: isSelene ? rand(0.18, 0.3) : rand(0.12, 0.22),
+        vx: (Math.random() - 0.5) * 0.14,
+        vy: (Math.random() - 0.5) * 0.14,
         pulsePhase: Math.random() * TWO_PI,
         pulseSpeed: CONFIG.nebulas.pulseSpeed + Math.random() * 0.025,
         distortPhase: Math.random() * TWO_PI,
@@ -511,14 +520,14 @@ function StarfieldCanvas({ active = false, intensity = 'medium' }) {
         (theme.palette.mode === 'dark' ? theme.palette.common.black : theme.palette.common.white);
       const base = hexToRgb(baseColor);
       const bright = {
-        r: clamp(base.r + 18, 0, 255),
-        g: clamp(base.g + 18, 0, 255),
-        b: clamp(base.b + 20, 0, 255),
+        r: clamp(base.r + 8, 0, 255),
+        g: clamp(base.g + 8, 0, 255),
+        b: clamp(base.b + 12, 0, 255),
       };
       const dim = {
-        r: clamp(base.r - 5, 0, 255),
-        g: clamp(base.g - 5, 0, 255),
-        b: clamp(base.b - 3, 0, 255),
+        r: clamp(base.r - 8, 0, 255),
+        g: clamp(base.g - 8, 0, 255),
+        b: clamp(base.b - 5, 0, 255),
       };
 
       const bg = state.bgCtx;
@@ -539,7 +548,7 @@ function StarfieldCanvas({ active = false, intensity = 'medium' }) {
         Math.max(state.width, state.height) * 0.72
       );
       vignette.addColorStop(0, 'rgba(0,0,0,0)');
-      vignette.addColorStop(1, 'rgba(0,0,0,0.4)');
+      vignette.addColorStop(1, 'rgba(0,0,0,0.52)');
       bg.fillStyle = vignette;
       bg.fillRect(0, 0, state.width, state.height);
 
@@ -549,8 +558,8 @@ function StarfieldCanvas({ active = false, intensity = 'medium' }) {
         state.width * 0.52, state.height * -0.05, 0,
         state.width * 0.52, state.height * -0.05, state.height * 0.55
       );
-      moonBloom.addColorStop(0,    `rgba(${brand.r},${brand.g},${brand.b},0.08)`);
-      moonBloom.addColorStop(0.45, `rgba(${brand.r},${brand.g},${brand.b},0.035)`);
+      moonBloom.addColorStop(0,    `rgba(${brand.r},${brand.g},${brand.b},0.12)`);
+      moonBloom.addColorStop(0.45, `rgba(${brand.r},${brand.g},${brand.b},0.05)`);
       moonBloom.addColorStop(1,    `rgba(${brand.r},${brand.g},${brand.b},0)`);
       bg.fillStyle = moonBloom;
       bg.fillRect(0, 0, state.width, state.height);
@@ -596,7 +605,7 @@ function StarfieldCanvas({ active = false, intensity = 'medium' }) {
 
       const opacityDiff = state.targetOpacity - state.opacity;
       if (Math.abs(opacityDiff) > 0.003) {
-        state.opacity += opacityDiff * 0.035;
+        state.opacity += opacityDiff * 0.055;
       } else {
         state.opacity = state.targetOpacity;
       }

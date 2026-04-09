@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import {
   Box,
   TextField,
@@ -11,7 +11,7 @@ import {
   Skeleton,
   useMediaQuery,
 } from '@mui/material';
-import { alpha, useTheme, keyframes } from '@mui/material/styles';
+import { alpha, useTheme } from '@mui/material/styles';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import StopRoundedIcon from '@mui/icons-material/StopRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
@@ -27,45 +27,6 @@ import { HOVER_CAPABLE_QUERY } from '../styles/mediaQueries';
 import logger from '../utils/logger';
 import { getToolbarChipSx, UI_LAYOUT } from '../styles/shared';
 
-
-/** Moves a concentrated glow around the rounded input shell like a traveling border light */
-const rgbBorderOrbit = keyframes`
-  0% {
-    top: 50%;
-    left: 0%;
-    transform: translate(-34%, -50%) rotate(-12deg);
-  }
-  16% {
-    top: 0%;
-    left: 22%;
-    transform: translate(-50%, -42%) rotate(0deg);
-  }
-  34% {
-    top: 0%;
-    left: 100%;
-    transform: translate(-76%, -40%) rotate(18deg);
-  }
-  50% {
-    top: 100%;
-    left: 100%;
-    transform: translate(-76%, -60%) rotate(180deg);
-  }
-  66% {
-    top: 100%;
-    left: 22%;
-    transform: translate(-50%, -58%) rotate(198deg);
-  }
-  84% {
-    top: 100%;
-    left: 0%;
-    transform: translate(-28%, -60%) rotate(216deg);
-  }
-  100% {
-    top: 50%;
-    left: 0%;
-    transform: translate(-34%, -50%) rotate(348deg);
-  }
-`;
 
 function ChatInput({
   onSend,
@@ -87,8 +48,6 @@ function ChatInput({
 }) {
   const [message, setMessage] = useState('');
   const [isFocused, setIsFocused] = useState(false);
-  const [rgbBorderFlash, setRgbBorderFlash] = useState(false);
-  const rgbBorderTimeoutRef = useRef(null);
   const theme = useTheme();
   const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { settings, updateSetting } = useAppTheme();
@@ -209,28 +168,12 @@ function ChatInput({
     setMessage(e.target.value);
   }, []);
 
-  const RGB_BORDER_MS = 3800;
-
   const handleFocus = useCallback(() => {
     setIsFocused(true);
-    if (rgbBorderTimeoutRef.current) {
-      clearTimeout(rgbBorderTimeoutRef.current);
-    }
-    setRgbBorderFlash(true);
-    rgbBorderTimeoutRef.current = setTimeout(() => {
-      setRgbBorderFlash(false);
-      rgbBorderTimeoutRef.current = null;
-    }, RGB_BORDER_MS);
   }, []);
 
   const handleBlur = useCallback(() => {
     setIsFocused(false);
-  }, []);
-
-  useEffect(() => () => {
-    if (rgbBorderTimeoutRef.current) {
-      clearTimeout(rgbBorderTimeoutRef.current);
-    }
   }, []);
 
   const handleOpenDbMenu = useCallback((e) => setDbAnchor(e.currentTarget), []);
@@ -543,57 +486,7 @@ function ChatInput({
           boxSizing: 'border-box',
         }}
       >
-        {rgbBorderFlash && (
-          <Box
-            aria-hidden
-            sx={{
-              position: 'absolute',
-              inset: 0,
-              zIndex: 0,
-              borderRadius: 'inherit',
-              overflow: 'hidden',
-              pointerEvents: 'none',
-            }}
-          >
-            <Box
-              sx={{
-                position: 'absolute',
-                inset: 0,
-                borderRadius: 'inherit',
-                background: `linear-gradient(
-                  135deg,
-                  ${alpha('#f472b6', theme.palette.mode === 'dark' ? 0.34 : 0.24)},
-                  ${alpha('#22d3ee', theme.palette.mode === 'dark' ? 0.18 : 0.12)} 45%,
-                  ${alpha('#fbbf24', theme.palette.mode === 'dark' ? 0.22 : 0.14)}
-                )`,
-                opacity: theme.palette.mode === 'dark' ? 0.8 : 0.62,
-              }}
-            />
-            <Box
-              sx={{
-                position: 'absolute',
-                top: '50%',
-                left: 0,
-                width: { xs: '42%', sm: '34%' },
-                height: { xs: 54, sm: 64 },
-                borderRadius: '999px',
-                background: `linear-gradient(
-                  90deg,
-                  ${alpha('#ffffff', 0)} 0%,
-                  ${alpha('#a78bfa', theme.palette.mode === 'dark' ? 0.2 : 0.12)} 18%,
-                  ${alpha('#22d3ee', theme.palette.mode === 'dark' ? 0.82 : 0.6)} 52%,
-                  ${alpha('#fbbf24', theme.palette.mode === 'dark' ? 0.74 : 0.52)} 74%,
-                  ${alpha('#fb7185', theme.palette.mode === 'dark' ? 0.9 : 0.66)} 100%
-                )`,
-                boxShadow: `0 0 26px ${alpha('#22d3ee', theme.palette.mode === 'dark' ? 0.4 : 0.22)}, 0 0 38px ${alpha('#fb7185', theme.palette.mode === 'dark' ? 0.28 : 0.16)}`,
-                filter: 'blur(11px)',
-                opacity: theme.palette.mode === 'dark' ? 0.95 : 0.88,
-                transformOrigin: 'center',
-                animation: `${rgbBorderOrbit} 2.8s linear infinite`,
-              }}
-            />
-          </Box>
-        )}
+
         <Box
           sx={{
             m: '1px',

@@ -9,6 +9,10 @@ import { Section, REDUCED_MOTION_QUERY, HOVER_CAPABLE_QUERY } from './index';
 function ValueGrid() {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
+  const brand = theme.palette.primary.main;
+  const brandLight = theme.palette.primary.light;
+  const accent = theme.palette.secondary.main;
+  const brandGradient = `linear-gradient(to right, ${accent}, ${brandLight}, ${brand}, ${brandLight}, ${accent})`;
 
   const values = useMemo(() => [
     {
@@ -24,12 +28,12 @@ function ValueGrid() {
     {
       Icon: VisibilityIcon,
       title: 'Visualize Instantly',
-      desc: 'Turn query results into beautiful charts. Bar, line, pie, or doughnut — your choice.',
+      desc: 'Turn query results into beautiful charts. Bar, line, pie, or doughnut — generated on the fly.',
     },
   ], []);
 
   return (
-    <Section tinted sx={{ py: { xs: 8, md: 10 } }}>
+    <Section id="features-section" tinted sx={{ py: { xs: 8, md: 10 } }}>
       <Container maxWidth="lg">
         <Box textAlign="center" mb={6}>
           <Typography
@@ -38,7 +42,7 @@ function ValueGrid() {
             sx={{
               textTransform: 'uppercase',
               letterSpacing: '0.15em',
-              color: 'text.secondary',
+              color: accent,
               ...theme.typography.uiCaptionXs,
               display: 'block',
               mb: 1.5,
@@ -55,30 +59,37 @@ function ValueGrid() {
             <Box
               component="span"
               sx={{
-                color: isDark
-                  ? alpha(theme.palette.text.primary, 0.45)
-                  : alpha(theme.palette.text.primary, 0.38),
+                background: brandGradient,
+                backgroundSize: '200% auto',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                animation: 'shimmer 5s linear infinite',
               }}
             >
               Everyone.
             </Box>
           </Typography>
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{ mt: 1.5, maxWidth: 480, mx: 'auto', opacity: 0.7 }}
+          >
+            Everything you need to explore, query, and visualize your databases — without writing a single line of SQL.
+          </Typography>
         </Box>
 
         <Box
           sx={{
-            display: 'flex',
-            flexDirection: { xs: 'column', md: 'row' },
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
             gap: 2.5,
-            justifyContent: 'center',
           }}
         >
           {values.map((v, i) => (
             <Box
               key={v.title}
               sx={{
-                flex: { xs: '1 1 auto', md: '1 1 0' },
-                minWidth: 0,
                 p: { xs: 3, md: 4 },
                 position: 'relative',
                 backgroundColor: isDark
@@ -90,25 +101,24 @@ function ValueGrid() {
                   ['border-color', 'background-color', 'transform', 'box-shadow'],
                   { duration: 250 }
                 ),
-                animation: { xs: 'none', md: `fadeIn 0.5s ease-out ${i * 0.12}s both` },
+                animation: { xs: 'none', md: `fadeIn 0.5s ease-out ${i * 0.08}s both` },
                 [REDUCED_MOTION_QUERY]: { animation: 'none', transition: 'none' },
                 [HOVER_CAPABLE_QUERY]: {
                   '&:hover': {
-                    borderColor: alpha(theme.palette.text.primary, isDark ? 0.16 : 0.12),
+                    borderColor: alpha(brand, isDark ? 0.32 : 0.22),
                     backgroundColor: isDark
-                      ? alpha(theme.palette.text.primary, 0.045)
-                      : alpha(theme.palette.text.primary, 0.03),
+                      ? alpha(brand, 0.06)
+                      : alpha(brand, 0.04),
                     transform: 'translateY(-5px)',
                     boxShadow: isDark
-                      ? `0 20px 40px -16px ${alpha(theme.palette.text.primary, 0.18)}`
-                      : `0 20px 40px -16px ${alpha(theme.palette.text.primary, 0.1)}`,
+                      ? `0 20px 40px -16px ${alpha(brand, 0.22)}`
+                      : `0 20px 40px -16px ${alpha(brand, 0.13)}`,
                     '& .icon-container': { transform: 'scale(1.06)' },
                     '& .card-number': { opacity: 0.5 },
                   },
                 },
               }}
             >
-              {/* Card number */}
               <Typography
                 className="card-number"
                 sx={{
@@ -128,31 +138,30 @@ function ValueGrid() {
                 {String(i + 1).padStart(2, '0')}
               </Typography>
 
-              <Stack spacing={2.5} alignItems="center">
-                {/* Icon */}
+              <Stack spacing={2} alignItems="flex-start">
                 <Box
                   className="icon-container"
                   sx={{
-                    width: 54,
-                    height: 54,
+                    width: 48,
+                    height: 48,
                     borderRadius: 2,
                     backgroundColor: isDark
-                      ? alpha(theme.palette.text.primary, 0.06)
-                      : alpha(theme.palette.text.primary, 0.045),
-                    border: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.1 : 0.08)}`,
+                      ? alpha(brand, 0.12)
+                      : alpha(brand, 0.08),
+                    border: `1px solid ${alpha(brand, isDark ? 0.22 : 0.15)}`,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     transition: theme.transitions.create('transform', { duration: 250 }),
                     boxShadow: isDark
-                      ? `inset 0 1px 0 ${alpha(theme.palette.text.primary, 0.06)}`
-                      : `inset 0 1px 0 ${alpha(theme.palette.text.primary, 0.04)}`,
+                      ? `inset 0 1px 0 ${alpha(brand, 0.12)}`
+                      : `inset 0 1px 0 ${alpha(brand, 0.08)}`,
                   }}
                 >
-                  <v.Icon sx={{ fontSize: 24, color: 'text.primary', opacity: 0.75 }} />
+                  <v.Icon sx={{ fontSize: 22, color: brand }} />
                 </Box>
 
-                <Box sx={{ textAlign: 'center' }}>
+                <Box>
                   <Typography
                     variant="h6"
                     fontWeight={700}

@@ -220,7 +220,6 @@ const InlineCode = memo(function InlineCode({ children, theme }) {
         fontFamily: theme.typography.fontFamilyMono,
         fontSize: theme.typography.uiCodeBlock.fontSize,
         backgroundColor: theme.palette.code.background,
-        color: theme.palette.code.text,
         px: 0.6,
         py: 0.2,
         borderRadius: 1,
@@ -228,6 +227,7 @@ const InlineCode = memo(function InlineCode({ children, theme }) {
         borderColor: theme.palette.code.border,
         fontWeight: 500,
         wordBreak: 'break-word', // CRITICAL: Prevents inline code from causing horizontal overflow
+        color: '#00BFFF',
       }}
     >
       {children}

@@ -6,6 +6,11 @@ import { Section, REDUCED_MOTION_QUERY, HOVER_CAPABLE_QUERY } from './index';
 function FinalCTA({ onGetStarted }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
+  const brand = theme.palette.primary.main;
+  const brandLight = theme.palette.primary.light;
+  const accent = theme.palette.secondary.main;
+  const brandGradient = `linear-gradient(to right, ${accent}, ${brandLight}, ${brand}, ${brandLight}, ${accent})`;
+  const brandGradientStatic = `linear-gradient(135deg, ${accent}, ${brandLight}, ${brand})`;
 
   return (
     <Section sx={{ flexDirection: 'column', py: { xs: 6, md: 8 } }}>
@@ -34,7 +39,7 @@ function FinalCTA({ onGetStarted }) {
           transform: 'translateX(-50%)',
           width: '70%',
           height: '70%',
-          background: `radial-gradient(ellipse at center, ${alpha(theme.palette.text.primary, isDark ? 0.05 : 0.035)}, transparent 70%)`,
+          background: `radial-gradient(ellipse at center, ${alpha(brand, isDark ? 0.14 : 0.09)}, transparent 70%)`,
           filter: { xs: 'blur(50px)', md: 'blur(90px)' },
           pointerEvents: 'none',
           zIndex: 0,
@@ -52,9 +57,12 @@ function FinalCTA({ onGetStarted }) {
             <Box
               component="span"
               sx={{
-                color: isDark
-                  ? alpha(theme.palette.text.primary, 0.45)
-                  : alpha(theme.palette.text.primary, 0.38),
+                background: brandGradient,
+                backgroundSize: '200% auto',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                animation: 'shimmer 5s linear infinite',
               }}
             >
               Your Database?
@@ -78,23 +86,18 @@ function FinalCTA({ onGetStarted }) {
               py: 1.75,
               borderRadius: 2,
               fontWeight: 600,
-              backgroundColor: 'text.primary',
-              color: 'background.default',
+              backgroundImage: brandGradientStatic,
+              backgroundColor: 'transparent',
+              color: '#fff',
               border: 'none',
-              boxShadow: isDark
-                ? `0 4px 24px ${alpha(theme.palette.text.primary, 0.3)}`
-                : `0 4px 24px ${alpha(theme.palette.text.primary, 0.18)}`,
-              transition: theme.transitions.create(['background-color', 'transform', 'box-shadow'], { duration: 200 }),
+              boxShadow: `0 4px 24px ${alpha(brand, isDark ? 0.45 : 0.35)}`,
+              transition: theme.transitions.create(['filter', 'transform', 'box-shadow'], { duration: 200 }),
               [REDUCED_MOTION_QUERY]: { transition: 'none' },
               [HOVER_CAPABLE_QUERY]: {
                 '&:hover': {
-                  backgroundColor: isDark
-                    ? alpha(theme.palette.text.primary, 0.85)
-                    : alpha(theme.palette.text.primary, 0.9),
+                  filter: 'brightness(1.12)',
                   transform: 'translateY(-2px)',
-                  boxShadow: isDark
-                    ? `0 8px 28px ${alpha(theme.palette.text.primary, 0.38)}`
-                    : `0 8px 28px ${alpha(theme.palette.text.primary, 0.22)}`,
+                  boxShadow: `0 8px 28px ${alpha(brand, isDark ? 0.55 : 0.45)}`,
                 },
               },
               '&:active': { transform: 'scale(0.98)' },

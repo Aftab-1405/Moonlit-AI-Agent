@@ -4,6 +4,7 @@ import {
   Typography,
   Tooltip,
   Avatar,
+  Collapse,
   Drawer,
   useMediaQuery,
 } from '@mui/material';
@@ -59,6 +60,7 @@ function Sidebar({
   const [dbPopoverAnchor, setDbPopoverAnchor] = useState(null);
   const [historyPopoverAnchor, setHistoryPopoverAnchor] = useState(null);
   const [mindmapOpen, setMindmapOpen] = useState(false);
+  const [recentsCollapsed, setRecentsCollapsed] = useState(false);
   const [schemaData, setSchemaData] = useState(null);
   const [schemaLoading, setSchemaLoading] = useState(false);
   const isPopoverOpen = Boolean(dbPopoverAnchor);
@@ -114,6 +116,7 @@ function Sidebar({
   }, [isConnected, currentDatabase]);
 
   const handleCloseMindmap = useCallback(() => setMindmapOpen(false), []);
+  const toggleRecentsCollapsed = useCallback(() => setRecentsCollapsed((prev) => !prev), []);
   const handleCloseDbPopover = useCallback(() => setDbPopoverAnchor(null), []);
   const handleCloseHistoryPopover = useCallback(() => setHistoryPopoverAnchor(null), []);
   const handleProfileClick = useCallback((event) => onMenuOpen?.(event), [onMenuOpen]);
@@ -137,6 +140,7 @@ function Sidebar({
         tooltip: 'New chat',
         icon: <ChatBubbleOutlineRoundedIcon sx={{ fontSize: 18 }} />,
         onClick: () => onNewChat?.(),
+        shortcut: 'Ctrl+Shift+O',
       },
       {
         id: 'database',
@@ -190,69 +194,21 @@ function Sidebar({
       <Box
         component="header"
         sx={{
-          px: collapsed ? 0.75 : 1.25,
+          // When collapsed: match the nav group container (px: 0.75) so the icon
+          // lands at the same horizontal position as nav item icons (6+8+10 = 24px).
+          // When expanded: use px: 1 with space-between for title + button layout.
+          px: collapsed ? 0.75 : 1,
           pt: 1.25,
           pb: 1,
           minHeight: 52,
           display: 'flex',
           flexDirection: 'row',
           alignItems: 'center',
-          justifyContent: 'flex-start',
-          gap: 1,
+          justifyContent: collapsed ? 'flex-start' : 'space-between',
+          gap: collapsed ? 0 : 1,
         }}
       >
-        <Tooltip title={toggleLabel} placement="right" arrow>
-          <Box
-            component="button"
-            type="button"
-            onClick={mobile ? onMobileClose : onToggleOpen}
-            aria-label={toggleLabel}
-            aria-expanded={mobile ? undefined : !collapsed}
-            aria-pressed={mobile ? undefined : !collapsed}
-            sx={{
-              width: 36,
-              height: 36,
-              p: 0,
-              border: 'none',
-              outline: 'none',
-              appearance: 'none',
-              borderRadius: '10px',
-              backgroundColor: 'transparent',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              color: 'inherit',
-              flexShrink: 0,
-              WebkitTapHighlightColor: 'transparent',
-              transition: theme.transitions.create('opacity', {
-                easing: theme.transitions.easing.easeInOut,
-                duration: theme.transitions.duration.shorter,
-              }),
-              opacity: 0.82,
-              '&:hover': {
-                opacity: 1,
-              },
-              '&:focus-visible': {
-                boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.28)}`,
-              },
-            }}
-          >
-            <Box
-              component="img"
-              src="/product-logo.png"
-              alt="Moonlit"
-              sx={{
-                width: 22,
-                height: 22,
-                flexShrink: 0,
-                display: 'block',
-              }}
-            />
-          </Box>
-        </Tooltip>
-
-        {/* FIXED: always mounted, fades + shrinks instead of unmounting */}
+        {/* Moonlit title — always mounted, fades + shrinks when collapsed */}
         <Box
           sx={{
             flex: '1 1 auto',
@@ -260,6 +216,7 @@ function Sidebar({
             maxWidth: collapsed ? 0 : 160,
             opacity: collapsed ? 0 : 1,
             overflow: 'hidden',
+            pl: collapsed ? 0 : 0.5,
             transition: theme.transitions.create(['max-width', 'opacity'], {
               easing: theme.transitions.easing.sharp,
               duration: theme.transitions.duration.shorter,
@@ -269,15 +226,73 @@ function Sidebar({
           <Typography
             noWrap
             sx={{
-              fontSize: '0.95rem',
-              fontWeight: 600,
+              fontSize: '1.1rem',
+              fontWeight: 700,
               lineHeight: 1.2,
-              color: 'text.primary',
+              '@keyframes moonlit-shimmer': {
+                '0%': { backgroundPosition: '-200% center' },
+                '100%': { backgroundPosition: '200% center' },
+              },
+              background: `linear-gradient(to right, ${theme.palette.secondary.main}, ${theme.palette.primary.light}, ${theme.palette.primary.main}, ${theme.palette.primary.light}, ${theme.palette.secondary.main})`,
+              backgroundSize: '200% auto',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+              animation: 'moonlit-shimmer 4s linear infinite',
             }}
           >
             Moonlit
           </Typography>
         </Box>
+
+        {/* Toggle button — right side (expanded) / nav-aligned (collapsed) */}
+        <Tooltip title={toggleLabel} placement="right" arrow>
+          <Box
+            component="button"
+            type="button"
+            onClick={mobile ? onMobileClose : onToggleOpen}
+            aria-label={toggleLabel}
+            aria-expanded={mobile ? undefined : !collapsed}
+            aria-pressed={mobile ? undefined : !collapsed}
+            sx={{
+              // Collapsed: full-width with px:1 so icon center = 6+8+10 = 24px (matches nav items)
+              // Expanded: fixed 32px button on the right
+              width: collapsed ? '100%' : 32,
+              height: collapsed ? 38 : 32,
+              px: collapsed ? 1 : 0,
+              py: 0,
+              border: 'none',
+              outline: 'none',
+              appearance: 'none',
+              borderRadius: '10px',
+              backgroundColor: 'transparent',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'flex-start',
+              cursor: 'pointer',
+              color: 'text.secondary',
+              flexShrink: 0,
+              WebkitTapHighlightColor: 'transparent',
+              transition: theme.transitions.create('color', {
+                easing: theme.transitions.easing.easeInOut,
+                duration: theme.transitions.duration.shorter,
+              }),
+              '&:hover': { color: 'text.primary' },
+              '&:focus-visible': {
+                boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.28)}`,
+              },
+            }}
+          >
+            <Box
+              component="span"
+              sx={{ display: 'inline-flex', flexShrink: 0, width: 20, justifyContent: 'center' }}
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style={{ flexShrink: 0 }}>
+                <path d="M16.5 4A1.5 1.5 0 0 1 18 5.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 2 14.5v-9A1.5 1.5 0 0 1 3.5 4zM7 15h9.5a.5.5 0 0 0 .5-.5v-9a.5.5 0 0 0-.5-.5H7zM3.5 5a.5.5 0 0 0-.5.5v9a.5.5 0 0 0 .5.5H6V5z" />
+              </svg>
+            </Box>
+          </Box>
+        </Tooltip>
       </Box>
     );
   };
@@ -294,64 +309,104 @@ function Sidebar({
           isCollapsed={collapsed}
           showStatus={item.showStatus}
           disabled={item.disabled}
+          circularIconBg={item.circularIconBg}
+          shortcut={item.shortcut}
         />
       ))}
     </Box>
   );
 
   const renderHistorySection = () => (
-    <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      <Typography
-        component="h2"
-        variant="caption"
-        color="text.secondary"
+    <Box sx={{ flex: recentsCollapsed ? '0 0 auto' : 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <Box
+        component="button"
+        type="button"
+        role="button"
+        aria-expanded={!recentsCollapsed}
+        onClick={toggleRecentsCollapsed}
         sx={{
-          display: 'block',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          width: '100%',
           px: 2,
           pt: 1.5,
           pb: 0.75,
-          fontSize: '0.7rem',
-          fontWeight: 400,
-          letterSpacing: '0.04em',
-          textTransform: 'uppercase',
+          border: 'none',
+          outline: 'none',
+          appearance: 'none',
+          cursor: 'pointer',
+          backgroundColor: 'transparent',
+          flexShrink: 0,
+          '&:hover .toggle-label': { opacity: 0.75 },
+          '&:focus-visible': {
+            boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.28)}`,
+            borderRadius: '6px',
+          },
         }}
       >
-        Recent chats
-      </Typography>
-      <Box
-        component="ul"
-        role="list"
-        sx={{
-          listStyle: 'none',
-          m: 0,
-          px: 0.75,
-          pb: 0.75,
-          flex: 1,
-          overflowY: 'auto',
-          overflowX: 'hidden',
-          ...scrollbarStyles,
-        }}
-      >
-        {isConversationsLoading ? (
-          <HistoryListSkeleton />
-        ) : conversations.length === 0 ? (
-          <Box sx={{ px: 1.5, py: 2, opacity: 0.6 }}>
-            <Typography sx={{ fontSize: '0.8rem', color: 'text.secondary', lineHeight: 1.4 }}>
-              No conversations yet
-            </Typography>
-          </Box>
-        ) : (
-          conversations.map((conv) => (
-            <ConversationItem
-              key={conv.id}
-              conv={conv}
-              isActive={conv.id === currentConversationId}
-              onSelect={onSelectConversation}
-              onDelete={onDeleteConversation}
-            />
-          ))
-        )}
+        <Typography
+          component="span"
+          variant="caption"
+          color="text.secondary"
+          sx={{
+            fontSize: '0.7rem',
+            fontWeight: 400,
+            letterSpacing: '0.04em',
+            textTransform: 'uppercase',
+          }}
+        >
+          Recents
+        </Typography>
+        <Typography
+          className="toggle-label"
+          component="span"
+          sx={{
+            fontSize: '0.7rem',
+            fontWeight: 400,
+            color: 'text.disabled',
+            opacity: 0,
+            transition: 'opacity 0.15s ease',
+          }}
+        >
+          {recentsCollapsed ? 'Show' : 'Hide'}
+        </Typography>
       </Box>
+      <Collapse in={!recentsCollapsed} timeout="auto" sx={{ flex: recentsCollapsed ? 0 : 1, minHeight: 0, overflow: recentsCollapsed ? 'hidden' : 'auto' }}>
+        <Box
+          component="ul"
+          role="list"
+          sx={{
+            listStyle: 'none',
+            m: 0,
+            px: 0.75,
+            pb: 0.75,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            ...scrollbarStyles,
+          }}
+        >
+          {isConversationsLoading ? (
+            <HistoryListSkeleton />
+          ) : conversations.length === 0 ? (
+            <Box sx={{ px: 1.5, py: 2, opacity: 0.6 }}>
+              <Typography sx={{ fontSize: '0.8rem', color: 'text.secondary', lineHeight: 1.4 }}>
+                No conversations yet
+              </Typography>
+            </Box>
+          ) : (
+            conversations.map((conv) => (
+              <ConversationItem
+                key={conv.id}
+                conv={conv}
+                isActive={conv.id === currentConversationId}
+                onSelect={onSelectConversation}
+                onDelete={onDeleteConversation}
+              />
+            ))
+          )}
+        </Box>
+      </Collapse>
     </Box>
   );
 

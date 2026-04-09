@@ -1,7 +1,8 @@
 /**
  * MUI light theme for Moonlit.
  *
- * Brand: Selene — deep indigo-violet (HSL 250°), evoking a night sky.
+ * Brand gradient: #00BFFF → #6A5ACD → #8A2BE2 (cyan → slate blue → electric violet).
+ * Primary token uses electric violet, accent uses cyan-blue.
  *
  * Token mapping:
  *   bg-000  → background.default   (pure white canvas)
@@ -259,6 +260,7 @@ const components = {
         '--scrollbar-thumb-hover': alpha(H.border200, 0.38),
 
         // Color CSS vars (used throughout components as var(--color-*))
+        '--dark-mode':             '0',
         '--color-bg-default':      H.bg000,
         '--color-bg-paper':        H.bg100,
         '--color-bg-elevated':     H.bg000,

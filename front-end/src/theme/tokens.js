@@ -1,9 +1,10 @@
 /**
  * Moonlit design tokens
  *
- * Brand identity: Selene — HSL(250°) deep indigo-violet.
- * Named after the Greek goddess of the moon. The hue evokes a deep night sky —
- * distinctively between blue and violet, not the generic corporate 230° blue.
+ * Brand gradient: #00BFFF (cyan-blue) → #6A5ACD (slate blue) → #8A2BE2 (electric violet)
+ *   Primary  (brand):  electric violet  #8A2BE2 → HSL(271°, 76%)
+ *   Accent:            cyan-blue        #00BFFF → HSL(195°, 100%)
+ *   Mid (slate blue)   #6A5ACD appears naturally in gradient usages
  *
  * Token scale convention:
  *   000 = most prominent / foreground
@@ -39,14 +40,15 @@ export const LIGHT = {
   text200:    hslToHex(60,  2.5,  23.3),   // #3c3c39  — dark gray (secondary)
   text400:    hslToHex(51,  3.1,  43.7),   // #706f6a  — muted (disabled / hint)
 
-  // Brand — Selene (deep indigo-violet, WCAG AA on white)
-  brand000:   hslToHex(250, 72,  44),   // ~#3b28c8  — deep indigo-violet (7:1 on white)
-  brand200:   hslToHex(250, 64,  58),   // ~#6b5cd9  — mid indigo
-  brandDark:  hslToHex(250, 80,  30),   // ~#220fa3  — near-black indigo
+  // Brand — exact user-specified gradient colors
+  brand000:   '#8A2BE2',               // electric violet — exact spec (5.97:1 on white ✓)
+  brand200:   '#6A5ACD',               // slate blue — exact spec
+  brandDark:  hslToHex(271, 82,  25),  // ~#440c8a  — deeper for hover/dark states
 
-  accent000:  hslToHex(263, 42,  54),   // ~#7255b8  — muted violet (slightly purple-shifted)
-  accentLight:hslToHex(263, 38,  67),   // ~#9882cc  — soft violet
-  accentDark: hslToHex(263, 50,  39),   // ~#4d2696  — deep violet
+  // Accent — cyan-blue (start of brand gradient), darkened for text contrast on white
+  accent000:  hslToHex(195, 100, 35),  // ~#005fa8  — deep cyan (AA on white)
+  accentLight:'#00BFFF',               // exact spec — decorative / dark-theme use
+  accentDark: hslToHex(195, 100, 22),  // ~#003a6b  — deep teal
 
   // Semantic info remains blue
   info000:    hslToHex(210, 73.7, 40.2),
@@ -76,14 +78,15 @@ export const DARK = {
   text200:    hslToHex(50,  9,    73.7),    // #c2c0b5  — gray (secondary)
   text400:    hslToHex(48,  4.8,  59.2),   // #989590  — muted (disabled / hint)
 
-  // Brand — Selene (deep indigo-violet, luminous on dark bg)
-  brand000:   hslToHex(250, 88,  72),   // ~#8b77f7  — vibrant indigo-violet
-  brand200:   hslToHex(250, 90,  83),   // ~#b5abfb  — soft indigo
-  brandDark:  hslToHex(250, 76,  57),   // ~#5e4de6  — deeper indigo
+  // Brand — electric violet, luminous on dark bg
+  brand000:   hslToHex(271, 80,  68),   // ~#b05cf0  — vibrant electric violet
+  brand200:   hslToHex(271, 82,  80),   // ~#cda0f7  — soft violet
+  brandDark:  hslToHex(271, 74,  55),   // ~#8a35e0  — deeper violet
 
-  accent000:  hslToHex(263, 45,  74),   // ~#a48dd6  — muted violet
-  accentLight:hslToHex(263, 42,  84),   // ~#c3b5e8  — near-pastel violet
-  accentDark: hslToHex(263, 40,  61),   // ~#8068bf  — deep muted violet
+  // Accent — cyan-blue, luminous on dark bg
+  accent000:  hslToHex(195, 100, 52),   // ~#00b8e6  — vivid cyan (#00BFFF range)
+  accentLight:hslToHex(195, 100, 65),   // ~#40d4f5  — soft cyan
+  accentDark: hslToHex(195, 100, 40),   // ~#0090b8  — deeper cyan
 
   // Semantic info remains blue
   info000:    hslToHex(210, 65.5, 67.1),

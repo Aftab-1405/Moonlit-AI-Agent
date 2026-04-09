@@ -6,6 +6,10 @@ import { UI_LAYOUT } from '../../styles/shared';
 function DemoSection() {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
+  const brand = theme.palette.primary.main;
+  const brandLight = theme.palette.primary.light;
+  const accent = theme.palette.secondary.main;
+  const brandGradientStatic = `linear-gradient(135deg, ${accent}, ${brandLight}, ${brand})`;
 
   return (
     <Section
@@ -20,7 +24,7 @@ function DemoSection() {
             sx={{
               textTransform: 'uppercase',
               letterSpacing: '0.15em',
-              color: 'text.secondary',
+              color: accent,
               ...theme.typography.uiCaptionXs,
             }}
           >
@@ -35,9 +39,10 @@ function DemoSection() {
             <Box
               component="span"
               sx={{
-                color: isDark
-                  ? alpha(theme.palette.text.primary, 0.45)
-                  : alpha(theme.palette.text.primary, 0.38),
+                background: brandGradientStatic,
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
               }}
             >
               Answer
@@ -66,7 +71,7 @@ function DemoSection() {
             sx={{
               position: 'absolute',
               inset: { xs: -30, md: -60 },
-              background: `radial-gradient(ellipse at 50% 40%, ${alpha(theme.palette.text.primary, isDark ? 0.06 : 0.04)}, transparent 65%)`,
+              background: `radial-gradient(ellipse at 50% 40%, ${alpha(brand, isDark ? 0.18 : 0.1)}, transparent 65%)`,
               pointerEvents: 'none',
               zIndex: 0,
               filter: { xs: 'blur(30px)', md: 'blur(60px)' },

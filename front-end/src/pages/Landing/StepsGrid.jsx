@@ -1,12 +1,16 @@
 import { useMemo } from 'react';
 import { Box, Container, Typography, Stack } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
-import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
 import { Section, REDUCED_MOTION_QUERY, HOVER_CAPABLE_QUERY } from './index';
 
 function StepsGrid() {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
+  const brand = theme.palette.primary.main;
+  const brandLight = theme.palette.primary.light;
+  const accent = theme.palette.secondary.main;
+  const brandGradient = `linear-gradient(to right, ${accent}, ${brandLight}, ${brand}, ${brandLight}, ${accent})`;
+  const brandGradientStatic = `linear-gradient(135deg, ${accent}, ${brandLight}, ${brand})`;
 
   const steps = useMemo(() => [
     {
@@ -36,7 +40,7 @@ function StepsGrid() {
             sx={{
               textTransform: 'uppercase',
               letterSpacing: '0.15em',
-              color: 'text.secondary',
+              color: accent,
               ...theme.typography.uiCaptionXs,
               display: 'block',
               mb: 1.5,
@@ -53,9 +57,12 @@ function StepsGrid() {
             <Box
               component="span"
               sx={{
-                color: isDark
-                  ? alpha(theme.palette.text.primary, 0.45)
-                  : alpha(theme.palette.text.primary, 0.38),
+                background: brandGradient,
+                backgroundSize: '200% auto',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                animation: 'shimmer 5s linear infinite',
               }}
             >
               Zero Learning Curve.
@@ -63,23 +70,8 @@ function StepsGrid() {
           </Typography>
         </Box>
 
-        {/* Steps layout — wraps connector + cards */}
+        {/* Steps layout */}
         <Box sx={{ position: 'relative' }}>
-          {/* Horizontal connector line — desktop only */}
-          <Box
-            aria-hidden
-            sx={{
-              display: { xs: 'none', md: 'block' },
-              position: 'absolute',
-              top: 0, // aligns with center of step badges (badge top is -20px, badge height 44px → center at +2px from card top)
-              left: 'calc(16.67% + 22px)',  // starts after first badge center
-              right: 'calc(16.67% + 22px)', // ends before last badge center
-              height: '1px',
-              backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.1 : 0.08),
-              zIndex: 0,
-              transform: 'translateY(-1px)', // visual alignment with badge centers
-            }}
-          />
 
           <Box
             sx={{
@@ -99,27 +91,6 @@ function StepsGrid() {
                   zIndex: 1,
                 }}
               >
-                {/* Arrow between steps — desktop only */}
-                {i < steps.length - 1 && (
-                  <Box
-                    aria-hidden
-                    sx={{
-                      display: { xs: 'none', md: 'flex' },
-                      position: 'absolute',
-                      top: -20,            // same top as the badge
-                      right: -24,          // horizontally centered between cards
-                      width: 44,           // covers the 24px gap on each side
-                      height: 44,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      zIndex: 2,
-                      color: alpha(theme.palette.text.primary, 0.25),
-                    }}
-                  >
-                    <ArrowForwardRoundedIcon sx={{ fontSize: 16 }} />
-                  </Box>
-                )}
-
                 {/* Card */}
                 <Box
                   sx={{
@@ -139,14 +110,14 @@ function StepsGrid() {
                     [REDUCED_MOTION_QUERY]: { animation: 'none', transition: 'none' },
                     [HOVER_CAPABLE_QUERY]: {
                       '&:hover': {
-                        borderColor: alpha(theme.palette.text.primary, isDark ? 0.16 : 0.12),
+                        borderColor: alpha(brand, isDark ? 0.32 : 0.22),
                         backgroundColor: isDark
-                          ? alpha(theme.palette.text.primary, 0.045)
-                          : alpha(theme.palette.text.primary, 0.03),
+                          ? alpha(brand, 0.06)
+                          : alpha(brand, 0.04),
                         transform: 'translateY(-5px)',
                         boxShadow: isDark
-                          ? `0 20px 40px -16px ${alpha(theme.palette.text.primary, 0.18)}`
-                          : `0 20px 40px -16px ${alpha(theme.palette.text.primary, 0.1)}`,
+                          ? `0 20px 40px -16px ${alpha(brand, 0.22)}`
+                          : `0 20px 40px -16px ${alpha(brand, 0.13)}`,
                       },
                     },
                   }}
@@ -161,13 +132,12 @@ function StepsGrid() {
                       width: 44,
                       height: 44,
                       borderRadius: '50%',
-                      backgroundColor: theme.palette.text.primary,
+                      backgroundImage: brandGradientStatic,
+                      backgroundColor: 'transparent',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      boxShadow: isDark
-                        ? `0 4px 16px ${alpha(theme.palette.text.primary, 0.35)}`
-                        : `0 4px 16px ${alpha(theme.palette.text.primary, 0.14)}`,
+                      boxShadow: `0 4px 16px ${alpha(brand, isDark ? 0.45 : 0.3)}`,
                       border: `3px solid ${theme.palette.background.default}`,
                     }}
                   >
@@ -175,7 +145,7 @@ function StepsGrid() {
                       sx={{
                         ...theme.typography.uiStepNumber,
                         fontWeight: 700,
-                        color: theme.palette.background.default,
+                        color: theme.palette.background.paper,
                         letterSpacing: '0.02em',
                       }}
                     >
