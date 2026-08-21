@@ -450,6 +450,7 @@ All 8 are required — `Config.get_firebase_credentials()` raises `ValueError: M
 | `RATELIMIT_ENABLED` | `True` (`False` in testing) | Master toggle for the slowapi IP-level limiter. |
 | `RATELIMIT_STORAGE_URL` | `memory://` | Storage backend URL. **Must NOT be `memory://` in staging/production** — lifespan raises `RuntimeError`. |
 | `RATELIMIT_DEFAULT` | `200 per day, 50 per hour` (relaxed in dev/staging) | Default per-IP rate-limit string. |
+| `TRUSTED_PROXY_CIDRS` | `127.0.0.1/32,::1/128` | Comma-separated immediate ingress proxy networks whose forwarding headers may be trusted. Keep loopback-only for direct Uvicorn; set exact proxy CIDRs for a future deployment. Invalid entries fail startup. |
 
 ### SQL Query Security
 

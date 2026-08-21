@@ -83,6 +83,13 @@ Exit criteria: final report is evidence-backed, prioritized, actionable, and dis
 
 ## Work log
 
+### 2026-08-22 — Remediation Phase 1 / trusted-proxy boundary checkpoint
+
+- Red: `env/bin/python -m pytest tests/test_rate_limiter.py -q` reported 16 failed, 7 passed in 0.15s against the prior implicit private-network trust and permissive forwarding-header behavior.
+- Green: the same focused proxy suite reported 23 passed in 0.09s after replacing it with real ASGI request topologies.
+- `TRUSTED_PROXY_CIDRS` defaults to `127.0.0.1/32,::1/128`; testing pins the same tuple, explicitly empty configuration trusts no proxies, and invalid CIDRs raise during rate-limiter module initialization.
+- Forwarded chains now resolve right-to-left to the nearest untrusted hop. Any malformed `X-Forwarded-For` or `X-Real-IP` value fails closed to the immediate peer.
+
 ### 2026-08-22 — Remediation Phase 1 / atomic session checkpoint
 
 - Red: session tests failed because `_merge_state` and `_ATOMIC_MERGE_LUA` were absent and `update_session_data()` performed read/modify/write.

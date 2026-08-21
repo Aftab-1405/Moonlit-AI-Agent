@@ -1,7 +1,8 @@
 """Environment-driven application configuration for MOONLIT."""
 
-import os
 import logging
+import os
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -283,6 +284,14 @@ class Config:
     RATELIMIT_ENABLED = os.getenv("RATELIMIT_ENABLED", "True").lower() == "true"
     RATELIMIT_STORAGE_URL = os.getenv("RATELIMIT_STORAGE_URL", "memory://")
     RATELIMIT_DEFAULT = os.getenv("RATELIMIT_DEFAULT", "200 per day, 50 per hour")
+    _trusted_proxy_cidrs_raw = os.getenv(
+        "TRUSTED_PROXY_CIDRS", "127.0.0.1/32,::1/128"
+    )
+    TRUSTED_PROXY_CIDRS = tuple(
+        cidr.strip()
+        for cidr in _trusted_proxy_cidrs_raw.split(",")
+        if cidr.strip()
+    )
 
     # SQL Query Security Configuration
     MAX_QUERY_RESULTS = int(os.getenv("MAX_QUERY_RESULTS", 10000))  # Max rows to return
@@ -659,6 +668,7 @@ class TestingConfig(Config):
 
     # Disable rate limiting in tests
     RATELIMIT_ENABLED = False
+    TRUSTED_PROXY_CIDRS = ("127.0.0.1/32", "::1/128")
     LLM_RATELIMIT_ENABLED = False
     USER_QUOTA_ENABLED = False
 

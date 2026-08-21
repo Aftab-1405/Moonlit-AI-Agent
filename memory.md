@@ -4,6 +4,12 @@ Last updated: 2026-08-22
 
 ## Remediation decision log
 
+### 2026-08-22 — Remediation Phase 1 / trusted-proxy boundary checkpoint
+
+- Evidence: `env/bin/python -m pytest tests/test_rate_limiter.py -q` was red at 16 failed, 7 passed in 0.15s and green at 23 passed in 0.09s after topology coverage replaced mock requests with real ASGI scopes.
+- Decision: `TRUSTED_PROXY_CIDRS` defaults to `127.0.0.1/32,::1/128` and is pinned to that tuple by `TestingConfig`. An explicit empty value has no trusted proxies; an invalid CIDR raises `ValueError` during rate-limiter module initialization rather than silently widening the boundary.
+- Decision: only forwarding headers received from an explicitly trusted immediate peer are considered. `X-Forwarded-For` is walked right-to-left; malformed XFF or X-Real-IP rejects the whole header and falls back to the immediate peer.
+
 ### 2026-08-22 — Remediation Phase 1 / atomic session checkpoint
 
 - Red: session tests failed because `_merge_state` and `_ATOMIC_MERGE_LUA` were absent and `update_session_data()` performed read/modify/write.
