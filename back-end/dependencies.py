@@ -35,6 +35,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import threading
 import time
 from typing import Optional
 
@@ -54,6 +55,7 @@ logger = logging.getLogger(__name__)
 Config = get_config()
 
 _memory_state: dict[str, tuple[dict, float]] = {}
+_memory_state_lock = threading.RLock()
 
 
 async def get_redis():
@@ -135,15 +137,16 @@ async def _read_state(key: str) -> Optional[dict]:
         raw = await redis_client.get(key)
         return json.loads(raw) if raw else None
 
-    record = _memory_state.get(key)
-    if not record:
-        return None
+    with _memory_state_lock:
+        record = _memory_state.get(key)
+        if not record:
+            return None
 
-    data, expires_at = record
-    if expires_at <= time.time():
-        _memory_state.pop(key, None)
-        return None
-    return dict(data)
+        data, expires_at = record
+        if expires_at <= time.time():
+            _memory_state.pop(key, None)
+            return None
+        return dict(data)
 
 
 async def _write_state(key: str, data: dict, expire_seconds: int) -> None:
@@ -153,7 +156,76 @@ async def _write_state(key: str, data: dict, expire_seconds: int) -> None:
         await redis_client.set(key, json.dumps(data), ex=expire_seconds)
         return
 
-    _memory_state[key] = (dict(data), time.time() + expire_seconds)
+    with _memory_state_lock:
+        _memory_state[key] = (dict(data), time.time() + expire_seconds)
+
+
+_ATOMIC_MERGE_LUA = """
+local raw_current = redis.call("GET", KEYS[1])
+local current = {}
+
+if raw_current then
+    local current_ok, decoded_current = pcall(cjson.decode, raw_current)
+    if not current_ok or type(decoded_current) ~= "table" then
+        return redis.error_reply("session state must be a JSON object")
+    end
+    current = decoded_current
+end
+
+local updates_ok, updates = pcall(cjson.decode, ARGV[1])
+if not updates_ok or type(updates) ~= "table" then
+    return redis.error_reply("session updates must be a JSON object")
+end
+
+local ttl = tonumber(ARGV[2])
+if not ttl or ttl <= 0 then
+    return redis.error_reply("session TTL must be positive")
+end
+
+for field, value in pairs(updates) do
+    current[field] = value
+end
+
+local merged = cjson.encode(current)
+redis.call("SET", KEYS[1], merged, "EX", ttl)
+return merged
+"""
+
+
+async def _merge_state(key: str, updates: dict, expire_seconds: int) -> dict:
+    """Atomically merge top-level session fields and refresh the state TTL."""
+    if expire_seconds <= 0:
+        raise ValueError("Session state TTL must be positive")
+
+    redis_client = await get_redis()
+    if redis_client:
+        try:
+            raw = await redis_client.eval(
+                _ATOMIC_MERGE_LUA,
+                1,
+                key,
+                json.dumps(updates, separators=(",", ":")),
+                expire_seconds,
+            )
+            merged = json.loads(raw)
+            if not isinstance(merged, dict):
+                raise ValueError("Redis session merge returned a non-object")
+            return merged
+        except Exception as exc:
+            logger.error("Atomic Redis session update failed", exc_info=True)
+            raise RuntimeError("Atomic Redis session update failed") from exc
+
+    with _memory_state_lock:
+        record = _memory_state.get(key)
+        current: dict = {}
+        now = time.time()
+        if record:
+            data, expires_at = record
+            if expires_at > now:
+                current = dict(data)
+        current.update(updates)
+        _memory_state[key] = (current, now + expire_seconds)
+        return dict(current)
 
 
 async def _delete_state(key: str) -> None:
@@ -163,7 +235,8 @@ async def _delete_state(key: str) -> None:
         await redis_client.delete(key)
         return
 
-    _memory_state.pop(key, None)
+    with _memory_state_lock:
+        _memory_state.pop(key, None)
 
 
 async def get_session_data(request: Request) -> Optional[dict]:
@@ -458,11 +531,9 @@ async def update_session_data(
         return False
 
     expire_seconds = expire_seconds or Config.SESSION_EXPIRE_SECONDS
-    session_data = await get_session_data(request) or {}
-    session_data.update(updates)
-    session_data["session_active_at"] = time.time()
-
-    await _write_state(key, session_data, expire_seconds)
+    merged_updates = dict(updates)
+    merged_updates["session_active_at"] = time.time()
+    await _merge_state(key, merged_updates, expire_seconds)
     return True
 
 
