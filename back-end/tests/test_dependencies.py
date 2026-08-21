@@ -89,8 +89,8 @@ class TestCsrfConstantTime:
 class TestMergeStateInMemoryFallback:
     """Tests for the in-memory fallback of ``_merge_state``.
 
-    The Redis path is exercised in integration tests; here we verify the
-    fallback is thread-safe and does not lose concurrent updates.
+    Deterministic fake-EVAL boundary coverage for the Redis path lives in
+    ``test_lua_merge_regression.py``; here we verify the fallback contract.
     """
 
     def test_merge_state_writes_to_memory(self) -> None:
@@ -112,6 +112,42 @@ class TestMergeStateInMemoryFallback:
         asyncio.run(_merge_state("test:key:2", {"b": 2}, expire_seconds=60))
         data, _ = _memory_state["test:key:2"]
         assert data == {"a": 1, "b": 2}
+
+    def test_merge_state_shallowly_overwrites_nested_state_and_preserves_none(
+        self,
+    ) -> None:
+        """Nested updates replace wholesale while unrelated fields survive."""
+        from dependencies import _memory_state, _merge_state
+
+        _memory_state.clear()
+        asyncio.run(
+            _merge_state(
+                "test:key:shallow",
+                {
+                    "preferences": {"theme": "dark", "density": "compact"},
+                    "unrelated": "preserved",
+                    "clearable": "present",
+                },
+                expire_seconds=60,
+            )
+        )
+
+        result = asyncio.run(
+            _merge_state(
+                "test:key:shallow",
+                {"preferences": {"theme": "light"}, "clearable": None},
+                expire_seconds=60,
+            )
+        )
+
+        expected = {
+            "preferences": {"theme": "light"},
+            "unrelated": "preserved",
+            "clearable": None,
+        }
+        data, _ = _memory_state["test:key:shallow"]
+        assert result == expected
+        assert data == expected
 
     def test_merge_state_is_thread_safe(self) -> None:
         """Concurrent merges from multiple threads do not lose updates."""

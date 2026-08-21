@@ -526,7 +526,7 @@ async def update_session_data(
     request: Request, updates: dict, expire_seconds: int | None = None
 ) -> bool:
     """
-    Update per-Firebase-session application state (read-modify-write merge).
+    Atomically shallow-merge top-level per-Firebase-session application state.
 
     Always refreshes ``session_active_at`` so :func:`get_db_config` can use
     it as a heartbeat to detect closed tabs.

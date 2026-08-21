@@ -88,6 +88,41 @@ def test_redis_merge_uses_one_eval_and_refreshes_ttl(monkeypatch) -> None:
     assert args == ("session:1", '{"updated":true}', 90)
 
 
+def test_redis_merge_shallowly_overwrites_nested_state_and_preserves_none(
+    monkeypatch,
+) -> None:
+    from dependencies import _merge_state
+    from service import redis_service
+
+    async def scenario() -> tuple[dict, _AtomicRedisFake]:
+        fake = _AtomicRedisFake()
+        fake.store["session:shallow"] = json.dumps(
+            {
+                "preferences": {"theme": "dark", "density": "compact"},
+                "unrelated": "preserved",
+                "clearable": "present",
+            }
+        )
+        monkeypatch.setattr(redis_service, "_redis_client", fake)
+        result = await _merge_state(
+            "session:shallow",
+            {"preferences": {"theme": "light"}, "clearable": None},
+            expire_seconds=90,
+        )
+        return result, fake
+
+    result, fake = asyncio.run(scenario())
+
+    expected = {
+        "preferences": {"theme": "light"},
+        "unrelated": "preserved",
+        "clearable": None,
+    }
+    assert result == expected
+    assert json.loads(fake.store["session:shallow"]) == expected
+    assert fake.expiries["session:shallow"] == 90
+
+
 def test_concurrent_redis_merges_preserve_every_field(monkeypatch) -> None:
     from dependencies import _merge_state
     from service import redis_service
