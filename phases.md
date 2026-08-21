@@ -7,8 +7,8 @@ Last updated: 2026-08-22
 - [x] Repository-only scope approved; live migrations and deployment changes are excluded.
 - [x] Replacement-first architecture and focused phase ordering approved.
 - [x] Design specification approved.
-- [-] Phase 1 implementation plan written; execution approach awaiting approval.
-- [ ] Phase 1 — Session and admission-control baseline.
+- [x] Phase 1 implementation plan written and executed.
+- [x] Phase 1 — Session and admission-control baseline.
 - [ ] Phase 2 — Request, authentication, and security boundaries.
 - [ ] Phase 3 — Ownership-safe LangGraph lifecycle and terminal durability.
 - [ ] Phase 4 — Bounded streaming, tools, and query artifacts.
@@ -82,6 +82,16 @@ Exit criteria: SOLID findings distinguish pragmatic trade-offs from changes that
 Exit criteria: final report is evidence-backed, prioritized, actionable, and distinguishes verified defects from risks or coverage gaps.
 
 ## Work log
+
+### 2026-08-22 — Remediation Phase 1 completed
+
+- Atomic session partial updates: the Phase 1 focused command `env/bin/python -m pytest tests/test_dependencies.py tests/test_lua_merge_regression.py tests/test_rate_limiter.py -q` reported `40 passed in 0.21s` with zero failures.
+- Trusted proxy resolution: the same focused command reported `40 passed in 0.21s` with zero failures, including the proxy topology cases.
+- Full backend regression: `env/bin/python -m pytest -q` reported `220 passed in 6.54s`.
+- Ruff: `back-end/env/bin/ruff check back-end` reported `All checks passed!`.
+- Targeted production compile: `env/bin/python -m compileall -q config.py dependencies.py api_contract controller core langgraph_orchestration llm_provider service skills vamp_memory` exited 0 with no output. The SDD ledger records why nonexistent `middleware` and `model` plan paths are omitted.
+- Self-review repaired the stale README tree reference to the deleted `upstash_saver.py`; active checkpointing remains `langgraph_orchestration/checkpointing.py` with `AsyncRedisSaver` in production and `InMemorySaver` in development.
+- Remaining findings: 35 open; WF-001 and SEC-001 are closed. The Ruff portion of QA-001 is closed, while mypy and dependency reproducibility remain deferred to Phase 6 as approved.
 
 ### 2026-08-22 — Remediation Phase 1 / Ruff and dead-saver cleanup checkpoint
 

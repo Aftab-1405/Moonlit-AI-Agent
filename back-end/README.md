@@ -84,7 +84,6 @@ back-end/
 │   ├── tool_executor.py               # Tool dispatch + arg validation
 │   ├── tool_schemas.py                # Pydantic schemas for agent tool args/results
 │   ├── tools.py                       # Tool implementations exposed to the agent
-│   └── upstash_saver.py               # Minimal Upstash-Redis checkpointer
 │
 ├── llm_provider/                      # Bedrock client, model factory, token budgets, rate limiter
 │   ├── bedrock_client.py              # boto3 client + langchain-aws chat model factory + prewarm

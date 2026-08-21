@@ -4,6 +4,15 @@ Last updated: 2026-08-22
 
 ## Remediation decision log
 
+### 2026-08-22 — Remediation Phase 1 completed
+
+- Final session contract: partial session updates use one Redis Lua `EVAL` to shallow-merge only top-level fields, refresh TTL, preserve explicit `None` clears, and fail closed without a Redis `GET`/`SET` fallback. The development-only in-memory fallback protects every read/write/delete/merge access with one process `RLock`; full replacement remains `_write_state()`.
+- Final proxy contract: forwarding headers are considered only when the immediate peer matches configured `TRUSTED_PROXY_CIDRS` (loopback-only by default). Valid XFF is resolved right-to-left to the nearest untrusted hop; malformed XFF or X-Real-IP and multi-hop X-Real-IP fall back to the immediate peer. RFC1918 and link-local ranges are not implicitly trusted.
+- Red/green evidence: atomic-session work was red at `10 failed, 5 passed in 0.25s` and green at `17 passed in 0.18s`; proxy work was red at `16 failed, 7 passed in 0.15s` and green at `23 passed in 0.09s`. The final combined focused gate reported `40 passed in 0.21s`; the full backend gate reported `220 passed in 6.54s`; Ruff reported `All checks passed!`; the actual-directory targeted production compile exited 0 with no output.
+- Changed/deleted files: modified `back-end/dependencies.py`, `back-end/config.py`, `back-end/controller/rate_limiter.py`, `back-end/controller/database_controller.py`, and `back-end/README.md`; added `back-end/tests/test_dependencies.py`, `back-end/tests/test_lua_merge_regression.py`, `back-end/tests/test_rate_limiter.py`, `phases.md`, and this journal; deleted `back-end/langgraph_orchestration/upstash_saver.py`. The final self-review removed the README tree entry for that deleted saver; active checkpointing is `langgraph_orchestration/checkpointing.py`.
+- No live external systems were changed. Redis Lua is verified through a fake atomic `EVAL` boundary, not a live Redis server; Firestore, Qdrant, Bedrock, proxies, deployments, and migrations remain unexercised in live infrastructure.
+- Phase 1 is closed. The next authorized scope is Phase 2 planning only, not Phase 2 implementation. Of 35 findings still open, WF-001 and SEC-001 are closed; the Ruff portion of QA-001 is closed, while mypy and dependency reproducibility remain Phase 6 work.
+
 ### 2026-08-22 — Remediation Phase 1 / Ruff and dead-saver cleanup checkpoint
 
 - Evidence: from `back-end`, `rg -n "upstash_saver|AsyncUpstashRedisSaver" . --glob '*.py' --glob '!langgraph_orchestration/upstash_saver.py'` produced no output and exit status 1, confirming no consumers before deletion.
