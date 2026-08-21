@@ -4,6 +4,14 @@ Last updated: 2026-08-22
 
 ## Remediation decision log
 
+### 2026-08-22 — Remediation Phase 1 / Ruff and dead-saver cleanup checkpoint
+
+- Evidence: from `back-end`, `rg -n "upstash_saver|AsyncUpstashRedisSaver" . --glob '*.py' --glob '!langgraph_orchestration/upstash_saver.py'` produced no output and exit status 1, confirming no consumers before deletion.
+- Ruff RED: `back-end/env/bin/ruff check back-end/config.py back-end/controller/database_controller.py back-end/langgraph_orchestration/upstash_saver.py --output-format concise` reported 8 findings: controller `I001` and two `W291`; the saver `I001`, three `F401`, and one `W293`.
+- Ruff GREEN: `back-end/env/bin/ruff check back-end` reported `All checks passed!` (exit 0). Compile completed with exit 0 and no output using `cd back-end && env/bin/python -m compileall -q config.py dependencies.py controller langgraph_orchestration service`.
+- Full backend tests: `cd back-end && env/bin/python -m pytest -q` reported `220 passed in 6.45s` (exit 0).
+- Decision: remove the unreferenced `back-end/langgraph_orchestration/upstash_saver.py` without a stub or compatibility layer, and limit `back-end/controller/database_controller.py` to Ruff's exact import sorting and two trailing-space removals.
+
 ### 2026-08-22 — Remediation Phase 1 / trusted-proxy boundary checkpoint
 
 - Evidence: `env/bin/python -m pytest tests/test_rate_limiter.py -q` was red at 16 failed, 7 passed in 0.15s and green at 23 passed in 0.09s after topology coverage replaced mock requests with real ASGI scopes.

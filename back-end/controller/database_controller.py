@@ -4,9 +4,24 @@ import logging
 import time
 from typing import Any, Optional
 
-from fastapi import APIRouter, Request, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 
+from api_contract.common import COMMON_ERROR_RESPONSES, ApiSuccess
+from api_contract.database import (
+    ConnectDBRequest,
+    RunQueryRequest,
+    SwitchDatabaseRequest,
+)
+from api_contract.database_schemas import (
+    ConnectDatabaseData,
+    DatabaseConfigPublic,
+    DatabaseListData,
+    DatabaseSelectionData,
+    DatabaseStatusData,
+    DisconnectDatabaseData,
+)
+from api_contract.query_schemas import QueryResultData, RunSqlQueryData
 from dependencies import (
     get_current_user,
     get_db_config,
@@ -15,21 +30,6 @@ from dependencies import (
 )
 from service.database.connection_service import ConnectionService
 from service.database.database_service import DatabaseService
-from api_contract.database import (
-    ConnectDBRequest,
-    RunQueryRequest,
-    SwitchDatabaseRequest,
-)
-from api_contract.common import COMMON_ERROR_RESPONSES, ApiSuccess
-from api_contract.database_schemas import (
-    ConnectDatabaseData,
-    DatabaseConfigPublic,
-    DatabaseStatusData,
-    DisconnectDatabaseData,
-    DatabaseListData,
-    DatabaseSelectionData,
-)
-from api_contract.query_schemas import QueryResultData, RunSqlQueryData
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Database Operations End Points"])
@@ -370,8 +370,8 @@ async def disconnect_db(
 async def sync_connection_state(db_config: Optional[dict] = Depends(get_db_config)):
     """Synchronize the active database connection state with the consumer.
 
-    This endpoint is used primarily by the frontend React application to restore, 
-    hydrate, and synchronize its local state (e.g. green badges, active tables, 
+    This endpoint is used primarily by the frontend React application to restore,
+    hydrate, and synchronize its local state (e.g. green badges, active tables,
     and sidebar schema explorers) on page reload or fresh tab visits.
 
     Returns all state needed by the client-side DatabaseContext:

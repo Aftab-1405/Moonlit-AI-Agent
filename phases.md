@@ -83,6 +83,15 @@ Exit criteria: final report is evidence-backed, prioritized, actionable, and dis
 
 ## Work log
 
+### 2026-08-22 — Remediation Phase 1 / Ruff and dead-saver cleanup checkpoint
+
+- Reference scan: from `back-end`, `rg -n "upstash_saver|AsyncUpstashRedisSaver" . --glob '*.py' --glob '!langgraph_orchestration/upstash_saver.py'` produced no output and exit status 1.
+- Ruff RED: `back-end/env/bin/ruff check back-end/config.py back-end/controller/database_controller.py back-end/langgraph_orchestration/upstash_saver.py --output-format concise` reported 8 findings: controller `I001` and two `W291`; the saver `I001`, three `F401`, and one `W293`.
+- Ruff GREEN: `back-end/env/bin/ruff check back-end` reported `All checks passed!` (exit 0).
+- Compile: `cd back-end && env/bin/python -m compileall -q config.py dependencies.py controller langgraph_orchestration service` completed with exit 0 and no output.
+- Full backend tests: `cd back-end && env/bin/python -m pytest -q` reported `220 passed in 6.45s` (exit 0).
+- Changed `back-end/controller/database_controller.py` only for Ruff import sorting and the two documented trailing-space removals; deleted unreferenced `back-end/langgraph_orchestration/upstash_saver.py`; updated this journal and `memory.md`.
+
 ### 2026-08-22 — Remediation Phase 1 / trusted-proxy boundary checkpoint
 
 - Red: `env/bin/python -m pytest tests/test_rate_limiter.py -q` reported 16 failed, 7 passed in 0.15s against the prior implicit private-network trust and permissive forwarding-header behavior.
