@@ -165,6 +165,9 @@ local raw_current = redis.call("GET", KEYS[1])
 local current = {}
 
 if raw_current then
+    if string.match(raw_current, "^%s*(.)") ~= "{" then
+        return redis.error_reply("session state must be a JSON object")
+    end
     local current_ok, decoded_current = pcall(cjson.decode, raw_current)
     if not current_ok or type(decoded_current) ~= "table" then
         return redis.error_reply("session state must be a JSON object")
@@ -172,6 +175,9 @@ if raw_current then
     current = decoded_current
 end
 
+if string.match(ARGV[1], "^%s*(.)") ~= "{" then
+    return redis.error_reply("session updates must be a JSON object")
+end
 local updates_ok, updates = pcall(cjson.decode, ARGV[1])
 if not updates_ok or type(updates) ~= "table" then
     return redis.error_reply("session updates must be a JSON object")
@@ -196,6 +202,8 @@ async def _merge_state(key: str, updates: dict, expire_seconds: int) -> dict:
     """Atomically merge top-level session fields and refresh the state TTL."""
     if expire_seconds <= 0:
         raise ValueError("Session state TTL must be positive")
+    if not isinstance(updates, dict):
+        raise ValueError("Session state updates must be a JSON object")
 
     redis_client = await get_redis()
     if redis_client:

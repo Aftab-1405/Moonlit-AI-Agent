@@ -16,6 +16,8 @@ class _AtomicRedisFake:
         self.store: dict[str, str] = {}
         self.expiries: dict[str, int] = {}
         self.eval_calls: list[tuple[str, int, tuple[Any, ...]]] = []
+        self.get_called = False
+        self.set_called = False
         self._lock = asyncio.Lock()
 
     async def eval(self, script: str, numkeys: int, *args: Any) -> str:
@@ -24,12 +26,23 @@ class _AtomicRedisFake:
         async with self._lock:
             current = json.loads(self.store.get(key, "{}"))
             updates = json.loads(updates_json)
+            if not isinstance(current, dict):
+                raise RuntimeError("session state must be a JSON object")
+            if not isinstance(updates, dict):
+                raise RuntimeError("session updates must be a JSON object")
             await asyncio.sleep(0)
             current.update(updates)
             encoded = json.dumps(current)
             self.store[key] = encoded
             self.expiries[key] = int(expire_seconds)
             return encoded
+
+    async def get(self, key: str) -> str | None:
+        self.get_called = True
+        return self.store.get(key)
+
+    async def set(self, key: str, value: str, ex: int) -> None:
+        self.set_called = True
 
 
 class _FailingEvalRedis:
@@ -94,6 +107,42 @@ def test_concurrent_redis_merges_preserve_every_field(monkeypatch) -> None:
 
     assert merged == {f"key_{index}": index for index in range(20)}
     assert len(fake.eval_calls) == 20
+
+
+def test_non_object_updates_are_rejected_before_eval_or_mutation(monkeypatch) -> None:
+    from dependencies import _merge_state
+    from service import redis_service
+
+    fake = _AtomicRedisFake()
+    fake.store["session:updates-array"] = json.dumps({"existing": True})
+    monkeypatch.setattr(redis_service, "_redis_client", fake)
+
+    with pytest.raises(ValueError, match="Session state updates must be a JSON object"):
+        asyncio.run(_merge_state("session:updates-array", ["not", "an", "object"], 60))
+
+    assert fake.store["session:updates-array"] == '{"existing": true}'
+    assert fake.expiries == {}
+    assert fake.eval_calls == []
+    assert fake.get_called is False
+    assert fake.set_called is False
+
+
+def test_stored_array_state_fails_closed_before_mutation(monkeypatch) -> None:
+    from dependencies import _merge_state
+    from service import redis_service
+
+    fake = _AtomicRedisFake()
+    fake.store["session:stored-array"] = "  [\"not\", \"an\", \"object\"]"
+    monkeypatch.setattr(redis_service, "_redis_client", fake)
+
+    with pytest.raises(RuntimeError, match="Atomic Redis session update failed"):
+        asyncio.run(_merge_state("session:stored-array", {"updated": True}, 60))
+
+    assert fake.store["session:stored-array"] == "  [\"not\", \"an\", \"object\"]"
+    assert fake.expiries == {}
+    assert len(fake.eval_calls) == 1
+    assert fake.get_called is False
+    assert fake.set_called is False
 
 
 @pytest.mark.parametrize("fake", [_FailingEvalRedis(), _NonObjectEvalRedis()])
