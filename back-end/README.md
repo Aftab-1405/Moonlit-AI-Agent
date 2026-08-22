@@ -467,6 +467,8 @@ All 8 are required — `Config.get_firebase_credentials()` raises `ValueError: M
 
 | Variable | Default | Description |
 |---|---|---|
+| `REQUEST_BODY_MAX_BYTES` | `262144` | Maximum raw HTTP request body size in bytes. Bodies above this limit are rejected before route parsing. |
+| `FIREBASE_ID_TOKEN_MAX_LENGTH` | `8192` | Maximum character length accepted for the Firebase ID token used to establish a session. |
 | `CHAT_PROMPT_MAX_LENGTH` | `50000` | Max char length of a chat prompt. |
 | `CONVERSATION_ID_MAX_LENGTH` | `100` | Max char length of a `conversation_id`. |
 | `CONVERSATION_TITLE_MAX_LENGTH` | `80` | Max char length of a conversation title. |

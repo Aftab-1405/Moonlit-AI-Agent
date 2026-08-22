@@ -2,14 +2,15 @@
 
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import Field, field_validator
 
+from api_contract.common import ExternalRequestModel
 from config import get_config
 
 Config = get_config()
 
 
-class SaveUserSettingsRequest(BaseModel):
+class SaveUserSettingsRequest(ExternalRequestModel):
     """Schema for partial user-settings updates."""
 
     theme: Optional[Literal["light", "dark"]] = None
@@ -50,14 +51,14 @@ class SaveUserSettingsRequest(BaseModel):
         return model or None
 
 
-class CloseSessionRequest(BaseModel):
+class CloseSessionRequest(ExternalRequestModel):
     """Schema for closing a browser session."""
 
     connectionPersistenceMinutes: Optional[Literal[0, 5, 15, 30, 60]] = None
     sessionInstanceId: Optional[str] = Field(default=None, max_length=Config.SESSION_INSTANCE_ID_MAX_LENGTH)
 
 
-class SessionActiveRequest(BaseModel):
+class SessionActiveRequest(ExternalRequestModel):
     """Schema for browser-session heartbeat."""
 
     sessionInstanceId: Optional[str] = Field(default=None, max_length=Config.SESSION_INSTANCE_ID_MAX_LENGTH)

@@ -9,7 +9,7 @@ Last updated: 2026-08-22
 - [x] Design specification approved.
 - [x] Phase 1 implementation plan written and executed.
 - [x] Phase 1 — Session and admission-control baseline.
-- [ ] Phase 2 — Request, authentication, and security boundaries.
+- [-] Phase 2 — Request, authentication, and security boundaries.
 - [ ] Phase 3 — Ownership-safe LangGraph lifecycle and terminal durability.
 - [ ] Phase 4 — Bounded streaming, tools, and query artifacts.
 - [ ] Phase 5 — VAMP, skills, and typed contracts.
@@ -82,6 +82,17 @@ Exit criteria: SOLID findings distinguish pragmatic trade-offs from changes that
 Exit criteria: final report is evidence-backed, prioritized, actionable, and distinguishes verified defects from risks or coverage gaps.
 
 ## Work log
+
+### 2026-08-22 — Remediation Phase 2 / Task 1 request boundary checkpoint
+
+- RED strict-contract evidence: `cd back-end && env/bin/python -m pytest tests/test_api_contract.py -q` reported `13 failed, 18 passed, 1 warning in 0.26s`. Every public request DTO silently accepted one undeclared field, and `SetSessionRequest` had no `FIREBASE_ID_TOKEN_MAX_LENGTH` configuration.
+- RED raw-ASGI evidence: `cd back-end && env/bin/python -m pytest tests/test_request_boundary.py -q` reported `7 failed in 0.06s` because `core.http_boundary.RequestBodyLimitMiddleware` did not exist.
+- GREEN contract evidence: `cd back-end && env/bin/python -m pytest tests/test_api_contract.py tests/test_request_boundary.py -q` reported `38 passed, 1 warning in 0.21s`. The warning is the installed `slowapi` Python 3.14 deprecation warning from its decorator inspection.
+- Regression evidence: `cd back-end && env/bin/python -m pytest tests/test_dependencies.py tests/test_rate_limiter.py -q` reported `35 passed in 0.19s`; `back-end/env/bin/ruff check back-end/core/http_boundary.py back-end/api_contract back-end/controller/auth_controller.py back-end/main.py back-end/config.py back-end/tests/test_api_contract.py back-end/tests/test_request_boundary.py` reported `All checks passed!`; and `cd back-end && env/bin/python -m pytest -q` reported `242 passed, 1 warning in 6.46s`.
+- Request-boundary contract: the raw ASGI limit is `262144` bytes; duplicate or invalid `Content-Length` returns `400 INVALID_CONTENT_LENGTH`; an oversized declared, chunked, or spoofed body returns `413 REQUEST_TOO_LARGE`; rejected bodies never call the downstream app. Valid under-limit frames are replayed exactly once to downstream parsing.
+- Public DTO contract: `ExternalRequestModel` forbids undeclared keys for all request bodies in the conversation, database, context, and auth routes. `ConnectDBRequest` retains its `db_name`/`user` aliases through `populate_by_name=True`. Firebase ID tokens are limited to `8192` characters.
+- Middleware order: `RequestBodyLimitMiddleware` is registered after route-level decorator middleware declarations, placing it outside CSRF, request logging, security headers, route parsing, dependencies, quota, and endpoint code. Task 2 remains responsible for the final outer security-header wrapper.
+- Phase 2 remains in progress; later phases are unchanged. Tests are repository-only and made no live Firebase, Redis, Firestore, Bedrock, Qdrant, database, deployment, or migration calls.
 
 ### 2026-08-22 — Remediation Phase 1 completed
 

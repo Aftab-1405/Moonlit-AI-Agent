@@ -2,9 +2,15 @@
 
 from typing import Any, Generic, Literal, TypeVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 DataT = TypeVar("DataT")
+
+
+class ExternalRequestModel(BaseModel):
+    """Base for untrusted public request bodies."""
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class ApiError(BaseModel):

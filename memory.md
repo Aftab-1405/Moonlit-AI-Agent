@@ -4,6 +4,14 @@ Last updated: 2026-08-22
 
 ## Remediation decision log
 
+### 2026-08-22 — Remediation Phase 2 / Task 1 request boundary checkpoint
+
+- The public inbound boundary now rejects payloads before FastAPI parsing when a raw body exceeds `REQUEST_BODY_MAX_BYTES=262144`. It rejects duplicate, negative, non-numeric, and otherwise invalid `Content-Length` headers as `400 INVALID_CONTENT_LENGTH`, and oversized declared/chunked/spoofed bodies as `413 REQUEST_TOO_LARGE`. Errors use the standard `ApiError` JSON envelope; rejected requests never invoke the downstream app.
+- Public request bodies now inherit `ExternalRequestModel`, whose Pydantic v2 `ConfigDict(extra="forbid")` prevents silent loss of client-supplied fields. `ConnectDBRequest` preserves its public field-alias support with `ConfigDict(extra="forbid", populate_by_name=True)`. `SetSessionRequest.idToken` is bounded by `FIREBASE_ID_TOKEN_MAX_LENGTH=8192`.
+- TDD evidence: `env/bin/python -m pytest tests/test_api_contract.py -q` was RED at `13 failed, 18 passed, 1 warning in 0.26s`; `env/bin/python -m pytest tests/test_request_boundary.py -q` was RED at `7 failed in 0.06s`; the combined GREEN command was `38 passed, 1 warning in 0.21s`. Dependent boundary suites reported `35 passed in 0.19s`; Ruff reported `All checks passed!`; the full backend suite reported `242 passed, 1 warning in 6.46s`.
+- The only warning is an installed `slowapi` Python 3.14 deprecation emitted while importing the existing auth-route decorator; no dependency or runtime configuration was changed to suppress it. Validation used a recording raw ASGI app and repository-local tests only—no live Firebase, Redis, Firestore, Bedrock, Qdrant, database, deployment, or migration calls.
+- Phase 2 is now active at the Task 1 checkpoint. Later phase work remains incomplete.
+
 ### 2026-08-22 — Remediation Phase 1 completed
 
 - Final session contract: partial session updates use one Redis Lua `EVAL` to shallow-merge only top-level fields, refresh TTL, preserve explicit `None` clears, and fail closed without a Redis `GET`/`SET` fallback. The development-only in-memory fallback protects every read/write/delete/merge access with one process `RLock`; full replacement remains `_write_state()`. Direct regressions now cover wholesale nested replacement, explicit `None`, and unrelated-field survival through both the in-memory path and deterministic fake-EVAL boundary.
@@ -12,7 +20,7 @@ Last updated: 2026-08-22
 - Documentation hardening corrected the active session update description to atomic shallow merge semantics and identified Redis regression coverage as a deterministic fake-EVAL boundary rather than live integration testing.
 - Changed/deleted files: modified `back-end/dependencies.py`, `back-end/config.py`, `back-end/controller/rate_limiter.py`, `back-end/controller/database_controller.py`, and `back-end/README.md`; added `back-end/tests/test_dependencies.py`, `back-end/tests/test_lua_merge_regression.py`, `back-end/tests/test_rate_limiter.py`, `phases.md`, and this journal; deleted `back-end/langgraph_orchestration/upstash_saver.py`. The final self-review removed the README tree entry for that deleted saver; active checkpointing is `langgraph_orchestration/checkpointing.py`.
 - No live external systems were changed. Redis Lua is verified through a fake atomic `EVAL` boundary, not a live Redis server; Firestore, Qdrant, Bedrock, proxies, deployments, and migrations remain unexercised in live infrastructure.
-- Phase 1 is closed. The next authorized scope is Phase 2 planning only, not Phase 2 implementation. Of 35 findings still open, WF-001 and SEC-001 are closed; the Ruff portion of QA-001 is closed, while mypy and dependency reproducibility remain Phase 6 work.
+- Phase 1 is closed. Phase 2 Task 1 implementation is complete at its request-boundary checkpoint; remaining Phase 2 work, later phases, mypy, and dependency reproducibility remain incomplete. Of 35 prior findings, WF-001 and SEC-001 are closed; the Ruff portion of QA-001 is closed.
 
 ### 2026-08-22 — Remediation Phase 1 / Ruff and dead-saver cleanup checkpoint
 

@@ -2,14 +2,15 @@
 
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import Field, field_validator
 
+from api_contract.common import ExternalRequestModel
 from config import get_config
 
 Config = get_config()
 
 
-class BaseConversationRequest(BaseModel):
+class BaseConversationRequest(ExternalRequestModel):
     """Base schema for conversation requests."""
 
     enable_reasoning: bool = Field(default=True)
@@ -82,7 +83,7 @@ class AgentResumeRequest(BaseConversationRequest):
         return v
 
 
-class RenameConversationRequest(BaseModel):
+class RenameConversationRequest(ExternalRequestModel):
     """Schema for renaming a saved conversation."""
 
     title: str = Field(..., min_length=1, max_length=Config.CONVERSATION_TITLE_MAX_LENGTH)

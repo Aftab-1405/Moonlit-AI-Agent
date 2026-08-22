@@ -21,6 +21,7 @@ from config import ProductionConfig, get_config
 # @limiter.limit decorators. Previously the limiter was created here but
 # no routes had decorators — the limiter existed but never enforced.
 from controller.rate_limiter import limiter
+from core.http_boundary import RequestBodyLimitMiddleware
 from langgraph_orchestration.checkpointing import (
     init_checkpointer,
     shutdown_checkpointer,
@@ -293,6 +294,11 @@ def create_app() -> FastAPI:
                     )
 
         return await call_next(request)
+
+    app.add_middleware(
+        RequestBodyLimitMiddleware,
+        max_body_bytes=AppConfig.REQUEST_BODY_MAX_BYTES,
+    )
 
     if AppConfig.RATELIMIT_ENABLED:
         app.state.limiter = limiter

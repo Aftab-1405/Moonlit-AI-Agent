@@ -479,6 +479,8 @@ class Config:
     }
 
     # API request validation limits
+    REQUEST_BODY_MAX_BYTES = int(os.getenv("REQUEST_BODY_MAX_BYTES", 262_144))
+    FIREBASE_ID_TOKEN_MAX_LENGTH = int(os.getenv("FIREBASE_ID_TOKEN_MAX_LENGTH", 8_192))
     CHAT_PROMPT_MAX_LENGTH = int(os.getenv("CHAT_PROMPT_MAX_LENGTH", 50000))
     CONVERSATION_ID_MAX_LENGTH = int(os.getenv("CONVERSATION_ID_MAX_LENGTH", 100))
     LLM_PROVIDER_MAX_LENGTH = int(os.getenv("LLM_PROVIDER_MAX_LENGTH", 50))

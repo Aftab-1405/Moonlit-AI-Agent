@@ -33,8 +33,9 @@ from datetime import timedelta
 from fastapi import APIRouter, HTTPException, Request, Response, status
 from fastapi.concurrency import run_in_threadpool
 from firebase_admin import auth
-from pydantic import BaseModel, Field
+from pydantic import Field
 
+from api_contract.common import ExternalRequestModel
 from config import get_config
 from dependencies import (
     clear_session_state,
@@ -53,10 +54,10 @@ logger = logging.getLogger(__name__)
 from controller.rate_limiter import limiter
 
 
-class SetSessionRequest(BaseModel):
+class SetSessionRequest(ExternalRequestModel):
     """Request body for /set_authenticated_user_session."""
 
-    idToken: str = Field(..., min_length=1)
+    idToken: str = Field(..., min_length=1, max_length=Config.FIREBASE_ID_TOKEN_MAX_LENGTH)
 
 
 def generate_and_set_csrf_cookie(response: Response) -> str:
