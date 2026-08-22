@@ -118,6 +118,26 @@ async def test_rejects_oversized_declared_body_before_downstream_app() -> None:
 
 
 @pytest.mark.asyncio
+async def test_rejects_over_conversion_limit_numeric_content_length_before_downstream_app() -> None:
+    """Catch numeric header values too large for Python integer conversion."""
+    from core.http_boundary import RequestBodyLimitMiddleware
+
+    markers: list[str] = []
+    received_bodies: list[bytes] = []
+    app = RequestBodyLimitMiddleware(recording_app(markers, received_bodies), max_body_bytes=4)
+
+    sent = await invoke(
+        app,
+        http_scope(headers=[(b"content-length", b"9" * 4_301)]),
+        await receive_chunks([b"12345"]),
+    )
+
+    assert_api_error(sent, status_code=413, error="REQUEST_TOO_LARGE")
+    assert markers == []
+    assert received_bodies == []
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("content_length", [b"five", b"-1"])
 async def test_rejects_invalid_content_length_before_downstream_app(content_length: bytes) -> None:
     """Catch malformed lengths instead of accepting ambiguous framing."""

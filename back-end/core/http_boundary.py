@@ -70,7 +70,14 @@ class RequestBodyLimitMiddleware:
             return 0
         if len(values) != 1 or not values[0].isdigit():
             return None
-        return int(values[0])
+
+        normalized_value = values[0].lstrip(b"0") or b"0"
+        maximum_value = str(self.max_body_bytes).encode()
+        if len(normalized_value) > len(maximum_value) or (
+            len(normalized_value) == len(maximum_value) and normalized_value > maximum_value
+        ):
+            return self.max_body_bytes + 1
+        return int(normalized_value)
 
     async def _buffer_request(self, receive: Receive) -> list[Message] | None:
         messages: list[Message] = []
