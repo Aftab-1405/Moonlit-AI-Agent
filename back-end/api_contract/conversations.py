@@ -62,6 +62,14 @@ class ChatRequest(BaseConversationRequest):
     prompt: str = Field(..., min_length=1, max_length=Config.CHAT_PROMPT_MAX_LENGTH)
     conversation_id: Optional[ConversationId] = Field(None, max_length=Config.CONVERSATION_ID_MAX_LENGTH)
 
+    @field_validator("conversation_id", mode="before")
+    @classmethod
+    def conversation_id_not_null(cls, v):
+        """Reserve an omitted conversation ID as the only new-chat signal."""
+        if v is None:
+            raise ValueError("Conversation ID cannot be null")
+        return v
+
     @field_validator("prompt")
     @classmethod
     def prompt_not_empty(cls, v):

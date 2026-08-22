@@ -64,9 +64,6 @@ def _request_with_resource_boundaries(events: list[tuple[object, ...]]):
 
 
 def _install_stream_boundary(monkeypatch, controller, events: list[tuple[object, ...]]) -> None:
-    async def run_boundary(function, *args):
-        return function(*args)
-
     def create_streaming_generator(**kwargs):
         events.append(("stream", kwargs["conversation_id"], kwargs["user_id"]))
 
@@ -80,7 +77,6 @@ def _install_stream_boundary(monkeypatch, controller, events: list[tuple[object,
         "create_streaming_generator",
         create_streaming_generator,
     )
-    monkeypatch.setattr(controller, "run_in_threadpool", run_boundary)
 
 
 async def _consume_stream(response) -> list[str]:
@@ -139,9 +135,6 @@ def path_validation_app(monkeypatch):
         calls.append(("rename", conversation_id, user_id, title))
         return title
 
-    async def run_boundary(function, *args):
-        return function(*args)
-
     monkeypatch.setattr(
         controller.ConversationService,
         "get_conversation_data",
@@ -162,8 +155,6 @@ def path_validation_app(monkeypatch):
         "rename_user_conversation",
         rename_user_conversation,
     )
-    monkeypatch.setattr(controller, "run_in_threadpool", run_boundary)
-
     async def current_user():
         return {"uid": USER_ID}
 
@@ -410,9 +401,6 @@ async def test_query_result_persistence_uses_direct_conversation_config(
 
     stored: list[tuple[str, str, dict]] = []
 
-    async def run_boundary(function, *args):
-        return function(*args)
-
     def execute_query(user_id, query, max_rows, db_config=None):
         assert user_id == USER_ID
         assert query == "SELECT 1"
@@ -431,7 +419,6 @@ async def test_query_result_persistence_uses_direct_conversation_config(
         stored.append((conversation_id, execution_id, result))
 
     monkeypatch.setattr(tool_module.DBTools, "_execute_query", execute_query)
-    monkeypatch.setattr(tool_module.asyncio, "to_thread", run_boundary)
     monkeypatch.setattr(
         firestore_service,
         "store_execution_result",
@@ -459,9 +446,6 @@ async def test_query_analysis_uses_direct_conversation_config(monkeypatch) -> No
 
     reads: list[tuple[str, str]] = []
 
-    async def run_boundary(function, *args):
-        return function(*args)
-
     def get_execution_result(conversation_id: str, execution_id: str):
         reads.append((conversation_id, execution_id))
         return {"columns": ["value"], "data": [{"value": 1}]}
@@ -471,7 +455,6 @@ async def test_query_analysis_uses_direct_conversation_config(monkeypatch) -> No
         "get_execution_result",
         get_execution_result,
     )
-    monkeypatch.setattr(tool_module.asyncio, "to_thread", run_boundary)
     monkeypatch.setattr(
         result_analysis,
         "analyze_execution_result",
@@ -494,11 +477,8 @@ async def test_vamp_retrieval_uses_direct_conversation_config(monkeypatch) -> No
 
     retrievals: list[tuple[object, ...]] = []
 
-    async def run_boundary(function, *args):
-        return function(*args)
-
     class VampBoundary:
-        def retrieve_context_for_query(
+        async def retrieve_context_for_query(
             self,
             conversation_id: str,
             user_id: str,
@@ -516,8 +496,6 @@ async def test_vamp_retrieval_uses_direct_conversation_config(monkeypatch) -> No
         "get_vamp_memory_service",
         lambda: VampBoundary(),
     )
-    monkeypatch.setattr(tool_module.asyncio, "to_thread", run_boundary)
-    monkeypatch.setattr(tool_module.asyncio, "run", lambda result: result)
 
     await tool_module.retrieve_memory.ainvoke(
         {"query": "revenue targets"},

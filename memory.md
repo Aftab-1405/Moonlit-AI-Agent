@@ -4,6 +4,13 @@ Last updated: 2026-08-22
 
 ## Remediation decision log
 
+### 2026-08-22 — Remediation Phase 2 / Task 5 fix round 1
+
+- The creation signal is now omission-only in both active callers and server validation. `ChatRequest` accepts an omitted `conversation_id` but rejects an explicitly present `null`; `buildChatRequestPayload()` omits the property for new-chat state and preserves a continuation's canonical string unchanged.
+- Task 5 tests no longer replace `run_in_threadpool`, `asyncio.to_thread`, or `asyncio.run`; the VAMP boundary implements the production async interface. The sandbox-denied focused attempt emitted `Failed to create stream fd: Operation not permitted` and stalled after nine tests, so the exact hermetic command was rerun outside the sandbox with all external services still faked: `76 passed, 3 warnings in 1.47s` (independently controller-confirmed as `76 passed, 3 warnings in 1.53s`).
+- Fix RED was `1 failed, 1 passed` for explicit-null versus omission and one failed Node test file before the payload model existed. GREEN was `2 passed` for the Pydantic cases and `2 passed` for the pure Node payload behavior. Task 5 Ruff, targeted frontend ESLint, full frontend lint, and the Vite build all pass.
+- Full backend verification is `1 failed, 305 passed, 3 warnings in 2.55s`; the sole failure remains the concurrent/unowned `back-end/skills/react-flow-diagram/SKILL.md` missing `when_to_use`. Searches still find no obsolete creation helper or delimiter extraction, and no internal-dispatch monkeypatch remains in the Task 5 test. No Task 6+ or live-service work was added.
+
 ### 2026-08-22 — Remediation Phase 2 / Task 5 canonical conversation identity checkpoint
 
 - Conversation identity is now server-owned and structurally typed. `validate_conversation_id()` plus the shared `ConversationId` accept only canonical lowercase, hyphenated UUIDv4 values for optional chat IDs, required resume IDs, and every conversation route path parameter. A chat body that omits the ID is the sole creation path; `ConversationService.create_conversation_id()` mints it, and the old client pass-through helper is deleted.

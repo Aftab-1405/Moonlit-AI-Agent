@@ -83,6 +83,13 @@ Exit criteria: final report is evidence-backed, prioritized, actionable, and dis
 
 ## Work log
 
+### 2026-08-22 — Remediation Phase 2 / Task 5 fix round 1
+
+- Omission-only creation is now enforced end to end. Real Pydantic validation distinguishes an absent `conversation_id` from a present `null`, rejecting the latter. The frontend's pure `buildChatRequestPayload()` leaves the property absent for a new chat and includes the canonical continuation string unchanged; `sendMessage()` uses that builder.
+- Strict fix RED: the two backend cases reported `1 failed, 1 passed in 0.15s` because explicit null did not raise, and the targeted Node test failed before the pure payload model existed. GREEN: the backend cases reported `2 passed in 0.11s`; direct Node execution reported `2 passed`; targeted ESLint and full frontend lint exited 0; Vite transformed 2845 modules and built successfully in 7.90s with only its existing chunk-size advisory.
+- Real-dispatch proof: `test_conversation_identity.py` no longer patches FastAPI `run_in_threadpool`, `asyncio.to_thread`, or `asyncio.run`, and its VAMP fake is async like production. The restricted run emitted `Failed to create stream fd: Operation not permitted` and stalled after nine tests. The identical hermetic focused command outside the sandbox passed `76 passed, 3 warnings in 1.47s`, independently controller-confirmed at `1.53s`; persistence, quota, model, database, artifact, and VAMP boundaries remained faked.
+- Task 5 Ruff reports `All checks passed!`. Full backend regression reports `1 failed, 305 passed, 3 warnings in 2.55s`; the sole failure is still the concurrent/unowned React Flow skill file missing `when_to_use`. Obsolete-helper/delimiter searches and the internal-dispatch-monkeypatch search return zero matches. Phase 2 remains active and Task 6+ remains incomplete.
+
 ### 2026-08-22 — Remediation Phase 2 / Task 5 canonical conversation identity checkpoint
 
 - RED evidence: `cd back-end && env/bin/python -m pytest tests/test_conversation_identity.py tests/test_api_contract.py -q` reported `21 failed, 37 passed, 3 warnings in 1.52s`. `ConversationId` did not exist; body and routable path values accepted legacy, colon-bearing, uppercase/unhyphenated, UUIDv1, and arbitrary IDs; a new chat performed an ownership lookup; missing chat continuations and resumes reached quota instead of returning 404; and query persistence, analysis, and VAMP retrieval used the final `thread_id` segment rather than the direct configured ID.

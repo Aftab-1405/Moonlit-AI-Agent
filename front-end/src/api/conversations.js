@@ -12,6 +12,7 @@
  */
 
 import { del, get, patch, postRaw } from '@/api/client';
+import { buildChatRequestPayload } from '@/api/conversationRequestModel';
 import { CONVERSATIONS } from '@/api/endpoints';
 
 const MAX_CONCURRENT_EXECUTION_READS = 4;
@@ -140,17 +141,17 @@ export async function sendMessage(
 ) {
   return postRaw(
     CONVERSATIONS.SEND_MESSAGE,
-    {
+    buildChatRequestPayload({
       prompt,
-      conversation_id: conversationId,
-      enable_reasoning: enableReasoning,
-      reasoning_effort: reasoningEffort,
-      response_style: responseStyle,
-      max_rows: maxRows === 0 ? null : maxRows,
+      conversationId,
+      enableReasoning,
+      reasoningEffort,
+      responseStyle,
+      maxRows,
       provider,
       model,
-      task_mode: taskMode,
-    },
+      taskMode,
+    }),
     {
       signal,
       // Opt out of content-encoding negotiation. If the Vite dev proxy (or any

@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import pytest
 
-
 CANONICAL_CONVERSATION_ID = "123e4567-e89b-42d3-a456-426614174000"
 
 
@@ -268,6 +267,29 @@ class TestChatRequest:
 
         req = ChatRequest(prompt="Hello, world")
         assert req.prompt == "Hello, world"
+
+    def test_accepts_omitted_conversation_id_for_new_chat(self) -> None:
+        """Allow creation only when the conversation-id field is absent."""
+        from api_contract.conversations import ChatRequest
+
+        req = ChatRequest(prompt="Start a new conversation")
+
+        assert req.conversation_id is None
+        assert "conversation_id" not in req.model_fields_set
+
+    def test_rejects_explicit_null_conversation_id(self) -> None:
+        """Do not treat a present-null conversation ID as new-chat creation."""
+        from pydantic import ValidationError
+
+        from api_contract.conversations import ChatRequest
+
+        with pytest.raises(ValidationError) as exc_info:
+            ChatRequest(prompt="Start a new conversation", conversation_id=None)
+
+        assert any(
+            error["loc"] == ("conversation_id",)
+            for error in exc_info.value.errors()
+        )
 
     def test_strips_prompt_whitespace(self) -> None:
         """Strip surrounding whitespace from the prompt field."""
