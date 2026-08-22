@@ -4,6 +4,14 @@ Last updated: 2026-08-22
 
 ## Remediation decision log
 
+### 2026-08-22 — Remediation Phase 2 / Task 4 authenticated database-context checkpoint
+
+- Cached DB state is no longer a public route authentication source. `_get_cached_db_config()` remains the private state/persistence reader; `get_authenticated_db_config()` first resolves `get_current_user`, then reads or refreshes cached state; and `require_authenticated_db_config()` preserves the existing no-config `400` response. The old public `get_db_config` and `require_db_config` dependency names were deleted without aliases.
+- All database, schema, context-refresh, chat, and resume controller imports/usages now depend on the authenticated names. FastAPI's dependency cache reuses the same `get_current_user` result when a route also declares the user explicitly, so Firebase verification occurs once per request.
+- Real ASGI regressions cover the five metadata routes. Revoked cookies return common `401` responses and Firebase infrastructure failures return common `503` responses before any state read, activity refresh, mutation, or DB call. Verified cookies reach the cached config and production response models. Matching CSRF cookie/header values keep the POST test focused on authentication.
+- TDD evidence: the exact RED command reported `17 failed, 13 passed, 3 warnings in 2.57s`; the first GREEN rerun reported `30 passed, 3 warnings in 1.82s`; the focused API/dependency gate reported `61 passed, 3 warnings in 1.85s`; and exact Ruff reported `All checks passed!`. The known warnings are SlowAPI's Python 3.14 `asyncio.iscoroutinefunction` deprecations and remain unsuppressed.
+- The full backend command reported `1 failed, 276 passed, 3 warnings in 7.47s`. Its sole failure is caused by the concurrent/unowned modified `back-end/skills/react-flow-diagram/SKILL.md` missing required `when_to_use` frontmatter. Task 4 did not touch that file or any frontend path. No live Firebase, Redis, Firestore, Bedrock, Qdrant, database, deployment, or migration work was performed. Phase 2 remains active and later tasks remain incomplete.
+
 ### 2026-08-22 — Remediation Phase 2 / Task 2 HTTP response boundary checkpoint
 
 - A pure-ASGI `ResponseSecurityMiddleware` is now the outer application boundary, immediately outside `RequestBodyLimitMiddleware`. It binds/sanitizes `X-Request-ID`, replaces all configured security headers plus `Server` at `http.response.start`, removes `X-Powered-By`, forwards streaming frames without buffering, emits a safe common 500 only before response start, and clears request context in all outcomes.
@@ -488,12 +496,12 @@ Exit gate: clean locked builds are reproducible; unit/integration/contract/load 
 ### [AUTH-001] Several database-metadata endpoints use cached session state without authenticating the Firebase session
 
 - Severity: Medium
-- Classification: verified authorization defect
-- Evidence: `get_db_config()` in `dependencies.py:321-428` derives cached credentials from the presented session-cookie value but never calls `verify_session_cookie_value()`. `sync_connection_state`, `get_databases`, `get_schemas`, `get_tables`, and `get_table_schema` depend only on `get_db_config`/`require_db_config`; unlike mutation/query routes, they omit `get_current_user`.
+- Classification: remediated authorization defect
+- Original evidence: the former `get_db_config()` derived cached credentials from the presented session-cookie value without calling `verify_session_cookie_value()`. `sync_connection_state`, `get_databases`, `get_schemas`, `get_tables`, and `get_table_schema` depended only on the unauthenticated cached-state dependencies.
 - Impact: a stolen session cookie that has been revoked or otherwise fails Firebase authentication can continue using the cached database connection window to enumerate database, schema, table, and column metadata. Calling `get_db_config()` also refreshes session activity, extending cached state in some paths.
 - Root cause: possession of a cache key is treated as authentication for selected read endpoints, conflating application session state with identity verification.
-- Remediation: require `get_current_user` (or a combined authenticated DB-context dependency) on every non-public database endpoint, then resolve the cached DB configuration for that verified session. Do not refresh state for unauthenticated/revoked cookies.
-- Validation: dependency/ASGI tests with no cookie, random cookie, expired cookie, revoked cookie with still-cached state, valid owner cookie, and Firebase outage; only the valid authenticated session may access metadata.
+- Remediation evidence (2026-08-22): `_get_cached_db_config()` is private, and every former route consumer now uses `get_authenticated_db_config()` or `require_authenticated_db_config()`, both rooted in `get_current_user`. The old public names and aliases are absent.
+- Validation: production-route ASGI tests prove revoked cached sessions return common `401`, Firebase outages return common `503`, and both outcomes perform zero cache reads/refreshes/mutations and zero DB calls. Verified cookies receive cached metadata, while routes that also request the user verify Firebase once through FastAPI dependency caching.
 
 ### [CONTRACT-006] Conversation IDs are loosely validated and later parsed from a composite thread string
 

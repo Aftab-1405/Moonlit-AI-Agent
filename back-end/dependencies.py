@@ -23,11 +23,12 @@ not that the auth backend is broken.
 
 DB-config lifecycle
 -------------------
-``get_db_config`` reads per-session DB connection metadata from Redis
-and applies a configurable persistence policy: if the client closed the
-tab (no recent ``session_active_at`` heartbeat) and the user opted into
-``connectionPersistenceMinutes``, the cached pool connection is kept
-alive for that long; otherwise it is disconnected eagerly.
+``get_authenticated_db_config`` authenticates the Firebase session before
+the private cached-state reader loads per-session DB connection metadata
+from Redis. The reader applies a configurable persistence policy: if the
+client closed the tab (no recent ``session_active_at`` heartbeat) and the
+user opted into ``connectionPersistenceMinutes``, the cached pool connection
+is kept alive for that long; otherwise it is disconnected eagerly.
 """
 
 from __future__ import annotations
@@ -399,9 +400,12 @@ async def require_admin_user(user: dict = Depends(get_current_user)) -> dict:
     raise HTTPException(status_code=decision.status_code, detail=detail)
 
 
-async def get_db_config(request: Request) -> Optional[dict]:
+async def _get_cached_db_config(request: Request) -> Optional[dict]:
     """
-    Get database configuration from request state or per-session state.
+    Read database configuration from request state or per-session state.
+
+    This state-only helper does not authenticate callers and must remain private.
+    Route dependencies must use :func:`get_authenticated_db_config` instead.
 
     The cached ``db_config`` is keyed per Firebase session cookie (via
     :func:`_state_key_from_cookie`). Persistence is governed by
@@ -509,7 +513,18 @@ async def get_db_config(request: Request) -> Optional[dict]:
     return None
 
 
-async def require_db_config(db_config: Optional[dict] = Depends(get_db_config)) -> dict:
+async def get_authenticated_db_config(
+    request: Request,
+    user: dict = Depends(get_current_user),
+) -> Optional[dict]:
+    """Authenticate the request before reading or refreshing cached database state."""
+    _ = user
+    return await _get_cached_db_config(request)
+
+
+async def require_authenticated_db_config(
+    db_config: Optional[dict] = Depends(get_authenticated_db_config),
+) -> dict:
     """Return the cached db_config or raise 400 if none is configured.
 
     Use for routes that require a database connection.
@@ -528,8 +543,8 @@ async def update_session_data(
     """
     Atomically shallow-merge top-level per-Firebase-session application state.
 
-    Always refreshes ``session_active_at`` so :func:`get_db_config` can use
-    it as a heartbeat to detect closed tabs.
+    Always refreshes ``session_active_at`` so :func:`_get_cached_db_config`
+    can use it as a heartbeat to detect closed tabs.
 
     Returns:
         True if updated, False if no Firebase session cookie exists

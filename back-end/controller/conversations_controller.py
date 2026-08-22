@@ -47,7 +47,7 @@ from api_contract.conversations import (
     RenameConversationRequest,
 )
 from api_contract.streaming import STREAMING_RESPONSES
-from dependencies import get_current_user, get_db_config
+from dependencies import get_authenticated_db_config, get_current_user
 from service.conversations.conversation_service import ConversationService
 from service.llm import LLMOptionsService
 
@@ -359,7 +359,7 @@ async def chat(
     request: Request,
     data: ChatRequest,
     user: dict = Depends(get_current_user),
-    db_config: Optional[dict] = Depends(get_db_config),
+    db_config: Optional[dict] = Depends(get_authenticated_db_config),
 ):
     """
     Handle incoming user prompts and stream the agentic/LLM response as SSE.
@@ -418,7 +418,7 @@ async def resume_agent(
     request: Request,
     data: AgentResumeRequest,
     user: dict = Depends(get_current_user),
-    db_config: Optional[dict] = Depends(get_db_config),
+    db_config: Optional[dict] = Depends(get_authenticated_db_config),
 ):
     """
     Resume an active LangGraph conversation paused by a human-in-the-loop interrupt.

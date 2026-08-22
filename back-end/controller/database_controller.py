@@ -23,9 +23,9 @@ from api_contract.database_schemas import (
 )
 from api_contract.query_schemas import QueryResultData, RunSqlQueryData
 from dependencies import (
+    get_authenticated_db_config,
     get_current_user,
-    get_db_config,
-    require_db_config,
+    require_authenticated_db_config,
     update_session_data,
 )
 from service.database.connection_service import ConnectionService
@@ -337,7 +337,7 @@ async def connect_db(
 )
 async def disconnect_db(
     request: Request,
-    db_config: Optional[dict] = Depends(get_db_config),
+    db_config: Optional[dict] = Depends(get_authenticated_db_config),
     user: dict = Depends(get_current_user),
 ):
     """Disconnect from the current database."""
@@ -367,7 +367,9 @@ async def disconnect_db(
     response_model=ApiSuccess[DatabaseStatusData],
     responses=COMMON_ERROR_RESPONSES,
 )
-async def sync_connection_state(db_config: Optional[dict] = Depends(get_db_config)):
+async def sync_connection_state(
+    db_config: Optional[dict] = Depends(get_authenticated_db_config),
+):
     """Synchronize the active database connection state with the consumer.
 
     This endpoint is used primarily by the frontend React application to restore,
@@ -424,7 +426,9 @@ async def sync_connection_state(db_config: Optional[dict] = Depends(get_db_confi
     response_model=ApiSuccess[DatabaseListData],
     responses=COMMON_ERROR_RESPONSES,
 )
-async def get_databases_route(db_config: dict = Depends(require_db_config)):
+async def get_databases_route(
+    db_config: dict = Depends(require_authenticated_db_config),
+):
     """Get list of available databases."""
     result = await run_in_threadpool(DatabaseService.get_databases, db_config)
     _raise_service_error(result)
@@ -439,7 +443,7 @@ async def get_databases_route(db_config: dict = Depends(require_db_config)):
 async def switch_remote_database(
     request: Request,
     data: SwitchDatabaseRequest,
-    db_config: dict = Depends(require_db_config),
+    db_config: dict = Depends(require_authenticated_db_config),
     user: dict = Depends(get_current_user),
 ):
     """Switch to a different database on remote server."""
@@ -474,7 +478,7 @@ async def switch_remote_database(
 async def select_database(
     request: Request,
     data: SwitchDatabaseRequest,
-    db_config: dict = Depends(require_db_config),
+    db_config: dict = Depends(require_authenticated_db_config),
     user: dict = Depends(get_current_user),
 ):
     """Select a database on existing connection."""
@@ -512,7 +516,7 @@ async def select_database(
 )
 async def run_sql_query(
     data: RunQueryRequest,
-    db_config: dict = Depends(require_db_config),
+    db_config: dict = Depends(require_authenticated_db_config),
     user: dict = Depends(get_current_user),
 ):
     """Execute a SQL query."""

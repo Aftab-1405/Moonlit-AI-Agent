@@ -283,3 +283,50 @@ def test_replace_session_data_removes_stale_fields(monkeypatch) -> None:
 
     assert json.loads(fake.store[key]) == {"db_config": None, "session_active_at": 456.0}
     assert fake.expiries[key] == 80
+
+
+def test_private_cached_db_reader_preserves_session_lifecycle(monkeypatch) -> None:
+    """The private state reader still returns cached config and refreshes activity."""
+    import dependencies
+    from service import redis_service
+
+    fake = _RaceExposingRedisFake(expected_readers=1)
+    session_cookie = "cached-config-cookie"
+    key = dependencies.state_key_from_session_cookie(session_cookie)
+    db_config = {"db_type": "postgresql", "database": "moonlit"}
+    fake.store[key] = json.dumps(
+        {
+            "db_config": db_config,
+            "db_config_last_closed_at": None,
+            "db_config_last_used_at": 100.0,
+            "session_active_at": 100.0,
+        }
+    )
+    monkeypatch.setattr(redis_service, "_redis_client", fake)
+    monkeypatch.setattr(dependencies.time, "time", lambda: 200.0)
+    request = MagicMock()
+    request.cookies = {dependencies.Config.SESSION_COOKIE_NAME: session_cookie}
+    request.state = MagicMock(spec=[])
+
+    result = asyncio.run(dependencies._get_cached_db_config(request))
+
+    assert result == db_config
+    assert json.loads(fake.store[key]) == {
+        "db_config": db_config,
+        "db_config_last_closed_at": None,
+        "db_config_last_used_at": 200.0,
+        "session_active_at": 200.0,
+    }
+
+
+def test_require_authenticated_db_config_rejects_missing_config() -> None:
+    """Authenticated routes without cached configuration retain the public 400 contract."""
+    from fastapi import HTTPException
+
+    import dependencies
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(dependencies.require_authenticated_db_config(None))
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail == "No database configured. Please connect to a database first."

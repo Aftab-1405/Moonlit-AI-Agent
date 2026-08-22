@@ -20,7 +20,11 @@ from api_contract.database_schemas import (
     TableListData,
     TableSchemaData,
 )
-from dependencies import get_current_user, require_db_config, update_session_data
+from dependencies import (
+    get_current_user,
+    require_authenticated_db_config,
+    update_session_data,
+)
 from service.database.database_service import DatabaseService
 
 logger = logging.getLogger(__name__)
@@ -143,7 +147,7 @@ def _normalize_select_schema_response(
     response_model=ApiSuccess[SchemaListData],
     responses=COMMON_ERROR_RESPONSES,
 )
-async def get_schemas(db_config: dict = Depends(require_db_config)):
+async def get_schemas(db_config: dict = Depends(require_authenticated_db_config)):
     """Get all schemas in connected PostgreSQL database."""
     result = await run_in_threadpool(DatabaseService.get_schemas, db_config)
 
@@ -164,7 +168,7 @@ async def get_schemas(db_config: dict = Depends(require_db_config)):
 async def select_schema(
     request: Request,
     data: SelectSchemaRequest,
-    db_config: dict = Depends(require_db_config),
+    db_config: dict = Depends(require_authenticated_db_config),
     user: dict = Depends(get_current_user),
 ):
     """Select a PostgreSQL schema."""
@@ -211,7 +215,7 @@ async def select_schema(
     response_model=ApiSuccess[TableListData],
     responses=COMMON_ERROR_RESPONSES,
 )
-async def get_tables(db_config: dict = Depends(require_db_config)):
+async def get_tables(db_config: dict = Depends(require_authenticated_db_config)):
     """Get all tables in the current database/schema."""
     result = await run_in_threadpool(DatabaseService.get_tables, db_config)
 
@@ -230,7 +234,10 @@ async def get_tables(db_config: dict = Depends(require_db_config)):
     response_model=ApiSuccess[TableSchemaData],
     responses=COMMON_ERROR_RESPONSES,
 )
-async def get_table_schema_route(data: GetTableSchemaRequest, db_config: dict = Depends(require_db_config)):
+async def get_table_schema_route(
+    data: GetTableSchemaRequest,
+    db_config: dict = Depends(require_authenticated_db_config),
+):
     """Get schema information for a specific table."""
     result = await run_in_threadpool(DatabaseService.get_table_info, db_config, data.table_name)
 

@@ -20,7 +20,7 @@ from dependencies import (
     get_current_user,
     get_session_data,
     require_admin_user,
-    require_db_config,
+    require_authenticated_db_config,
     update_session_data,
 )
 from service.user_settings.user_settings_service import UserSettingsService
@@ -159,7 +159,10 @@ async def get_user_context(user: dict = Depends(get_current_user)):
 
 
 @router.post("/user/context/refresh")
-async def refresh_user_context(db_config: dict = Depends(require_db_config), user: dict = Depends(get_current_user)):
+async def refresh_user_context(
+    db_config: dict = Depends(require_authenticated_db_config),
+    user: dict = Depends(get_current_user),
+):
     """Refresh schema cache for current database."""
     from service.context.context_service import ContextService
 
