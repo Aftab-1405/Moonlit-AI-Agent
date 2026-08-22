@@ -366,7 +366,8 @@ def execute_sql_query(
                 "status": "error",
                 "message": f"Query too long. Maximum: {MAX_QUERY_LENGTH} characters.",
             }
-        analysis = DatabaseSecurity.analyze_sql_query(sql_query)
+        db_type = db_config.get("db_type", "mysql")
+        analysis = DatabaseSecurity.analyze_sql_query(sql_query, dialect=db_type)
 
         if not analysis["is_safe"]:
             return {
@@ -382,7 +383,6 @@ def execute_sql_query(
 
         start_time = time.time()
 
-        db_type = db_config.get("db_type", "mysql")
         adapter = get_adapter(db_type)
         manager = get_connection_manager()
 

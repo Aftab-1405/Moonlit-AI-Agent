@@ -4,6 +4,14 @@ Last updated: 2026-08-22
 
 ## Remediation decision log
 
+### 2026-08-22 — Remediation Phase 2 / Task 8 dialect-aware SQL function checkpoint
+
+- One policy now owns SQL authorization syntax: `DatabaseSecurity.analyze_sql_query(query, dialect=None)`. It maps `mysql→mysql`, `postgresql→postgres`, `sqlserver→tsql`, and `oracle→oracle`; retains the DDL/DML block; rejects the specified file/network/sleep/admin/locking/code-execution functions; and fails closed for every anonymous/UDF call outside one small dialect allowlist (`now`, `age`, `isdate`, or `numtodsinterval`). Typed ordinary SQLGlot aggregates/scalars and dialect date arithmetic remain usable.
+- Stable function warnings contain only the normalized function and policy reason. Parser failures return only `SQL could not be safely parsed`; Task 7's `log_safe_exception()` retains sanitized, request-correlated internal diagnostics without traceback data or raw submitted SQL.
+- Tool schemas use `dialect=None` only for the early union-allowlist check. Human execution, AI execution, and AI explain resolve the actual current database type before analysis and reject before adapter/connection/cursor/database entry. Cross-dialect tests prove an entry accepted by the generic union is rejected by the authoritative execution dialect.
+- TDD/verification: RED `82 failed, 47 passed`; focused GREEN `129 passed`; database/API regression `171 passed, 1 warning`; Task 7 safe-error regression `89 passed, 3 warnings`; exact Ruff passed. Full backend is `1 failed, 448 passed, 3 warnings`; the sole failure remains the unowned React Flow skill frontmatter missing `when_to_use`.
+- `DBSEC-001` is remediated at the application boundary as defense in depth. Deployment still must verify tenant-scoped least-privilege roles, function grants, DBMS read-only transactions, and resource limits against live supported databases. No live database, role, dependency, migration, deployment, push, or merge work occurred. Phase 2 remains active; Task 9 remains incomplete.
+
 ### 2026-08-22 — Remediation Phase 2 / Task 7 stable safe-error boundary checkpoint
 
 - `PublicError(code, message)` is immutable. `public_database_error()` uses raw driver text only for in-process classification into the exact stable DB mapping; `public_tool_error()` supplies explicit tool/provider/HTTP contracts; and `log_safe_exception()` logs only sanitized, request-correlated detail without traceback rendering.
@@ -12,6 +20,7 @@ Last updated: 2026-08-22
 - Strict TDD evidence: the initial exact RED was `24 failed, 32 passed`; the database/context expansion was `15 failed, 56 passed`; the conversation HTTP/SSE/log expansion was `11 failed, 71 passed, 2 warnings`; the corrected real-ASGI common-envelope RED was `1 failed, 3 warnings`; and the VAMP persisted-reason RED was `1 failed, 2 warnings`. Final focused GREEN was `100 passed, 3 warnings in 1.60s`; affected regressions were `142 passed, 3 warnings in 2.15s`; targeted Ruff reported `All checks passed!`.
 - The scoped raw-boundary audit leaves only deliberate internal uses: sanitizer/database classification in `core.errors`; provider/quota classification in the conversation controller; missing-table classification in the DB executor; validation chaining before the stable tool wrapper; recursion/rate-limit/context-window/friendly-error classification in the agent stream; and error-category classification in the conversation streaming service. No ruled file assigns raw exception text to public or persisted fields, and no ruled diagnostic uses `logger.exception` or `exc_info=True`.
 - Full backend verification is `1 failed, 358 passed, 3 warnings in 2.59s`; the sole failure remains the unowned React Flow skill frontmatter missing `when_to_use`. The installed SlowAPI Python 3.14 deprecations remain unsuppressed. Repository-wide raw diagnostic hits outside Task 7's ruled files remain separate Task 9 triage; no live external service or deployment state was touched. `SEC-003` is closed for the audited paths, Phase 2 remains active, and Task 8+ remains incomplete.
+- Task 7 fix-review closure: `d2b1eda` canonicalizes code/message resolution, restores unknown-column classification, and returns the canonical Firestore `503`; `139` covering tests passed with three known warnings, targeted Ruff passed, and the scoped re-review was clean. The two deferred Task 7 minors remain deferred.
 
 ### 2026-08-22 — Remediation Phase 2 / Task 6 trusted prompt-state boundary checkpoint
 
@@ -154,7 +163,7 @@ The key pattern is not “the whole design is wrong.” It is that individually 
 
 1. Add a server-side Bedrock model allowlist and align IAM (`MODEL-001`).
 2. Enforce pre-parse request-body limits and forbid undeclared external DTO fields (`API-001`).
-3. Treat SQL syntax analysis as defense in depth: enforce read-only/least-privilege DB roles, read-only transactions, resource limits, and dangerous-function policy (`DBSEC-001`).
+3. Keep the completed dangerous-function policy as defense in depth and verify read-only/least-privilege DB roles, read-only transactions, and resource limits in deployment (`DBSEC-001`).
 4. Require Firebase authentication for every database metadata route and sanitize all model/client/persisted errors (`AUTH-001`, `SEC-003`).
 5. Fail closed when a checkpoint cannot be cleared; never continue structurally stale graph state (`ORCH-002`).
 
@@ -519,12 +528,12 @@ Exit gate: clean locked builds are reproducible; unit/integration/contract/load 
 ### [DBSEC-001] A syntactically read-only query can still execute privileged or side-effecting functions
 
 - Severity: High
-- Classification: verified security design risk
-- Evidence: `service/database/security.py:109-181` allows every function call beneath a `SELECT`/set-operation root and uses a finite blocked-node list. Fresh probes classified `pg_read_file`, `pg_sleep`, MySQL `LOAD_FILE`, and an unknown `custom_side_effect()` as safe `SELECT` queries with no warnings. Both the human and AI tool paths execute the original query after this gate; the AI path is additionally reachable through prompt-driven tool selection.
+- Classification: application boundary remediated; deployment controls require verification
+- Original evidence: the former analyzer allowed every function call beneath a `SELECT`/set-operation root. Probes classified `pg_read_file`, `pg_sleep`, MySQL `LOAD_FILE`, and an unknown `custom_side_effect()` as safe, and both human and AI paths executed the original query after that gate.
 - Impact: where the connected database role permits it, a user or prompt-injected model can read server files, invoke extensions/UDFs, initiate external activity, or deliberately consume backend resources despite the product's read-only claim. Application row limits do not constrain a sleep or side-effecting scalar function.
 - Root cause: syntactic AST validation is being used as the main authorization boundary; database-role capabilities and function semantics are not enforced by the application.
-- Remediation: require tenant-scoped least-privilege database roles and DBMS-enforced read-only transactions/resource limits. Add dialect-aware denial of file/network/sleep/administrative functions and fail closed for unapproved UDFs on exposed agent tools. Treat the parser as defense in depth, not proof of harmlessness.
-- Validation: dialect-specific unit probes and live integration tests must show both the app gate and actual database role reject known dangerous functions and unknown UDFs while allowing approved aggregates/scalars.
+- Remediation evidence (2026-08-22): the single dialect-aware analyzer now denies known dangerous functions and unapproved anonymous/UDF calls, and human/AI execute/explain paths recheck the authenticated/current DB type before database entry. Repository tests cover all four dialects while preserving approved aggregates, scalars, date arithmetic, and small explicit anonymous allowlists.
+- Remaining validation: live integration tests must show the configured database roles independently reject these capabilities and enforce least privilege, read-only behavior, and resource limits. The parser remains defense in depth, not proof of harmlessness.
 
 ### [AUTH-001] Several database-metadata endpoints use cached session state without authenticating the Firebase session
 
@@ -569,7 +578,7 @@ Exit gate: clean locked builds are reproducible; unit/integration/contract/load 
 ## Validation limits and external checks still required
 
 - No live Firestore, Redis/`AsyncRedisSaver`, Qdrant, Bedrock, Firebase, Tavily, or supported database was available to the repository suite. Adapter/network timing, IAM, retention, encryption, and service-limit behavior therefore remain staging verification items.
-- The configured database roles were not available. `DBSEC-001` proves the application permits dangerous function shapes; actual blast radius depends on deployment grants, extensions/UDFs, and DBMS resource governance.
+- The configured database roles were not available. `DBSEC-001` is now blocked at the application boundary, but independent database-role enforcement still depends on deployment grants, extensions/UDFs, and DBMS resource governance.
 - No production proxy/load-balancer topology was available. Exact trusted-hop CIDRs, forwarded-header normalization, buffering, idle timeouts, and disconnect propagation must be tested in the deployed chain.
 - Focused probes used deterministic fakes and direct function/generator calls; they establish code-level invariant failures, not production incident frequency.
 - No sustained load/soak test was run, so queue, connection-pool, Firestore contention, memory, latency, and cost curves are not quantified.
@@ -600,7 +609,7 @@ Exit gate: clean locked builds are reproducible; unit/integration/contract/load 
 - Request-boundary probes — unknown Pydantic fields were ignored and a 1,000,000-character Firebase token was accepted; no pre-parse body middleware exists.
 - Query-artifact probe — 501 bounded input rows produced 501 persistence chunks under a reduced deterministic chunk budget, proving chunk/write count is not capped.
 - JSON compatibility probes — backend emitted bare `NaN`/`Infinity`; Node/browser `JSON.parse` rejected the frame.
-- SQL safety probes — `pg_read_file`, `pg_sleep`, `LOAD_FILE`, and an unknown UDF all passed the current read-only analyzer.
+- Original SQL safety probes — `pg_read_file`, `pg_sleep`, `LOAD_FILE`, and an unknown UDF passed the former analyzer; Task 8's dialect-aware regression set now rejects them before database entry.
 - Conversation-ID probes — colon, slash, and arbitrary non-UUID IDs were accepted; delimiter parsing changed `team:quarterly` to `quarterly` for artifacts.
 - Stream-recovery review — no request idempotency key, SSE event IDs, `Last-Event-ID`, or replay path exists; disconnect retries create new turns.
 - Done-order probe — closing the generator immediately after the public `done` frame persisted a completed answer as aborted with a stopped marker.

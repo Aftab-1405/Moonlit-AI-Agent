@@ -150,6 +150,7 @@ back-end/
 │   ├── test_dependencies.py
 │   ├── test_lua_merge_regression.py
 │   ├── test_rate_limiter.py
+│   ├── test_sql_function_policy.py
 │   └── test_stream_events.py
 │
 └── vamp_memory/                       # VAMP long-context vector memory subsystem
@@ -486,6 +487,20 @@ All 8 are required — `Config.get_firebase_credentials()` raises `ValueError: M
 | `QUERY_TIMEOUT_MAX_SECONDS` | `300` | Maximum allowed per-request query timeout. |
 | `USER_SETTINGS_QUERY_TIMEOUT_MIN_SECONDS` | `10` | Floor for the user-configurable query timeout. |
 
+`DatabaseSecurity.analyze_sql_query()` parses execution-time queries with the
+authenticated database type (`mysql`, `postgresql`, `sqlserver`, or `oracle`).
+DDL/DML remains blocked, known file/network/sleep/admin functions are rejected,
+and unknown anonymous/UDF calls fail closed outside a small dialect-specific
+allowlist. The Pydantic tool-schema check uses the union of those allowlists only
+as an early generic gate; human query, AI query, and AI explain execution all
+recheck against the current database dialect before adapter or cursor use.
+
+This application policy is defense in depth, not a database authorization
+boundary. Deployments must still use tenant-scoped least-privilege database
+roles, revoke unnecessary function execution rights, and enforce DBMS read-only
+transactions and resource limits where supported. Those role/grant controls
+must be verified in the deployment environment.
+
 ### API Request Validation Limits
 
 | Variable | Default | Description |
@@ -691,10 +706,11 @@ Configured via `[tool.pytest.ini_options]` in `pyproject.toml`:
   - `slow` — marks tests as slow (deselect with `-m "not slow"`)
   - `integration` — marks tests that require external services (Firestore, Qdrant, Bedrock)
 
-Test suite: 11 files in `tests/` (`conftest.py` + 10 `test_*.py`), covering:
+Test suite: 21 `test_*.py` modules under `tests/`, covering:
 - API contract schemas (size caps, validation)
 - Core audit / errors / logging / security
 - Database adapters (quote_identifier, parse_connection_string, identifier rejection)
+- Dialect-aware SQL function policy and pre-execution database-boundary rejection
 - FastAPI dependencies (CSRF constant-time check, merge-state atomicity)
 - Lua merge regression (Upstash `cjson.decode` fix)
 - HTTP rate limiter (trusted-proxy / XFF / X-Real-IP)

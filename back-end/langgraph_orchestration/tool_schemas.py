@@ -74,7 +74,7 @@ class ExecuteQueryArgs(BaseToolArgs):
     def validate_query_is_read_only(cls, v: str) -> str:
         from service.database.security import DatabaseSecurity
 
-        analysis = DatabaseSecurity.analyze_sql_query(v)
+        analysis = DatabaseSecurity.analyze_sql_query(v, dialect=None)
         if not analysis["is_safe"]:
             reason = "; ".join(analysis["warnings"]) or "query is not read-only"
             raise ValueError(reason)
@@ -131,7 +131,7 @@ class ExplainQueryArgs(BaseToolArgs):
     def validate_query_is_read_only(cls, v: str) -> str:
         from service.database.security import DatabaseSecurity
 
-        analysis = DatabaseSecurity.analyze_sql_query(v)
+        analysis = DatabaseSecurity.analyze_sql_query(v, dialect=None)
         if not analysis["is_safe"]:
             reason = "; ".join(analysis["warnings"]) or "query is not read-only"
             raise ValueError(reason)

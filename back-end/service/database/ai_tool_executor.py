@@ -422,7 +422,7 @@ class AIToolExecutor:
             }
 
         # Security check
-        analysis = DatabaseSecurity.analyze_sql_query(query)
+        analysis = DatabaseSecurity.analyze_sql_query(query, dialect=db_type)
         if not analysis["is_safe"]:
             return {
                 "status": "error",
@@ -1179,12 +1179,13 @@ class AIToolExecutor:
         connection = context_sync.get_connection(user_id)
         if not connection.get("connected"):
             return {"error": "Not connected to any database"}
+        db_type = connection.get("db_type", "postgresql")
 
         # Reuse the same read-only gate as execute_query so a malicious or
         # confused LLM cannot EXPLAIN an UPDATE/DELETE and observe which
         # rows would be touched.
         try:
-            analysis = DatabaseSecurity.analyze_sql_query(query)
+            analysis = DatabaseSecurity.analyze_sql_query(query, dialect=db_type)
         except Exception as exc:
             return _database_failure("parse_explain_query", exc)
         if not analysis["is_safe"]:
@@ -1197,9 +1198,6 @@ class AIToolExecutor:
                     f"for EXPLAIN. {analysis['query_type']} is blocked."
                 )
             }
-
-        db_type = connection.get("db_type", "postgresql")
-
         try:
             adapter = get_adapter(db_type)
             with get_tool_connection(db_config) as conn:

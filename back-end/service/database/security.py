@@ -21,11 +21,60 @@ All public methods are static and cached where the input space is small.
 import logging
 import re
 from functools import lru_cache
-from typing import Dict
+from types import MappingProxyType
+from typing import Mapping
 
+from core.errors import log_safe_exception, public_tool_error
 from core.security import is_valid_identifier
 
 logger = logging.getLogger(__name__)
+
+_SQLGLOT_DIALECTS: Mapping[str, str] = MappingProxyType(
+    {
+        "mysql": "mysql",
+        "postgresql": "postgres",
+        "sqlserver": "tsql",
+        "oracle": "oracle",
+    }
+)
+
+_PROHIBITED_FUNCTION_REASONS: Mapping[str, str] = MappingProxyType(
+    {
+        "pg_read_file": "file access",
+        "pg_read_binary_file": "file access",
+        "pg_ls_dir": "file access",
+        "load_file": "file access",
+        "pg_sleep": "resource delay",
+        "sleep": "resource delay",
+        "benchmark": "resource exhaustion",
+        "dblink_exec": "external database access",
+        "openrowset": "external database access",
+        "opendatasource": "external database access",
+        "openquery": "external database access",
+        "sys_exec": "external code execution",
+        "sys_eval": "external code execution",
+        "xp_cmdshell": "external code execution",
+        "sp_execute_external_script": "external code execution",
+        "runjava": "external code execution",
+        "request": "network access",
+        "get_lock": "database locking",
+        "pg_terminate_backend": "administrative control",
+        "create_job": "administrative control",
+    }
+)
+
+_SAFE_ANONYMOUS_FUNCTIONS: Mapping[str, frozenset[str]] = MappingProxyType(
+    {
+        "mysql": frozenset({"now"}),
+        "postgresql": frozenset({"age"}),
+        "sqlserver": frozenset({"isdate"}),
+        "oracle": frozenset({"numtodsinterval"}),
+    }
+)
+
+_GENERIC_SAFE_ANONYMOUS_FUNCTIONS = frozenset().union(
+    *_SAFE_ANONYMOUS_FUNCTIONS.values()
+)
 
 
 class DatabaseSecurity:
@@ -107,11 +156,14 @@ class DatabaseSecurity:
         return column_name
 
     @staticmethod
-    def analyze_sql_query(query: str) -> Dict:
+    def analyze_sql_query(query: str, dialect: str | None = None) -> dict:
         """Parse and validate exactly one read-only SQL statement.
 
         Args:
             query: SQL string to analyze.
+            dialect: Application database type. ``None`` is reserved for the
+                early tool-schema gate and uses the union of supported safe
+                anonymous functions.
 
         Returns:
             Dict with keys ``is_safe`` (bool), ``warnings`` (list[str]),
@@ -127,11 +179,27 @@ class DatabaseSecurity:
             "query_type": None,
             "tables_accessed": [],
         }
+        if dialect is None:
+            parser_dialect = None
+            safe_anonymous_functions = _GENERIC_SAFE_ANONYMOUS_FUNCTIONS
+        else:
+            parser_dialect = _SQLGLOT_DIALECTS.get(dialect)
+            if parser_dialect is None:
+                analysis["warnings"].append(
+                    "Database dialect is not supported by SQL security policy"
+                )
+                return analysis
+            safe_anonymous_functions = _SAFE_ANONYMOUS_FUNCTIONS[dialect]
+
         try:
             import sqlglot
             from sqlglot import expressions as exp
 
-            statements = [item for item in sqlglot.parse(query) if item is not None]
+            statements = [
+                item
+                for item in sqlglot.parse(query, read=parser_dialect)
+                if item is not None
+            ]
             if len(statements) != 1:
                 analysis["warnings"].append("Exactly one SQL statement is required")
                 return analysis
@@ -172,11 +240,37 @@ class DatabaseSecurity:
                 analysis["warnings"].append("Blocked operation detected: " + ", ".join(sorted(set(blocked_nodes))))
                 return analysis
 
+            for node in statement.find_all(exp.Func):
+                function_name = (
+                    node.name if isinstance(node, exp.Anonymous) else node.sql_name()
+                )
+                normalized_name = str(function_name).strip().casefold()
+                prohibited_reason = _PROHIBITED_FUNCTION_REASONS.get(normalized_name)
+                if prohibited_reason is not None:
+                    analysis["warnings"].append(
+                        f"Function {normalized_name} is prohibited: {prohibited_reason}"
+                    )
+                    return analysis
+                if (
+                    isinstance(node, exp.Anonymous)
+                    and normalized_name not in safe_anonymous_functions
+                ):
+                    analysis["warnings"].append(
+                        f"Function {normalized_name} is not allowed: "
+                        "unapproved anonymous function"
+                    )
+                    return analysis
+
             analysis["query_type"] = "WITH" if statement.args.get("with_") else "SELECT"
             analysis["tables_accessed"] = [table.name for table in statement.find_all(exp.Table) if table.name]
             analysis["is_safe"] = True
         except Exception as exc:
-            analysis["warnings"].append(f"SQL could not be safely parsed: {exc}")
+            public = public_tool_error(
+                "SQL_PARSE_FAILED",
+                "SQL could not be safely parsed",
+            )
+            log_safe_exception(logger, "analyze_sql_query", exc, public)
+            analysis["warnings"].append(public.message)
 
         return analysis
 
