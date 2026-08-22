@@ -41,16 +41,27 @@ def test_resolver_normalizes_provider_and_uses_configured_default(configured_mod
 
 
 @pytest.mark.parametrize(
-    ("provider", "model"),
+    ("provider", "model", "expected_reason"),
     [
-        ("unsupported", "allowed.model-v1"),
-        ("bedrock", "not-enabled.model"),
+        ("unsupported", "allowed.model-v1", "invalid_provider"),
+        ("bedrock", "not-enabled.model", "invalid_model"),
     ],
 )
-def test_resolver_rejects_unconfigured_provider_or_model(configured_models, provider, model) -> None:
-    """Catch authorization changes that permit a provider/model outside config."""
-    with pytest.raises(ValueError):
+def test_resolver_rejects_with_typed_selection_reason(
+    configured_models,
+    provider,
+    model,
+    expected_reason,
+) -> None:
+    """Selection callers receive a machine-readable reason, not message text."""
+    assert hasattr(configured_models, "ModelSelectionError")
+    assert hasattr(configured_models, "ModelSelectionReason")
+
+    with pytest.raises(configured_models.ModelSelectionError) as caught:
         configured_models.resolve_model_selection(provider, model)
+
+    assert caught.value.reason is configured_models.ModelSelectionReason(expected_reason)
+    assert str(caught.value) == "Model selection rejected."
 
 
 def test_resolver_rejects_empty_allowlist_even_with_configured_default(
@@ -100,6 +111,55 @@ class _AsyncRecorder(_Recorder):
     async def __call__(self, *args, **kwargs):
         self.calls.append((*args, kwargs))
         return self.result
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("reason", "expected_detail"),
+    [
+        (
+            "invalid_provider",
+            {"error": "invalid_provider", "message": "Unsupported model provider."},
+        ),
+        (
+            "invalid_model",
+            {
+                "error": "invalid_model",
+                "message": "Model is not enabled for this provider.",
+            },
+        ),
+    ],
+)
+async def test_controller_uses_typed_selection_reason_not_exception_text(
+    monkeypatch,
+    configured_models,
+    reason,
+    expected_detail,
+) -> None:
+    """Both selection errors share text, so only the typed reason can route them."""
+    from controller import conversations_controller as controller
+
+    selection_error = configured_models.ModelSelectionError(
+        configured_models.ModelSelectionReason(reason)
+    )
+
+    def reject_selection(*_args):
+        raise selection_error
+
+    monkeypatch.setattr(controller.LLMOptionsService, "resolve_selection", reject_selection)
+
+    with pytest.raises(HTTPException) as caught:
+        await controller._handle_agent_stream(
+            request=SimpleNamespace(),
+            user_id="user-1",
+            conversation_id="conversation-1",
+            provider="ignored",
+            model="ignored",
+            stream_generator_kwargs={},
+        )
+
+    assert caught.value.status_code == 400
+    assert caught.value.detail == expected_detail
 
 
 @pytest.mark.asyncio

@@ -51,9 +51,16 @@ from firebase_admin.auth import (
 
 from config import get_config
 from core.admin_authorization import get_admin_authorization_decision
+from core.errors import PublicError, log_safe_exception
 
 logger = logging.getLogger(__name__)
 Config = get_config()
+
+_SESSION_STATE_UPDATE_ERROR = PublicError("SESSION_STATE_UPDATE_FAILED", "Session state update failed.")
+_SESSION_STATE_READ_ERROR = PublicError("SESSION_STATE_READ_FAILED", "Session state read failed.")
+_DB_CONFIG_EXPIRY_ERROR = PublicError("DB_CONFIG_EXPIRY_FAILED", "Database configuration expiry failed.")
+_AUTH_SESSION_INVALID_ERROR = PublicError("AUTH_SESSION_INVALID", "Authentication session is invalid.")
+_AUTH_VERIFICATION_ERROR = PublicError("AUTH_VERIFICATION_FAILED", "Authentication verification failed.")
 
 _memory_state: dict[str, tuple[dict, float]] = {}
 _memory_state_lock = threading.RLock()
@@ -221,7 +228,7 @@ async def _merge_state(key: str, updates: dict, expire_seconds: int) -> dict:
                 raise ValueError("Redis session merge returned a non-object")
             return merged
         except Exception as exc:
-            logger.error("Atomic Redis session update failed", exc_info=True)
+            log_safe_exception(logger, "merge_session_state", exc, _SESSION_STATE_UPDATE_ERROR)
             raise RuntimeError("Atomic Redis session update failed") from exc
 
     with _memory_state_lock:
@@ -262,7 +269,7 @@ async def get_session_data(request: Request) -> Optional[dict]:
     try:
         return await _read_state(key)
     except Exception as e:
-        logger.warning(f"Error reading session state: {e}")
+        log_safe_exception(logger, "read_session_state", e, _SESSION_STATE_READ_ERROR)
         return None
 
 
@@ -296,7 +303,7 @@ async def _expire_db_config(request: Request, db_config: dict, reason: str) -> N
 
         await run_in_threadpool(DatabaseService.disconnect, db_config, user_id)
     except Exception as e:
-        logger.warning(f"Failed to disconnect expired DB config: {e}")
+        log_safe_exception(logger, "disconnect_expired_db_config", e, _DB_CONFIG_EXPIRY_ERROR)
 
     try:
         await update_session_data(
@@ -308,7 +315,7 @@ async def _expire_db_config(request: Request, db_config: dict, reason: str) -> N
             },
         )
     except Exception as e:
-        logger.warning(f"Failed to clear expired DB config from session state: {e}")
+        log_safe_exception(logger, "clear_expired_db_config", e, _DB_CONFIG_EXPIRY_ERROR)
 
 
 async def get_current_user(request: Request) -> dict:
@@ -332,7 +339,7 @@ async def get_current_user(request: Request) -> dict:
         try:
             user = await run_in_threadpool(verify_session_cookie_value, session_cookie)
             request.state.user = user
-            logger.debug(f"Firebase session auth for user: {user.get('uid')}")
+            logger.debug("Firebase session authenticated")
             return user
         except (
             ExpiredSessionCookieError,
@@ -342,7 +349,7 @@ async def get_current_user(request: Request) -> dict:
             # FIX [M17]: These typed exceptions indicate the cookie itself is
             # bad (expired, malformed, or revoked). They are safe to fall
             # through to the 401 / dev-bypass path below.
-            logger.debug(f"Invalid Firebase session cookie: {e}")
+            log_safe_exception(logger, "verify_firebase_session", e, _AUTH_SESSION_INVALID_ERROR)
         except Exception as e:
             # FIX [M17]: Any OTHER exception (network error, Firebase backend
             # down, malformed internal state) means the auth service itself is
@@ -350,7 +357,7 @@ async def get_current_user(request: Request) -> dict:
             # would grant full dev-user access to every unauthenticated
             # request during a Firebase outage. Surface a 503 so the operator
             # sees the outage and the client can retry.
-            logger.error(f"Firebase verification error (non-auth): {e}")
+            log_safe_exception(logger, "verify_firebase_session", e, _AUTH_VERIFICATION_ERROR)
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Auth service temporarily unavailable",
@@ -367,7 +374,7 @@ async def get_current_user(request: Request) -> dict:
             "verified": True,
         }
         request.state.user = user
-        logger.debug("Development auth bypass for user: %s", user["uid"])
+        logger.debug("Development authentication bypass applied")
         return user
 
     raise HTTPException(

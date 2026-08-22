@@ -54,7 +54,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from langgraph.types import interrupt
 
-from core.errors import log_safe_exception, public_tool_error
+from core.errors import PublicError, log_safe_exception, public_error_for_code
 from langgraph_orchestration.tool_executor import ToolExecutor
 from service.database.ai_tool_executor import AIToolExecutor as DBTools
 
@@ -153,6 +153,22 @@ TOOL_REQUIRED_SKILLS = {
 def _cfg(config: RunnableConfig) -> dict:
     """Shortcut to ``config["configurable"]``."""
     return config.get("configurable", {})
+
+
+def _tool_failure_result(code: str, **metadata) -> dict:
+    """Build a canonical tool failure with optional typed diagnostics."""
+    public = public_error_for_code(code)
+    return {
+        **metadata,
+        "success": False,
+        "error_code": public.code,
+        "error": public.message,
+    }
+
+
+def _model_error_envelope(tag: str, public: PublicError) -> str:
+    """Return model-facing error text containing only one catalog pairing."""
+    return f"<{tag}>\n[{public.code}] {public.message}\n</{tag}>"
 
 
 def _try_writer():
@@ -259,12 +275,9 @@ def _emit_ui_action_tool(
     try:
         validated = ToolExecutor.validate_and_parse_args(tool_name, raw_args)
     except ValueError as e:
-        public = public_tool_error(
-            "TOOL_ARGUMENT_INVALID",
-            "Tool arguments are invalid.",
-        )
+        public = public_error_for_code("TOOL_ARGUMENT_INVALID")
         log_safe_exception(logger, f"validate_{tool_name}_arguments", e, public)
-        return f"[{public.code}] {public.message} Please correct the arguments and try again."
+        return _model_error_envelope("tool_execution_error", public)
     writer = _try_writer()
     enriched_payload = _with_ui_metadata(
         tool_name,
@@ -350,15 +363,12 @@ def _check_tool_budget_and_loop(
     else:
         total_calls = 0
     if total_calls > MAX_TOOL_CALLS_PER_TURN:
-        budget_result = {
-            "success": False,
-            "error_code": "TOOL_BUDGET_EXCEEDED",
-            "error": (
-                f"Tool call budget exhausted ({MAX_TOOL_CALLS_PER_TURN} "
-                "calls this turn). Stop calling tools and answer the user "
-                "with the evidence you have."
-            ),
-        }
+        public = public_error_for_code("TOOL_BUDGET_EXCEEDED")
+        budget_result = _tool_failure_result(
+            public.code,
+            tool_call_count=total_calls,
+            tool_call_limit=MAX_TOOL_CALLS_PER_TURN,
+        )
         writer(
             {
                 "type": "tool_end",
@@ -367,13 +377,7 @@ def _check_tool_budget_and_loop(
                 "result": budget_result,
             }
         )
-        return (
-            "<tool_budget_exceeded>\n"
-            f"You have made {total_calls} tool calls this turn "
-            f"(max {MAX_TOOL_CALLS_PER_TURN}). Stop calling tools. "
-            "Synthesize your findings and answer the user.\n"
-            "</tool_budget_exceeded>"
-        )
+        return _model_error_envelope("tool_budget_exceeded", public)
 
     # FIX [M4]: Tool-loop detection. Track per-stream call counts so a
     # confused model cannot burn the step budget calling the SAME
@@ -392,15 +396,12 @@ def _check_tool_budget_and_loop(
     call_count = call_log.get(loop_signature, 0) + 1
     call_log[loop_signature] = call_count
     if call_count > TOOL_LOOP_MAX_IDENTICAL_CALLS and tool_name not in CACHEABLE_TOOLS:
-        loop_result = {
-            "success": False,
-            "error_code": "TOOL_LOOP_DETECTED",
-            "error": (
-                f"Tool '{tool_name}' has been called {call_count} times "
-                "with the same arguments. Stop repeating this call; "
-                "summarize what you have and answer the user."
-            ),
-        }
+        public = public_error_for_code("TOOL_LOOP_DETECTED")
+        loop_result = _tool_failure_result(
+            public.code,
+            identical_call_count=call_count,
+            identical_call_limit=TOOL_LOOP_MAX_IDENTICAL_CALLS,
+        )
         writer(
             {
                 "type": "tool_end",
@@ -409,12 +410,7 @@ def _check_tool_budget_and_loop(
                 "result": loop_result,
             }
         )
-        return (
-            "<tool_loop_detected>\n"
-            f"You have called {tool_name} {call_count} times with identical "
-            "arguments. Do not call it again. Use the results you already "
-            "have.\n</tool_loop_detected>"
-        )
+        return _model_error_envelope("tool_loop_detected", public)
 
     return None
 
@@ -480,12 +476,9 @@ async def _execute_tool(
     try:
         validated = ToolExecutor.validate_and_parse_args(tool_name, raw_args)
     except ValueError as e:
-        public = public_tool_error(
-            "TOOL_ARGUMENT_INVALID",
-            "Tool arguments are invalid.",
-        )
+        public = public_error_for_code("TOOL_ARGUMENT_INVALID")
         log_safe_exception(logger, f"validate_{tool_name}_arguments", e, public)
-        return f"[{public.code}] {public.message} Please correct the arguments and try again."
+        return _model_error_envelope("tool_execution_error", public)
 
     # 2. Display args (show effective max_rows for execute_query)
     display_args = dict(validated)
@@ -538,18 +531,10 @@ async def _execute_tool(
                 ),
                 timeout=timeout,
             )
-        except asyncio.TimeoutError:
-            logger.warning(
-                "%s timed out after %ss (args=%s)",
-                tool_name,
-                timeout,
-                display_args,
-            )
-            result = {
-                "success": False,
-                "error_code": "TOOL_TIMEOUT",
-                "error": f"{tool_name} timed out after {timeout}s",
-            }
+        except asyncio.TimeoutError as exc:
+            public = public_error_for_code("TOOL_TIMEOUT")
+            log_safe_exception(logger, f"execute_{tool_name}", exc, public)
+            result = _tool_failure_result(public.code, timeout_seconds=timeout)
             writer(
                 {
                     "type": "tool_end",
@@ -558,17 +543,9 @@ async def _execute_tool(
                     "result": result,
                 }
             )
-            return (
-                "<tool_execution_error>\n"
-                f"{tool_name} timed out after {timeout}s. Retry with a "
-                "narrower request or report the failure; do not claim "
-                "success.\n</tool_execution_error>"
-            )
+            return _model_error_envelope("tool_execution_error", public)
         except Exception as exc:
-            public = public_tool_error(
-                "TOOL_EXECUTION_FAILED",
-                "Tool execution failed.",
-            )
+            public = public_error_for_code("TOOL_EXECUTION_FAILED")
             log_safe_exception(logger, f"execute_{tool_name}", exc, public)
             result = {
                 "success": False,
@@ -583,13 +560,7 @@ async def _execute_tool(
                     "result": result,
                 }
             )
-            return (
-                "<tool_execution_error>\n"
-                f"[{public.code}] {public.message} The {tool_name} call produced "
-                "no usable evidence. Correct the call and retry once only if a "
-                "clear fix exists; otherwise report the failure. Do not claim "
-                "success.\n</tool_execution_error>"
-            )
+            return _model_error_envelope("tool_execution_error", public)
         # Do not pin transient failures in the request-scoped cache. Executor
         # methods report expected failures as ``{"error": ...}`` dictionaries.
         if cache_key and not (isinstance(parsed, dict) and (parsed.get("error") or parsed.get("success") is False)):
@@ -613,10 +584,7 @@ async def _execute_tool(
                 # Save just the result rows and columns, not the whole payload if we don't want, but whole payload is fine.
                 store_execution_result(conversation_id, execution_id, parsed)
             except Exception as e:
-                public = public_tool_error(
-                    "TOOL_RESULT_PERSISTENCE_FAILED",
-                    "Tool result persistence failed.",
-                )
+                public = public_error_for_code("TOOL_RESULT_PERSISTENCE_FAILED")
                 log_safe_exception(logger, "store_execution_result", e, public)
     ui_result, llm_summary = ToolExecutor.summarize(
         tool_name,
@@ -966,16 +934,15 @@ async def web_search(query: str, *, config: RunnableConfig) -> str:
                 asyncio.to_thread(_tavily_searcher.invoke, {"query": query}),
                 timeout=20,
             )
-        except asyncio.TimeoutError:
-            logger.warning("web_search timed out after 20s for query=%s", query)
-            parsed = {
-                "success": False,
-                "query": query,
-                "error_code": "WEB_SEARCH_TIMEOUT",
-                "error": "Web search timed out after 20s",
-                "count": 0,
-                "results": [],
-            }
+        except asyncio.TimeoutError as exc:
+            public = public_error_for_code("WEB_SEARCH_TIMEOUT")
+            log_safe_exception(logger, "web_search", exc, public)
+            parsed = _tool_failure_result(
+                public.code,
+                timeout_seconds=20,
+                count=0,
+                results=[],
+            )
             # Skip the success-path normalization below.
             raw = None
 
@@ -1020,10 +987,7 @@ async def web_search(query: str, *, config: RunnableConfig) -> str:
                 "results": [],
             }
     except Exception as e:
-        public = public_tool_error(
-            "WEB_SEARCH_FAILED",
-            "Web search failed.",
-        )
+        public = public_error_for_code("WEB_SEARCH_FAILED")
         log_safe_exception(logger, "web_search", e, public)
         parsed = {
             "success": False,
@@ -1044,7 +1008,8 @@ async def web_search(query: str, *, config: RunnableConfig) -> str:
     )
 
     if not parsed["success"]:
-        return f"Web search failed: {parsed.get('error', 'Unknown error')}"
+        public = public_error_for_code(parsed.get("error_code"))
+        return _model_error_envelope("tool_execution_error", public)
 
     if not parsed["results"]:
         return f"No results found for: {query}"
@@ -1151,12 +1116,9 @@ def navigate_new_chat(
     except Exception as e:
         # FIX [M8]: Mirror _emit_ui_action_tool's error contract so a
         # validation failure here is recoverable.
-        public = public_tool_error(
-            "TOOL_ARGUMENT_INVALID",
-            "Tool arguments are invalid.",
-        )
+        public = public_error_for_code("TOOL_ARGUMENT_INVALID")
         log_safe_exception(logger, f"validate_{tool_name}_arguments", e, public)
-        return f"[{public.code}] {public.message} Please correct the arguments and try again."
+        return _model_error_envelope("tool_execution_error", public)
     decision = interrupt(
         _guided_interrupt_payload(
             tool_name,
@@ -1229,10 +1191,7 @@ def get_query_history(*, config: RunnableConfig) -> str:
     try:
         queries = DBTools._get_query_history(uid)
     except Exception as exc:
-        public = public_tool_error(
-            "TOOL_EXECUTION_FAILED",
-            "Tool execution failed.",
-        )
+        public = public_error_for_code("TOOL_EXECUTION_FAILED")
         log_safe_exception(logger, f"execute_{tool_name}", exc, public)
         result = {
             "success": False,
@@ -1247,11 +1206,7 @@ def get_query_history(*, config: RunnableConfig) -> str:
                 "result": result,
             }
         )
-        return (
-            f"<tool_execution_error>[{public.code}] {public.message} "
-            "Query history could not be retrieved. Do not claim that history was loaded."
-            "</tool_execution_error>"
-        )
+        return _model_error_envelope("tool_execution_error", public)
 
     if not queries:
         writer(
@@ -1338,10 +1293,7 @@ async def retrieve_memory(query: str, *, config: RunnableConfig) -> str:
                 )
             )
         except PermissionError as exc:
-            public = public_tool_error(
-                "MEMORY_ACCESS_DENIED",
-                "Memory access denied.",
-            )
+            public = public_error_for_code("MEMORY_ACCESS_DENIED")
             log_safe_exception(logger, "retrieve_memory", exc, public)
             return {
                 "success": False,
@@ -1351,10 +1303,7 @@ async def retrieve_memory(query: str, *, config: RunnableConfig) -> str:
                 "found": False,
             }
         except Exception as exc:
-            public = public_tool_error(
-                "MEMORY_RETRIEVAL_FAILED",
-                "Memory retrieval failed.",
-            )
+            public = public_error_for_code("MEMORY_RETRIEVAL_FAILED")
             log_safe_exception(logger, "retrieve_memory", exc, public)
             return {
                 "success": False,

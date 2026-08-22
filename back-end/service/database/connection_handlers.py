@@ -36,7 +36,7 @@ import socket
 from typing import Dict
 
 from config import get_config
-from core.errors import log_safe_exception, public_database_error, public_tool_error
+from core.errors import log_safe_exception, public_database_error, public_error_for_code
 
 logger = logging.getLogger(__name__)
 Config = get_config()
@@ -49,6 +49,16 @@ def _database_connection_failure(operation: str, exc: BaseException) -> dict:
     """Return a stable connection-handler failure with safe diagnostics."""
     public = public_database_error(exc)
     log_safe_exception(logger, operation, exc, public)
+    return {
+        "status": "error",
+        "error_code": public.code,
+        "message": public.message,
+    }
+
+
+def _public_failure(code: str) -> dict:
+    """Return the canonical status-style database failure for ``code``."""
+    public = public_error_for_code(code)
     return {
         "status": "error",
         "error_code": public.code,
@@ -91,15 +101,9 @@ def _validate_host(host: str) -> dict | None:
     never slip through validation.
     """
     if not host:
-        return {"status": "error", "message": "Host is required."}
+        return _public_failure("DB_HOST_VALIDATION_FAILED")
     if host.strip().lower() in _LOOPBACK or host.strip().lower() == "[::1]":
-        return {
-            "status": "error",
-            "message": (
-                f"Host '{host}' is a loopback address and cannot be used. "
-                "Please provide a publicly accessible remote host."
-            ),
-        }
+        return _public_failure("DB_HOST_VALIDATION_FAILED")
 
     try:
         clean_host = host.strip()
@@ -110,29 +114,16 @@ def _validate_host(host: str) -> dict | None:
             # FIX [H4]: Previously an empty resolution result fell through and
             # the host was accepted. Fail closed — no resolved address means no
             # validated IP, so refuse the connection.
-            return {
-                "status": "error",
-                "message": f"Host '{host}' did not resolve to any address.",
-            }
+            return _public_failure("DB_HOST_VALIDATION_FAILED")
         for _, _, _, _, sockaddr in addr_infos:
             ip_str = sockaddr[0]
             ip = ipaddress.ip_address(ip_str)
             if ip.is_private or ip.is_loopback or ip.is_link_local:
-                return {
-                    "status": "error",
-                    "message": (
-                        f"Host '{host}' resolves to a private internal IP ({ip_str}) "
-                        "and cannot be used for security reasons. "
-                        "Please provide a publicly accessible remote host."
-                    ),
-                }
+                return _public_failure("DB_HOST_VALIDATION_FAILED")
     except socket.gaierror as e:
         # FIX [H4]: DNS resolution failed (NXDOMAIN, timeout, transient).
         # Fail closed — never let an unresolvable host bypass SSRF validation.
-        public = public_tool_error(
-            "DB_HOST_RESOLUTION_FAILED",
-            "Database host could not be resolved.",
-        )
+        public = public_error_for_code("DB_HOST_RESOLUTION_FAILED")
         log_safe_exception(logger, "resolve_database_host", e, public)
         return {
             "status": "error",
@@ -142,10 +133,7 @@ def _validate_host(host: str) -> dict | None:
     except Exception as e:
         # FIX [H4]: Any other unexpected validation error also fails closed
         # rather than silently letting the host through.
-        public = public_tool_error(
-            "DB_HOST_VALIDATION_FAILED",
-            "Database host validation failed.",
-        )
+        public = public_error_for_code("DB_HOST_VALIDATION_FAILED")
         log_safe_exception(logger, "validate_database_host", e, public)
         return {
             "status": "error",
@@ -174,7 +162,7 @@ def _parse_connection_string(connection_string: str) -> Dict[str, str]:
         if not host:
             # Fallback to regex if hostname is empty (e.g. invalid URL structure)
             host_match = re.search(r"@([^/:]+)", connection_string)
-            host = host_match.group(1) if host_match else "remote"
+            host = host_match.group(1) if host_match else ""
 
         db = parsed.path.lstrip("/")
         if not db:
@@ -190,7 +178,7 @@ def _parse_connection_string(connection_string: str) -> Dict[str, str]:
         host_match = re.search(r"@([^/:]+)", connection_string)
         return {
             "database": db_match.group(1) if db_match else "remote_db",
-            "host": host_match.group(1) if host_match else "remote",
+            "host": host_match.group(1) if host_match else "",
         }
 
 
@@ -251,7 +239,7 @@ def connect_mysql(
         dbs_result = DatabaseOperations.get_databases(db_config)
 
         if dbs_result.get("status") == "success":
-            logger.info(f"Connected to MySQL: {host}:{port}")
+            logger.info("Connected to MySQL")
             return {
                 "status": "connected",
                 "message": f"Connected to MySQL at {host}:{port}",
@@ -319,7 +307,7 @@ def connect_postgresql(
         dbs_result = DatabaseOperations.get_databases(db_config)
 
         if dbs_result.get("status") == "success":
-            logger.info(f"Connected to PostgreSQL: {host}:{port}")
+            logger.info("Connected to PostgreSQL")
             return {
                 "status": "connected",
                 "message": f"Connected to PostgreSQL at {host}:{port}",
@@ -397,7 +385,7 @@ def connect_sqlserver(
             if database:
                 databases = [database]
 
-        logger.info(f"Connected to SQL Server: {host}:{port}")
+        logger.info("Connected to SQL Server")
         return {
             "status": "connected",
             "message": f"Connected to SQL Server at {host}:{port}",
@@ -466,7 +454,7 @@ def connect_oracle(
             schemas = [user.upper()] if user else []
 
         schema_name = user.upper() if user else "SYSTEM"
-        logger.info(f"Connected to Oracle: {host}:{port}/{service_name}")
+        logger.info("Connected to Oracle")
         return {
             "status": "connected",
             "message": f"Connected to Oracle at {host}:{port}/{service_name}",
@@ -511,10 +499,7 @@ def connect_remote_postgresql(connection_string: str) -> dict:
     # regardless of whether the adapter's looser parser also accepts it.
     # Fail closed if the host cannot be extracted.
     if not host:
-        return {
-            "status": "error",
-            "message": "Could not extract host from connection string.",
-        }
+        return _public_failure("DB_CONNECTION_STRING_INVALID")
     err = _validate_host(host)
     if err:
         return err
@@ -536,7 +521,7 @@ def connect_remote_postgresql(connection_string: str) -> dict:
             if not adapter.validate_connection(conn):
                 return {"status": "error", "message": "Failed to connect to remote PostgreSQL"}
 
-        logger.info(f"Connected to remote PostgreSQL: {db_name} at {host}")
+        logger.info("Connected to remote PostgreSQL")
 
         all_databases = []
         try:
@@ -595,10 +580,7 @@ def connect_remote_mysql(connection_string: str) -> dict:
     # FIX [C3]: Fail closed if the host cannot be extracted — do NOT default
     # to "remote" and skip validation.
     if not host:
-        return {
-            "status": "error",
-            "message": "Could not extract host from connection string.",
-        }
+        return _public_failure("DB_CONNECTION_STRING_INVALID")
     err = _validate_host(host)
     if err:
         return err
@@ -620,7 +602,7 @@ def connect_remote_mysql(connection_string: str) -> dict:
             if not adapter.validate_connection(conn):
                 return {"status": "error", "message": "Failed to connect to remote MySQL"}
 
-        logger.info(f"Connected to remote MySQL: {db_name} at {host}")
+        logger.info("Connected to remote MySQL")
 
         all_databases = []
         try:
@@ -695,10 +677,7 @@ def connect_remote_oracle(connection_string: str) -> dict:
     try:
         parsed = adapter._parse_connection_string(connection_string)
     except Exception as parse_err:
-        public = public_tool_error(
-            "DB_CONNECTION_STRING_INVALID",
-            "Database connection string is invalid.",
-        )
+        public = public_error_for_code("DB_CONNECTION_STRING_INVALID")
         log_safe_exception(logger, "parse_oracle_connection_string", parse_err, public)
         return {
             "status": "error",
@@ -722,10 +701,7 @@ def connect_remote_oracle(connection_string: str) -> dict:
     if not host:
         # FIX [C3]: fail closed if no host can be extracted — do NOT fall
         # through and let the adapter connect to an unvalidated host.
-        return {
-            "status": "error",
-            "message": "Could not extract host from Oracle connection string.",
-        }
+        return _public_failure("DB_CONNECTION_STRING_INVALID")
 
     err = _validate_host(host)
     if err:
@@ -750,7 +726,7 @@ def connect_remote_oracle(connection_string: str) -> dict:
             if not adapter.validate_connection(conn):
                 return {"status": "error", "message": "Failed to connect to remote Oracle"}
 
-        logger.info(f"Connected to remote Oracle: {schema_name}")
+        logger.info("Connected to remote Oracle")
 
         schemas = []
         try:
@@ -818,10 +794,7 @@ def connect_remote_sqlserver(connection_string: str) -> dict:
     # FIX [C3]: Fail closed if no host can be extracted — do NOT default to
     # "remote" and skip validation.
     if not host:
-        return {
-            "status": "error",
-            "message": "Could not extract host from SQL Server connection string.",
-        }
+        return _public_failure("DB_CONNECTION_STRING_INVALID")
     err = _validate_host(host)
     if err:
         return err
@@ -843,7 +816,7 @@ def connect_remote_sqlserver(connection_string: str) -> dict:
             if not adapter.validate_connection(conn):
                 return {"status": "error", "message": "Failed to connect to remote SQL Server"}
 
-        logger.info(f"Connected to remote SQL Server: {db_name} at {host}")
+        logger.info("Connected to remote SQL Server")
 
         all_databases = []
         try:
@@ -910,7 +883,7 @@ def select_database(db_config: dict, db_name: str) -> dict:
     try:
         fetch_database_info(new_config, db_name)
 
-        logger.info(f"Selected database: {db_name}")
+        logger.info("Database selection completed")
         return {
             "status": "connected",
             "message": f"Connected to database {db_name}",

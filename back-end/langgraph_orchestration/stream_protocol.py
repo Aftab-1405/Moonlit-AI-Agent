@@ -38,6 +38,8 @@ import json
 import logging
 from typing import Any, Dict
 
+from core.errors import canonicalize_coded_error_payload
+
 logger = logging.getLogger(__name__)
 
 
@@ -72,7 +74,10 @@ def sse_encode(event: Dict[str, Any]) -> str:
     so datetimes, Decimals, and Pydantic models are serialized with
     their proper types instead of being silently stringified.
     """
-    return f"data: {json.dumps(event, default=_json_default)}\n\n"
+    safe_event = canonicalize_coded_error_payload(event)
+    if isinstance(safe_event.get("result"), dict):
+        safe_event["result"] = canonicalize_coded_error_payload(safe_event["result"])
+    return f"data: {json.dumps(safe_event, default=_json_default)}\n\n"
 
 
 def sse_error(message: str) -> str:

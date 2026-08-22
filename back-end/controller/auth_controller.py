@@ -37,6 +37,7 @@ from pydantic import Field
 
 from api_contract.common import ExternalRequestModel
 from config import get_config
+from core.errors import PublicError, log_safe_exception
 from dependencies import (
     clear_session_state,
     get_current_user_optional,
@@ -48,6 +49,13 @@ from dependencies import (
 Config = get_config()
 router = APIRouter(tags=["Authentication & Authorization"])
 logger = logging.getLogger(__name__)
+
+_AUTH_TOKEN_VERIFICATION_ERROR = PublicError(
+    "AUTH_TOKEN_VERIFICATION_FAILED",
+    "Authentication token verification failed.",
+)
+_AUTH_REVOCATION_ERROR = PublicError("AUTH_REVOCATION_FAILED", "Authentication revocation failed.")
+_FIREBASE_CONFIG_ERROR = PublicError("FIREBASE_CONFIG_FAILED", "Firebase configuration failed.")
 
 # ENH [RL-HTTP]: Layer 1 IP-level guard for auth endpoints.
 # Login/session endpoints are prime DDoS targets — strict per-IP limits.
@@ -148,13 +156,13 @@ async def set_authenticated_user_session(request: Request, response: Response, d
         if existing_state:
             await replace_session_data_for_cookie(session_cookie, existing_state)
 
-        logger.info("Firebase session established for user: %s", decoded_token["uid"])
+        logger.info("Firebase session established")
         return {"status": "success", "user": user_data}
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.warning("Token verification failed: %s", e)
+        log_safe_exception(logger, "verify_firebase_id_token", e, _AUTH_TOKEN_VERIFICATION_ERROR)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
 
 
@@ -202,13 +210,7 @@ async def logout_authenticated_user_session(request: Request, response: Response
         try:
             await run_in_threadpool(auth.revoke_refresh_tokens, user["uid"])
         except Exception as exc:
-            logger.warning(
-                "Failed to revoke Firebase refresh tokens for user %s: %s. "
-                "Cookie/Redis state will still be cleared; the cookie may "
-                "remain valid until natural expiry.",
-                user.get("uid"),
-                exc,
-            )
+            log_safe_exception(logger, "revoke_firebase_refresh_tokens", exc, _AUTH_REVOCATION_ERROR)
 
     await clear_session_state(request)
 
@@ -226,7 +228,7 @@ async def get_firebase_config_and_csrf_token(response: Response):
         csrf_token = generate_and_set_csrf_cookie(response)
         return {"status": "success", "config": config, "csrfToken": csrf_token}
     except Exception as e:
-        logger.error(f"Error getting Firebase config: {e}")
+        log_safe_exception(logger, "get_firebase_config", e, _FIREBASE_CONFIG_ERROR)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve Firebase configuration",

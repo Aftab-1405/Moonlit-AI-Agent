@@ -22,6 +22,7 @@ from api_contract.database_schemas import (
     DisconnectDatabaseData,
 )
 from api_contract.query_schemas import QueryResultData, RunSqlQueryData
+from core.errors import PublicError, log_safe_exception, public_error_for_code
 from dependencies import (
     get_authenticated_db_config,
     get_current_user,
@@ -34,15 +35,19 @@ from service.database.database_service import DatabaseService
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Database Operations End Points"])
 
+_DB_METADATA_ERROR = PublicError("DB_METADATA_FAILED", "Database metadata retrieval failed.")
+
 
 def _raise_service_error(result: dict, status_code: int = 400) -> None:
     """Raise an ``HTTPException`` if the service result carries an error status."""
     if result.get("status") == "error":
+        error_code = result.get("error_code") if "error_code" in result else "DB_OPERATION_FAILED"
+        public = public_error_for_code(error_code)
         raise HTTPException(
             status_code=status_code,
             detail={
-                "error": "database_operation_failed",
-                "message": result.get("message") or "Database operation failed.",
+                "error": public.code,
+                "message": public.message,
             },
         )
 
@@ -91,7 +96,7 @@ async def _schema_metadata_for_config(raw_config: dict | None) -> dict[str, Any]
                 "current_schema": result.get("current_schema") or raw_config.get("schema", "public"),
             }
     except Exception as e:
-        logger.warning(f"Failed to fetch schemas for connection metadata: {e}")
+        log_safe_exception(logger, "fetch_connection_schema_metadata", e, _DB_METADATA_ERROR)
 
     return {
         "schemas": [],
@@ -299,12 +304,7 @@ async def connect_db(
 ):
     """Connect to a remote database via connection string or host/port credentials."""
     user_id = user.get("uid") or user
-    safe_log_data = {
-        k: v
-        for k, v in data.model_dump().items()
-        if k not in ("password", "connection_string")
-    }
-    logger.info(f"Connect request data: {safe_log_data}")
+    logger.info("Database connection requested: db_type=%s is_remote=%s", data.db_type, data.is_remote)
 
     result = await run_in_threadpool(
         ConnectionService.connect_database, data.model_dump(), user_id
@@ -320,7 +320,10 @@ async def connect_db(
         )
 
     if result.get("status") == "error":
-        logger.error(f"Connection failed: {result.get('message')}")
+        public = public_error_for_code(
+            result.get("error_code") if "error_code" in result else "DB_OPERATION_FAILED"
+        )
+        logger.error("Database connection failed: error_code=%s", public.code)
         _raise_service_error(result)
 
     schema_metadata = await _schema_metadata_for_config(result.get("db_config"))
@@ -405,7 +408,7 @@ async def sync_connection_state(
         if result.get("status") == "success":
             databases = result.get("databases", [])
     except Exception as e:
-        logger.warning(f"Failed to fetch databases for status: {e}")
+        log_safe_exception(logger, "fetch_connection_database_metadata", e, _DB_METADATA_ERROR)
 
     return ApiSuccess(
         data=DatabaseStatusData(

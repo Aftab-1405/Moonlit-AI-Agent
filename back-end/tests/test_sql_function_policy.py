@@ -202,6 +202,33 @@ SAFE_ANONYMOUS_FUNCTION_CASES = [
     ),
 ]
 
+STATEFUL_SELECT_CASES = [
+    pytest.param(
+        "sqlserver",
+        "SELECT NEXT VALUE FOR dbo.my_seq",
+        "Sequence advancement is prohibited by read-only policy",
+        id="sqlserver-next-value-for",
+    ),
+    pytest.param(
+        "oracle",
+        "SELECT my_seq.NEXTVAL FROM dual",
+        "Sequence advancement is prohibited by read-only policy",
+        id="oracle-nextval",
+    ),
+    pytest.param(
+        "sqlserver",
+        "SELECT * FROM users WITH (UPDLOCK, HOLDLOCK)",
+        "State-changing table lock hint is prohibited by read-only policy",
+        id="sqlserver-state-changing-lock-hints",
+    ),
+    pytest.param(
+        "mysql",
+        "SELECT @x := 1",
+        "Session assignment is prohibited by read-only policy",
+        id="mysql-session-assignment",
+    ),
+]
+
 
 @pytest.mark.parametrize("dialect,query,warning", DANGEROUS_FUNCTION_CASES)
 def test_known_dangerous_functions_are_rejected_with_stable_warnings(
@@ -253,6 +280,30 @@ def test_dialect_specific_safe_anonymous_functions_remain_allowed(
 ) -> None:
     """Removing a dialect allowlist entry would reject a selected harmless scalar."""
     result = DatabaseSecurity.analyze_sql_query(query, dialect=dialect)
+
+    assert result["is_safe"] is True
+    assert result["warnings"] == []
+
+
+@pytest.mark.parametrize("dialect,query,warning", STATEFUL_SELECT_CASES)
+def test_stateful_select_constructs_are_rejected_by_actual_dialect(
+    dialect: str,
+    query: str,
+    warning: str,
+) -> None:
+    """A SELECT root must not authorize AST nodes that mutate database/session state."""
+    result = DatabaseSecurity.analyze_sql_query(query, dialect=dialect)
+
+    assert result["is_safe"] is False
+    assert result["warnings"] == [warning]
+
+
+def test_sqlserver_nolock_hint_remains_allowed() -> None:
+    """Preserve the deliberately harmless SQL Server non-locking table hint."""
+    result = DatabaseSecurity.analyze_sql_query(
+        "SELECT * FROM users WITH (NOLOCK)",
+        dialect="sqlserver",
+    )
 
     assert result["is_safe"] is True
     assert result["warnings"] == []
@@ -383,6 +434,33 @@ def test_human_execution_rejects_dangerous_function_before_database_boundary(
     assert boundary.attempts == 0
 
 
+@pytest.mark.parametrize("dialect,query,warning", STATEFUL_SELECT_CASES)
+def test_human_execution_rejects_stateful_select_before_database_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+    dialect: str,
+    query: str,
+    warning: str,
+) -> None:
+    """Human execution must enforce each stateful guard at the actual DB dialect."""
+    boundary = _DatabaseBoundaryProbe()
+    monkeypatch.setattr("service.database.adapters.get_adapter", boundary.reject_entry)
+    monkeypatch.setattr(
+        "service.database.connection_manager.get_connection_manager",
+        boundary.reject_entry,
+    )
+
+    result = database_operations.execute_sql_query(
+        {"db_type": dialect, "database": "analytics"},
+        query,
+    )
+
+    assert result == {
+        "status": "error",
+        "message": f"Query blocked: {warning}",
+    }
+    assert boundary.attempts == 0
+
+
 def test_ai_execution_rejects_dangerous_function_before_database_boundary(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -404,6 +482,32 @@ def test_ai_execution_rejects_dangerous_function_before_database_boundary(
             "Query blocked for security reasons: "
             "Function pg_read_file is prohibited: file access"
         ),
+    }
+    assert boundary.attempts == 0
+
+
+@pytest.mark.parametrize("dialect,query,warning", STATEFUL_SELECT_CASES)
+def test_ai_execution_rejects_stateful_select_before_database_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+    dialect: str,
+    query: str,
+    warning: str,
+) -> None:
+    """AI execution must enforce each stateful guard at the actual DB dialect."""
+    boundary = _DatabaseBoundaryProbe()
+    monkeypatch.setattr("service.database.adapters.get_adapter", boundary.reject_entry)
+    monkeypatch.setattr(ai_executor_module, "get_tool_connection", boundary.reject_entry)
+
+    result = AIToolExecutor._execute_query_with_db_config(
+        {"db_type": dialect, "database": "analytics"},
+        {"db_type": dialect, "database": "analytics", "schema": "public"},
+        query,
+        100,
+    )
+
+    assert result == {
+        "status": "error",
+        "message": f"Query blocked for security reasons: {warning}",
     }
     assert boundary.attempts == 0
 
@@ -432,6 +536,35 @@ def test_ai_explain_rejects_dangerous_function_before_database_boundary(
             "Query blocked for security reasons: "
             "Function xp_cmdshell is prohibited: external code execution"
         )
+    }
+    assert boundary.attempts == 0
+
+
+@pytest.mark.parametrize("dialect,query,warning", STATEFUL_SELECT_CASES)
+def test_ai_explain_rejects_stateful_select_before_database_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+    dialect: str,
+    query: str,
+    warning: str,
+) -> None:
+    """AI EXPLAIN must enforce each stateful guard at the connected DB dialect."""
+    boundary = _DatabaseBoundaryProbe()
+    context_sync = _ConnectedContextSync(dialect)
+    monkeypatch.setattr(
+        "service.database.context_sync.get_default_context_sync",
+        lambda: context_sync,
+    )
+    monkeypatch.setattr("service.database.adapters.get_adapter", boundary.reject_entry)
+    monkeypatch.setattr(ai_executor_module, "get_tool_connection", boundary.reject_entry)
+
+    result = AIToolExecutor._explain_query(
+        "user-1",
+        {"db_type": dialect, "database": "analytics"},
+        query,
+    )
+
+    assert result == {
+        "error": f"Query blocked for security reasons: {warning}",
     }
     assert boundary.attempts == 0
 

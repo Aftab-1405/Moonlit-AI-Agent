@@ -20,6 +20,7 @@ first user request doesn't pay the boto3 init cost.
 """
 
 import logging
+from enum import Enum
 from functools import lru_cache
 from typing import Optional
 
@@ -29,6 +30,21 @@ from config import get_config
 from core.errors import log_safe_exception, public_tool_error
 
 logger = logging.getLogger(__name__)
+
+
+class ModelSelectionReason(str, Enum):
+    """Machine-readable reasons a configured model selection can fail."""
+
+    INVALID_PROVIDER = "invalid_provider"
+    INVALID_MODEL = "invalid_model"
+
+
+class ModelSelectionError(ValueError):
+    """Reject a provider/model selection without encoding behavior in text."""
+
+    def __init__(self, reason: ModelSelectionReason) -> None:
+        self.reason = reason
+        super().__init__("Model selection rejected.")
 
 
 def get_default_model(provider: str) -> str:
@@ -208,11 +224,11 @@ def resolve_model_selection(provider: str, model: str | None = None) -> tuple[st
     """
     normalized_provider = str(provider or "").strip().lower()
     if normalized_provider not in get_supported_providers():
-        raise ValueError("Unsupported model provider")
+        raise ModelSelectionError(ModelSelectionReason.INVALID_PROVIDER)
     allowed_models = tuple(get_provider_models(normalized_provider))
     selected_model = str(model or get_default_model(normalized_provider)).strip()
     if not allowed_models or selected_model not in allowed_models:
-        raise ValueError("Model is not enabled for this provider")
+        raise ModelSelectionError(ModelSelectionReason.INVALID_MODEL)
     return normalized_provider, selected_model
 
 

@@ -208,15 +208,15 @@ class TestPublicError:
         with pytest.raises(FrozenInstanceError):
             public.message = "raw failure"  # type: ignore[misc]
 
-    def test_public_tool_error_preserves_the_declared_stable_contract(self) -> None:
-        """Tool boundaries receive exactly the explicitly selected safe code/message."""
+    def test_public_tool_error_uses_catalog_message_for_known_code(self) -> None:
+        """A known code can never be paired with caller-derived text."""
         public = error_module.public_tool_error(
-            "TOOL_EXECUTION_FAILED",
-            "Tool execution failed.",
+            "DB_TIMEOUT",
+            "forged password=do-not-return",
         )
         assert (public.code, public.message) == (
-            "TOOL_EXECUTION_FAILED",
-            "Tool execution failed.",
+            "DB_TIMEOUT",
+            "Database operation timed out.",
         )
 
 

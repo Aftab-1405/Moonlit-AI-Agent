@@ -12,7 +12,9 @@ from pydantic import BaseModel
 from slowapi.errors import RateLimitExceeded
 from slowapi.wrappers import Limit
 
+from api_contract.database import ConnectDBRequest
 from config import get_config
+from controller.auth_controller import SetSessionRequest
 from controller.rate_limiter import limiter
 from dependencies import get_current_user
 
@@ -27,6 +29,7 @@ EXPECTED_SECURITY_HEADERS = {
     "permissions-policy": Config.SECURITY_HEADER_PERMISSIONS_POLICY,
     "server": Config.SERVER_HEADER_VALUE,
 }
+CSRF_TOKEN = "http-boundary-csrf-token"
 
 
 class _ValidatedQuery(BaseModel):
@@ -57,6 +60,14 @@ def boundary_app(monkeypatch):
     @app.get("/__test__/validation")
     async def validation_failure(payload: _ValidatedQuery = Depends()):
         return payload
+
+    @app.post("/__test__/session-validation")
+    async def session_validation(payload: SetSessionRequest):
+        return {"accepted_length": len(payload.idToken)}
+
+    @app.post("/__test__/database-validation")
+    async def database_validation(payload: ConnectDBRequest):
+        return {"accepted": payload.db_type}
 
     @app.get("/__test__/auth")
     async def authentication_failure(user: dict = Depends(get_current_user)):
@@ -95,6 +106,16 @@ async def _request(app, method: str, path: str, **kwargs) -> httpx.Response:
     transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         return await client.request(method, path, **kwargs)
+
+
+def _csrf_request_kwargs() -> dict:
+    """Supply the production double-submit proof for POST validation probes."""
+    return {
+        "headers": {
+            Config.CSRF_HEADER_NAME: CSRF_TOKEN,
+            "Cookie": f"{Config.CSRF_COOKIE_NAME}={CSRF_TOKEN}",
+        },
+    }
 
 
 def _assert_common_error(
@@ -150,6 +171,112 @@ async def test_request_validation_failure_uses_the_common_outer_boundary(boundar
 
 
 @pytest.mark.asyncio
+async def test_oversized_firebase_token_is_absent_from_validation_response(boundary_app) -> None:
+    """Reject an oversized token without reflecting any caller-controlled token bytes."""
+    sentinel = "firebase-token-sentinel-never-reflect"
+    token = sentinel + "x" * (Config.FIREBASE_ID_TOKEN_MAX_LENGTH + 1 - len(sentinel))
+
+    response = await _request(
+        boundary_app,
+        "POST",
+        "/__test__/session-validation",
+        json={"idToken": token},
+        **_csrf_request_kwargs(),
+    )
+
+    _assert_common_error(
+        response,
+        status_code=422,
+        error="VALIDATION_ERROR",
+        details_empty=False,
+    )
+    assert sentinel not in response.text
+    assert token not in response.text
+    assert all(
+        set(error) == {"loc", "type"}
+        for error in response.json()["details"]["errors"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_maximum_length_firebase_token_is_accepted_by_real_asgi(boundary_app) -> None:
+    """Keep the exact configured Firebase-token boundary admissible."""
+    token = "x" * Config.FIREBASE_ID_TOKEN_MAX_LENGTH
+
+    response = await _request(
+        boundary_app,
+        "POST",
+        "/__test__/session-validation",
+        json={"idToken": token},
+        **_csrf_request_kwargs(),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"accepted_length": Config.FIREBASE_ID_TOKEN_MAX_LENGTH}
+
+
+@pytest.mark.asyncio
+async def test_database_credentials_are_absent_from_validation_response(boundary_app) -> None:
+    """Reject oversized credentials without reflecting password or DSN sentinels."""
+    password_sentinel = "database-password-sentinel-never-reflect"
+    password = password_sentinel + "p" * (257 - len(password_sentinel))
+    dsn_sentinel = "database-dsn-sentinel-never-reflect"
+    connection_string = dsn_sentinel + "d" * (
+        Config.DB_CONNECTION_STRING_MAX_LENGTH + 1 - len(dsn_sentinel)
+    )
+
+    response = await _request(
+        boundary_app,
+        "POST",
+        "/__test__/database-validation",
+        json={
+            "db_type": "postgresql",
+            "password": password,
+            "connection_string": connection_string,
+        },
+        **_csrf_request_kwargs(),
+    )
+
+    _assert_common_error(
+        response,
+        status_code=422,
+        error="VALIDATION_ERROR",
+        details_empty=False,
+    )
+    for sentinel in (password_sentinel, dsn_sentinel, password, connection_string):
+        assert sentinel not in response.text
+
+
+@pytest.mark.asyncio
+async def test_undeclared_field_name_and_value_are_absent_from_validation_response(
+    boundary_app,
+) -> None:
+    """Reject an extra JSON member without reflecting its attacker-chosen name or value."""
+    field_sentinel = "undeclared-field-sentinel-never-reflect"
+    value_sentinel = "undeclared-value-sentinel-never-reflect"
+
+    response = await _request(
+        boundary_app,
+        "POST",
+        "/__test__/session-validation",
+        json={
+            "idToken": "valid-shape-token",
+            field_sentinel: value_sentinel,
+        },
+        **_csrf_request_kwargs(),
+    )
+
+    _assert_common_error(
+        response,
+        status_code=422,
+        error="VALIDATION_ERROR",
+        details_empty=False,
+    )
+    assert field_sentinel not in response.text
+    assert value_sentinel not in response.text
+
+
+@pytest.mark.asyncio
 async def test_authentication_failure_uses_the_common_outer_boundary(boundary_app) -> None:
     """Catch dependency-raised 401 responses escaping the common boundary."""
     response = await _request(boundary_app, "GET", "/__test__/auth")
@@ -163,6 +290,20 @@ async def test_framework_404_uses_the_common_outer_boundary(boundary_app) -> Non
     response = await _request(boundary_app, "GET", "/__test__/missing")
 
     _assert_common_error(response, status_code=404, error="NOT_FOUND")
+
+
+@pytest.mark.asyncio
+async def test_framework_405_preserves_allow_and_common_outer_boundary(boundary_app) -> None:
+    """Keep method discovery while applying the common envelope and security headers."""
+    response = await _request(
+        boundary_app,
+        "POST",
+        "/__test__/validation",
+        **_csrf_request_kwargs(),
+    )
+
+    _assert_common_error(response, status_code=405, error="METHOD_NOT_ALLOWED")
+    assert response.headers["allow"] == "GET"
 
 
 @pytest.mark.asyncio

@@ -76,6 +76,27 @@ _GENERIC_SAFE_ANONYMOUS_FUNCTIONS = frozenset().union(
     *_SAFE_ANONYMOUS_FUNCTIONS.values()
 )
 
+_SQLSERVER_STATE_CHANGING_LOCK_HINTS = frozenset(
+    {
+        "holdlock",
+        "paglock",
+        "readcommittedlock",
+        "rowlock",
+        "serializable",
+        "tablock",
+        "tablockx",
+        "updlock",
+        "xlock",
+    }
+)
+_SEQUENCE_ADVANCEMENT_WARNING = (
+    "Sequence advancement is prohibited by read-only policy"
+)
+_SESSION_ASSIGNMENT_WARNING = "Session assignment is prohibited by read-only policy"
+_STATE_CHANGING_LOCK_WARNING = (
+    "State-changing table lock hint is prohibited by read-only policy"
+)
+
 
 class DatabaseSecurity:
     """Database security utilities — read-only query validation and identifier rules."""
@@ -239,6 +260,40 @@ class DatabaseSecurity:
             if blocked_nodes:
                 analysis["warnings"].append("Blocked operation detected: " + ", ".join(sorted(set(blocked_nodes))))
                 return analysis
+
+            if dialect == "sqlserver" and any(
+                statement.find_all(exp.NextValueFor)
+            ):
+                analysis["warnings"].append(_SEQUENCE_ADVANCEMENT_WARNING)
+                return analysis
+
+            if dialect == "oracle":
+                for column in statement.find_all(exp.Column):
+                    identifier = column.this
+                    if (
+                        column.table
+                        and isinstance(identifier, exp.Identifier)
+                        and not identifier.args.get("quoted", False)
+                        and column.name.casefold() == "nextval"
+                    ):
+                        analysis["warnings"].append(_SEQUENCE_ADVANCEMENT_WARNING)
+                        return analysis
+
+            if dialect == "mysql":
+                for assignment in statement.find_all(exp.PropertyEQ):
+                    if isinstance(assignment.this, exp.Parameter):
+                        analysis["warnings"].append(_SESSION_ASSIGNMENT_WARNING)
+                        return analysis
+
+            if dialect == "sqlserver":
+                for hint in statement.find_all(exp.WithTableHint):
+                    hint_names = {
+                        str(node.this).strip().casefold()
+                        for node in hint.find_all(exp.Var)
+                    }
+                    if hint_names & _SQLSERVER_STATE_CHANGING_LOCK_HINTS:
+                        analysis["warnings"].append(_STATE_CHANGING_LOCK_WARNING)
+                        return analysis
 
             for node in statement.find_all(exp.Func):
                 function_name = (

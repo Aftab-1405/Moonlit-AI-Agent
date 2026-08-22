@@ -36,9 +36,16 @@ from contextlib import contextmanager
 from functools import lru_cache
 from typing import Any, Dict
 
+from core.errors import PublicError, log_safe_exception
 from service.database.adapters import get_adapter
 
 logger = logging.getLogger(__name__)
+
+_DB_POOL_ERROR = PublicError("DB_POOL_OPERATION_FAILED", "Database pool operation failed.")
+_DB_CONNECTION_ERROR = PublicError(
+    "DB_CONNECTION_OPERATION_FAILED",
+    "Database connection operation failed.",
+)
 
 
 class ConnectionManager:
@@ -138,11 +145,7 @@ class ConnectionManager:
                 try:
                     self._adapters[pool_key].close_pool(new_pool)
                 except Exception as close_err:
-                    logger.warning(
-                        "Failed to discard duplicate pool %s: %s",
-                        pool_key[:8],
-                        close_err,
-                    )
+                    log_safe_exception(logger, "discard_duplicate_pool", close_err, _DB_POOL_ERROR)
                 return existing
             self._pools[pool_key] = new_pool
             # adapter was registered by _create_pool via self._adapters;
@@ -166,17 +169,13 @@ class ConnectionManager:
             self._adapters[pool_key] = adapter
 
             if adapter.requires_server:
-                logger.info(
-                    f"Created {db_type.upper()} connection pool {pool_key[:8]} for {config.get('user')}@{config.get('host')}/{config.get('database', 'N/A')}"
-                )
+                logger.info("Created %s connection pool %s", db_type.upper(), pool_key[:8])
             else:
-                logger.info(
-                    f"Created {db_type.upper()} connection pool {pool_key[:8]} for {config.get('database', ':memory:')}"
-                )
+                logger.info("Created %s connection pool %s", db_type.upper(), pool_key[:8])
 
             return pool
         except Exception as e:
-            logger.error(f"Failed to create {db_type.upper()} connection pool: {e}")
+            log_safe_exception(logger, "create_database_pool", e, _DB_POOL_ERROR)
             raise
 
     def get_connection(self, config: dict):
@@ -226,7 +225,7 @@ class ConnectionManager:
             # failure so it does not permanently block cleanup.
             with self._global_lock:
                 self._pool_in_use[pool_key] = max(0, self._pool_in_use.get(pool_key, 0) - 1)
-            logger.error(f"Failed to get connection from {db_type.upper()} pool {pool_key[:8]}: {e}")
+            log_safe_exception(logger, "acquire_database_connection", e, _DB_CONNECTION_ERROR)
             raise
 
     def return_connection(self, pool_key: str, connection: Any) -> None:
@@ -282,11 +281,7 @@ class ConnectionManager:
                     if connection is not None and hasattr(connection, "close"):
                         connection.close()
                 except Exception as close_err:
-                    logger.debug(
-                        "Failed to close suspect connection on pool %s: %s",
-                        pool_key[:8],
-                        close_err,
-                    )
+                    log_safe_exception(logger, "close_suspect_connection", close_err, _DB_CONNECTION_ERROR)
                 # Still let the adapter remove the conn from its own
                 # in-flight tracker (e.g. SQL Server's
                 # ``_open_connections`` set) so the set doesn't grow
@@ -299,9 +294,11 @@ class ConnectionManager:
                     try:
                         adapter.return_connection_to_pool(pool, connection)
                     except Exception as track_err:
-                        logger.debug(
-                            "Adapter tracker cleanup for suspect conn failed (non-blocking): %s",
+                        log_safe_exception(
+                            logger,
+                            "cleanup_suspect_connection_tracker",
                             track_err,
+                            _DB_CONNECTION_ERROR,
                         )
                 logger.info(
                     "Discarded suspect (failed) connection from pool %s; pool size now replenishes on next acquire.",
@@ -310,7 +307,7 @@ class ConnectionManager:
             elif adapter is not None and pool is not None:
                 adapter.return_connection_to_pool(pool, connection)
         except Exception as e:
-            logger.warning(f"Failed to return connection to pool {pool_key[:8]}: {e}")
+            log_safe_exception(logger, "return_database_connection", e, _DB_CONNECTION_ERROR)
         finally:
             with self._global_lock:
                 self._pool_in_use[pool_key] = max(0, self._pool_in_use.get(pool_key, 0) - 1)
@@ -459,7 +456,7 @@ class ConnectionManager:
                 logger.info(f"Closed connection pool {pool_key[:8]}")
                 return True
             except Exception as e:
-                logger.error(f"Error closing pool {pool_key[:8]}: {e}")
+                log_safe_exception(logger, "close_database_pool", e, _DB_POOL_ERROR)
                 raise
 
         return False
@@ -504,7 +501,7 @@ class ConnectionManager:
                     self._pool_last_used.pop(pool_key, None)
                     logger.info(f"Cleaned up idle pool {pool_key[:8]}")
                 except Exception as e:
-                    logger.error(f"Error cleaning up pool {pool_key[:8]}: {e}")
+                    log_safe_exception(logger, "cleanup_idle_database_pool", e, _DB_POOL_ERROR)
 
     def _start_cleanup_thread(self):
         """
@@ -517,7 +514,7 @@ class ConnectionManager:
                 try:
                     self._cleanup_idle_pools()
                 except Exception as e:
-                    logger.error(f"Error in cleanup thread: {e}")
+                    log_safe_exception(logger, "database_pool_cleanup_loop", e, _DB_POOL_ERROR)
 
         cleanup_thread = threading.Thread(target=cleanup_loop, daemon=True)
         cleanup_thread.start()

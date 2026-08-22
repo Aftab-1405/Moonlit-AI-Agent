@@ -13,6 +13,7 @@ import re
 
 from langchain_core.messages import AIMessage, AIMessageChunk
 
+from core.errors import canonicalize_coded_error_payload
 from langgraph_orchestration.context_usage import build_usage_metrics
 
 # ENH [TAG-STRIP]: Context-structure tags that should NEVER appear in the
@@ -260,6 +261,9 @@ def translate_stream_part(
         event = part.get("data")
         if not isinstance(event, dict):
             return [], None
+        event = canonicalize_coded_error_payload(event)
+        if isinstance(event.get("result"), dict):
+            event["result"] = canonicalize_coded_error_payload(event["result"])
         completed_tool = None
         if event.get("type") == "tool_end":
             result = event.get("result")

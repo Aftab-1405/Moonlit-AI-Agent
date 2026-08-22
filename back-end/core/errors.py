@@ -22,7 +22,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Mapping
 
 from core.logging import current_request_id
 
@@ -138,6 +138,26 @@ _LEAKAGE_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
             re.IGNORECASE,
         ),
         "[private-host]",
+    ),
+    # Public IPs and DNS names are also deployment/customer topology and must
+    # not appear in diagnostics emitted by request-time boundaries.
+    (
+        re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b"),
+        "[host]",
+    ),
+    (
+        re.compile(r"\b(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,63}\b"),
+        "[host]",
+    ),
+    # JWTs, API tokens, and session cookies are commonly rendered as long
+    # URL-safe opaque strings without an identifying ``token=`` prefix.
+    (
+        re.compile(r"\beyJ[A-Za-z0-9_-]{16,}(?:\.[A-Za-z0-9_-]{8,}){1,2}\b"),
+        "[token]",
+    ),
+    (
+        re.compile(r"\b(?=[A-Za-z0-9_-]{32,}\b)(?=[A-Za-z0-9_-]*[A-Za-z])(?=[A-Za-z0-9_-]*\d)[A-Za-z0-9_-]+\b"),
+        "[token]",
     ),
     # Filesystem paths from tracebacks
     (re.compile(r"/(?:[A-Za-z0-9_.-]+/)+[A-Za-z0-9_.-]+"), "[path]"),
@@ -256,8 +276,31 @@ def public_error_for_code(code: object) -> PublicError:
 
 
 def public_tool_error(code: str, message: str) -> PublicError:
-    """Build an explicitly selected stable tool/provider error."""
+    """Build a trusted error, deferring known codes to the canonical catalog."""
+    if code in _PUBLIC_ERRORS_BY_CODE:
+        return _PUBLIC_ERRORS_BY_CODE[code]
     return PublicError(code=code, message=message)
+
+
+def canonicalize_coded_error_payload(payload: Mapping[str, object]) -> dict:
+    """Replace paired text on a coded payload with its catalogued message.
+
+    Internal result dictionaries are untrusted at every forwarding boundary.
+    The payload's existing text key is preserved (``error`` or ``message``),
+    while its value and code are replaced atomically. Unknown and malformed
+    codes resolve to the generic tool failure.
+    """
+    canonical = dict(payload)
+    if "error_code" not in canonical:
+        return canonical
+
+    public = public_error_for_code(canonical.get("error_code"))
+    canonical["error_code"] = public.code
+    if "error" in canonical:
+        canonical["error"] = public.message
+    if "message" in canonical:
+        canonical["message"] = public.message
+    return canonical
 
 
 def log_safe_exception(
@@ -283,6 +326,7 @@ __all__ = [
     "ErrorCategory",
     "PublicError",
     "classify_db_error",
+    "canonicalize_coded_error_payload",
     "log_safe_exception",
     "public_database_error",
     "public_error_for_code",

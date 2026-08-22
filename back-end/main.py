@@ -6,13 +6,12 @@ from contextlib import asynccontextmanager
 
 import redis.asyncio as redis
 from fastapi import FastAPI, HTTPException, Request, status
-from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from api_contract.common import api_error_response
+from api_contract.common import api_error_response, serialize_validation_errors
 from composition import configure_runtime_ports
 from config import ProductionConfig, get_config
 
@@ -377,7 +376,7 @@ def _register_error_handlers(app: FastAPI):
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             error="VALIDATION_ERROR",
             message="Request validation failed.",
-            details={"errors": jsonable_encoder(exc.errors())},
+            details={"errors": serialize_validation_errors(exc.errors())},
         )
 
 

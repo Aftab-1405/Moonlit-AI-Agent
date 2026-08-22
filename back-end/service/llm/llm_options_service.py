@@ -6,12 +6,16 @@ the boundary between HTTP handlers and the concrete LLM provider layer.
 
 from config import get_config
 from llm_provider.model_factory import (
+    ModelSelectionError,
+    ModelSelectionReason,
     get_default_model,
     get_provider_api_key,
     get_provider_models,
     get_supported_providers,
     resolve_model_selection,
 )
+
+__all__ = ["LLMOptionsService", "ModelSelectionError", "ModelSelectionReason"]
 
 
 class LLMOptionsService:

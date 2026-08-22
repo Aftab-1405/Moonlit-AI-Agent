@@ -51,7 +51,7 @@ from api_contract.streaming import STREAMING_RESPONSES
 from core.errors import log_safe_exception, public_tool_error
 from dependencies import get_authenticated_db_config, get_current_user
 from service.conversations.conversation_service import ConversationService
-from service.llm import LLMOptionsService
+from service.llm import LLMOptionsService, ModelSelectionError, ModelSelectionReason
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Moonlit Conversation End Points"])
@@ -209,8 +209,8 @@ async def _handle_agent_stream(
     """
     try:
         provider, model = LLMOptionsService.resolve_selection(provider, model)
-    except ValueError as exc:
-        if str(exc) == "Unsupported model provider":
+    except ModelSelectionError as exc:
+        if exc.reason is ModelSelectionReason.INVALID_PROVIDER:
             detail = {
                 "error": "invalid_provider",
                 "message": "Unsupported model provider.",

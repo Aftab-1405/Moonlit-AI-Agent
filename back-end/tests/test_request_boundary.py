@@ -27,6 +27,16 @@ async def receive_chunks(chunks: list[bytes]) -> Receive:
     return receive
 
 
+async def receive_messages(messages: list[ASGIMessage]) -> Receive:
+    """Return an ASGI receive callable that emits explicit request/disconnect frames."""
+    queue = list(messages)
+
+    async def receive() -> ASGIMessage:
+        return queue.pop(0)
+
+    return receive
+
+
 def http_scope(headers: list[tuple[bytes, bytes]] | None = None) -> ASGIMessage:
     """Build a minimal HTTP ASGI scope for direct middleware tests."""
     return {
@@ -57,6 +67,24 @@ def recording_app(markers: list[str], received_bodies: list[bytes]):
                 break
 
         received_bodies.append(bytes(body))
+        markers.append("endpoint")
+        await send({"type": "http.response.start", "status": 204, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    return app
+
+
+def recording_frame_app(markers: list[str], received_frames: list[ASGIMessage]):
+    """Build a child app that records the replay sequence as well as its body."""
+
+    async def app(scope: ASGIMessage, receive: Receive, send: Send) -> None:
+        del scope
+        while True:
+            message = await receive()
+            received_frames.append(message)
+            assert message["type"] == "http.request"
+            if not message.get("more_body", False):
+                break
         markers.append("endpoint")
         await send({"type": "http.response.start", "status": 204, "headers": []})
         await send({"type": "http.response.body", "body": b""})
@@ -228,3 +256,137 @@ async def test_rejects_spoofed_under_limit_content_length_before_downstream_app(
     assert_api_error(sent, status_code=413, error="REQUEST_TOO_LARGE")
     assert markers == []
     assert received_bodies == []
+
+
+@pytest.mark.asyncio
+async def test_many_small_frames_are_aggregated_into_one_downstream_request() -> None:
+    """Keep bounded fragmented uploads while avoiding one retained object per frame."""
+    from core.http_boundary import RequestBodyLimitMiddleware
+
+    markers: list[str] = []
+    received_frames: list[ASGIMessage] = []
+    app = RequestBodyLimitMiddleware(
+        recording_frame_app(markers, received_frames),
+        max_body_bytes=256,
+    )
+
+    sent = await invoke(app, http_scope(), await receive_chunks([b"x"] * 128))
+
+    assert response_status(sent) == 204
+    assert markers == ["endpoint"]
+    assert received_frames == [
+        {"type": "http.request", "body": b"x" * 128, "more_body": False}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_excessive_one_byte_frames_reject_before_downstream_app() -> None:
+    """Bound pre-auth frame processing even when total bytes remain under the byte limit."""
+    from core.http_boundary import RequestBodyLimitMiddleware
+
+    markers: list[str] = []
+    received_bodies: list[bytes] = []
+    app = RequestBodyLimitMiddleware(
+        recording_app(markers, received_bodies),
+        max_body_bytes=2_048,
+    )
+
+    sent = await invoke(app, http_scope(), await receive_chunks([b"x"] * 1_025))
+
+    assert_api_error(sent, status_code=413, error="REQUEST_TOO_LARGE")
+    assert markers == []
+    assert received_bodies == []
+
+
+@pytest.mark.asyncio
+async def test_repeated_empty_frames_reject_before_downstream_app() -> None:
+    """Bound empty more-body frames that consume CPU without byte progress."""
+    from core.http_boundary import RequestBodyLimitMiddleware
+
+    markers: list[str] = []
+    received_bodies: list[bytes] = []
+    app = RequestBodyLimitMiddleware(
+        recording_app(markers, received_bodies),
+        max_body_bytes=1,
+    )
+
+    sent = await invoke(app, http_scope(), await receive_chunks([b""] * 1_025))
+
+    assert_api_error(sent, status_code=413, error="REQUEST_TOO_LARGE")
+    assert markers == []
+    assert received_bodies == []
+
+
+@pytest.mark.asyncio
+async def test_disconnect_during_incomplete_body_never_calls_downstream_app() -> None:
+    """Stop request handling when the client disconnects before the body completes."""
+    from core.http_boundary import RequestBodyLimitMiddleware
+
+    markers: list[str] = []
+
+    async def downstream_app(scope: ASGIMessage, receive: Receive, send: Send) -> None:
+        del scope, receive, send
+        markers.append("endpoint")
+
+    app = RequestBodyLimitMiddleware(downstream_app, max_body_bytes=4)
+    receive = await receive_messages(
+        [
+            {"type": "http.request", "body": b"12", "more_body": True},
+            {"type": "http.disconnect"},
+        ]
+    )
+
+    sent = await invoke(app, http_scope(), receive)
+
+    assert sent == []
+    assert markers == []
+
+
+@pytest.mark.asyncio
+async def test_exact_declared_byte_boundary_replays_one_complete_frame() -> None:
+    """Accept exactly the byte limit and preserve the full downstream body."""
+    from core.http_boundary import RequestBodyLimitMiddleware
+
+    markers: list[str] = []
+    received_frames: list[ASGIMessage] = []
+    app = RequestBodyLimitMiddleware(
+        recording_frame_app(markers, received_frames),
+        max_body_bytes=4,
+    )
+
+    sent = await invoke(
+        app,
+        http_scope(headers=[(b"content-length", b"4")]),
+        await receive_chunks([b"12", b"34"]),
+    )
+
+    assert response_status(sent) == 204
+    assert markers == ["endpoint"]
+    assert received_frames == [
+        {"type": "http.request", "body": b"1234", "more_body": False}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_ordinary_chunked_body_replays_one_complete_frame() -> None:
+    """Preserve ordinary missing-Content-Length bodies across minimal replay."""
+    from core.http_boundary import RequestBodyLimitMiddleware
+
+    markers: list[str] = []
+    received_frames: list[ASGIMessage] = []
+    app = RequestBodyLimitMiddleware(
+        recording_frame_app(markers, received_frames),
+        max_body_bytes=16,
+    )
+
+    sent = await invoke(
+        app,
+        http_scope(),
+        await receive_chunks([b"ordinary-", b"body"]),
+    )
+
+    assert response_status(sent) == 204
+    assert markers == ["endpoint"]
+    assert received_frames == [
+        {"type": "http.request", "body": b"ordinary-body", "more_body": False}
+    ]

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import socket
@@ -11,10 +12,13 @@ from typing import Any
 
 import httpx
 import pytest
-from fastapi import HTTPException
+from fastapi import HTTPException, Response
 
+import controller.auth_controller as auth_controller
 import controller.context_controller as context_controller
 import controller.conversations_controller as conversations_controller
+import controller.database_controller as database_controller
+import dependencies as dependencies_module
 import langgraph_orchestration.stream_conversation as stream_conversation_module
 import langgraph_orchestration.tools as tool_module
 import llm_provider.bedrock_client as bedrock_client_module
@@ -23,6 +27,7 @@ import llm_provider.token_budget as token_budget
 import service.conversations.conversation_streaming_service as conversation_streaming_module
 import service.database.ai_tool_executor as db_executor_module
 import service.database.connection_handlers as connection_handlers
+import service.database.connection_manager as connection_manager_module
 import service.database.context_sync as context_sync_module
 import service.database.database_service as database_service_module
 import service.database.operations as database_operations
@@ -407,6 +412,561 @@ def test_structuring_error_resolves_only_canonical_code_messages(
 
     assert result == expected
     _assert_secret_absent(result)
+
+
+@pytest.mark.parametrize(
+    "error_code,expected",
+    [
+        (
+            "DB_TIMEOUT",
+            {
+                "success": False,
+                "error_code": "DB_TIMEOUT",
+                "error": "Database operation timed out.",
+            },
+        ),
+        (
+            "FUTURE_FORGED_CODE",
+            {
+                "success": False,
+                "error_code": "TOOL_EXECUTION_FAILED",
+                "error": "Tool execution failed.",
+            },
+        ),
+    ],
+)
+def test_structuring_false_result_discards_forged_message(
+    error_code: str,
+    expected: dict,
+) -> None:
+    """A failure carrying ``message`` instead of ``error`` is still untrusted."""
+    ui_result, model_summary = tool_module.ToolExecutor.summarize(
+        "execute_query",
+        {
+            "success": False,
+            "error_code": error_code,
+            "message": RAW_SECRET,
+        },
+    )
+
+    assert ui_result == expected
+    assert json.loads(model_summary.split("<query_result_metadata_json>\n", 1)[1].split("\n<", 1)[0]) == expected
+    _assert_secret_absent((ui_result, model_summary))
+
+
+@pytest.mark.parametrize(
+    "result,expected",
+    [
+        (
+            {"status": "error", "error_code": "DB_TIMEOUT", "message": RAW_SECRET},
+            {"error": "DB_TIMEOUT", "message": "Database operation timed out."},
+        ),
+        (
+            {"status": "error", "error_code": "FUTURE_FORGED_CODE", "message": RAW_SECRET},
+            {"error": "TOOL_EXECUTION_FAILED", "message": "Tool execution failed."},
+        ),
+        (
+            {"status": "error", "error_code": {"malformed": True}, "message": RAW_SECRET},
+            {"error": "TOOL_EXECUTION_FAILED", "message": "Tool execution failed."},
+        ),
+    ],
+)
+def test_database_controller_discards_untrusted_service_error_text(
+    result: dict,
+    expected: dict,
+) -> None:
+    """The HTTP controller resolves codes instead of trusting service messages."""
+    with pytest.raises(HTTPException) as caught:
+        database_controller._raise_service_error(result)
+
+    assert caught.value.status_code == 400
+    assert caught.value.detail == expected
+    _assert_secret_absent(caught.value.detail)
+
+
+def test_database_controller_uses_trusted_fallback_when_service_omits_code() -> None:
+    """An uncoded database failure uses the controller's fixed database fallback."""
+    with pytest.raises(HTTPException) as caught:
+        database_controller._raise_service_error({"status": "error", "message": RAW_SECRET})
+
+    assert caught.value.detail == {
+        "error": "DB_OPERATION_FAILED",
+        "message": "Database operation failed.",
+    }
+    _assert_secret_absent(caught.value.detail)
+
+
+@pytest.mark.parametrize(
+    "resolved_addresses",
+    [
+        [],
+        [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.12.34.56", 0))],
+    ],
+)
+def test_host_validation_failures_do_not_echo_host_or_private_ip(
+    monkeypatch: pytest.MonkeyPatch,
+    resolved_addresses: list,
+) -> None:
+    """SSRF rejection returns only its catalogued code and message."""
+    sentinel_host = "customer-host-sentinel.example"
+    monkeypatch.setattr(socket, "getaddrinfo", lambda *_args, **_kwargs: resolved_addresses)
+
+    result = connection_handlers._validate_host(sentinel_host)
+
+    assert result == {
+        "status": "error",
+        "error_code": "DB_HOST_VALIDATION_FAILED",
+        "message": "Database host validation failed.",
+    }
+    assert sentinel_host not in json.dumps(result)
+    assert "10.12.34.56" not in json.dumps(result)
+
+
+def test_loopback_host_validation_uses_canonical_failure() -> None:
+    """Loopback rejection cannot interpolate the caller-supplied host."""
+    result = connection_handlers._validate_host("localhost")
+
+    assert result == {
+        "status": "error",
+        "error_code": "DB_HOST_VALIDATION_FAILED",
+        "message": "Database host validation failed.",
+    }
+    assert "localhost" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "connect_call",
+    [
+        lambda: connection_handlers.connect_remote_postgresql("missing-host-sentinel"),
+        lambda: connection_handlers.connect_remote_mysql("missing-host-sentinel"),
+        lambda: connection_handlers.connect_remote_oracle("missing-host-sentinel"),
+        lambda: connection_handlers.connect_remote_sqlserver("Database=analytics;UID=user;PWD=secret"),
+    ],
+)
+def test_missing_connection_string_host_uses_canonical_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    connect_call,
+) -> None:
+    """Connection-string parsing failures expose one stable contract."""
+
+    class OracleAdapter:
+        def _parse_connection_string(self, connection_string: str) -> dict:
+            del connection_string
+            return {"dsn": "", "user": "user"}
+
+    monkeypatch.setattr("service.database.adapters.get_adapter", lambda _db_type: OracleAdapter())
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("placeholder host must not resolve")),
+    )
+
+    assert connect_call() == {
+        "status": "error",
+        "error_code": "DB_CONNECTION_STRING_INVALID",
+        "message": "Database connection string is invalid.",
+    }
+
+
+def test_tool_budget_failure_keeps_count_as_typed_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Budget diagnostics never replace the catalog message."""
+    events: list[dict] = []
+    monkeypatch.setattr(tool_module, "_try_writer", lambda: events.append)
+    config = _tool_config()
+    config["configurable"]["tool_call_log"] = {"prior": 21}
+
+    model_summary = tool_module._check_tool_budget_and_loop("execute_query", {"query": "SELECT 1"}, config)
+
+    assert events[-1]["result"] == {
+        "success": False,
+        "error_code": "TOOL_BUDGET_EXCEEDED",
+        "error": "Tool call budget exceeded.",
+        "tool_call_count": 21,
+        "tool_call_limit": 20,
+    }
+    assert model_summary == (
+        "<tool_budget_exceeded>\n"
+        "[TOOL_BUDGET_EXCEEDED] Tool call budget exceeded.\n"
+        "</tool_budget_exceeded>"
+    )
+
+
+def test_tool_loop_failure_keeps_count_as_typed_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Loop diagnostics remain metadata while model text stays canonical."""
+    events: list[dict] = []
+    monkeypatch.setattr(tool_module, "_try_writer", lambda: events.append)
+    config = _tool_config()
+    signature = 'execute_query:{"query": "SELECT 1"}'
+    config["configurable"]["tool_call_log"] = {signature: 3}
+
+    model_summary = tool_module._check_tool_budget_and_loop("execute_query", {"query": "SELECT 1"}, config)
+
+    assert events[-1]["result"] == {
+        "success": False,
+        "error_code": "TOOL_LOOP_DETECTED",
+        "error": "Repeated tool call stopped.",
+        "identical_call_count": 4,
+        "identical_call_limit": 3,
+    }
+    assert model_summary == (
+        "<tool_loop_detected>\n"
+        "[TOOL_LOOP_DETECTED] Repeated tool call stopped.\n"
+        "</tool_loop_detected>"
+    )
+
+
+@pytest.mark.asyncio
+async def test_generic_tool_timeout_uses_canonical_outputs_and_safe_log(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Timeout args stay out of logs and duration stays typed metadata."""
+    events: list[dict] = []
+    monkeypatch.setattr(tool_module, "_try_writer", lambda: events.append)
+
+    async def timeout_boundary(awaitable, *, timeout):
+        del timeout
+        awaitable.close()
+        raise asyncio.TimeoutError(RAW_SECRET)
+
+    monkeypatch.setattr(tool_module.asyncio, "wait_for", timeout_boundary)
+    with caplog.at_level(logging.WARNING, logger=tool_module.logger.name):
+        model_summary = await tool_module._execute_tool(
+            "get_table_details",
+            {"table_name": RAW_SECRET},
+            _tool_config(),
+            lambda *_args: {},
+        )
+
+    assert events[-1]["result"] == {
+        "success": False,
+        "error_code": "TOOL_TIMEOUT",
+        "error": "Tool execution timed out.",
+        "timeout_seconds": 20,
+    }
+    assert model_summary == (
+        "<tool_execution_error>\n"
+        "[TOOL_TIMEOUT] Tool execution timed out.\n"
+        "</tool_execution_error>"
+    )
+    _assert_safe_log_records(caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_query_timeout_never_logs_sql_or_adds_it_to_error_text(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The query timeout branch keeps SQL only in the existing tool args field."""
+    query = "SELECT 'query-timeout-sentinel' AS marker"
+    events: list[dict] = []
+    monkeypatch.setattr(tool_module, "_try_writer", lambda: events.append)
+
+    async def timeout_boundary(awaitable, *, timeout):
+        assert timeout == 30
+        awaitable.close()
+        raise asyncio.TimeoutError(RAW_SECRET)
+
+    monkeypatch.setattr(tool_module.asyncio, "wait_for", timeout_boundary)
+    with caplog.at_level(logging.ERROR, logger=tool_module.logger.name):
+        model_summary = await tool_module._execute_tool(
+            "execute_query",
+            {"query": query, "max_rows": 10},
+            _tool_config(),
+            lambda *_args: {},
+        )
+
+    assert events[-1]["result"] == {
+        "success": False,
+        "error_code": "TOOL_TIMEOUT",
+        "error": "Tool execution timed out.",
+        "timeout_seconds": 30,
+    }
+    assert model_summary == (
+        "<tool_execution_error>\n"
+        "[TOOL_TIMEOUT] Tool execution timed out.\n"
+        "</tool_execution_error>"
+    )
+    _assert_safe_log_records(caplog.records)
+    assert query not in " ".join(record.getMessage() for record in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_web_search_timeout_uses_canonical_outputs_and_safe_log(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Search timeout logs never include the search query or traceback."""
+    events: list[dict] = []
+    monkeypatch.setattr(tool_module, "_try_writer", lambda: events.append)
+
+    class TimeoutSearcher:
+        def invoke(self, payload: dict) -> None:
+            raise AssertionError(f"thread boundary should be replaced: {payload!r}")
+
+    async def timeout_thread_boundary(function, payload: dict) -> None:
+        assert function == tool_module._tavily_searcher.invoke
+        assert payload == {"query": RAW_SECRET}
+        raise asyncio.TimeoutError(RAW_SECRET)
+
+    monkeypatch.setattr(tool_module, "_tavily_searcher", TimeoutSearcher(), raising=False)
+    monkeypatch.setattr(tool_module.asyncio, "to_thread", timeout_thread_boundary)
+    config = _tool_config()
+    config["configurable"]["activated_skills"] = ["web-research"]
+
+    with caplog.at_level(logging.WARNING, logger=tool_module.logger.name):
+        model_summary = await tool_module.web_search.coroutine(query=RAW_SECRET, config=config)
+
+    assert events[-1]["result"]["error_code"] == "WEB_SEARCH_TIMEOUT"
+    assert events[-1]["result"]["error"] == "Web search timed out."
+    assert events[-1]["result"]["timeout_seconds"] == 20
+    assert model_summary == (
+        "<tool_execution_error>\n"
+        "[WEB_SEARCH_TIMEOUT] Web search timed out.\n"
+        "</tool_execution_error>"
+    )
+    _assert_safe_log_records(caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_firebase_session_verification_failure_logs_safely(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Firebase infrastructure failures retain diagnostics without cookie detail."""
+    cookie = "firebase-session-cookie-sentinel"
+    request = SimpleNamespace(
+        cookies={dependencies_module.Config.SESSION_COOKIE_NAME: cookie},
+        state=SimpleNamespace(),
+    )
+
+    async def thread_boundary(function, *args, **kwargs):
+        return function(*args, **kwargs)
+
+    monkeypatch.setattr(dependencies_module, "run_in_threadpool", thread_boundary)
+    monkeypatch.setattr(
+        dependencies_module,
+        "verify_session_cookie_value",
+        lambda _cookie: (_ for _ in ()).throw(RuntimeError(RAW_SECRET)),
+    )
+
+    with caplog.at_level(logging.ERROR, logger=dependencies_module.logger.name):
+        with pytest.raises(HTTPException) as caught:
+            await dependencies_module.get_current_user(request)
+
+    assert caught.value.status_code == 503
+    _assert_safe_log_records(caplog.records)
+    assert cookie not in " ".join(record.getMessage() for record in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_firebase_id_token_verification_failure_logs_safely(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The login boundary never logs a submitted Firebase token."""
+    csrf = "csrf-sentinel"
+    request = SimpleNamespace(
+        cookies={auth_controller.Config.CSRF_COOKIE_NAME: csrf},
+        headers={auth_controller.Config.CSRF_HEADER_NAME: csrf},
+        state=SimpleNamespace(),
+    )
+    token = "firebase-id-token-sentinel"
+
+    async def failing_thread_boundary(function, *args, **kwargs):
+        del function, args, kwargs
+        raise RuntimeError(RAW_SECRET)
+
+    monkeypatch.setattr(auth_controller, "run_in_threadpool", failing_thread_boundary)
+
+    with caplog.at_level(logging.WARNING, logger=auth_controller.logger.name):
+        with pytest.raises(HTTPException) as caught:
+            await auth_controller.set_authenticated_user_session.__wrapped__(
+                request,
+                Response(),
+                auth_controller.SetSessionRequest(idToken=token),
+            )
+
+    assert caught.value.status_code == 401
+    _assert_safe_log_records(caplog.records)
+    assert token not in " ".join(record.getMessage() for record in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_firebase_revocation_failure_logs_safely(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Best-effort logout revocation omits UID and Firebase error detail."""
+    csrf = "csrf-sentinel"
+    user_id = "firebase-user-sentinel"
+    request = SimpleNamespace(
+        cookies={auth_controller.Config.CSRF_COOKIE_NAME: csrf},
+        headers={auth_controller.Config.CSRF_HEADER_NAME: csrf},
+    )
+
+    async def current_user(_request):
+        return {"uid": user_id}
+
+    async def failing_thread_boundary(function, *args, **kwargs):
+        del function, args, kwargs
+        raise RuntimeError(RAW_SECRET)
+
+    async def clear_state(_request):
+        return None
+
+    monkeypatch.setattr(auth_controller, "get_current_user_optional", current_user)
+    monkeypatch.setattr(auth_controller, "run_in_threadpool", failing_thread_boundary)
+    monkeypatch.setattr(auth_controller, "clear_session_state", clear_state)
+
+    with caplog.at_level(logging.WARNING, logger=auth_controller.logger.name):
+        result = await auth_controller.logout_authenticated_user_session(request, Response())
+
+    assert result["status"] == "success"
+    _assert_safe_log_records(caplog.records)
+    assert user_id not in " ".join(record.getMessage() for record in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_redis_session_merge_failure_logs_without_traceback(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Atomic Redis errors are correlated without ``exc_info`` or secrets."""
+
+    class FailingRedis:
+        async def eval(self, *args, **kwargs):
+            del args, kwargs
+            raise RuntimeError(RAW_SECRET)
+
+    async def redis_boundary():
+        return FailingRedis()
+
+    monkeypatch.setattr(dependencies_module, "get_redis", redis_boundary)
+
+    with caplog.at_level(logging.ERROR, logger=dependencies_module.logger.name):
+        with pytest.raises(RuntimeError, match="Atomic Redis session update failed"):
+            await dependencies_module._merge_state("session:key", {"value": 1}, 60)
+
+    _assert_safe_log_records(caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_redis_session_read_failure_logs_safely(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Cached-context read failures cannot expose the Redis exception."""
+    request = SimpleNamespace(
+        cookies={dependencies_module.Config.SESSION_COOKIE_NAME: "cookie-sentinel"},
+    )
+
+    async def fail_read(_key):
+        raise RuntimeError(RAW_SECRET)
+
+    monkeypatch.setattr(dependencies_module, "_read_state", fail_read)
+
+    with caplog.at_level(logging.WARNING, logger=dependencies_module.logger.name):
+        assert await dependencies_module.get_session_data(request) is None
+
+    _assert_safe_log_records(caplog.records)
+
+
+def test_database_pool_creation_failure_logs_safely(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Pool-creation diagnostics omit DB credentials and exception secrets."""
+
+    class FailingAdapter:
+        requires_server = True
+
+        def create_connection_pool(self, config: dict):
+            del config
+            raise RuntimeError(RAW_SECRET)
+
+    monkeypatch.setattr(
+        connection_manager_module.ConnectionManager,
+        "_start_cleanup_thread",
+        lambda self: None,
+    )
+    monkeypatch.setattr(connection_manager_module, "get_adapter", lambda _db_type: FailingAdapter())
+    manager = connection_manager_module.ConnectionManager()
+    config = {
+        "db_type": "postgresql",
+        "host": "customer-host-sentinel.example",
+        "user": "customer-user-sentinel",
+        "password": "customer-password-sentinel",
+        "database": "customer-database-sentinel",
+    }
+
+    with caplog.at_level(logging.ERROR, logger=connection_manager_module.logger.name):
+        with pytest.raises(RuntimeError):
+            manager._create_pool(config, "pool-key-sentinel")
+
+    _assert_safe_log_records(caplog.records)
+    rendered = " ".join(record.getMessage() for record in caplog.records)
+    assert all(str(value) not in rendered for value in config.values())
+
+
+def test_database_connection_acquisition_failure_logs_safely(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Connection-borrow failures use a stable diagnostic contract."""
+
+    class FailingAdapter:
+        default_port = 5432
+
+        def get_connection_from_pool(self, pool):
+            del pool
+            raise RuntimeError(RAW_SECRET)
+
+    monkeypatch.setattr(
+        connection_manager_module.ConnectionManager,
+        "_start_cleanup_thread",
+        lambda self: None,
+    )
+    adapter = FailingAdapter()
+    monkeypatch.setattr(connection_manager_module, "get_adapter", lambda _db_type: adapter)
+    manager = connection_manager_module.ConnectionManager()
+    config = {"db_type": "postgresql", "host": "db.example", "user": "user"}
+    pool_key = manager._get_pool_key(config)
+    manager._pools[pool_key] = object()
+    manager._adapters[pool_key] = adapter
+    manager._pool_in_use[pool_key] = 0
+
+    with caplog.at_level(logging.ERROR, logger=connection_manager_module.logger.name):
+        with pytest.raises(RuntimeError):
+            manager.get_connection(config)
+
+    _assert_safe_log_records(caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_database_metadata_failure_logs_safely(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Controller metadata fallbacks never interpolate database exceptions."""
+
+    async def failing_thread_boundary(function, *args, **kwargs):
+        del function, args, kwargs
+        raise RuntimeError(RAW_SECRET)
+
+    monkeypatch.setattr(database_controller, "run_in_threadpool", failing_thread_boundary)
+
+    with caplog.at_level(logging.WARNING, logger=database_controller.logger.name):
+        result = await database_controller._schema_metadata_for_config(
+            {"db_type": "postgresql", "schema": "public"}
+        )
+
+    assert result == {"schemas": [], "current_schema": "public"}
+    _assert_safe_log_records(caplog.records)
 
 
 def test_compaction_error_summary_rejects_legacy_raw_fallback() -> None:

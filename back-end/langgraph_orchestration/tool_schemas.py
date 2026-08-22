@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from core.errors import log_safe_exception, public_error_for_code, public_tool_error
+from core.errors import log_safe_exception, public_error_for_code
 
 logger = logging.getLogger(__name__)
 
@@ -459,7 +459,7 @@ def structure_tool_result(tool_name: str, raw_result: Dict[str, Any]) -> Dict[st
         Structured result dict with consistent format
     """
     # Handle errors uniformly
-    if "error" in raw_result:
+    if "error" in raw_result or "error_code" in raw_result or raw_result.get("success") is False:
         public = public_error_for_code(raw_result.get("error_code"))
         return {
             "success": False,
@@ -608,10 +608,7 @@ def structure_tool_result(tool_name: str, raw_result: Dict[str, Any]) -> Dict[st
             return {"success": True, "data": raw_result}
 
     except Exception as e:
-        public = public_tool_error(
-            "TOOL_RESULT_INVALID",
-            "Tool result could not be structured.",
-        )
+        public = public_error_for_code("TOOL_RESULT_INVALID")
         log_safe_exception(logger, "structure_tool_result", e, public)
         return {
             "success": False,
