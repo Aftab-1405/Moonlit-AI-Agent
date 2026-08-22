@@ -83,6 +83,16 @@ Exit criteria: final report is evidence-backed, prioritized, actionable, and dis
 
 ## Work log
 
+### 2026-08-22 — Remediation Phase 2 / Task 3 model authorization checkpoint
+
+- RED evidence: `cd back-end && env/bin/python -m pytest tests/test_model_authorization.py -q` reported `6 failed, 2 warnings in 1.16s`. The new resolver interface was absent, `get_chat_model()` accepted `not-enabled.model` and reached its cache boundary, and the controller had no model authorization. The controller recorder was then corrected to expose its real `check_and_increment` boundary (the sandbox cannot create the worker thread used by `run_in_threadpool`); the focused pre-implementation controller command reported `1 failed, 2 warnings in 1.28s` because `_handle_agent_stream()` did not raise for `not-enabled.model`.
+- GREEN evidence: `cd back-end && env/bin/python -m pytest tests/test_model_authorization.py tests/test_api_contract.py -q` reported `37 passed, 3 warnings in 1.30s`; `back-end/env/bin/ruff check back-end/llm_provider/model_factory.py back-end/service/llm/llm_options_service.py back-end/controller/conversations_controller.py back-end/tests/test_model_authorization.py` reported `All checks passed!`.
+- Regression evidence: `cd back-end && env/bin/python -m pytest -q` reported `259 passed, 3 warnings in 7.23s`.
+- Authorization contract: `resolve_model_selection()` is the sole configured provider/model allowlist resolver. It normalizes the provider, requires it in `get_supported_providers()`, requires a configured non-empty provider model tuple, and returns only a configured model (explicit or default). Unknown provider and model selections fail closed. `get_chat_model()` invokes the resolver before model capabilities, cache lookup, or Bedrock construction; the unsupported-provider-to-Bedrock fallback is removed.
+- Controller ordering: `_handle_agent_stream()` invokes `LLMOptionsService.resolve_selection()` as its first operation. Resolver failures become stable `400 invalid_provider` or `400 invalid_model` details before ownership, quota, rate limiter, model cache, or client work. The resolved provider/model values flow to the stream generator.
+- The focused tests use configured `allowed.model-v1`/`allowed.model-v2` values and record zero ownership, quota, rate-limit, cached-client, and stream-construction activity for an unknown model. Tests are repository-only and made no live Firebase, Redis, Firestore, Bedrock, Qdrant, or database calls.
+- The three warnings are the installed SlowAPI Python 3.14 `asyncio.iscoroutinefunction` deprecation warnings. No dependency or warning suppression was changed. Phase 2 remains in progress; Task 4+ authentication, identity, prompt, tool, SQL, deployment, and migration work remains incomplete and unchanged.
+
 ### 2026-08-22 — Remediation Phase 2 / Task 2 HTTP response boundary checkpoint
 
 - RED evidence: `cd back-end && env/bin/python -m pytest tests/test_http_error_boundary.py tests/test_core_logging.py -q` reported `9 failed, 8 passed, 5 warnings in 2.00s`. CSRF and SlowAPI responses lacked the common `status/error/message/details` contract, framework 404 used `detail`, request-limit/unhandled short-circuits missed the configured response headers, no response carried `X-Request-ID`, and no handler-level correlation-filter installer existed.

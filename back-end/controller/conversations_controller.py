@@ -5,7 +5,8 @@ Streaming workflow
 ------------------
 1. ``chat`` / ``resume_agent`` validate the request body and delegate to
    :func:`_handle_agent_stream`.
-2. ``_handle_agent_stream`` validates provider, verifies conversation ownership
+2. ``_handle_agent_stream`` authorizes the configured provider/model selection,
+   verifies conversation ownership
    (using a user_id-only projection so the full message array isn't
    downloaded — see FIX [L7]), debits the user quota via
    :class:`UserQuotaService`, then acquires the per-user-per-provider LLM
@@ -162,9 +163,11 @@ async def _handle_agent_stream(
     stream_generator_kwargs: dict,
 ):
     """
-    Validate limits, acquire quota + rate-limiter locks, and return a streaming SSE response for the agent.
+    Authorize model selection, acquire quota + rate-limiter locks, and return a streaming SSE response.
 
-    The acquisition order is intentionally quota-first, rate-limiter-second:
+    Authorization occurs before every resource-affecting operation. The
+    admission order after authorization is intentionally quota-first,
+    rate-limiter-second:
 
     1. **Debit quota** via :meth:`UserQuotaService.check_and_increment`.
        If the user is over quota we short-circuit with a 429 and do NOT
@@ -190,18 +193,26 @@ async def _handle_agent_stream(
         A StreamingResponse yielding Server-Sent Events (SSE).
 
     Raises:
-        HTTPException: For invalid provider (400), database permission errors (403),
-                     user rate-limits (429), or internal errors (500).
+        HTTPException: For invalid provider/model (400), database permission
+            errors (403), user rate-limits (429), or internal errors (500).
     """
-    supported = LLMOptionsService.supported_providers()
-    if provider not in supported:
+    try:
+        provider, model = LLMOptionsService.resolve_selection(provider, model)
+    except ValueError as exc:
+        if str(exc) == "Unsupported model provider":
+            detail = {
+                "error": "invalid_provider",
+                "message": "Unsupported model provider.",
+            }
+        else:
+            detail = {
+                "error": "invalid_model",
+                "message": "Model is not enabled for this provider.",
+            }
         raise HTTPException(
             status_code=400,
-            detail={
-                "error": "invalid_provider",
-                "message": f"Unsupported provider '{provider}'. Supported values: {sorted(supported)}",
-            },
-        )
+            detail=detail,
+        ) from exc
 
     if conversation_id:
         try:

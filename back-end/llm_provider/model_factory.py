@@ -127,17 +127,16 @@ def get_chat_model(
 ) -> BaseChatModel:
     """Return a reusable LangChain chat model for the requested configuration.
 
-    Only the ``bedrock`` provider is supported; other names log a warning and
-    fall back to Bedrock. The selected model is resolved via
-    :func:`get_default_model` when ``model`` is omitted, and the requested
-    ``max_tokens`` is clamped to the model's ``max_output_tokens`` capability.
+    The provider and model must be enabled in configuration. The selected model
+    is resolved via :func:`resolve_model_selection` when ``model`` is omitted,
+    and the requested ``max_tokens`` is clamped to the model's
+    ``max_output_tokens`` capability.
     The underlying client is cached by :func:`_get_cached_chat_model` so
     repeated calls with the same configuration reuse one
     ``ChatBedrockConverse`` instance.
 
     Args:
-        provider: Provider name (case-insensitive); only ``"bedrock"`` is
-            supported. Other values are coerced to ``bedrock`` with a warning.
+        provider: Provider name (case-insensitive) enabled in configuration.
         model: Optional explicit model ID. Defaults to the provider's first
             configured model.
         api_key: Unused — Bedrock uses the AWS credential provider chain.
@@ -153,20 +152,10 @@ def get_chat_model(
         A cached :class:`BaseChatModel` (``ChatBedrockConverse`) instance.
 
     Raises:
-        ValueError: If no model is configured for the requested provider.
+        ValueError: If the provider or model is not enabled in configuration.
     """
     del api_key  # Bedrock uses the AWS credential provider chain.
-    provider = provider.strip().lower()
-    if provider != "bedrock":
-        logger.warning(
-            "Provider %s requested, but only Bedrock is supported; using Bedrock.",
-            provider,
-        )
-        provider = "bedrock"
-
-    selected_model = str(model or get_default_model(provider)).strip()
-    if not selected_model:
-        raise ValueError(f"No model is configured for provider '{provider}'")
+    provider, selected_model = resolve_model_selection(provider, model)
     from llm_provider.model_capabilities import model_capability
 
     config = get_config()
@@ -209,6 +198,23 @@ def get_provider_models(provider: str) -> list[str]:
         return [str(model).strip() for model in models if str(model).strip()]
     default = get_default_model(provider)
     return [default] if default else []
+
+
+def resolve_model_selection(provider: str, model: str | None = None) -> tuple[str, str]:
+    """Normalize and authorize one configured provider/model selection.
+
+    This is the sole configured allowlist boundary for chat-model construction
+    and HTTP request admission. A resolved model is always a member of the
+    selected provider's configured model tuple.
+    """
+    normalized_provider = str(provider or "").strip().lower()
+    if normalized_provider not in get_supported_providers():
+        raise ValueError("Unsupported model provider")
+    allowed_models = tuple(get_provider_models(normalized_provider))
+    selected_model = str(model or get_default_model(normalized_provider)).strip()
+    if not allowed_models or selected_model not in allowed_models:
+        raise ValueError("Model is not enabled for this provider")
+    return normalized_provider, selected_model
 
 
 def get_provider_api_key(provider: str) -> str | None:

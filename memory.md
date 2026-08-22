@@ -261,11 +261,11 @@ Exit gate: clean locked builds are reproducible; unit/integration/contract/load 
 ### [MODEL-001] Authenticated callers can select arbitrary Bedrock model IDs
 
 - Severity: High
-- Classification: verified authorization/cost risk
-- Evidence: `ChatRequest.model` only bounds length; `_handle_agent_stream()` validates provider but not model; `model_factory.get_chat_model()` constructs any non-empty requested model rather than requiring it in configured provider models.
-- Impact: callers can invoke any Bedrock model/resource allowed to the service role, bypass product availability/cost/capability policy, churn the 32-entry client cache, and trigger incorrect budget assumptions for unknown models.
-- Remediation: validate the requested model against the server-configured allowlist before quota acquisition; tie quotas/cost limits to model class and configure IAM to the same resource set.
-- Validation: request tests reject unknown/cross-region/inference-profile IDs before quota/model creation; an IAM smoke test denies every non-allowlisted resource.
+- Classification: repository remediation complete; deployment IAM alignment remains unverified.
+- Original evidence: `ChatRequest.model` only bounded length; `_handle_agent_stream()` validated provider but not model; `model_factory.get_chat_model()` constructed any non-empty requested model rather than requiring it in configured provider models.
+- Remediation evidence (2026-08-22): `llm_provider.model_factory.resolve_model_selection()` now normalizes provider input, requires a supported provider with a non-empty configured model allowlist, and returns only an explicit/default allowlisted model. `get_chat_model()` calls it before capability lookup or `_get_cached_chat_model`; the unsupported-provider-to-Bedrock fallback is removed. `LLMOptionsService.resolve_selection()` carries the same authoritative result into `_handle_agent_stream()` before ownership, quota, rate limiter, stream factory, or client/cache work. Resolver failures produce stable HTTP 400 `invalid_provider` or `invalid_model` details.
+- Validation: `cd back-end && env/bin/python -m pytest tests/test_model_authorization.py tests/test_api_contract.py -q` reported `37 passed, 3 warnings in 1.30s`; the model tests patch `BEDROCK_MODELS` to `allowed.model-v1`/`allowed.model-v2`, prove default/explicit selection, reject unknown provider/model and an empty allowlist, prove an invalid factory request never reaches the cached client boundary, and use controller resource recorders to prove unknown model rejection has zero ownership/quota/rate-limit/stream-construction activity. `cd back-end && env/bin/python -m pytest -q` reported `259 passed, 3 warnings in 7.23s`.
+- Remaining concern: this repository guard limits application-selected Bedrock IDs, but a deployment IAM policy must independently deny non-allowlisted Bedrock resources. That live-policy validation is outside the repository-only Task 3 scope.
 
 ### [DATA-001] Conversation storage grows toward Firestore's single-document limit
 
