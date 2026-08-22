@@ -53,9 +53,11 @@ def test_resolver_rejects_unconfigured_provider_or_model(configured_models, prov
         configured_models.resolve_model_selection(provider, model)
 
 
-def test_resolver_rejects_empty_configured_allowlist(monkeypatch, configured_models) -> None:
-    """Catch fail-open behavior when a provider has no enabled model IDs."""
-    empty_config = SimpleNamespace(BEDROCK_MODELS=[], BEDROCK_MODEL="")
+def test_resolver_rejects_empty_allowlist_even_with_configured_default(
+    monkeypatch, configured_models
+) -> None:
+    """Catch a default-model fallback that re-enables a disabled provider."""
+    empty_config = SimpleNamespace(BEDROCK_MODELS=[], BEDROCK_MODEL="allowed.model-v1")
     monkeypatch.setattr(configured_models, "get_config", lambda: empty_config)
 
     with pytest.raises(ValueError):
@@ -101,7 +103,9 @@ class _AsyncRecorder(_Recorder):
 
 
 @pytest.mark.asyncio
-async def test_controller_rejects_unknown_model_before_any_resource_activity(monkeypatch) -> None:
+async def test_controller_rejects_unknown_model_before_any_resource_activity(
+    monkeypatch, configured_models
+) -> None:
     """Catch ordering changes that debit or construct work before authorization."""
     from controller import conversations_controller as controller
 

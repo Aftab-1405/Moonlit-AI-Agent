@@ -181,8 +181,9 @@ def get_supported_providers() -> tuple[str, ...]:
 def get_provider_models(provider: str) -> list[str]:
     """Return the list of model IDs configured for ``provider``.
 
-    Reads the ``{PROVIDER}_MODELS`` config attribute (falling back to
-    :func:`get_default_model` when unset) and strips/normalizes each entry.
+    Reads only the ``{PROVIDER}_MODELS`` config attribute and
+    strips/normalizes each entry. A separately configured default is not an
+    enabled-model fallback.
 
     Args:
         provider: Provider name (case-insensitive).
@@ -194,10 +195,7 @@ def get_provider_models(provider: str) -> list[str]:
     config = get_config()
     provider = provider.strip().lower()
     models = getattr(config, f"{provider.upper()}_MODELS", []) or []
-    if models:
-        return [str(model).strip() for model in models if str(model).strip()]
-    default = get_default_model(provider)
-    return [default] if default else []
+    return [str(model).strip() for model in models if str(model).strip()]
 
 
 def resolve_model_selection(provider: str, model: str | None = None) -> tuple[str, str]:
