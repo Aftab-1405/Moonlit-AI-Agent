@@ -1,6 +1,6 @@
 # Moonlit Backend Agent Workflow Audit
 
-Last updated: 2026-08-22
+Last updated: 2026-08-23
 
 ## Remediation program
 
@@ -9,7 +9,7 @@ Last updated: 2026-08-22
 - [x] Design specification approved.
 - [x] Phase 1 implementation plan written and executed.
 - [x] Phase 1 — Session and admission-control baseline.
-- [-] Phase 2 — Request, authentication, and security boundaries.
+- [x] Phase 2 — Request, authentication, and security boundaries.
 - [ ] Phase 3 — Ownership-safe LangGraph lifecycle and terminal durability.
 - [ ] Phase 4 — Bounded streaming, tools, and query artifacts.
 - [ ] Phase 5 — VAMP, skills, and typed contracts.
@@ -82,6 +82,18 @@ Exit criteria: SOLID findings distinguish pragmatic trade-offs from changes that
 Exit criteria: final report is evidence-backed, prioritized, actionable, and distinguishes verified defects from risks or coverage gaps.
 
 ## Work log
+
+### 2026-08-23 — Remediation Phase 2 / Task 9 exit gate and closure
+
+- Remediation Phase 2 is complete in committed repository state. The final contract now rejects oversized/ambiguous bodies and undeclared fields before routing; authorizes configured models before ownership/quota/rate/client work; authenticates before cached DB state; enforces server-owned canonical UUIDv4 conversation identity and ownership before quota; passes direct identity to artifact/VAMP consumers; escapes every dynamic trusted-state prompt value; canonicalizes public/SSE/model/persisted failures; rejects dangerous or unknown SQL functions at the actual database dialect; and applies the common security/error response boundary in the required middleware order.
+- Fresh focused verification, run outside the restricted sandbox because it cannot create the AnyIO worker stream file descriptor, reported `341 passed, 3 warnings in 2.69s`. The current-checkout full command reported `1 failed, 448 passed, 3 warnings in 2.76s`; the sole failure is the concurrent/unowned `tests/test_skill_registry.py::test_disconnected_catalog_keeps_non_database_diagram_generation_available`, caused by the working-tree `back-end/skills/react-flow-diagram/SKILL.md` missing required `when_to_use` frontmatter. Task 9 did not repair, stage, restore, or otherwise touch that file.
+- An exact `git archive HEAD` snapshot, with only the existing `back-end/env` symlinked and explicit hermetic test configuration, reported `387 passed, 3 warnings in 2.70s`; backend Ruff was `All checks passed!`, and targeted production compilation exited 0 with no compiler diagnostics. A separate snapshot labelled **committed production + current local test corpus**, which overlaid only the checkout's `back-end/tests`, reported `449 passed, 3 warnings in 2.86s`. This proves committed production is green against both the 387-test committed corpus and the complete current 449-test local corpus while excluding the unowned production skill edit.
+- The collection difference is reproducibility debt: `.gitignore:148` broadly ignores `/back-end/tests/*`. All 13 planned Task 1–8 test paths are nevertheless tracked at `HEAD`, but local ignored `conftest.py`, `test_core_audit.py`, `test_core_security.py`, and `test_stream_events.py` are absent from an exact archive. Narrowing this rule and making the hermetic test configuration tracked is deferred to remediation Phase 6; no ignored test was mutated or staged.
+- Frontend verification of Task 5's contract is green: `node --test src/api/conversationRequestModel.test.js` reported one file/test passing with zero failures, `npm run lint` exited 0 with no findings, and `npm run build` transformed 2,845 modules and completed in 8.54s with only the existing chunk-size advisory. Current unrelated frontend edits were read-only and remain unowned/unstaged.
+- Security/scope gates are clean for Phase 2. Searches found zero active `thread_id.rsplit`, `create_or_get_conversation_id`, old DB-config dependencies, direct raw-exception `HTTPException` detail, source-inspection/mock-assertion tests, or production debug/TODO remnants. All 12 external JSON request models inherit `ExternalRequestModel` directly or through `BaseConversationRequest`. The broad raw-diagnostic scan returned 74 matches: 14 deliberate in-process classification/sanitization uses, two internal exception wrappers, one docstring, and 57 pre-existing server-log diagnostics outside the ruled Task 7 boundary. The narrow public/persisted scan returned only the safe `friendly_error()`/`sanitize_error_message()` paths plus two logger false positives; no direct raw public, SSE, model, or persisted assignment remains in the audited Phase 2 files.
+- Whole-phase self-review covered all 51 paths changed from `6c92b8e5e2251a18a3dc652016d3a9d4d640992f` through `7640d1e72d6d27d9ca3f6af682a17d95cb4c001b` (`6,012` insertions, `601` deletions within modified files, zero files deleted). Middleware/order, strict DTO serialization, auth-before-state, model/ownership/quota ordering, UUID ownership, prompt escaping, safe-error canonicalization, SQL dialect false-positive/false-negative coverage, dead/debug code, compatibility remnants, and repository scope were clean. `git diff --check`, the working diff check, and the cached diff check all exited 0.
+- The three warnings in each final backend run are the installed SlowAPI Python 3.14 `asyncio.iscoroutinefunction` deprecations and remain deliberately unsuppressed. Other deferred minors are exact 8,192-character Firebase token acceptance, real-ASGI 405 envelope/security-header/`Allow` coverage, a typed model-selection failure reason instead of `ValueError` text parsing, splitting the 1,210-line trust-boundary test module, and the repository-wide raw diagnostic logging sweep.
+- Validation used deterministic local fakes and no live Firebase, Firestore, Redis, Qdrant, Bedrock, database, proxy, dependency, migration, deployment, push, or merge operation. Deployment must still verify Bedrock IAM allowlists, database least-privilege/function grants/read-only/resource limits, Firebase/session behavior, external adapter contracts, and proxy topology. Phase 3 is the next planning-only remediation scope; Phase 3+ remains unchecked and no Phase 3 implementation was started.
 
 ### 2026-08-22 — Remediation Phase 2 / Task 8 dialect-aware SQL function checkpoint
 
