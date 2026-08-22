@@ -20,12 +20,9 @@ logger = logging.getLogger(__name__)
 class ConversationService:
     """Service for managing conversations and AI interactions (facade)."""
 
-
     @staticmethod
-    def create_or_get_conversation_id(provided_id: Optional[str] = None) -> str:
-        """Return the provided conversation id or mint a fresh UUID."""
-        if provided_id:
-            return provided_id
+    def create_conversation_id() -> str:
+        """Mint a canonical UUIDv4 for a new conversation."""
         return str(uuid.uuid4())
 
     @staticmethod

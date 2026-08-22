@@ -44,6 +44,7 @@ Config = get_config()
 from api_contract.conversations import (
     AgentResumeRequest,
     ChatRequest,
+    ConversationId,
     RenameConversationRequest,
 )
 from api_contract.streaming import STREAMING_RESPONSES
@@ -161,22 +162,25 @@ async def _handle_agent_stream(
     provider: str,
     model: Optional[str],
     stream_generator_kwargs: dict,
+    require_existing_conversation: bool = True,
 ):
     """
     Authorize model selection, acquire quota + rate-limiter locks, and return a streaming SSE response.
 
-    Authorization occurs before every resource-affecting operation. The
-    admission order after authorization is intentionally quota-first,
-    rate-limiter-second:
+    Authorization occurs before every resource-affecting operation. For a
+    continuation or resume, existing ownership is required before quota. The
+    remaining admission order is intentionally quota-first, rate-limiter-second:
 
-    1. **Debit quota** via :meth:`UserQuotaService.check_and_increment`.
+    1. **Verify ownership** for client-supplied conversation IDs. A missing
+       conversation returns 404 and an unowned conversation returns 403.
+    2. **Debit quota** via :meth:`UserQuotaService.check_and_increment`.
        If the user is over quota we short-circuit with a 429 and do NOT
        touch the rate limiter.
-    2. **Acquire the per-user-per-provider LLM rate-limiter slot**
+    3. **Acquire the per-user-per-provider LLM rate-limiter slot**
        (:meth:`ProviderRateLimiter.acquire`). If it rejects, the request
        never produced LLM output, so we :meth:`refund` the quota debit
        (FIX [C4]).
-    3. **Build the SSE response.** If the underlying streaming generator
+    4. **Build the SSE response.** If the underlying streaming generator
        raises before yielding its first event, the quota debit is also
        refunded (FIX [C4]). The rate-limiter slot is released exactly once
        via a ``finally`` block guarded by ``rate_limiter_released``.
@@ -188,13 +192,15 @@ async def _handle_agent_stream(
         provider: LLM Provider name (e.g., 'gemini', 'openai').
         model: Optional specific LLM model ID.
         stream_generator_kwargs: Additional parameters passed to the streaming generator.
+        require_existing_conversation: Whether ownership of an existing conversation is required.
 
     Returns:
         A StreamingResponse yielding Server-Sent Events (SSE).
 
     Raises:
         HTTPException: For invalid provider/model (400), database permission
-            errors (403), user rate-limits (429), or internal errors (500).
+            errors (403), missing continuations (404), user rate-limits (429),
+            or internal errors (500).
     """
     try:
         provider, model = LLMOptionsService.resolve_selection(provider, model)
@@ -214,18 +220,20 @@ async def _handle_agent_stream(
             detail=detail,
         ) from exc
 
-    if conversation_id:
+    if require_existing_conversation:
         try:
             # FIX [L7]: Previously this called get_conversation_data, which
             # downloaded the ENTIRE conversation document (all messages,
             # potentially megabytes) purely to verify ownership. Use the
             # user_id-only projection variant instead — same security check,
             # ~1 field of Firestore read traffic.
-            _ = await run_in_threadpool(
+            conversation_exists = await run_in_threadpool(
                 ConversationService.verify_conversation_owner,
                 conversation_id,
                 user_id,
             )
+            if not conversation_exists:
+                raise HTTPException(status_code=404, detail="Conversation not found")
         except PermissionError as e:
             raise HTTPException(status_code=403, detail=str(e))
 
@@ -377,7 +385,8 @@ async def chat(
         A StreamingResponse yielding SSE tokens/events.
     """
     provider = data.provider or Config.LLM_PROVIDER
-    conversation_id = ConversationService.create_or_get_conversation_id(data.conversation_id)
+    require_existing_conversation = data.conversation_id is not None
+    conversation_id = data.conversation_id or ConversationService.create_conversation_id()
     user_id = user.get("uid") if isinstance(user, dict) else user
 
     logger.info(
@@ -404,6 +413,7 @@ async def chat(
         provider=provider,
         model=data.model,
         stream_generator_kwargs=kwargs,
+        require_existing_conversation=require_existing_conversation,
     )
 
 
@@ -456,6 +466,7 @@ async def resume_agent(
         provider=provider,
         model=data.model,
         stream_generator_kwargs=kwargs,
+        require_existing_conversation=True,
     )
 
 
@@ -570,7 +581,7 @@ def _sanitize_messages(messages: list) -> list:
 
 
 @router.get("/get_conversation/{conversation_id}")
-async def get_conversation(conversation_id: str, user: dict = Depends(get_current_user)):
+async def get_conversation(conversation_id: ConversationId, user: dict = Depends(get_current_user)):
     """
     Get message history and status for a specific conversation.
 
@@ -619,7 +630,11 @@ async def get_conversation(conversation_id: str, user: dict = Depends(get_curren
 
 
 @router.get("/get_execution_result/{conversation_id}/{execution_id}")
-async def fetch_execution_result(conversation_id: str, execution_id: str, user: dict = Depends(get_current_user)):
+async def fetch_execution_result(
+    conversation_id: ConversationId,
+    execution_id: str,
+    user: dict = Depends(get_current_user),
+):
     """
     Get full query execution results (columns and rows) for an inline table.
 
@@ -695,7 +710,7 @@ async def get_all_user_conversations(user: dict = Depends(get_current_user)):
 
 
 @router.delete("/delete_conversation/{conversation_id}")
-async def delete_conversation(conversation_id: str, user: dict = Depends(get_current_user)):
+async def delete_conversation(conversation_id: ConversationId, user: dict = Depends(get_current_user)):
     """
     Delete a conversation and all its associated messages.
 
@@ -728,7 +743,7 @@ async def delete_conversation(conversation_id: str, user: dict = Depends(get_cur
 
 @router.patch("/rename_conversation/{conversation_id}")
 async def rename_conversation(
-    conversation_id: str,
+    conversation_id: ConversationId,
     data: RenameConversationRequest,
     user: dict = Depends(get_current_user),
 ):

@@ -584,8 +584,7 @@ async def _execute_tool(
 
         from service.firestore.firestore_service import store_execution_result
 
-        thread_id = cfg.get("thread_id", "")
-        conversation_id = thread_id.rsplit(":", 1)[-1]
+        conversation_id = cfg.get("conversation_id")
 
         execution_id = str(uuid.uuid4())
         parsed["execution_id"] = execution_id
@@ -678,8 +677,7 @@ async def analyze_query_result(
         from langgraph_orchestration.result_analysis import analyze_execution_result
         from service.firestore.firestore_service import get_execution_result
 
-        thread_id = _cfg(config).get("thread_id", "")
-        conversation_id = thread_id.rsplit(":", 1)[-1]
+        conversation_id = _cfg(config).get("conversation_id")
         if not conversation_id:
             return {"success": False, "error": "Conversation id is unavailable"}
         execution = get_execution_result(conversation_id, validated["execution_id"])
@@ -1273,11 +1271,7 @@ async def retrieve_memory(query: str, *, config: RunnableConfig) -> str:
     """
     tool_name = "retrieve_memory"
     cfg = _cfg(config)
-    # Thread ID is namespaced like "<namespace>:<conversation_id>"; strip
-    # the namespace prefix to recover the raw conversation_id the VAMP
-    # service expects. Same extraction pattern as `analyze_query_result`.
-    thread_id = cfg.get("thread_id", "")
-    conversation_id = thread_id.rsplit(":", 1)[-1]
+    conversation_id = cfg.get("conversation_id")
     model_id = cfg.get("model")
 
     def _executor(validated, uid, db_cfg, mx):

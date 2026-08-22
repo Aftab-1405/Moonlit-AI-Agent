@@ -15,11 +15,20 @@ from __future__ import annotations
 import pytest
 
 
+CANONICAL_CONVERSATION_ID = "123e4567-e89b-42d3-a456-426614174000"
+
+
 @pytest.mark.parametrize(
     ("request_model", "payload"),
     [
         ("ChatRequest", {"prompt": "hello"}),
-        ("AgentResumeRequest", {"conversation_id": "conv-123", "resume": {"action": "continue"}}),
+        (
+            "AgentResumeRequest",
+            {
+                "conversation_id": CANONICAL_CONVERSATION_ID,
+                "resume": {"action": "continue"},
+            },
+        ),
         ("RenameConversationRequest", {"title": "Renamed conversation"}),
         ("ConnectDBRequest", {"db_type": "postgresql"}),
         ("SwitchDatabaseRequest", {"database": "analytics"}),
@@ -98,7 +107,7 @@ class TestAgentResumeRequest:
         from api_contract.conversations import AgentResumeRequest
 
         req = AgentResumeRequest(
-            conversation_id="conv-123",
+            conversation_id=CANONICAL_CONVERSATION_ID,
             resume={"action": "continue"},
         )
         assert req.resume == {"action": "continue"}
@@ -110,7 +119,7 @@ class TestAgentResumeRequest:
         from api_contract.conversations import AgentResumeRequest
 
         with pytest.raises(ValidationError):
-            AgentResumeRequest(conversation_id="conv-123", resume={})
+            AgentResumeRequest(conversation_id=CANONICAL_CONVERSATION_ID, resume={})
 
     def test_rejects_too_many_keys(self) -> None:
         """Reject a resume dict with more than 64 top-level keys."""
@@ -121,7 +130,10 @@ class TestAgentResumeRequest:
         # 65 keys exceeds the max_length=64 cap.
         payload = {f"k{i}": i for i in range(65)}
         with pytest.raises(ValidationError):
-            AgentResumeRequest(conversation_id="conv-123", resume=payload)
+            AgentResumeRequest(
+                conversation_id=CANONICAL_CONVERSATION_ID,
+                resume=payload,
+            )
 
     def test_rejects_oversized_serialized_payload(self) -> None:
         """Reject a resume payload whose JSON serialization exceeds 64 KiB."""
@@ -133,7 +145,10 @@ class TestAgentResumeRequest:
         # serialized cap.
         payload = {"big": "x" * (100 * 1024)}
         with pytest.raises(ValidationError):
-            AgentResumeRequest(conversation_id="conv-123", resume=payload)
+            AgentResumeRequest(
+                conversation_id=CANONICAL_CONVERSATION_ID,
+                resume=payload,
+            )
 
     def test_requires_conversation_id(self) -> None:
         """Reject a request missing the required conversation_id field."""
@@ -143,6 +158,54 @@ class TestAgentResumeRequest:
 
         with pytest.raises(ValidationError):
             AgentResumeRequest(resume={"action": "continue"})
+
+
+@pytest.mark.parametrize(
+    "conversation_id",
+    [
+        "legacy-conversation-id",
+        "tenant:123e4567-e89b-42d3-a456-426614174000",
+        "tenant/123e4567-e89b-42d3-a456-426614174000",
+        "123E4567-E89B-42D3-A456-426614174000",
+        "123e4567e89b42d3a456426614174000",
+        "123e4567-e89b-12d3-a456-426614174000",
+        "",
+        "not-a-uuid",
+    ],
+)
+def test_conversation_request_models_reject_noncanonical_uuid4(
+    conversation_id: str,
+) -> None:
+    """Reject every client conversation ID outside canonical lowercase UUIDv4."""
+    from pydantic import ValidationError
+
+    from api_contract.conversations import AgentResumeRequest, ChatRequest
+
+    with pytest.raises(ValidationError):
+        ChatRequest(prompt="hello", conversation_id=conversation_id)
+
+    with pytest.raises(ValidationError):
+        AgentResumeRequest(
+            conversation_id=conversation_id,
+            resume={"action": "continue"},
+        )
+
+
+def test_conversation_request_models_accept_canonical_uuid4() -> None:
+    """Accept the one canonical lowercase UUIDv4 representation."""
+    from api_contract.conversations import AgentResumeRequest, ChatRequest
+
+    chat = ChatRequest(
+        prompt="hello",
+        conversation_id=CANONICAL_CONVERSATION_ID,
+    )
+    resume = AgentResumeRequest(
+        conversation_id=CANONICAL_CONVERSATION_ID,
+        resume={"action": "continue"},
+    )
+
+    assert chat.conversation_id == CANONICAL_CONVERSATION_ID
+    assert resume.conversation_id == CANONICAL_CONVERSATION_ID
 
 
 class TestConnectDBRequest:

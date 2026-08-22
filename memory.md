@@ -4,6 +4,15 @@ Last updated: 2026-08-22
 
 ## Remediation decision log
 
+### 2026-08-22 — Remediation Phase 2 / Task 5 canonical conversation identity checkpoint
+
+- Conversation identity is now server-owned and structurally typed. `validate_conversation_id()` plus the shared `ConversationId` accept only canonical lowercase, hyphenated UUIDv4 values for optional chat IDs, required resume IDs, and every conversation route path parameter. A chat body that omits the ID is the sole creation path; `ConversationService.create_conversation_id()` mints it, and the old client pass-through helper is deleted.
+- `_handle_agent_stream()` preserves model authorization as the first admission gate. Supplied chat IDs and every resume ID then require existing ownership before quota, rate limiting, or stream construction: missing is 404, unowned is 403. New chats skip the ownership read. Exact event-order regressions cover new, owned, missing chat, missing resume, and unowned paths while replacing only persistence/quota/model-stream boundaries.
+- LangGraph configurable state now carries both the namespaced `thread_id` used by the checkpointer and the direct `conversation_id` used by artifacts. Execute-query persistence, query analysis, and VAMP retrieval consume only the direct field. Tests deliberately pass `account:region:<different-id>` as `thread_id` and assert all three production consumers receive the exact configured canonical ID.
+- TDD evidence: the exact RED command reported `21 failed, 37 passed, 3 warnings in 1.52s`; focused GREEN reported `58 passed, 3 warnings in 1.43s`; the prescribed stream regression reported `74 passed, 3 warnings in 1.29s`; and exact Ruff reported `All checks passed!`. Searches for `create_or_get_conversation_id` and exact `rsplit(":", 1)` returned no active backend matches.
+- Frontend verification was read-only: new IDs originate in the response `X-Conversation-Id`; history IDs originate in server list/detail responses and become current only after a successful load; continuation/resume payloads forward that current value. No frontend conversation-ID generator was found, and no frontend file was edited or staged.
+- Full backend verification reported `1 failed, 303 passed, 3 warnings in 7.49s`. The sole failure is the pre-existing concurrent skill edit removing required `when_to_use` frontmatter from `back-end/skills/react-flow-diagram/SKILL.md`; `HEAD` still contains it. That excluded file and all frontend changes remain untouched. No live services, deployment, migration, dependency, push, or merge work was performed. Phase 2 remains active and Task 6+ work remains incomplete.
+
 ### 2026-08-22 — Remediation Phase 2 / Task 4 authenticated database-context checkpoint
 
 - Cached DB state is no longer a public route authentication source. `_get_cached_db_config()` remains the private state/persistence reader; `get_authenticated_db_config()` first resolves `get_current_user`, then reads or refreshes cached state; and `require_authenticated_db_config()` preserves the existing no-config `400` response. The old public `get_db_config` and `require_db_config` dependency names were deleted without aliases.
@@ -506,12 +515,12 @@ Exit gate: clean locked builds are reproducible; unit/integration/contract/load 
 ### [CONTRACT-006] Conversation IDs are loosely validated and later parsed from a composite thread string
 
 - Severity: Medium
-- Classification: verified contract defect
-- Evidence: `ChatRequest`/`AgentResumeRequest` bound only conversation-ID length. Probes accepted `team:quarterly`, `segment/child`, and arbitrary non-UUID IDs. Tools derive the ID using `thread_id.rsplit(":", 1)[-1]` (`tools.py:587-588,681-682,1279-1280`), so `user:team:quarterly` becomes `quarterly`. `_handle_agent_stream()` also ignores a `False` ownership result to support new chat creation, which lets resume requests for nonexistent IDs proceed into quota/orchestration instead of returning 404.
+- Classification: remediated contract defect
+- Original evidence: `ChatRequest`/`AgentResumeRequest` bound only conversation-ID length. Probes accepted `team:quarterly`, `segment/child`, and arbitrary non-UUID IDs. Tools derived the ID using `thread_id.rsplit(":", 1)[-1]`, so `user:team:quarterly` became `quarterly`. `_handle_agent_stream()` also ignored a `False` ownership result to support new chat creation, which let resume requests for nonexistent IDs proceed into quota/orchestration instead of returning 404.
 - Impact: colon-bearing IDs persist query artifacts under the wrong conversation and make returned execution IDs unretrievable; slash-bearing IDs fail at Firestore path construction as a 500; nonexistent resume requests consume resources and fail late. The client/server contract does not state whether IDs are opaque, client-selectable, or UUIDs.
 - Root cause: creation and continuation share one ambiguous path, and structured run identity is flattened into a delimiter-encoded string then reparsed.
-- Remediation: make new-conversation creation server-owned, validate supplied IDs as UUIDs (or a deliberately defined safe opaque format), require existing ownership for continuation/resume, and carry `conversation_id` as a separate typed config field rather than parsing `thread_id`.
-- Validation: request tests for valid/new/owned/unowned/missing IDs and delimiter/path characters; artifact persistence must use exactly the original typed conversation ID.
+- Remediation evidence (2026-08-22): new-conversation creation is server-owned through `create_conversation_id()`; the shared `ConversationId` requires canonical UUIDv4 on bodies and paths; supplied chat/resume IDs require existing ownership before quota; and the three artifact consumers use direct `configurable.conversation_id`. No compatibility path or delimiter parsing remains.
+- Validation: RED was `21 failed, 37 passed`; GREEN was `58 passed`; the prescribed stream regression was `74 passed`; exact Ruff passed. Tests cover valid/new/owned/unowned/missing IDs, delimiter/path/noncanonical/UUIDv1 values, and exact direct-ID use for query persistence, analysis, and VAMP retrieval. Both obsolete-symbol searches return zero active backend matches.
 
 ### [STREAM-003] Chat streaming has no request idempotency or event replay contract
 

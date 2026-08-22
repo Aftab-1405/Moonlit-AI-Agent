@@ -912,6 +912,7 @@ async def stream_conversation(
         config = {
             "configurable": {
                 "thread_id": namespaced_thread_id,
+                "conversation_id": conversation_id,
                 "user_id": user_id,
                 "db_config": db_config,
                 "max_rows": max_rows,
