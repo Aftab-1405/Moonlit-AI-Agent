@@ -31,6 +31,7 @@ class TestClassifyDbError:
             ('relation "users" does not exist', "table_not_found"),
             ("table or view does not exist", "table_not_found"),
             ("unknown table 'foo'", "table_not_found"),
+            ("Unknown column 'x' in 'field list'", "column_not_found"),
             ('column "foo" does not exist', "column_not_found"),
             ("invalid column name 'foo'", "column_not_found"),
             ("permission denied for table users", "permission_denied"),
@@ -132,6 +133,10 @@ class TestPublicError:
             ),
             (
                 'column "salary" does not exist at host=private-db.internal',
+                ("DB_COLUMN_NOT_FOUND", "The requested column was not found."),
+            ),
+            (
+                "Unknown column 'x' in 'field list'",
                 ("DB_COLUMN_NOT_FOUND", "The requested column was not found."),
             ),
             (

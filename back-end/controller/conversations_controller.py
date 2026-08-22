@@ -90,8 +90,8 @@ def _firestore_unavailable_response(exc: Exception) -> HTTPException:
     return HTTPException(
         status_code=503,
         detail={
-            "error": "firestore_unavailable",
-            "message": "Conversation storage is temporarily unavailable. Please retry.",
+            "error": public.code,
+            "message": public.message,
         },
         headers={"Retry-After": "2"},
     )

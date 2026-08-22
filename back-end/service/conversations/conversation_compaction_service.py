@@ -9,7 +9,7 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
-from core.errors import log_safe_exception, public_tool_error
+from core.errors import log_safe_exception, public_error_for_code, public_tool_error
 
 logger = logging.getLogger(__name__)
 
@@ -277,12 +277,8 @@ def _summarize_tool_result(tool_name: str, result, status: str) -> str:
     input. Handles common structured result shapes from Moonlit's tool set.
     """
     if status == "error":
-        if isinstance(result, dict) and result.get("error_code") and result.get("error"):
-            return f"ERROR [{result['error_code']}] — {result['error']}"
-        public = public_tool_error(
-            "TOOL_EXECUTION_FAILED",
-            "Tool execution failed.",
-        )
+        code = result.get("error_code") if isinstance(result, dict) else None
+        public = public_error_for_code(code)
         return f"ERROR [{public.code}] — {public.message}"
 
     if not isinstance(result, dict):

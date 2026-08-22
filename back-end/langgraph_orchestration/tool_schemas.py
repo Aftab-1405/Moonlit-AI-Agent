@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from core.errors import log_safe_exception, public_tool_error
+from core.errors import log_safe_exception, public_error_for_code, public_tool_error
 
 logger = logging.getLogger(__name__)
 
@@ -460,16 +460,7 @@ def structure_tool_result(tool_name: str, raw_result: Dict[str, Any]) -> Dict[st
     """
     # Handle errors uniformly
     if "error" in raw_result:
-        if raw_result.get("error_code"):
-            return {
-                "success": False,
-                "error_code": raw_result["error_code"],
-                "error": raw_result["error"],
-            }
-        public = public_tool_error(
-            "TOOL_EXECUTION_FAILED",
-            "Tool execution failed.",
-        )
+        public = public_error_for_code(raw_result.get("error_code"))
         return {
             "success": False,
             "error_code": public.code,

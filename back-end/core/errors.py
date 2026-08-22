@@ -35,7 +35,8 @@ _MAX_SANITIZED_LEN: int = 280
 #: message. First match wins. Order matters — more specific patterns first.
 _ERROR_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\b(table|view|relation).*does not exist\b"), "table_not_found"),
-    (re.compile(r"\bunknown (table|view|column)\b"), "table_not_found"),
+    (re.compile(r"\bunknown (table|view)\b"), "table_not_found"),
+    (re.compile(r"\bunknown column\b"), "column_not_found"),
     (re.compile(r"\binvalid column name\b"), "column_not_found"),
     (re.compile(r"\bcolumn .* does not exist\b"), "column_not_found"),
     (re.compile(r"\bunrecognized column\b"), "column_not_found"),
@@ -177,6 +178,33 @@ _PUBLIC_DB_ERRORS = {
     "unknown": PublicError("DB_OPERATION_FAILED", "Database operation failed."),
 }
 
+_DEFAULT_PUBLIC_ERROR = PublicError("TOOL_EXECUTION_FAILED", "Tool execution failed.")
+
+# Codes accepted from persisted/tool result dictionaries. Messages paired with
+# those dictionaries are untrusted and must never cross a public or model
+# boundary. Add a code here only with its canonical, context-free safe message.
+_PUBLIC_ERRORS_BY_CODE = {
+    public.code: public
+    for public in (
+        *_PUBLIC_DB_ERRORS.values(),
+        _DEFAULT_PUBLIC_ERROR,
+        PublicError("DB_HOST_RESOLUTION_FAILED", "Database host could not be resolved."),
+        PublicError("DB_HOST_VALIDATION_FAILED", "Database host validation failed."),
+        PublicError("DB_CONNECTION_STRING_INVALID", "Database connection string is invalid."),
+        PublicError("TOOL_ARGUMENT_INVALID", "Tool arguments are invalid."),
+        PublicError("TOOL_BUDGET_EXCEEDED", "Tool call budget exceeded."),
+        PublicError("TOOL_LOOP_DETECTED", "Repeated tool call stopped."),
+        PublicError("TOOL_TIMEOUT", "Tool execution timed out."),
+        PublicError("TOOL_RESULT_INVALID", "Tool result could not be structured."),
+        PublicError("TOOL_RESULT_PERSISTENCE_FAILED", "Tool result persistence failed."),
+        PublicError("WEB_SEARCH_TIMEOUT", "Web search timed out."),
+        PublicError("WEB_SEARCH_FAILED", "Web search failed."),
+        PublicError("MEMORY_CONTEXT_UNAVAILABLE", "Memory context is unavailable."),
+        PublicError("MEMORY_ACCESS_DENIED", "Memory access denied."),
+        PublicError("MEMORY_RETRIEVAL_FAILED", "Memory retrieval failed."),
+    )
+}
+
 
 def sanitize_error_message(message: str, *, max_length: int = _MAX_SANITIZED_LEN) -> str:
     """Return a PII-safe, length-capped version of ``message``.
@@ -220,6 +248,13 @@ def public_database_error(exc: BaseException) -> PublicError:
     return _PUBLIC_DB_ERRORS[category]
 
 
+def public_error_for_code(code: object) -> PublicError:
+    """Resolve an untrusted code to its canonical safe public error."""
+    if not isinstance(code, str):
+        return _DEFAULT_PUBLIC_ERROR
+    return _PUBLIC_ERRORS_BY_CODE.get(code, _DEFAULT_PUBLIC_ERROR)
+
+
 def public_tool_error(code: str, message: str) -> PublicError:
     """Build an explicitly selected stable tool/provider error."""
     return PublicError(code=code, message=message)
@@ -250,6 +285,7 @@ __all__ = [
     "classify_db_error",
     "log_safe_exception",
     "public_database_error",
+    "public_error_for_code",
     "public_tool_error",
     "sanitize_error_message",
     "sanitize_exception",

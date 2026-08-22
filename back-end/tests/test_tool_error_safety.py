@@ -374,6 +374,41 @@ def test_structuring_failure_is_a_stable_failure_not_success_with_raw_detail() -
     _assert_secret_absent(result)
 
 
+@pytest.mark.parametrize(
+    "error_code,expected",
+    [
+        (
+            "DB_TIMEOUT",
+            {
+                "success": False,
+                "error_code": "DB_TIMEOUT",
+                "error": "Database operation timed out.",
+            },
+        ),
+        (
+            "FUTURE_FORGED_CODE",
+            {
+                "success": False,
+                "error_code": "TOOL_EXECUTION_FAILED",
+                "error": "Tool execution failed.",
+            },
+        ),
+    ],
+)
+def test_structuring_error_resolves_only_canonical_code_messages(
+    error_code: str,
+    expected: dict,
+) -> None:
+    """Tool output must discard paired text even when the supplied code looks valid."""
+    result = structure_tool_result(
+        "execute_query",
+        {"error_code": error_code, "error": RAW_SECRET},
+    )
+
+    assert result == expected
+    _assert_secret_absent(result)
+
+
 def test_compaction_error_summary_rejects_legacy_raw_fallback() -> None:
     """Persisted legacy error text must not be copied into a future model prompt."""
     assert _summarize_tool_result(
@@ -385,10 +420,18 @@ def test_compaction_error_summary_rejects_legacy_raw_fallback() -> None:
         "execute_query",
         {
             "error_code": "DB_TIMEOUT",
-            "error": "Database operation timed out.",
+            "error": RAW_SECRET,
         },
         "error",
     ) == "ERROR [DB_TIMEOUT] — Database operation timed out."
+    assert _summarize_tool_result(
+        "execute_query",
+        {
+            "error_code": "FUTURE_FORGED_CODE",
+            "error": RAW_SECRET,
+        },
+        "error",
+    ) == "ERROR [TOOL_EXECUTION_FAILED] — Tool execution failed."
 
 
 @pytest.mark.asyncio
@@ -951,6 +994,44 @@ async def test_conversation_permission_http_response_uses_common_stable_code(
         "status": "error",
         "error": "CONVERSATION_ACCESS_DENIED",
         "message": "Conversation access denied.",
+        "details": {},
+    }
+    _assert_secret_absent(response.json())
+
+
+@pytest.mark.asyncio
+async def test_conversation_storage_503_uses_canonical_public_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Transient Firestore failures must use the selected public code and message."""
+    import main as main_module
+
+    def unavailable(*_args, **_kwargs):
+        raise conversations_controller.ServiceUnavailable(RAW_SECRET)
+
+    async def current_user():
+        return {"uid": "user-1"}
+
+    monkeypatch.setattr(
+        conversations_controller.ConversationService,
+        "get_conversation_data",
+        unavailable,
+    )
+    app = main_module.create_app()
+    app.dependency_overrides[conversations_controller.get_current_user] = current_user
+    transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.get(
+            "/api/v1/get_conversation/00000000-0000-4000-8000-000000000001",
+        )
+
+    assert response.status_code == 503
+    assert response.headers["retry-after"] == "2"
+    assert response.json() == {
+        "status": "error",
+        "error": "CONVERSATION_STORAGE_UNAVAILABLE",
+        "message": "Conversation storage is temporarily unavailable.",
         "details": {},
     }
     _assert_secret_absent(response.json())
