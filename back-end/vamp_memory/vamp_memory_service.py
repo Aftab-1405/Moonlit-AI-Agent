@@ -48,6 +48,7 @@ import threading
 from typing import Callable
 
 from config import get_config
+from core.errors import log_safe_exception, public_tool_error
 from vamp_memory.bedrock_embedding_provider import (
     DEFAULT_EMBEDDING_MODEL,
     default_embedding_provider,
@@ -70,6 +71,17 @@ _VAMP_MEMORY_SERVICE_SINGLETON = None
 #: instance's Qdrant connection pool (FIX [AUDIT-2-C]).
 _singleton_lock = threading.Lock()
 _vector_store_lock = threading.Lock()
+
+
+def _log_vamp_exception(
+    operation: str,
+    exc: BaseException,
+    *,
+    code: str = "VAMP_OPERATION_FAILED",
+    message: str = "Memory operation failed.",
+) -> None:
+    """Emit correlated, sanitized diagnostics for a VAMP operation."""
+    log_safe_exception(logger, operation, exc, public_tool_error(code, message))
 
 
 def get_vamp_memory_service():
@@ -221,12 +233,11 @@ class VampMemoryService:
             await self.index_summary_block(block)
             return True
         except Exception as exc:
-            logger.warning(
-                "VAMP vector indexing failed for %s/%s: %s",
-                block.get("conversation_id"),
-                block.get("summary_id"),
-                exc,
+            public = public_tool_error(
+                "VAMP_VECTOR_INDEX_FAILED",
+                "Memory vector indexing failed.",
             )
+            log_safe_exception(logger, "index_memory_vectors", exc, public)
             # FIX [H12]: pass `reason=` only — the repository increments
             # `vector_attempts` atomically inside a Firestore transaction.
             mark_failed = getattr(self.summary_repo, "mark_vector_failed", None)
@@ -236,10 +247,15 @@ class VampMemoryService:
                         mark_failed,
                         block["conversation_id"],
                         block["summary_id"],
-                        reason=str(exc),
+                        reason=f"[{public.code}] {public.message}",
                     )
                 except Exception as record_exc:
-                    logger.error("Could not persist vector retry state: %s", record_exc)
+                    _log_vamp_exception(
+                        "persist_vector_retry_state",
+                        record_exc,
+                        code="VAMP_VECTOR_RETRY_SAVE_FAILED",
+                        message="Memory vector retry state could not be saved.",
+                    )
             return False
 
     async def store_summary_block(
@@ -389,12 +405,7 @@ class VampMemoryService:
         indexed_bullets = sum(1 for r in results if r is True)
         for r in results:
             if isinstance(r, Exception):
-                logger.warning(
-                    "Bullet indexing failed for %s/%s: %s",
-                    block.get("conversation_id"),
-                    block.get("summary_id"),
-                    r,
-                )
+                _log_vamp_exception("index_memory_bullet", r)
 
         # FIX [H10]: Distinguish partial indexing from full success.
         # Previously, 0 < indexed_bullets < total_bullets fell through to
@@ -451,13 +462,7 @@ class VampMemoryService:
                 total_bullets=total_bullets,
             )
         except Exception as exc:
-            logger.warning(
-                "Failed to mark %s/%s as %s: %s",
-                block.get("conversation_id"),
-                block.get("summary_id"),
-                status,
-                exc,
-            )
+            _log_vamp_exception("persist_vector_index_status", exc)
 
     async def aclose(self, *, timeout: float = 30.0) -> None:
         """Drain in-flight background index tasks on shutdown.
@@ -549,11 +554,7 @@ class VampMemoryService:
             if asyncio.iscoroutine(vector_hits):
                 vector_hits = await vector_hits
         except Exception as exc:
-            logger.warning(
-                "Vector retrieval unavailable for %s; using recent memory blocks: %s",
-                conversation_id,
-                exc,
-            )
+            _log_vamp_exception("retrieve_memory_vectors", exc)
             return await self._recent_block_fallback(
                 conversation_id,
                 effective_k,
@@ -753,7 +754,7 @@ class VampMemoryService:
                 token_budget=token_budget,
             )
         except Exception as exc:
-            logger.warning("VAMP retrieval failed for %s: %s", conversation_id, exc)
+            _log_vamp_exception("retrieve_memory_context", exc)
             return None
         latest_idx = await _latest_summary_block_idx_for(conversation_id, blocks)
         context = format_historical_context(
@@ -802,11 +803,7 @@ class VampMemoryService:
             # explicit error rather than silently returning "no memories".
             raise
         except Exception as exc:
-            logger.warning(
-                "VAMP retrieve_context_for_query failed for %s: %s",
-                conversation_id,
-                exc,
-            )
+            _log_vamp_exception("retrieve_memory_context_for_query", exc)
             return None
         if not blocks:
             return None
@@ -831,11 +828,7 @@ class VampMemoryService:
                 user_id,
             )
         except Exception as exc:
-            logger.warning(
-                "Failed to delete Qdrant pointers for conversation %s: %s",
-                conversation_id,
-                exc,
-            )
+            _log_vamp_exception("delete_conversation_memory_vectors", exc)
             # The conversation service records a durable cleanup retry only
             # when this port reports failure. Swallowing it leaves orphaned
             # vectors indefinitely after the Firestore conversation is gone.
@@ -863,11 +856,7 @@ async def _latest_summary_block_idx_for(conversation_id: str, blocks: list[dict]
         if latest is not None:
             return int(latest)
     except Exception as exc:
-        logger.warning(
-            "Could not read latest_summary_block_idx for %s; falling back to selected max: %s",
-            conversation_id,
-            exc,
-        )
+        _log_vamp_exception("read_latest_summary_block_index", exc)
     if not blocks:
         return None
     return max(int(b.get("idx", 0) or 0) for b in blocks)

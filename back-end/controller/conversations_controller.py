@@ -48,6 +48,7 @@ from api_contract.conversations import (
     RenameConversationRequest,
 )
 from api_contract.streaming import STREAMING_RESPONSES
+from core.errors import log_safe_exception, public_tool_error
 from dependencies import get_authenticated_db_config, get_current_user
 from service.conversations.conversation_service import ConversationService
 from service.llm import LLMOptionsService
@@ -81,7 +82,11 @@ def _firestore_unavailable_response(exc: Exception) -> HTTPException:
     Returns:
         A FastAPI HTTPException indicating temporary database unavailability with retry headers.
     """
-    logger.warning("Firestore temporarily unavailable: %s", exc)
+    public = public_tool_error(
+        "CONVERSATION_STORAGE_UNAVAILABLE",
+        "Conversation storage is temporarily unavailable.",
+    )
+    log_safe_exception(logger, "conversation_storage", exc, public)
     return HTTPException(
         status_code=503,
         detail={
@@ -235,7 +240,15 @@ async def _handle_agent_stream(
             if not conversation_exists:
                 raise HTTPException(status_code=404, detail="Conversation not found")
         except PermissionError as e:
-            raise HTTPException(status_code=403, detail=str(e))
+            public = public_tool_error(
+                "CONVERSATION_ACCESS_DENIED",
+                "Conversation access denied.",
+            )
+            log_safe_exception(logger, "verify_conversation_owner", e, public)
+            raise HTTPException(
+                status_code=403,
+                detail={"error": public.code, "message": public.message},
+            ) from e
 
     user_quota = request.app.state.user_quota
     quota_allowed, usage = await user_quota.check_and_increment(user_id)
@@ -313,11 +326,11 @@ async def _handle_agent_stream(
                     try:
                         await user_quota.refund(user_id)
                     except Exception as refund_err:
-                        logger.warning(
-                            "Quota refund failed for user %s: %s",
-                            user_id,
-                            refund_err,
+                        public = public_tool_error(
+                            "QUOTA_REFUND_FAILED",
+                            "Quota refund failed.",
                         )
+                        log_safe_exception(logger, "refund_stream_quota", refund_err, public)
                     quota_refunded = True
                 raise
             finally:
@@ -347,9 +360,17 @@ async def _handle_agent_stream(
             try:
                 await user_quota.refund(user_id)
             except Exception as refund_err:
-                logger.warning("Quota refund failed for user %s: %s", user_id, refund_err)
+                public = public_tool_error(
+                    "QUOTA_REFUND_FAILED",
+                    "Quota refund failed.",
+                )
+                log_safe_exception(logger, "refund_agent_quota", refund_err, public)
             quota_refunded = True
-        logger.error("Error streaming agent: %s", e)
+        public = public_tool_error(
+            "AGENT_STREAM_FAILED",
+            "Agent streaming failed.",
+        )
+        log_safe_exception(logger, "stream_agent", e, public)
         if ConversationService.check_quota_error(str(e)):
             raise HTTPException(status_code=429, detail="Rate limit exceeded")
         raise HTTPException(status_code=500, detail="An internal server error occurred.")
@@ -616,17 +637,29 @@ async def get_conversation(conversation_id: ConversationId, user: dict = Depends
             return {"status": "success", "conversation": sanitized_conv}
         raise HTTPException(status_code=404, detail="Conversation not found")
     except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+        public = public_tool_error(
+            "CONVERSATION_ACCESS_DENIED",
+            "Conversation access denied.",
+        )
+        log_safe_exception(logger, "get_conversation_access", e, public)
+        raise HTTPException(
+            status_code=403,
+            detail={"error": public.code, "message": public.message},
+        ) from e
     except _TRANSIENT_FIRESTORE_ERRORS as e:
         raise _firestore_unavailable_response(e)
     except HTTPException:
         raise
-    except Exception:
-        logger.exception("Error fetching conversation")
+    except Exception as exc:
+        public = public_tool_error(
+            "CONVERSATION_FETCH_FAILED",
+            "Conversation retrieval failed.",
+        )
+        log_safe_exception(logger, "get_conversation", exc, public)
         raise HTTPException(
             status_code=500,
             detail="An internal error occurred while fetching conversation.",
-        )
+        ) from exc
 
 
 @router.get("/get_execution_result/{conversation_id}/{execution_id}")
@@ -682,14 +715,26 @@ async def fetch_execution_result(
         }
         return {"status": "success", "data": sanitized_result}
     except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+        public = public_tool_error(
+            "CONVERSATION_ACCESS_DENIED",
+            "Conversation access denied.",
+        )
+        log_safe_exception(logger, "get_execution_result_access", e, public)
+        raise HTTPException(
+            status_code=403,
+            detail={"error": public.code, "message": public.message},
+        ) from e
     except _TRANSIENT_FIRESTORE_ERRORS as e:
         raise _firestore_unavailable_response(e)
     except HTTPException:
         raise
-    except Exception:
-        logger.exception("Error fetching execution result")
-        raise HTTPException(status_code=500, detail="An internal error occurred.")
+    except Exception as exc:
+        public = public_tool_error(
+            "EXECUTION_RESULT_FETCH_FAILED",
+            "Execution result retrieval failed.",
+        )
+        log_safe_exception(logger, "get_execution_result", exc, public)
+        raise HTTPException(status_code=500, detail="An internal error occurred.") from exc
 
 
 @router.get("/get_all_user_conversations")
@@ -730,15 +775,35 @@ async def delete_conversation(conversation_id: ConversationId, user: dict = Depe
         await run_in_threadpool(ConversationService.delete_user_conversation, conversation_id, user_id)
         return {"status": "success"}
     except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+        public = public_tool_error(
+            "CONVERSATION_ACCESS_DENIED",
+            "Conversation access denied.",
+        )
+        log_safe_exception(logger, "delete_conversation_access", e, public)
+        raise HTTPException(
+            status_code=403,
+            detail={"error": public.code, "message": public.message},
+        ) from e
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        public = public_tool_error(
+            "CONVERSATION_NOT_FOUND",
+            "Conversation not found.",
+        )
+        log_safe_exception(logger, "delete_conversation_missing", e, public)
+        raise HTTPException(
+            status_code=404,
+            detail={"error": public.code, "message": public.message},
+        ) from e
     except Exception as e:
-        logger.error("Error deleting conversation: %s", e)
+        public = public_tool_error(
+            "CONVERSATION_DELETE_FAILED",
+            "Conversation deletion failed.",
+        )
+        log_safe_exception(logger, "delete_conversation", e, public)
         raise HTTPException(
             status_code=500,
             detail="An internal error occurred while deleting conversation.",
-        )
+        ) from e
 
 
 @router.patch("/rename_conversation/{conversation_id}")
@@ -772,12 +837,32 @@ async def rename_conversation(
         )
         return {"status": "success", "title": title}
     except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+        public = public_tool_error(
+            "CONVERSATION_ACCESS_DENIED",
+            "Conversation access denied.",
+        )
+        log_safe_exception(logger, "rename_conversation_access", e, public)
+        raise HTTPException(
+            status_code=403,
+            detail={"error": public.code, "message": public.message},
+        ) from e
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        public = public_tool_error(
+            "CONVERSATION_NOT_FOUND",
+            "Conversation not found.",
+        )
+        log_safe_exception(logger, "rename_conversation_missing", e, public)
+        raise HTTPException(
+            status_code=404,
+            detail={"error": public.code, "message": public.message},
+        ) from e
     except Exception as e:
-        logger.error("Error renaming conversation: %s", e)
+        public = public_tool_error(
+            "CONVERSATION_RENAME_FAILED",
+            "Conversation rename failed.",
+        )
+        log_safe_exception(logger, "rename_conversation", e, public)
         raise HTTPException(
             status_code=500,
             detail="An internal error occurred while renaming conversation.",
-        )
+        ) from e

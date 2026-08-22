@@ -54,6 +54,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from langgraph.types import interrupt
 
+from core.errors import log_safe_exception, public_tool_error
 from langgraph_orchestration.tool_executor import ToolExecutor
 from service.database.ai_tool_executor import AIToolExecutor as DBTools
 
@@ -258,8 +259,12 @@ def _emit_ui_action_tool(
     try:
         validated = ToolExecutor.validate_and_parse_args(tool_name, raw_args)
     except ValueError as e:
-        # Prevent crash, return error to LLM
-        return f"Tool Argument Validation Error: {str(e)}. Please correct your arguments and try again."
+        public = public_tool_error(
+            "TOOL_ARGUMENT_INVALID",
+            "Tool arguments are invalid.",
+        )
+        log_safe_exception(logger, f"validate_{tool_name}_arguments", e, public)
+        return f"[{public.code}] {public.message} Please correct the arguments and try again."
     writer = _try_writer()
     enriched_payload = _with_ui_metadata(
         tool_name,
@@ -347,6 +352,7 @@ def _check_tool_budget_and_loop(
     if total_calls > MAX_TOOL_CALLS_PER_TURN:
         budget_result = {
             "success": False,
+            "error_code": "TOOL_BUDGET_EXCEEDED",
             "error": (
                 f"Tool call budget exhausted ({MAX_TOOL_CALLS_PER_TURN} "
                 "calls this turn). Stop calling tools and answer the user "
@@ -388,6 +394,7 @@ def _check_tool_budget_and_loop(
     if call_count > TOOL_LOOP_MAX_IDENTICAL_CALLS and tool_name not in CACHEABLE_TOOLS:
         loop_result = {
             "success": False,
+            "error_code": "TOOL_LOOP_DETECTED",
             "error": (
                 f"Tool '{tool_name}' has been called {call_count} times "
                 "with the same arguments. Stop repeating this call; "
@@ -473,7 +480,12 @@ async def _execute_tool(
     try:
         validated = ToolExecutor.validate_and_parse_args(tool_name, raw_args)
     except ValueError as e:
-        return f"Tool Argument Validation Error: {str(e)}. Please correct your arguments and try again."
+        public = public_tool_error(
+            "TOOL_ARGUMENT_INVALID",
+            "Tool arguments are invalid.",
+        )
+        log_safe_exception(logger, f"validate_{tool_name}_arguments", e, public)
+        return f"[{public.code}] {public.message} Please correct the arguments and try again."
 
     # 2. Display args (show effective max_rows for execute_query)
     display_args = dict(validated)
@@ -535,6 +547,7 @@ async def _execute_tool(
             )
             result = {
                 "success": False,
+                "error_code": "TOOL_TIMEOUT",
                 "error": f"{tool_name} timed out after {timeout}s",
             }
             writer(
@@ -552,10 +565,15 @@ async def _execute_tool(
                 "success.\n</tool_execution_error>"
             )
         except Exception as exc:
-            logger.exception("%s execution failed", tool_name)
+            public = public_tool_error(
+                "TOOL_EXECUTION_FAILED",
+                "Tool execution failed.",
+            )
+            log_safe_exception(logger, f"execute_{tool_name}", exc, public)
             result = {
                 "success": False,
-                "error": str(exc)[:500] or exc.__class__.__name__,
+                "error_code": public.code,
+                "error": public.message,
             }
             writer(
                 {
@@ -567,8 +585,8 @@ async def _execute_tool(
             )
             return (
                 "<tool_execution_error>\n"
-                f"{tool_name} failed and produced no usable evidence: "
-                f"{result['error']}. Correct the call and retry once only if a "
+                f"[{public.code}] {public.message} The {tool_name} call produced "
+                "no usable evidence. Correct the call and retry once only if a "
                 "clear fix exists; otherwise report the failure. Do not claim "
                 "success.\n</tool_execution_error>"
             )
@@ -595,7 +613,11 @@ async def _execute_tool(
                 # Save just the result rows and columns, not the whole payload if we don't want, but whole payload is fine.
                 store_execution_result(conversation_id, execution_id, parsed)
             except Exception as e:
-                logger.error(f"Failed to store execution result: {e}")
+                public = public_tool_error(
+                    "TOOL_RESULT_PERSISTENCE_FAILED",
+                    "Tool result persistence failed.",
+                )
+                log_safe_exception(logger, "store_execution_result", e, public)
     ui_result, llm_summary = ToolExecutor.summarize(
         tool_name,
         parsed,
@@ -949,6 +971,7 @@ async def web_search(query: str, *, config: RunnableConfig) -> str:
             parsed = {
                 "success": False,
                 "query": query,
+                "error_code": "WEB_SEARCH_TIMEOUT",
                 "error": "Web search timed out after 20s",
                 "count": 0,
                 "results": [],
@@ -997,11 +1020,16 @@ async def web_search(query: str, *, config: RunnableConfig) -> str:
                 "results": [],
             }
     except Exception as e:
-        logger.error("web_search failed: %s", e)
+        public = public_tool_error(
+            "WEB_SEARCH_FAILED",
+            "Web search failed.",
+        )
+        log_safe_exception(logger, "web_search", e, public)
         parsed = {
             "success": False,
             "query": query,
-            "error": str(e),
+            "error_code": public.code,
+            "error": public.message,
             "count": 0,
             "results": [],
         }
@@ -1123,7 +1151,12 @@ def navigate_new_chat(
     except Exception as e:
         # FIX [M8]: Mirror _emit_ui_action_tool's error contract so a
         # validation failure here is recoverable.
-        return f"Tool Argument Validation Error: {e}. Please correct your arguments and try again."
+        public = public_tool_error(
+            "TOOL_ARGUMENT_INVALID",
+            "Tool arguments are invalid.",
+        )
+        log_safe_exception(logger, f"validate_{tool_name}_arguments", e, public)
+        return f"[{public.code}] {public.message} Please correct the arguments and try again."
     decision = interrupt(
         _guided_interrupt_payload(
             tool_name,
@@ -1196,10 +1229,15 @@ def get_query_history(*, config: RunnableConfig) -> str:
     try:
         queries = DBTools._get_query_history(uid)
     except Exception as exc:
-        logger.exception("%s execution failed", tool_name)
+        public = public_tool_error(
+            "TOOL_EXECUTION_FAILED",
+            "Tool execution failed.",
+        )
+        log_safe_exception(logger, f"execute_{tool_name}", exc, public)
         result = {
             "success": False,
-            "error": str(exc)[:500] or exc.__class__.__name__,
+            "error_code": public.code,
+            "error": public.message,
         }
         writer(
             {
@@ -1210,8 +1248,8 @@ def get_query_history(*, config: RunnableConfig) -> str:
             }
         )
         return (
-            "<tool_execution_error>Query history could not be retrieved: "
-            f"{result['error']}. Do not claim that history was loaded."
+            f"<tool_execution_error>[{public.code}] {public.message} "
+            "Query history could not be retrieved. Do not claim that history was loaded."
             "</tool_execution_error>"
         )
 
@@ -1285,6 +1323,7 @@ async def retrieve_memory(query: str, *, config: RunnableConfig) -> str:
         if not conversation_id:
             return {
                 "success": False,
+                "error_code": "MEMORY_CONTEXT_UNAVAILABLE",
                 "error": "No active conversation; cannot retrieve memory.",
                 "memories": "",
                 "found": False,
@@ -1299,21 +1338,28 @@ async def retrieve_memory(query: str, *, config: RunnableConfig) -> str:
                 )
             )
         except PermissionError as exc:
+            public = public_tool_error(
+                "MEMORY_ACCESS_DENIED",
+                "Memory access denied.",
+            )
+            log_safe_exception(logger, "retrieve_memory", exc, public)
             return {
                 "success": False,
-                "error": f"Ownership check failed: {exc}",
+                "error_code": public.code,
+                "error": public.message,
                 "memories": "",
                 "found": False,
             }
         except Exception as exc:
-            logger.warning(
-                "retrieve_memory failed for conversation %s: %s",
-                conversation_id,
-                exc,
+            public = public_tool_error(
+                "MEMORY_RETRIEVAL_FAILED",
+                "Memory retrieval failed.",
             )
+            log_safe_exception(logger, "retrieve_memory", exc, public)
             return {
                 "success": False,
-                "error": str(exc)[:500] or exc.__class__.__name__,
+                "error_code": public.code,
+                "error": public.message,
                 "memories": "",
                 "found": False,
             }

@@ -15,6 +15,7 @@ from api_contract.context import (
     SaveUserSettingsRequest,
     SessionActiveRequest,
 )
+from core.errors import log_safe_exception, public_tool_error
 from dependencies import (
     _expire_db_config,
     get_current_user,
@@ -252,8 +253,16 @@ async def get_redis_info() -> dict:
             "total_data_size_human": info.get("total_data_size_human"),
         }
     except Exception as e:
-        logger.error("Error fetching redis info: %s", e)
-        return {"connected": False, "error": str(e)}
+        public = public_tool_error(
+            "REDIS_INFO_FAILED",
+            "Redis information is unavailable.",
+        )
+        log_safe_exception(logger, "get_redis_info", e, public)
+        return {
+            "connected": False,
+            "error_code": public.code,
+            "error": public.message,
+        }
 
 
 @router.get("/context/metrics")

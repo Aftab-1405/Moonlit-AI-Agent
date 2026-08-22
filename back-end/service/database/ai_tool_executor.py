@@ -26,7 +26,26 @@ import re
 from contextlib import contextmanager
 from typing import Dict, List, Optional
 
+from core.errors import log_safe_exception, public_database_error, public_tool_error
+
 logger = logging.getLogger(__name__)
+
+
+def _database_failure(operation: str, exc: BaseException, *, status_style: bool = False) -> Dict:
+    """Return the established executor error shape with stable public detail."""
+    public = public_database_error(exc)
+    log_safe_exception(logger, operation, exc, public)
+    if status_style:
+        return {
+            "status": "error",
+            "error_code": public.code,
+            "message": public.message,
+        }
+    return {
+        "success": False,
+        "error_code": public.code,
+        "error": public.message,
+    }
 
 
 # CONNECTION HELPER (Reusable for all tools)
@@ -127,7 +146,8 @@ class AIToolExecutor:
                     "count": len(databases),
                 }
             except Exception as e:
-                logger.warning(f"Failed to query databases: {e}")
+                public = public_database_error(e)
+                log_safe_exception(logger, "query_databases", e, public)
         current_db = connection.get("database")
         return {
             "databases": [current_db] if current_db else [],
@@ -306,10 +326,15 @@ class AIToolExecutor:
                     "truncated": result.get("truncated", False),
                 }
             else:
-                return {"error": result.get("message", "Query execution failed")}
+                return {
+                    "success": False,
+                    "error_code": result.get("error_code", "DB_OPERATION_FAILED"),
+                    "error": result.get("message", "Database operation failed."),
+                }
 
         except Exception as e:
-            logger.error(f"Error executing query: {e}")
+            public = public_database_error(e)
+            log_safe_exception(logger, "execute_query", e, public)
 
             # FIX [EC5]: mirror the missing-table cache-clear logic from
             # ``_execute_query_with_db_config`` here too, since this
@@ -336,17 +361,26 @@ class AIToolExecutor:
                     if _db_for_clear:
                         ContextService.clear_schema_context(user_id, _db_for_clear)
                         logger.info(
-                            "Cleared schema cache for %s after missing-table error (outer): %s",
+                            "Cleared schema cache for %s after missing-table error (outer)",
                             _db_for_clear,
-                            str(e)[:200],
                         )
             except Exception as clear_err:
-                logger.debug(
-                    "Schema cache clear on missing-table error failed (outer, non-blocking): %s",
+                clear_public = public_tool_error(
+                    "SCHEMA_CACHE_CLEAR_FAILED",
+                    "Schema cache cleanup failed.",
+                )
+                log_safe_exception(
+                    logger,
+                    "clear_schema_cache_after_query_failure",
                     clear_err,
+                    clear_public,
                 )
 
-            return {"error": str(e)}
+            return {
+                "success": False,
+                "error_code": public.code,
+                "error": public.message,
+            }
 
     @staticmethod
     def _execute_query_with_db_config(db_config: Dict, connection: Dict, query: str, max_rows: int) -> Dict:
@@ -433,10 +467,12 @@ class AIToolExecutor:
                         cursor.execute(adapter.get_health_check_sql())
                         cursor.fetchone()
                     except Exception as health_err:
-                        logger.warning(
-                            "AI-tool pre-query health check failed for %s: %s",
-                            db_type,
+                        health_public = public_database_error(health_err)
+                        log_safe_exception(
+                            logger,
+                            "database_health_check",
                             health_err,
+                            health_public,
                         )
                         try:
                             setattr(conn, "_failed", True)
@@ -457,9 +493,12 @@ class AIToolExecutor:
                         try:
                             set_session_timeout_fn(conn, 30)
                         except Exception as timeout_err:
-                            logger.debug(
-                                "Could not apply adapter.set_session_timeout: %s",
+                            timeout_public = public_database_error(timeout_err)
+                            log_safe_exception(
+                                logger,
+                                "set_database_session_timeout",
                                 timeout_err,
+                                timeout_public,
                             )
 
                     # FIX [H6]: set a per-statement timeout BEFORE executing
@@ -475,9 +514,12 @@ class AIToolExecutor:
                             # Server) return None and skip this entirely; if
                             # the SET itself fails we still proceed because
                             # the user-facing path also tolerates this.
-                            logger.debug(
-                                "Could not set AI-tool statement timeout: %s",
+                            timeout_public = public_database_error(timeout_err)
+                            log_safe_exception(
+                                logger,
+                                "set_database_statement_timeout",
                                 timeout_err,
+                                timeout_public,
                             )
                     if db_type == "postgresql":
                         schema = connection.get("schema", "public")
@@ -531,7 +573,8 @@ class AIToolExecutor:
             }
 
         except Exception as e:
-            logger.error(f"Error in context-aware query execution: {e}")
+            public = public_database_error(e)
+            log_safe_exception(logger, "execute_query_with_db_config", e, public)
 
             # FIX [EC5]: if the error indicates a missing/dropped table
             # (different DBs phrase this differently: PG says
@@ -567,17 +610,26 @@ class AIToolExecutor:
 
                         ContextService.clear_schema_context(_user_id_for_clear, _db_for_clear)
                         logger.info(
-                            "Cleared schema cache for %s after missing-table error: %s",
+                            "Cleared schema cache for %s after missing-table error",
                             _db_for_clear,
-                            str(e)[:200],
                         )
                 except Exception as clear_err:
-                    logger.debug(
-                        "Schema cache clear on missing-table error failed (non-blocking): %s",
+                    clear_public = public_tool_error(
+                        "SCHEMA_CACHE_CLEAR_FAILED",
+                        "Schema cache cleanup failed.",
+                    )
+                    log_safe_exception(
+                        logger,
+                        "clear_schema_cache_after_db_failure",
                         clear_err,
+                        clear_public,
                     )
 
-            return {"status": "error", "message": str(e)}
+            return {
+                "status": "error",
+                "error_code": public.code,
+                "message": public.message,
+            }
 
     @staticmethod
     def _serialize_rows(rows: List, column_names: List[str]) -> List[Dict]:
@@ -761,8 +813,7 @@ class AIToolExecutor:
 
             return {"table": table_name, "indexes": indexes, "count": len(indexes)}
         except Exception as e:
-            logger.exception(f"Error getting indexes for {table_name}")
-            return {"error": str(e)}
+            return _database_failure("get_table_indexes", e)
 
     @staticmethod
     def _get_schema_overview(user_id: str, target_tables: Optional[List[str]] = None, db_config: dict = None) -> Dict:
@@ -850,12 +901,20 @@ class AIToolExecutor:
                                     cached_columns,
                                 )
                             except Exception as refresh_err:
-                                logger.warning("Async schema refresh failed: %s", refresh_err)
+                                refresh_public = public_database_error(refresh_err)
+                                log_safe_exception(
+                                    logger,
+                                    "refresh_schema_context",
+                                    refresh_err,
+                                    refresh_public,
+                                )
                     except Exception as fetch_err:
-                        logger.warning(
-                            "Could not refresh missing schema tables %s: %s",
-                            missing_tables,
+                        fetch_public = public_database_error(fetch_err)
+                        log_safe_exception(
+                            logger,
+                            "fetch_missing_schema_tables",
                             fetch_err,
+                            fetch_public,
                         )
 
                 # Build the columns dict for the requested tables. Tables
@@ -939,9 +998,12 @@ class AIToolExecutor:
                         # delete needed. We log so operators can see the
                         # churn.
             except Exception as stale_err:
-                logger.debug(
-                    "Stale-table detection failed (non-blocking): %s",
+                stale_public = public_database_error(stale_err)
+                log_safe_exception(
+                    logger,
+                    "detect_stale_schema_tables",
                     stale_err,
+                    stale_public,
                 )
             if target_tables:
                 tables = target_tables
@@ -1005,8 +1067,7 @@ class AIToolExecutor:
                 "source": "fresh",
             }
         except Exception as e:
-            logger.exception("Error getting schema overview")
-            return {"error": str(e)}
+            return _database_failure("get_schema_overview", e)
 
     @staticmethod
     def _get_foreign_keys(user_id: str, table_name: str = None, db_config: dict = None) -> Dict:
@@ -1063,8 +1124,7 @@ class AIToolExecutor:
 
             return result
         except Exception as e:
-            logger.exception("Error getting foreign keys")
-            return {"error": str(e)}
+            return _database_failure("get_foreign_keys", e)
 
     # New AI tools: explain_query, get_table_details, get_table_row_count,
     # list_views. (get_foreign_keys already exists above and is reused as
@@ -1126,7 +1186,7 @@ class AIToolExecutor:
         try:
             analysis = DatabaseSecurity.analyze_sql_query(query)
         except Exception as exc:
-            return {"error": f"Query could not be safely parsed: {exc}"}
+            return _database_failure("parse_explain_query", exc)
         if not analysis["is_safe"]:
             reason = "; ".join(analysis["warnings"]) or "query is not read-only"
             return {"error": f"Query blocked for security reasons: {reason}"}
@@ -1202,8 +1262,7 @@ class AIToolExecutor:
                 result["truncated"] = True
             return result
         except Exception as e:
-            logger.exception("Error getting EXPLAIN plan for query")
-            return {"error": str(e)}
+            return _database_failure("explain_query", e)
 
     @staticmethod
     def _get_table_details(user_id: str, db_config: dict, table_name: str) -> Dict:
@@ -1298,8 +1357,7 @@ class AIToolExecutor:
                 "column_count": len(columns),
             }
         except Exception as e:
-            logger.exception("Error getting table details for %s", table_name)
-            return {"error": str(e)}
+            return _database_failure("get_table_details", e)
 
     @staticmethod
     def _get_table_row_count(user_id: str, db_config: dict, table_name: str) -> Dict:
@@ -1342,8 +1400,7 @@ class AIToolExecutor:
                 "is_estimate": False,
             }
         except Exception as e:
-            logger.exception("Error getting row count for table %s", table_name)
-            return {"error": str(e)}
+            return _database_failure("get_table_row_count", e)
 
     @staticmethod
     def _list_views(user_id: str, db_config: dict) -> Dict:
@@ -1410,5 +1467,4 @@ class AIToolExecutor:
                 "count": len(views) + len(materialized_views),
             }
         except Exception as e:
-            logger.exception("Error listing views")
-            return {"error": str(e)}
+            return _database_failure("list_views", e)

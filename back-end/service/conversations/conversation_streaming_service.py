@@ -47,6 +47,8 @@ from typing import AsyncGenerator, Optional
 
 from fastapi.concurrency import run_in_threadpool
 
+from core.errors import log_safe_exception, public_tool_error
+
 logger = logging.getLogger(__name__)
 
 
@@ -203,7 +205,11 @@ class ConversationStreamingService:
                         {"task_mode": task_mode},
                     )
                 except Exception as e:
-                    logger.warning("Failed to save task_mode in Firestore: %s", e)
+                    public = public_tool_error(
+                        "CONVERSATION_TASK_MODE_SAVE_FAILED",
+                        "Conversation task mode could not be saved.",
+                    )
+                    log_safe_exception(logger, "save_conversation_task_mode", e, public)
             agent_streamer = get_default_agent_streamer()
             async for sse_line in agent_streamer.stream(
                 conversation_id,
@@ -397,8 +403,12 @@ class ConversationStreamingService:
         except Exception as err:
             if not ordered_timeline and not prompt_stored:
                 has_fatal_error = True
-            logger.error(f"Streaming error: {err}", exc_info=True)
-            yield _make_sse_error(_classify_error(str(err)))
+            public = public_tool_error(
+                "CONVERSATION_STREAM_FAILED",
+                _classify_error(str(err)),
+            )
+            log_safe_exception(logger, "stream_conversation_response", err, public)
+            yield _make_sse_error(public.message)
 
         finally:
             should_store_response = (
@@ -450,12 +460,11 @@ class ConversationStreamingService:
                         conversation_id,
                     )
                 except Exception as store_err:
-                    logger.error(
-                        "Failed to store AI response for conversation %s: %s",
-                        conversation_id,
-                        store_err,
-                        exc_info=True,
+                    public = public_tool_error(
+                        "CONVERSATION_RESPONSE_SAVE_FAILED",
+                        "Conversation response could not be saved.",
                     )
+                    log_safe_exception(logger, "save_conversation_response", store_err, public)
             elif has_fatal_error:
                 logger.info(
                     "Skipped storing response due to fatal error for conversation %s",

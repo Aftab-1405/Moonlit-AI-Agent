@@ -4,6 +4,15 @@ Last updated: 2026-08-22
 
 ## Remediation decision log
 
+### 2026-08-22 — Remediation Phase 2 / Task 7 stable safe-error boundary checkpoint
+
+- `PublicError(code, message)` is immutable. `public_database_error()` uses raw driver text only for in-process classification into the exact stable DB mapping; `public_tool_error()` supplies explicit tool/provider/HTTP contracts; and `log_safe_exception()` logs only sanitized, request-correlated detail without traceback rendering.
+- Dict-style tool/database and status-style database results retain their established outer shapes and add `error_code`; generic wrappers use `TOOL_EXECUTION_FAILED`. SSE retains its declared `type/message` shape with stable messages. Conversation 403/404 `HTTPException.detail` uses the established `error/message` keys so Task 2's common `ApiError` boundary emits `CONVERSATION_ACCESS_DENIED` or `CONVERSATION_NOT_FOUND` as the public machine code.
+- Raw exception fallbacks were removed from query/schema/explain/metadata tools, VAMP retrieval, result structuring, model/token initialization, compaction, cleanup retries, Redis/database HTTP helpers, conversation routes/streams, and VAMP vector-index retry persistence. The vector retry reason is exactly `[VAMP_VECTOR_INDEX_FAILED] Memory vector indexing failed.`. Successful structured-tool payloads were deliberately left unchanged; only error branches receive a code.
+- Strict TDD evidence: the initial exact RED was `24 failed, 32 passed`; the database/context expansion was `15 failed, 56 passed`; the conversation HTTP/SSE/log expansion was `11 failed, 71 passed, 2 warnings`; the corrected real-ASGI common-envelope RED was `1 failed, 3 warnings`; and the VAMP persisted-reason RED was `1 failed, 2 warnings`. Final focused GREEN was `100 passed, 3 warnings in 1.60s`; affected regressions were `142 passed, 3 warnings in 2.15s`; targeted Ruff reported `All checks passed!`.
+- The scoped raw-boundary audit leaves only deliberate internal uses: sanitizer/database classification in `core.errors`; provider/quota classification in the conversation controller; missing-table classification in the DB executor; validation chaining before the stable tool wrapper; recursion/rate-limit/context-window/friendly-error classification in the agent stream; and error-category classification in the conversation streaming service. No ruled file assigns raw exception text to public or persisted fields, and no ruled diagnostic uses `logger.exception` or `exc_info=True`.
+- Full backend verification is `1 failed, 358 passed, 3 warnings in 2.59s`; the sole failure remains the unowned React Flow skill frontmatter missing `when_to_use`. The installed SlowAPI Python 3.14 deprecations remain unsuppressed. Repository-wide raw diagnostic hits outside Task 7's ruled files remain separate Task 9 triage; no live external service or deployment state was touched. `SEC-003` is closed for the audited paths, Phase 2 remains active, and Task 8+ remains incomplete.
+
 ### 2026-08-22 — Remediation Phase 2 / Task 6 trusted prompt-state boundary checkpoint
 
 - `_escape_state_value(value, fallback)` now performs the one final HTML-escaping pass for every dynamic value emitted in `<current_session_state>`: database type/name/schema, task mode, selected mode label/description, reasoning effort, and model ID. Raw task mode selects `_MODE_INFO` only; escaped text is the only dynamic text emitted into the prompt state.
@@ -463,12 +472,13 @@ Exit gate: clean locked builds are reproducible; unit/integration/contract/load 
 ### [SEC-003] Raw database and tool exception text crosses the trust boundary
 
 - Severity: Medium
-- Classification: verified information-disclosure risk
+- Classification: remediated in Phase 2 Task 7 for the audited trust-boundary paths
 - Evidence: `ai_tool_executor.py` returns `str(e)` from query, schema, explain, index, view, and metadata operations (for example `311-349`, `533-580`, `1007-1009`, `1412-1414`). `tools.py:554-573` also places raw exception text in `tool_end` and the model message. Those events are accumulated and persisted by `conversation_streaming_service.py:247-295`. The existing `core.errors.sanitize_exception()` is used by user-facing DB operations but not this agent path.
 - Impact: driver errors can expose hosts, database/schema/table names, usernames, connection details, SQL fragments, filesystem/network data, or provider internals to the model provider, browser, logs, and durable conversation timeline. Persistence extends the exposure lifetime.
 - Root cause: internal diagnostics and public/model-facing error contracts share one string field.
 - Remediation: map exceptions at the adapter/service boundary to stable safe codes/messages; log full diagnostics only server-side with correlation/run IDs and explicit redaction. Reuse one sanitizer policy for REST, SSE, model ToolMessages, and persisted timelines.
 - Validation: inject exceptions containing credentials, DSNs, private hosts, SQL, filesystem paths, and provider request IDs; assert none appear in client/model/persistence outputs while redacted correlated logs remain actionable.
+- Remediation status: closed for the audited tool, provider, HTTP/SSE, model, cleanup/compaction, and VAMP retry paths. Final focused coverage is `100 passed`; the only full-suite failure is the separately owned React Flow skill-frontmatter edit. Repository-wide raw diagnostic logging outside the ruled Task 7 files remains a separate Task 9 hardening/triage item rather than a reopened public-boundary leak in these paths.
 
 ### [PERF-002] Query-result persistence blocks the event loop and has no deadline
 

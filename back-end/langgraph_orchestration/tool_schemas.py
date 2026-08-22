@@ -12,9 +12,14 @@ Benefits:
 - Better error messages when validation fails
 """
 
+import logging
 from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from core.errors import log_safe_exception, public_tool_error
+
+logger = logging.getLogger(__name__)
 
 SUPPORTED_UI_ACTIONS = {
     "open_sql_editor",
@@ -455,7 +460,21 @@ def structure_tool_result(tool_name: str, raw_result: Dict[str, Any]) -> Dict[st
     """
     # Handle errors uniformly
     if "error" in raw_result:
-        return {"success": False, "error": raw_result["error"]}
+        if raw_result.get("error_code"):
+            return {
+                "success": False,
+                "error_code": raw_result["error_code"],
+                "error": raw_result["error"],
+            }
+        public = public_tool_error(
+            "TOOL_EXECUTION_FAILED",
+            "Tool execution failed.",
+        )
+        return {
+            "success": False,
+            "error_code": public.code,
+            "error": public.message,
+        }
 
     try:
         if tool_name == "get_connection_status":
@@ -598,5 +617,13 @@ def structure_tool_result(tool_name: str, raw_result: Dict[str, Any]) -> Dict[st
             return {"success": True, "data": raw_result}
 
     except Exception as e:
-        # If structuring fails, return raw with error note
-        return {"success": True, "data": raw_result, "_structuring_error": str(e)}
+        public = public_tool_error(
+            "TOOL_RESULT_INVALID",
+            "Tool result could not be structured.",
+        )
+        log_safe_exception(logger, "structure_tool_result", e, public)
+        return {
+            "success": False,
+            "error_code": public.code,
+            "error": public.message,
+        }

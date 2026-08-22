@@ -37,12 +37,23 @@ from typing import Dict, List, Optional, Tuple
 
 from config import get_config
 from core.audit import audit_log
-from core.errors import classify_db_error, sanitize_exception
+from core.errors import log_safe_exception, public_database_error, public_tool_error
 from service.database.security import DatabaseSecurity
 
 Config = get_config()
 
 logger = logging.getLogger(__name__)
+
+
+def _public_database_failure(operation: str, exc: BaseException) -> Dict:
+    """Return a stable status-style database error and log safe diagnostics."""
+    public = public_database_error(exc)
+    log_safe_exception(logger, operation, exc, public)
+    return {
+        "status": "error",
+        "error_code": public.code,
+        "message": public.message,
+    }
 
 
 # FIX [L10]: unify the query-length limit on a single config constant so
@@ -110,11 +121,7 @@ class DatabaseOperations:
             return {"status": "success", "databases": user_databases}
 
         except Exception as err:
-            logger.error(f"Error in get_databases: {err}")
-            return {
-                "status": "error",
-                "message": f"Failed to retrieve databases: {str(err)}",
-            }
+            return _public_database_failure("get_databases", err)
 
     @staticmethod
     def get_tables(db_config: dict, db_name: str, schema: str = "public") -> List[str]:
@@ -148,10 +155,12 @@ class DatabaseOperations:
             return tables
 
         except ValueError as err:
-            logger.warning(f"Validation error in get_tables: {err}")
+            public = public_database_error(err)
+            log_safe_exception(logger, "validate_get_tables", err, public)
             raise err
         except Exception as err:
-            logger.error(f"Database error in get_tables: {err}")
+            public = public_database_error(err)
+            log_safe_exception(logger, "get_tables", err, public)
             raise DatabaseOperationError("Failed to retrieve tables")
 
     @staticmethod
@@ -184,10 +193,12 @@ class DatabaseOperations:
             return columns
 
         except ValueError as err:
-            logger.warning(f"Validation error in get_table_schema: {err}")
+            public = public_database_error(err)
+            log_safe_exception(logger, "validate_get_table_schema", err, public)
             raise err
         except Exception as err:
-            logger.error(f"Database error in get_table_schema: {err}")
+            public = public_database_error(err)
+            log_safe_exception(logger, "get_table_schema", err, public)
             raise DatabaseOperationError("Failed to retrieve table schema")
 
     @staticmethod
@@ -248,10 +259,12 @@ class DatabaseOperations:
                 return result[0] if result else 0
 
         except ValueError as err:
-            logger.warning(f"Validation error in get_table_row_count: {err}")
+            public = public_database_error(err)
+            log_safe_exception(logger, "validate_get_table_row_count", err, public)
             raise err
         except Exception as err:
-            logger.error(f"Database error in get_table_row_count: {err}")
+            public = public_database_error(err)
+            log_safe_exception(logger, "get_table_row_count", err, public)
             raise DatabaseOperationError("Failed to retrieve row count")
 
     @staticmethod
@@ -287,16 +300,20 @@ def fetch_database_info(db_config: dict, db_name: str) -> Tuple[Optional[str], O
                     detailed_info += f"  {column[0]} {column[1]}\n"
                 detailed_info += f"  count: {row_count}\n"
             except Exception as e:
-                detailed_info += f"  Error: {e}\n"
+                public = public_database_error(e)
+                log_safe_exception(logger, "fetch_database_table_info", e, public)
+                detailed_info += f"  Error [{public.code}]: {public.message}\n"
 
         return db_info, detailed_info
 
     except ValueError as err:
-        logger.warning(f"Validation error in fetch_database_info: {err}")
-        return None, str(err)
+        public = public_database_error(err)
+        log_safe_exception(logger, "validate_fetch_database_info", err, public)
+        return None, public.message
     except Exception as err:
-        logger.error(f"Error in fetch_database_info: {err}")
-        return None, str(err)
+        public = public_database_error(err)
+        log_safe_exception(logger, "fetch_database_info", err, public)
+        return None, public.message
 
 
 def execute_sql_query(
@@ -386,10 +403,12 @@ def execute_sql_query(
                 cursor.execute(adapter.get_health_check_sql())
                 cursor.fetchone()
             except Exception as health_err:
-                logger.warning(
-                    "Pre-query health check failed for %s: %s",
-                    db_type,
+                health_public = public_database_error(health_err)
+                log_safe_exception(
+                    logger,
+                    "database_health_check",
                     health_err,
+                    health_public,
                 )
                 # Mark the underlying connection as failed so
                 # ``ConnectionManager.return_connection`` discards it
@@ -420,9 +439,12 @@ def execute_sql_query(
                     if underlying_conn is not None:
                         set_session_timeout_fn(underlying_conn, actual_timeout)
                 except Exception as timeout_err:
-                    logger.debug(
-                        "Could not apply adapter.set_session_timeout: %s",
+                    timeout_public = public_database_error(timeout_err)
+                    log_safe_exception(
+                        logger,
+                        "set_database_session_timeout",
                         timeout_err,
+                        timeout_public,
                     )
 
             timeout_sql = adapter.get_set_timeout_sql(actual_timeout)
@@ -436,9 +458,12 @@ def execute_sql_query(
                     # would run with NO timeout — exactly the scenario the
                     # timeout was meant to prevent. Abort with RuntimeError
                     # so the user sees an explicit error instead of a DoS.
-                    logger.warning(
-                        "Could not set statement timeout (%s); aborting query to avoid DoS.",
+                    timeout_public = public_database_error(timeout_err)
+                    log_safe_exception(
+                        logger,
+                        "set_database_statement_timeout",
                         timeout_err,
+                        timeout_public,
                     )
                     raise RuntimeError(
                         "Statement timeout could not be set on this connection; query refused for safety."
@@ -546,7 +571,8 @@ def execute_sql_query(
             }
 
     except ValueError as err:
-        logger.warning(f"Query validation error: {err}")
+        public = public_database_error(err)
+        log_safe_exception(logger, "validate_sql_query", err, public)
         audit_log(
             actor=f"user:{user_id}" if user_id else "user:unknown",
             action="sql.execute",
@@ -554,11 +580,19 @@ def execute_sql_query(
             outcome="denied",
             details={"reason": "validation_error", "query_preview": sql_query[:120]},
         )
-        return {"status": "error", "message": str(err)}
+        return {
+            "status": "error",
+            "error_code": public.code,
+            "message": public.message,
+        }
     except ConnectionError as err:
         # FIX [EC6]: surface the health-check failure as a clear
         # "reconnect" message instead of a generic "Database error".
-        logger.warning(f"Connection health check failed: {err}")
+        public = public_tool_error(
+            "DB_CONNECTION_ERROR",
+            "Database connection failed.",
+        )
+        log_safe_exception(logger, "execute_sql_query_connection", err, public)
         audit_log(
             actor=f"user:{user_id}" if user_id else "user:unknown",
             action="sql.execute",
@@ -568,31 +602,24 @@ def execute_sql_query(
         )
         return {
             "status": "error",
-            "message": "Connection lost, please reconnect to the database.",
+            "error_code": public.code,
+            "message": public.message,
         }
     except Exception as err:
         # FIX [AUDIT-2-B]: raw DB driver errors leak schema / column /
         # connection-string fragments to the API caller. Classify the
         # error into a stable category and emit a sanitized message.
-        logger.error("Database error in execute_sql_query: %s", err)
-        safe_msg = sanitize_exception(err)
-        category = classify_db_error(safe_msg)
+        public = public_database_error(err)
+        log_safe_exception(logger, "execute_sql_query", err, public)
         audit_log(
             actor=f"user:{user_id}" if user_id else "user:unknown",
             action="sql.execute",
             resource=f"db:{db_config.get('db_type', 'unknown')}/{db_config.get('database', 'unknown')}",
             outcome="failure",
-            details={"reason": category, "query_preview": sql_query[:120]},
+            details={"reason": public.code, "query_preview": sql_query[:120]},
         )
-        friendly = {
-            "table_not_found": "Table not found.",
-            "column_not_found": "Column not found.",
-            "permission_denied": "Permission denied.",
-            "timeout": "Query timed out.",
-            "deadlock": "Query deadlocked, please retry.",
-            "constraint_violation": "Constraint violation.",
-            "syntax_error": "SQL syntax error.",
-            "connection_error": "Connection lost, please reconnect.",
-            "unknown": "Database error.",
-        }.get(category, "Database error.")
-        return {"status": "error", "message": friendly, "error_category": category}
+        return {
+            "status": "error",
+            "error_code": public.code,
+            "message": public.message,
+        }

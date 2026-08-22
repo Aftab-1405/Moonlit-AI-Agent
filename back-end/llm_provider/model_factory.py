@@ -26,6 +26,7 @@ from typing import Optional
 from langchain_core.language_models.chat_models import BaseChatModel
 
 from config import get_config
+from core.errors import log_safe_exception, public_tool_error
 
 logger = logging.getLogger(__name__)
 
@@ -243,4 +244,8 @@ def prewarm_chat_models() -> None:
             try:
                 get_chat_model(provider, model=model)
             except Exception as exc:
-                logger.warning("Could not prewarm model %s: %s", model, exc)
+                public = public_tool_error(
+                    "PROVIDER_INITIALIZATION_FAILED",
+                    "Model provider initialization failed.",
+                )
+                log_safe_exception(logger, "prewarm_chat_model", exc, public)

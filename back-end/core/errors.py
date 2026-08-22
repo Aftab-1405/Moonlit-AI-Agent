@@ -13,13 +13,18 @@ Two concerns are interleaved in this module:
    "timeout", "syntax_error", "unknown") so it can write a helpful
    retry message instead of dumping the raw exception.
 
-All helpers are pure functions.
+Mapping and sanitization helpers are pure; ``log_safe_exception`` is the
+single correlated diagnostic side effect.
 """
 
 from __future__ import annotations
 
+import logging
 import re
+from dataclasses import dataclass
 from typing import Literal
+
+from core.logging import current_request_id
 
 #: Maximum length of any sanitized error string. Long errors are
 #: truncated with an ellipsis; the tail is never kept because driver
@@ -93,7 +98,15 @@ def classify_db_error(message: str) -> ErrorCategory:
 #: Substrings removed from sanitized error messages because they reveal
 #: infrastructure details (schema names, hosts, paths) that the LLM and
 #: end users do not need.
-_LEAKAGE_PATTERNS: tuple[re.Pattern[str], str, ...] = (
+_LEAKAGE_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+    # Full database DSNs, including credentials, host, port, and database.
+    (
+        re.compile(
+            r"\b(?:postgres(?:ql)?|mysql|mariadb|oracle|sqlserver|mssql)://[^\s]+",
+            re.IGNORECASE,
+        ),
+        "[connection-string]",
+    ),
     # Connection-string fragments: `user:pass@host:port/db`
     (
         re.compile(r"\b[A-Za-z0-9_.-]+:[^@\s]+@[A-Za-z0-9_.-]+(?::\d+)?(?:/\S*)?"),
@@ -102,16 +115,67 @@ _LEAKAGE_PATTERNS: tuple[re.Pattern[str], str, ...] = (
     # `host=...` `password=...` `user=...` key/value fragments
     (
         re.compile(
-            r"\b(host|user|username|password|passwd|dsn|port|database|dbname)\s*=\s*[^\s;]+",
+            r"\b(host|user|username|password|passwd|dsn|port|database|dbname|token|api[_-]?key|secret)\s*=\s*[^\s;]+",
             re.IGNORECASE,
         ),
         "[redacted]",
+    ),
+    # Provider request identifiers can disclose account and request metadata.
+    (
+        re.compile(
+            r"\b(?:x-amzn-requestid|request[_ -]?id|requestid)\s*[:=]\s*[^\s;,]+",
+            re.IGNORECASE,
+        ),
+        "[request-id]",
+    ),
+    # Private hosts and RFC1918 addresses that reveal deployment topology.
+    (
+        re.compile(
+            r"\b(?:localhost|[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.(?:internal|local|lan)|"
+            r"10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|"
+            r"172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2})\b",
+            re.IGNORECASE,
+        ),
+        "[private-host]",
     ),
     # Filesystem paths from tracebacks
     (re.compile(r"/(?:[A-Za-z0-9_.-]+/)+[A-Za-z0-9_.-]+"), "[path]"),
     # SQL Server / Oracle bracketed identifiers leaked in errors
     (re.compile(r"'[^']*\.dbo\.[^']*'"), "[schema]"),
+    # SQL text can expose schema/data even when individual identifiers look safe.
+    (
+        re.compile(
+            r"\b(?:select|insert|update|delete|merge|alter|create|drop|truncate|"
+            r"grant|revoke|call|exec(?:ute)?)\b.*",
+            re.IGNORECASE | re.DOTALL,
+        ),
+        "[sql]",
+    ),
 )
+
+
+@dataclass(frozen=True)
+class PublicError:
+    """Immutable error code and message safe for public boundaries."""
+
+    code: str
+    message: str
+
+
+_PUBLIC_DB_ERRORS = {
+    "table_not_found": PublicError("DB_TABLE_NOT_FOUND", "The requested table or view was not found."),
+    "column_not_found": PublicError("DB_COLUMN_NOT_FOUND", "The requested column was not found."),
+    "permission_denied": PublicError("DB_PERMISSION_DENIED", "Database permission denied."),
+    "timeout": PublicError("DB_TIMEOUT", "Database operation timed out."),
+    "deadlock": PublicError("DB_DEADLOCK", "Database operation could not complete due to a deadlock."),
+    "constraint_violation": PublicError(
+        "DB_CONSTRAINT_VIOLATION",
+        "Database constraint rejected the operation.",
+    ),
+    "syntax_error": PublicError("DB_SYNTAX_ERROR", "Database query syntax is invalid."),
+    "connection_error": PublicError("DB_CONNECTION_ERROR", "Database connection failed."),
+    "unknown": PublicError("DB_OPERATION_FAILED", "Database operation failed."),
+}
 
 
 def sanitize_error_message(message: str, *, max_length: int = _MAX_SANITIZED_LEN) -> str:
@@ -137,21 +201,56 @@ def sanitize_error_message(message: str, *, max_length: int = _MAX_SANITIZED_LEN
 
 
 def sanitize_exception(exc: BaseException) -> str:
-    """Sanitize an exception for safe inclusion in API / LLM responses.
+    """Sanitize an exception for correlated server diagnostics only.
 
     Args:
         exc: Any exception.
 
     Returns:
         A sanitized, length-capped string. Never includes the exception
-        traceback.
+        traceback. Public responses must use a stable ``PublicError``
+        instead of this diagnostic string.
     """
     return sanitize_error_message(str(exc))
 
 
+def public_database_error(exc: BaseException) -> PublicError:
+    """Map a database exception to a stable public error."""
+    category = classify_db_error(str(exc))
+    return _PUBLIC_DB_ERRORS[category]
+
+
+def public_tool_error(code: str, message: str) -> PublicError:
+    """Build an explicitly selected stable tool/provider error."""
+    return PublicError(code=code, message=message)
+
+
+def log_safe_exception(
+    logger: logging.Logger,
+    operation: str,
+    exc: BaseException,
+    public_error: PublicError,
+) -> None:
+    """Log sanitized exception detail with the active request correlation ID."""
+    request_id = current_request_id() or "-"
+    logger.error(
+        "%s failed: exception_type=%s error_code=%s detail=%s request_id=%s",
+        operation,
+        type(exc).__name__,
+        public_error.code,
+        sanitize_exception(exc) or "[no-detail]",
+        request_id,
+        extra={"request_id": request_id},
+    )
+
+
 __all__ = [
     "ErrorCategory",
+    "PublicError",
     "classify_db_error",
+    "log_safe_exception",
+    "public_database_error",
+    "public_tool_error",
     "sanitize_error_message",
     "sanitize_exception",
 ]

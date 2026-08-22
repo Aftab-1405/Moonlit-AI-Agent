@@ -371,7 +371,10 @@ async def test_unowned_continuation_returns_403_before_quota(monkeypatch) -> Non
         )
 
     assert exc_info.value.status_code == 403
-    assert exc_info.value.detail == "User does not own this conversation"
+    assert exc_info.value.detail == {
+        "error": "CONVERSATION_ACCESS_DENIED",
+        "message": "Conversation access denied.",
+    }
     assert events == [("owner", CONVERSATION_ID, USER_ID)]
 
 

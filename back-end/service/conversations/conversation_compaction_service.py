@@ -9,6 +9,8 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
+from core.errors import log_safe_exception, public_tool_error
+
 logger = logging.getLogger(__name__)
 
 _SUMMARY_BULLET_TYPES = {
@@ -203,8 +205,12 @@ async def _run_summary_claim_heartbeat(
                 return
         except asyncio.CancelledError:
             raise
-        except Exception:
-            logger.exception("Could not renew summary claim %s", claim_id)
+        except Exception as exc:
+            public = public_tool_error(
+                "SUMMARY_CLAIM_RENEWAL_FAILED",
+                "Summary claim renewal failed.",
+            )
+            log_safe_exception(logger, "renew_summary_claim", exc, public)
 
 
 def _clear_summary_claim(doc_ref, claim_id: str) -> None:
@@ -271,9 +277,13 @@ def _summarize_tool_result(tool_name: str, result, status: str) -> str:
     input. Handles common structured result shapes from Moonlit's tool set.
     """
     if status == "error":
-        if isinstance(result, dict) and result.get("error"):
-            return f"ERROR — {str(result['error'])[:120]}"
-        return "ERROR"
+        if isinstance(result, dict) and result.get("error_code") and result.get("error"):
+            return f"ERROR [{result['error_code']}] — {result['error']}"
+        public = public_tool_error(
+            "TOOL_EXECUTION_FAILED",
+            "Tool execution failed.",
+        )
+        return f"ERROR [{public.code}] — {public.message}"
 
     if not isinstance(result, dict):
         return str(result)[:120] if result else "(no result)"
@@ -1095,7 +1105,12 @@ class ConversationCompactionService:
                 # Loop back to summarize any remaining complete turns.
 
         except Exception as e:
-            logger.error(f"Error in background summarization: {e}", exc_info=True)
+            public = public_tool_error(
+                "CONVERSATION_COMPACTION_FAILED",
+                "Conversation compaction failed.",
+            )
+            log_safe_exception(logger, "compact_conversation", e, public)
             result["reason"] = "error"
-            result["error"] = str(e)
+            result["error_code"] = public.code
+            result["error"] = public.message
         return result

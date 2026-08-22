@@ -36,12 +36,24 @@ import socket
 from typing import Dict
 
 from config import get_config
+from core.errors import log_safe_exception, public_database_error, public_tool_error
 
 logger = logging.getLogger(__name__)
 Config = get_config()
 
 # Loopback addresses that resolve to the server itself, not the user's machine.
 _LOOPBACK = frozenset(Config.BLOCKED_DB_HOSTS)
+
+
+def _database_connection_failure(operation: str, exc: BaseException) -> dict:
+    """Return a stable connection-handler failure with safe diagnostics."""
+    public = public_database_error(exc)
+    log_safe_exception(logger, operation, exc, public)
+    return {
+        "status": "error",
+        "error_code": public.code,
+        "message": public.message,
+    }
 
 
 # HELPER FUNCTIONS
@@ -117,17 +129,28 @@ def _validate_host(host: str) -> dict | None:
     except socket.gaierror as e:
         # FIX [H4]: DNS resolution failed (NXDOMAIN, timeout, transient).
         # Fail closed — never let an unresolvable host bypass SSRF validation.
+        public = public_tool_error(
+            "DB_HOST_RESOLUTION_FAILED",
+            "Database host could not be resolved.",
+        )
+        log_safe_exception(logger, "resolve_database_host", e, public)
         return {
             "status": "error",
-            "message": f"Could not resolve host '{host}': {e}",
+            "error_code": public.code,
+            "message": public.message,
         }
     except Exception as e:
         # FIX [H4]: Any other unexpected validation error also fails closed
         # rather than silently letting the host through.
-        logger.warning("Unexpected error validating host '%s': %s", host, e)
+        public = public_tool_error(
+            "DB_HOST_VALIDATION_FAILED",
+            "Database host validation failed.",
+        )
+        log_safe_exception(logger, "validate_database_host", e, public)
         return {
             "status": "error",
-            "message": f"Host validation failed for '{host}'.",
+            "error_code": public.code,
+            "message": public.message,
         }
 
     return None
@@ -246,8 +269,7 @@ def connect_mysql(
             "db_config": db_config,
         }
     except Exception as err:
-        logger.exception("Error connecting to MySQL")
-        return {"status": "error", "message": str(err)}
+        return _database_connection_failure("connect_mysql", err)
 
 
 def connect_postgresql(
@@ -315,8 +337,7 @@ def connect_postgresql(
             "db_config": db_config,
         }
     except Exception as err:
-        logger.exception("Error connecting to PostgreSQL")
-        return {"status": "error", "message": str(err)}
+        return _database_connection_failure("connect_postgresql", err)
 
 
 def connect_sqlserver(
@@ -371,7 +392,8 @@ def connect_sqlserver(
                 system_dbs = adapter.get_system_databases()
                 databases = [db for db in all_dbs if db.lower() not in system_dbs]
         except Exception as e:
-            logger.warning(f"Failed to fetch SQL Server databases: {e}")
+            public = public_database_error(e)
+            log_safe_exception(logger, "fetch_sqlserver_databases", e, public)
             if database:
                 databases = [database]
 
@@ -385,8 +407,7 @@ def connect_sqlserver(
             "selectedDatabase": database,
         }
     except Exception as err:
-        logger.exception("Error connecting to SQL Server")
-        return {"status": "error", "message": str(err)}
+        return _database_connection_failure("connect_sqlserver", err)
 
 
 def connect_oracle(
@@ -440,7 +461,8 @@ def connect_oracle(
                 cursor.execute(adapter.get_databases_query())
                 schemas = [row[0] for row in cursor.fetchall()]
         except Exception as e:
-            logger.warning(f"Failed to fetch Oracle schemas: {e}")
+            public = public_database_error(e)
+            log_safe_exception(logger, "fetch_oracle_schemas", e, public)
             schemas = [user.upper()] if user else []
 
         schema_name = user.upper() if user else "SYSTEM"
@@ -461,8 +483,7 @@ def connect_oracle(
             "selectedDatabase": schema_name,
         }
     except Exception as err:
-        logger.exception("Error connecting to Oracle")
-        return {"status": "error", "message": str(err)}
+        return _database_connection_failure("connect_oracle", err)
 
 
 # CONNECTION STRING FUNCTIONS (remote only)
@@ -532,7 +553,8 @@ def connect_remote_postgresql(connection_string: str) -> dict:
                 cursor.execute(query, params)
                 tables = [row[0] for row in cursor.fetchall()]
         except Exception as e:
-            logger.warning(f"Failed to fetch tables: {e}")
+            public = public_database_error(e)
+            log_safe_exception(logger, "fetch_remote_postgresql_tables", e, public)
 
         message = f"Connected to remote PostgreSQL: {db_name}"
         if tables:
@@ -549,8 +571,7 @@ def connect_remote_postgresql(connection_string: str) -> dict:
             "db_config": db_config,
         }
     except Exception as err:
-        logger.exception("Error connecting to remote PostgreSQL")
-        return {"status": "error", "message": str(err)}
+        return _database_connection_failure("connect_remote_postgresql", err)
 
 
 def connect_remote_mysql(connection_string: str) -> dict:
@@ -624,7 +645,8 @@ def connect_remote_mysql(connection_string: str) -> dict:
                 )
                 tables = [row[0] for row in cursor.fetchall()]
         except Exception as e:
-            logger.warning(f"Failed to fetch tables: {e}")
+            public = public_database_error(e)
+            log_safe_exception(logger, "fetch_remote_mysql_tables", e, public)
 
         message = f"Connected to remote MySQL: {db_name}"
         if tables:
@@ -641,8 +663,7 @@ def connect_remote_mysql(connection_string: str) -> dict:
             "db_config": db_config,
         }
     except Exception as err:
-        logger.exception("Error connecting to remote MySQL")
-        return {"status": "error", "message": str(err)}
+        return _database_connection_failure("connect_remote_mysql", err)
 
 
 def connect_remote_oracle(connection_string: str) -> dict:
@@ -674,9 +695,15 @@ def connect_remote_oracle(connection_string: str) -> dict:
     try:
         parsed = adapter._parse_connection_string(connection_string)
     except Exception as parse_err:
+        public = public_tool_error(
+            "DB_CONNECTION_STRING_INVALID",
+            "Database connection string is invalid.",
+        )
+        log_safe_exception(logger, "parse_oracle_connection_string", parse_err, public)
         return {
             "status": "error",
-            "message": f"Could not parse Oracle connection string: {parse_err}",
+            "error_code": public.code,
+            "message": public.message,
         }
 
     # The adapter's _parse_connection_string returns a 'dsn' like
@@ -740,7 +767,8 @@ def connect_remote_oracle(connection_string: str) -> dict:
                 cursor.execute(tables_query, tables_params)
                 tables = [row[0] for row in cursor.fetchall()]
         except Exception as e:
-            logger.warning(f"Failed to fetch Oracle tables: {e}")
+            public = public_database_error(e)
+            log_safe_exception(logger, "fetch_remote_oracle_tables", e, public)
 
         message = f"Connected to remote Oracle: {schema_name}"
         if tables:
@@ -760,8 +788,7 @@ def connect_remote_oracle(connection_string: str) -> dict:
             "db_config": db_config,
         }
     except Exception as err:
-        logger.exception("Error connecting to remote Oracle")
-        return {"status": "error", "message": str(err)}
+        return _database_connection_failure("connect_remote_oracle", err)
 
 
 def connect_remote_sqlserver(connection_string: str) -> dict:
@@ -835,7 +862,8 @@ def connect_remote_sqlserver(connection_string: str) -> dict:
                 cursor.execute(tables_query, tables_params)
                 tables = [row[0] for row in cursor.fetchall()]
         except Exception as e:
-            logger.warning(f"Failed to fetch SQL Server tables: {e}")
+            public = public_database_error(e)
+            log_safe_exception(logger, "fetch_remote_sqlserver_tables", e, public)
 
         message = f"Connected to remote SQL Server: {db_name}"
         if tables:
@@ -852,8 +880,7 @@ def connect_remote_sqlserver(connection_string: str) -> dict:
             "db_config": db_config,
         }
     except Exception as err:
-        logger.exception("Error connecting to remote SQL Server")
-        return {"status": "error", "message": str(err)}
+        return _database_connection_failure("connect_remote_sqlserver", err)
 
 
 # DATABASE SELECTION
@@ -890,5 +917,4 @@ def select_database(db_config: dict, db_name: str) -> dict:
             "db_config": new_config,
         }
     except Exception as err:
-        logger.exception(f"Error selecting database {db_name}")
-        return {"status": "error", "message": str(err)}
+        return _database_connection_failure("select_database", err)
