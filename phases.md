@@ -83,6 +83,16 @@ Exit criteria: final report is evidence-backed, prioritized, actionable, and dis
 
 ## Work log
 
+### 2026-08-22 — Remediation Phase 2 / Task 2 HTTP response boundary checkpoint
+
+- RED evidence: `cd back-end && env/bin/python -m pytest tests/test_http_error_boundary.py tests/test_core_logging.py -q` reported `9 failed, 8 passed, 5 warnings in 2.00s`. CSRF and SlowAPI responses lacked the common `status/error/message/details` contract, framework 404 used `detail`, request-limit/unhandled short-circuits missed the configured response headers, no response carried `X-Request-ID`, and no handler-level correlation-filter installer existed.
+- GREEN boundary evidence: `cd back-end && env/bin/python -m pytest tests/test_http_error_boundary.py tests/test_core_logging.py tests/test_request_boundary.py -q` reported `26 passed, 3 warnings in 1.65s`. The warnings are the installed SlowAPI Python 3.14 `asyncio.iscoroutinefunction` deprecation; dependencies and warning policy remain unchanged.
+- Regression evidence: `cd back-end && env/bin/python -m pytest tests/test_core_errors.py tests/test_core_security.py -q` reported `72 passed in 0.04s`; the exact targeted Ruff gate reported `All checks passed!`; and `cd back-end && env/bin/python -m pytest -q` reported `253 passed, 3 warnings in 6.86s`.
+- HTTP response contract: CSRF 403, validation 422, authentication 401, framework 404/405, SlowAPI 429, request-size 400/413, and pre-start unhandled 500 failures now use `ApiError` with the exact keys `status`, `error`, `message`, and `details`. Unhandled responses use `INTERNAL_SERVER_ERROR` and do not disclose the exception message.
+- Effective inbound middleware order is `ResponseSecurityMiddleware -> RequestBodyLimitMiddleware -> csrf_middleware -> log_requests -> CORSMiddleware -> FastAPI routing/dependencies`. The pure-ASGI outer wrapper replaces every configured security header plus `Server` and `X-Request-ID` at `http.response.start`, removes `X-Powered-By`, forwards streaming frames without buffering, catches only pre-start failures, and always clears request context.
+- Correlation contract: safe inbound IDs match `[A-Za-z0-9_-]{1,64}` and are echoed; missing, duplicate, or unsafe IDs are replaced with opaque generated IDs. `install_request_id_filter()` attaches the filter once to each active root handler immediately after `logging.basicConfig()`, so propagated child records include `request_id`.
+- Phase 2 remains in progress; Task 3+ authentication, ownership, prompt, tool, SQL, deployment, and migration work remains incomplete and unchanged.
+
 ### 2026-08-22 — Remediation Phase 2 / Task 1 request boundary checkpoint
 
 - RED strict-contract evidence: `cd back-end && env/bin/python -m pytest tests/test_api_contract.py -q` reported `13 failed, 18 passed, 1 warning in 0.26s`. Every public request DTO silently accepted one undeclared field, and `SetSessionRequest` had no `FIREBASE_ID_TOKEN_MAX_LENGTH` configuration.

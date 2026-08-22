@@ -338,7 +338,7 @@ All values are sourced from `os.getenv(...)` calls in `config.py`. ~140 unique e
 |---|---|---|
 | `LOG_LEVEL` | `INFO` (dev/staging), `WARNING` (prod), `DEBUG` (testing) | Root logger level. |
 | `LOG_FILE` | `backend.log` | Path appended to by the `FileHandler` configured in `main.py`. |
-| `LOG_FORMAT` | `%(asctime)s - %(name)s - %(levelname)s - %(message)s` | Python logging format string. |
+| `LOG_FORMAT` | `%(asctime)s - %(name)s - %(levelname)s - request_id=%(request_id)s - %(message)s` | Python logging format string. Root handlers receive the request-correlation filter after logging is configured. |
 | `THIRD_PARTY_LOG_LEVEL` | `WARNING` | Log level applied to every "noisy" third-party logger. |
 | `NOISY_LOGGER_NAMES` | (long default — see `config.py`) | Comma-separated logger names silenced to `THIRD_PARTY_LOG_LEVEL`. |
 | `REQUEST_LOG_EXCLUDED_PATHS` | `/api/v1/user/session/active` | Comma-separated paths whose request/response log lines are skipped. |
@@ -370,6 +370,29 @@ All values are sourced from `os.getenv(...)` calls in `config.py`. ~140 unique e
 | `DEV_AUTH_EMAIL` | `local-dev@moonlit.local` | Email for the local dev user. |
 | `DEV_AUTH_NAME` | `Local Dev` | Display name for the local dev user. |
 | `ADMIN_UID` | (unset) | Server-owned Firebase UID allowed to access administrative telemetry. Missing or blank configuration denies all admin telemetry requests with HTTP 403. |
+
+Every HTTP response is finalized by a pure-ASGI outer boundary. It replaces
+the configured security headers and `Server`, removes `X-Powered-By`, and
+returns a safe `X-Request-ID`. A valid inbound ID matching
+`[A-Za-z0-9_-]{1,64}` is echoed; missing, duplicate, or unsafe values are
+replaced with a generated opaque ID. The same ID is bound to application logs
+for the duration of the request and cleared afterward.
+
+CSRF, request-size, validation, authentication, rate-limit, framework HTTP,
+and unhandled failures use the common JSON error envelope:
+
+```json
+{
+  "status": "error",
+  "error": "STABLE_MACHINE_CODE",
+  "message": "Safe human-readable message.",
+  "details": {}
+}
+```
+
+Unhandled exceptions return `500 INTERNAL_SERVER_ERROR` without exposing the
+exception message. The response boundary forwards ASGI response frames as they
+arrive and does not buffer streaming responses.
 
 ### CORS
 

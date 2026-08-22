@@ -2,6 +2,7 @@
 
 from typing import Any, Generic, Literal, TypeVar
 
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 DataT = TypeVar("DataT")
@@ -28,6 +29,26 @@ class ApiSuccess(BaseModel, Generic[DataT]):
     status: Literal["success"] = "success"
     data: DataT
     message: str | None = None
+
+
+def api_error_response(
+    *,
+    status_code: int,
+    error: str,
+    message: str,
+    details: dict[str, Any] | None = None,
+    headers: dict[str, str] | None = None,
+) -> JSONResponse:
+    """Build the single JSON envelope used for public HTTP errors."""
+    return JSONResponse(
+        status_code=status_code,
+        content=ApiError(
+            error=error,
+            message=message,
+            details=details or {},
+        ).model_dump(),
+        headers=headers,
+    )
 
 
 COMMON_ERROR_RESPONSES = {

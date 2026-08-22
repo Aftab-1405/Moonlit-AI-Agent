@@ -4,6 +4,15 @@ Last updated: 2026-08-22
 
 ## Remediation decision log
 
+### 2026-08-22 — Remediation Phase 2 / Task 2 HTTP response boundary checkpoint
+
+- A pure-ASGI `ResponseSecurityMiddleware` is now the outer application boundary, immediately outside `RequestBodyLimitMiddleware`. It binds/sanitizes `X-Request-ID`, replaces all configured security headers plus `Server` at `http.response.start`, removes `X-Powered-By`, forwards streaming frames without buffering, emits a safe common 500 only before response start, and clears request context in all outcomes.
+- Effective inbound order is `ResponseSecurityMiddleware -> RequestBodyLimitMiddleware -> CSRF -> request logging -> CORS -> FastAPI routing/dependencies`. This preserves Task 1 raw body-limit behavior while ensuring limiter, CSRF, validation, auth, rate-limit, framework HTTP, and unhandled failures receive the same headers and correlation ID.
+- `api_error_response()` is the single `ApiError` response builder. Public failures have the exact keys `status/error/message/details`; SlowAPI 429 uses `RATE_LIMITED`; Starlette 404/405 errors are covered by registering the base Starlette HTTP exception; unhandled exceptions return `500 INTERNAL_SERVER_ERROR` with no raw exception message.
+- `install_request_id_filter()` attaches `_RequestIdFilter` exactly once to every active root handler after `logging.basicConfig()`. The default log format includes `request_id=%(request_id)s`, while operator-provided `LOG_FORMAT` values remain authoritative.
+- TDD evidence: the exact RED command reported `9 failed, 8 passed, 5 warnings in 2.00s`; the final focused boundary gate reported `26 passed, 3 warnings in 1.65s`; core error/security regression reported `72 passed in 0.04s`; targeted Ruff reported `All checks passed!`; and the full backend suite reported `253 passed, 3 warnings in 6.86s`. All three final warnings are the known installed SlowAPI Python 3.14 deprecation; no dependency was changed or warning suppressed.
+- Validation was repository-local with real ASGI behavior and deterministic failure routes. The rate-limit test cuts only SlowAPI's configured external Redis header-injection boundary; no live Redis, Firebase, Firestore, Bedrock, Qdrant, database, deployment, or migration was used. Phase 2 remains active and later work remains incomplete.
+
 ### 2026-08-22 — Remediation Phase 2 / Task 1 request boundary checkpoint
 
 - The public inbound boundary now rejects payloads before FastAPI parsing when a raw body exceeds `REQUEST_BODY_MAX_BYTES=262144`. It rejects duplicate, negative, non-numeric, and otherwise invalid `Content-Length` headers as `400 INVALID_CONTENT_LENGTH`, and oversized declared/chunked/spoofed bodies as `413 REQUEST_TOO_LARGE`. Errors use the standard `ApiError` JSON envelope; rejected requests never invoke the downstream app.

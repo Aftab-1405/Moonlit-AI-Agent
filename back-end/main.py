@@ -9,11 +9,10 @@ from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from api_contract.common import ApiError
+from api_contract.common import api_error_response
 from composition import configure_runtime_ports
 from config import ProductionConfig, get_config
 
@@ -21,7 +20,8 @@ from config import ProductionConfig, get_config
 # @limiter.limit decorators. Previously the limiter was created here but
 # no routes had decorators — the limiter existed but never enforced.
 from controller.rate_limiter import limiter
-from core.http_boundary import RequestBodyLimitMiddleware
+from core.http_boundary import RequestBodyLimitMiddleware, ResponseSecurityMiddleware
+from core.logging import install_request_id_filter
 from langgraph_orchestration.checkpointing import (
     init_checkpointer,
     shutdown_checkpointer,
@@ -37,6 +37,7 @@ logging.basicConfig(
     format=AppConfig.LOG_FORMAT,
     handlers=[logging.FileHandler(AppConfig.LOG_FILE), logging.StreamHandler()],
 )
+install_request_id_filter()
 logger = logging.getLogger(__name__)
 logging.getLogger().setLevel(getattr(logging, AppConfig.LOG_LEVEL, logging.INFO))
 third_party_log_level = getattr(logging, AppConfig.THIRD_PARTY_LOG_LEVEL, logging.WARNING)
@@ -257,24 +258,6 @@ def create_app() -> FastAPI:
         return response
 
     @app.middleware("http")
-    async def add_security_headers(request: Request, call_next):
-        """Attach standard security headers (X-Content-Type-Options, HSTS, etc.) to every response."""
-        response = await call_next(request)
-        response.headers["X-Content-Type-Options"] = AppConfig.SECURITY_HEADER_CONTENT_TYPE_OPTIONS
-        response.headers["X-Frame-Options"] = AppConfig.SECURITY_HEADER_FRAME_OPTIONS
-        response.headers["X-XSS-Protection"] = AppConfig.SECURITY_HEADER_XSS_PROTECTION
-        response.headers["Strict-Transport-Security"] = AppConfig.SECURITY_HEADER_HSTS
-        response.headers["Referrer-Policy"] = AppConfig.SECURITY_HEADER_REFERRER_POLICY
-        response.headers["Permissions-Policy"] = AppConfig.SECURITY_HEADER_PERMISSIONS_POLICY
-
-        # Mask server header to prevent information disclosure
-        response.headers["Server"] = AppConfig.SERVER_HEADER_VALUE
-        if "x-powered-by" in response.headers:
-            del response.headers["x-powered-by"]
-
-        return response
-
-    @app.middleware("http")
     async def csrf_middleware(request: Request, call_next):
         """Enforce double-submit CSRF tokens on every state-mutating request."""
         if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
@@ -284,13 +267,10 @@ def create_app() -> FastAPI:
 
                     verify_csrf_token(request)
                 except HTTPException as exc:
-                    return JSONResponse(
+                    return api_error_response(
                         status_code=exc.status_code,
-                        content={
-                            "error": "FORBIDDEN",
-                            "message": str(exc.detail),
-                            "details": {},
-                        },
+                        error="FORBIDDEN",
+                        message=str(exc.detail),
                     )
 
         return await call_next(request)
@@ -300,9 +280,22 @@ def create_app() -> FastAPI:
         max_body_bytes=AppConfig.REQUEST_BODY_MAX_BYTES,
     )
 
+    app.add_middleware(
+        ResponseSecurityMiddleware,
+        security_headers={
+            "X-Content-Type-Options": AppConfig.SECURITY_HEADER_CONTENT_TYPE_OPTIONS,
+            "X-Frame-Options": AppConfig.SECURITY_HEADER_FRAME_OPTIONS,
+            "X-XSS-Protection": AppConfig.SECURITY_HEADER_XSS_PROTECTION,
+            "Strict-Transport-Security": AppConfig.SECURITY_HEADER_HSTS,
+            "Referrer-Policy": AppConfig.SECURITY_HEADER_REFERRER_POLICY,
+            "Permissions-Policy": AppConfig.SECURITY_HEADER_PERMISSIONS_POLICY,
+        },
+        server_header=AppConfig.SERVER_HEADER_VALUE,
+    )
+
     if AppConfig.RATELIMIT_ENABLED:
         app.state.limiter = limiter
-        app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+        app.add_exception_handler(RateLimitExceeded, _rate_limit_exception_handler)
         logger.info(f"Rate limiting enabled: {AppConfig.RATELIMIT_DEFAULT}")
 
     # Configure LLM rate limiter (single-key rate limiting)
@@ -349,31 +342,13 @@ def _register_error_handlers(app: FastAPI):
             status.HTTP_403_FORBIDDEN: "FORBIDDEN",
             status.HTTP_404_NOT_FOUND: "NOT_FOUND",
             status.HTTP_405_METHOD_NOT_ALLOWED: "METHOD_NOT_ALLOWED",
-            status.HTTP_422_UNPROCESSABLE_ENTITY: "VALIDATION_ERROR",
+            status.HTTP_422_UNPROCESSABLE_CONTENT: "VALIDATION_ERROR",
             status.HTTP_429_TOO_MANY_REQUESTS: "RATE_LIMITED",
             status.HTTP_500_INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
         }.get(status_code, "REQUEST_FAILED")
 
-    def api_error_response(
-        *,
-        status_code: int,
-        error: str,
-        message: str,
-        details: dict | None = None,
-        headers: dict | None = None,
-    ):
-        return JSONResponse(
-            status_code=status_code,
-            content=ApiError(
-                error=error,
-                message=message,
-                details=details or {},
-            ).model_dump(),
-            headers=headers,
-        )
-
-    @app.exception_handler(HTTPException)
-    async def http_exception_handler(request: Request, exc: HTTPException):
+    @app.exception_handler(StarletteHTTPException)
+    async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         """Translate HTTPException into the standard ApiError JSON envelope."""
         detail = exc.detail
         error = error_code_for_status(exc.status_code)
@@ -399,21 +374,24 @@ def _register_error_handlers(app: FastAPI):
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
         """Translate Pydantic validation errors into the standard ApiError JSON envelope."""
         return api_error_response(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             error="VALIDATION_ERROR",
             message="Request validation failed.",
             details={"errors": jsonable_encoder(exc.errors())},
         )
 
-    @app.exception_handler(Exception)
-    async def internal_error_handler(request: Request, exc: Exception):
-        """Catch unhandled exceptions and return a 500 ApiError without leaking details."""
-        logger.exception(f"Internal server error: {exc}")
-        return api_error_response(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            error="INTERNAL_SERVER_ERROR",
-            message="Internal server error",
-        )
+
+
+async def _rate_limit_exception_handler(
+    request: Request,
+    exc: RateLimitExceeded,
+):
+    """Return the stable public error contract for SlowAPI rejections."""
+    return api_error_response(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        error="RATE_LIMITED",
+        message="Too many requests.",
+    )
 
 
 app = create_app()

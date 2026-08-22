@@ -31,7 +31,8 @@ class Config:
     # Logging
     LOG_FILE = os.getenv("LOG_FILE", "backend.log")
     LOG_FORMAT = os.getenv(
-        "LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        "LOG_FORMAT",
+        "%(asctime)s - %(name)s - %(levelname)s - request_id=%(request_id)s - %(message)s",
     )
     THIRD_PARTY_LOG_LEVEL = os.getenv("THIRD_PARTY_LOG_LEVEL", "WARNING").upper()
     _noisy_logger_names_raw = os.getenv(
