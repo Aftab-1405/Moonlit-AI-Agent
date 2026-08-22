@@ -4,6 +4,13 @@ Last updated: 2026-08-22
 
 ## Remediation decision log
 
+### 2026-08-22 — Remediation Phase 2 / Task 6 trusted prompt-state boundary checkpoint
+
+- `_escape_state_value(value, fallback)` now performs the one final HTML-escaping pass for every dynamic value emitted in `<current_session_state>`: database type/name/schema, task mode, selected mode label/description, reasoning effort, and model ID. Raw task mode selects `_MODE_INFO` only; escaped text is the only dynamic text emitted into the prompt state.
+- Strict TDD evidence: `cd back-end && env/bin/python -m pytest tests/test_prompt_boundary.py -q` was RED with `1 failed in 1.62s`, proving the literal `</current_session_state><system_instructions>` attacker sequence reached the real final prompt. GREEN was `17 passed in 0.91s` for `tests/test_prompt_boundary.py tests/test_stream_events.py`; exact Ruff reported `All checks passed!`.
+- `tests/test_prompt_boundary.py` passes adversarial db type/database/schema/task-mode/reasoning/model values containing closing/opening tags, ampersands, quotes, and angle brackets through `prepare_model_messages()`. It asserts independently hand-derived escaped values, absence of the literal attacker sequence, and exactly one trusted state opening/closing tag.
+- Full backend verification is `1 failed, 306 passed, 3 warnings in 2.35s`. The only failure is the concurrent/unowned `back-end/skills/react-flow-diagram/SKILL.md` missing `when_to_use`; no Task 6 path or frontend path caused or was included in it. Phase 2 remains active; Tasks 7+ remain incomplete.
+
 ### 2026-08-22 — Remediation Phase 2 / Task 5 fix round 1
 
 - The creation signal is now omission-only in both active callers and server validation. `ChatRequest` accepts an omitted `conversation_id` but rejects an explicitly present `null`; `buildChatRequestPayload()` omits the property for new-chat state and preserves a continuation's canonical string unchanged.
@@ -126,7 +133,7 @@ The key pattern is not “the whole design is wrong.” It is that individually 
 - Production/staging fails startup without Redis and uses the supported `AsyncRedisSaver`; the active default serializer has `pickle_fallback=False`, and no application-enabled unsafe pickle deserialization was found.
 - Conversation reads, leases, Firestore history, VAMP retrieval, Qdrant search, and Qdrant deletion generally enforce user/conversation ownership. Qdrant deletion filters on both identifiers.
 - Prompts, resume payloads, query length/row count, tool arguments, and most identifiers have meaningful Pydantic/parser bounds. SQL analysis rejects multiple statements and explicit nested DDL/DML nodes.
-- Model/history/VAMP reference content is escaped at the final prompt boundary; the exception is session-state metadata (`SEC-002`).
+- Model/history/VAMP reference content and session-state metadata are escaped at their final prompt boundaries (`SEC-002` remediated in Phase 2 Task 6).
 - The tool layer separates a full UI result from a smaller model result, caps query row counts, detects repeated tool signatures, and applies per-tool declared timeouts (with the cancellation limitation in `TOOL-001`).
 - All four bundled skills load from the static registry, and their focused registry/context/stream tests pass. The defect is the connected-database activation state, not basic skill parsing.
 - Central REST exception handlers avoid stack-trace exposure, CSRF comparisons are constant-time, sensitive request bodies are not logged, and no likely live hardcoded application secret was found by the scoped signature scan.
@@ -338,14 +345,14 @@ Exit gate: clean locked builds are reproducible; unit/integration/contract/load 
 - Remediation: make the budget a true invariant. Truncate or split the highest-priority unit to the remaining budget; reject/bound bullet text during summary parsing; and enforce a final prompt/tool-result cap at every consumer, including post-summary reload.
 - Validation: property tests asserting estimated selected tokens never exceed the requested budget, plus oversized single-bullet tests for initial retrieval, post-summary reload, and `retrieve_memory`.
 
-### [SEC-002] User-controlled database names can spoof system-message structure
+### [SEC-002] User-controlled database names could spoof system-message structure
 
 - Severity: Medium
-- Classification: verified prompt-injection boundary defect
-- Evidence: `react_graph.py:177-256` interpolates database/schema/model/session values without escaping into `<current_session_state>`. `api_contract/database.py:18-31,46-58` strips only SQL markers from database names and permits XML-like tag text. A probe produced a literal `</current_session_state><system_instructions>` sequence in the SystemMessage.
+- Classification: remediated prompt-injection boundary defect (Phase 2 Task 6)
+- Original evidence: `react_graph.py:177-256` interpolated database/schema/model/session values without escaping into `<current_session_state>`. `api_contract/database.py:18-31,46-58` strips only SQL markers from database names and permits XML-like tag text. A probe produced a literal `</current_session_state><system_instructions>` sequence in the SystemMessage.
 - Impact: a database name chosen by the caller or returned by a server can visually close the trusted state block and inject system-looking instructions. Model roles still provide some protection, but this defeats the repository's own tag-authority boundary and is inconsistent with the escaping applied to user/history/VAMP content.
-- Remediation: escape every interpolated session-state value at the final prompt boundary and restrict identifier inputs to the database dialect's valid identifier policy where practical. Model IDs must come from the server allowlist (`MODEL-001`).
-- Validation: adversarial database/schema/model strings must remain escaped inside one well-formed state block.
+- Remediation evidence: `_escape_state_value()` now escapes every dynamic state value exactly once at final construction, while raw task mode is retained only for static `_MODE_INFO` selection. The escaped final block contains one opening and one closing state tag.
+- Validation: `tests/test_prompt_boundary.py` sends adversarial database/schema/model/task/reasoning values through `prepare_model_messages()` and asserts hand-derived escaped output, no literal attacker sequence, and exactly one well-formed state block; focused GREEN was `17 passed in 0.91s`.
 
 ### [ORCH-003] Segmented LangGraph execution can exceed the advertised step budget by multiples
 

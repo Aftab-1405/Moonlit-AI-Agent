@@ -183,6 +183,12 @@ def _build_context_map(
     return f"<context_map>\nThe following context layers are present in this turn, in order:\n{body}\n</context_map>"
 
 
+def _escape_state_value(value: object, fallback: str) -> str:
+    """Render an untrusted state value without allowing prompt markup."""
+    selected = fallback if value is None or value == "" else str(value)
+    return escape(selected, quote=True)
+
+
 def _build_session_state(configurable: dict) -> str:
     """Build the per-turn ``<current_session_state>`` block.
 
@@ -212,7 +218,7 @@ def _build_session_state(configurable: dict) -> str:
         database = "none"
         schema = "default"
 
-    task_mode = configurable.get("task_mode") or "normal"
+    raw_task_mode = configurable.get("task_mode") or "normal"
     reasoning_effort = configurable.get("reasoning_effort") or "none"
     model_id = configurable.get("model") or "none"
 
@@ -239,7 +245,16 @@ def _build_session_state(configurable: dict) -> str:
             "description": "reports, deep analyses, multi-step deliverables",
         },
     }
-    mode_info = _MODE_INFO.get(task_mode, _MODE_INFO["normal"])
+    mode_info = _MODE_INFO.get(raw_task_mode, _MODE_INFO["normal"])
+
+    db_type = _escape_state_value(db_type, "none")
+    database = _escape_state_value(database, "none")
+    schema = _escape_state_value(schema, "default")
+    task_mode = _escape_state_value(raw_task_mode, "normal")
+    mode_label = _escape_state_value(mode_info["label"], "Standard")
+    mode_description = _escape_state_value(mode_info["description"], "")
+    reasoning_effort = _escape_state_value(reasoning_effort, "none")
+    model_id = _escape_state_value(model_id, "none")
 
     return (
         "<current_session_state>\n"
@@ -247,9 +262,9 @@ def _build_session_state(configurable: dict) -> str:
         f"db_type: {db_type}\n"
         f"database: {database}\n"
         f"schema: {schema}\n"
-        f"task_mode: {task_mode} ({mode_info['label']})\n"
+        f"task_mode: {task_mode} ({mode_label})\n"
         f"task_mode_step_budget: {mode_info['step_budget']} steps per turn\n"
-        f"task_mode_description: {mode_info['description']}\n"
+        f"task_mode_description: {mode_description}\n"
         f"reasoning_effort: {reasoning_effort}\n"
         f"model: {model_id}\n"
         "</current_session_state>"

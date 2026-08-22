@@ -83,6 +83,14 @@ Exit criteria: final report is evidence-backed, prioritized, actionable, and dis
 
 ## Work log
 
+### 2026-08-22 — Remediation Phase 2 / Task 6 trusted prompt-state boundary checkpoint
+
+- RED evidence: `cd back-end && env/bin/python -m pytest tests/test_prompt_boundary.py -q` reported `1 failed in 1.62s`. The real `prepare_model_messages()` output included the literal attacker sequence `</current_session_state><system_instructions>` from every adversarial dynamic session value.
+- GREEN evidence: `cd back-end && env/bin/python -m pytest tests/test_prompt_boundary.py tests/test_stream_events.py -q` reported `17 passed in 0.91s`; `back-end/env/bin/ruff check back-end/langgraph_orchestration/react_graph.py back-end/tests/test_prompt_boundary.py` reported `All checks passed!`.
+- Prompt-state contract: `_escape_state_value(value, fallback)` HTML-escapes `db_type`, database, schema, task mode, mode label/description, reasoning effort, and model exactly once when building `<current_session_state>`. Raw task mode is used only for `_MODE_INFO` selection; no dynamic output can close or reopen the trusted block. The adversarial final-prompt test asserts hand-derived escaped values, no raw attacker tag, and exactly one opening/closing state tag.
+- Full backend regression reported `1 failed, 306 passed, 3 warnings in 2.35s`. The sole failure remains concurrent and unowned: `tests/test_skill_registry.py::test_disconnected_catalog_keeps_non_database_diagram_generation_available` rejects `back-end/skills/react-flow-diagram/SKILL.md`, whose working-tree frontmatter is missing `when_to_use`. Task 6 did not edit or stage that excluded file or any `front-end/**` path.
+- The three warnings are the installed SlowAPI Python 3.14 `asyncio.iscoroutinefunction` deprecations and remain unsuppressed. Tests were repository-only; no live services, deployment, migration, dependency, push, or merge work occurred. Phase 2 remains in progress; Tasks 7+ remain incomplete and unchanged.
+
 ### 2026-08-22 — Remediation Phase 2 / Task 5 fix round 1
 
 - Omission-only creation is now enforced end to end. Real Pydantic validation distinguishes an absent `conversation_id` from a present `null`, rejecting the latter. The frontend's pure `buildChatRequestPayload()` leaves the property absent for a new chat and includes the canonical continuation string unchanged; `sendMessage()` uses that builder.
