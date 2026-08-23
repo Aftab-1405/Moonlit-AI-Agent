@@ -269,26 +269,54 @@ class DatabaseSecurity:
                 return analysis
 
             if dialect == "oracle":
-                def qualifier_is_relation_bound(scope, qualifier: str) -> bool:
+                def normalized_oracle_identifier(identifier) -> str:
+                    name = str(identifier.this)
+                    if identifier.args.get("quoted", False):
+                        return name
+                    return name.upper()
+
+                def relation_identifier(source):
+                    alias_owner = source
+                    if isinstance(source.parent, exp.Subquery):
+                        alias_owner = source.parent
+
+                    alias = alias_owner.args.get("alias")
+                    if (
+                        isinstance(alias, exp.TableAlias)
+                        and isinstance(alias.this, exp.Identifier)
+                    ):
+                        return alias.this
+                    if isinstance(source, exp.Table) and isinstance(
+                        source.this, exp.Identifier
+                    ):
+                        return source.this
+                    return None
+
+                def qualifier_is_relation_bound(scope, qualifier) -> bool:
                     current = scope
-                    normalized = qualifier.casefold()
+                    normalized = normalized_oracle_identifier(qualifier)
                     while current is not None:
-                        if normalized in {
-                            str(name).casefold() for name in current.sources
-                        }:
-                            return True
+                        for source, _ in current.selected_sources.values():
+                            identifier = relation_identifier(source)
+                            if (
+                                identifier is not None
+                                and normalized_oracle_identifier(identifier)
+                                == normalized
+                            ):
+                                return True
                         current = current.parent
                     return False
 
                 for scope in traverse_scope(statement):
-                    for column in scope.external_columns:
+                    for column in scope.columns:
                         identifier = column.this
+                        qualifier = column.args.get("table")
                         if (
-                            column.table
+                            isinstance(qualifier, exp.Identifier)
                             and isinstance(identifier, exp.Identifier)
                             and not identifier.args.get("quoted", False)
                             and column.name.casefold() == "nextval"
-                            and not qualifier_is_relation_bound(scope, column.table)
+                            and not qualifier_is_relation_bound(scope, qualifier)
                         ):
                             analysis["warnings"].append(_SEQUENCE_ADVANCEMENT_WARNING)
                             return analysis
