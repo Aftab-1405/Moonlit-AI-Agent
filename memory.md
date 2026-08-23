@@ -1,11 +1,12 @@
 # Moonlit Backend Audit Memory
 
-Last updated: 2026-08-23
+Last updated: 2026-08-24
 
 ## Remediation decision log
 
 ### 2026-08-23 — Remediation Phase 3 / Task 1 immutable run policy
 
+- Task 1 is closed at `a574671` after independent review and one scoped fix round. The reviewer found no Critical issue, one Important late numeric-policy fallback, and one deferred Minor `db_connected` consistency concern. The scoped re-review confirmed the Important finding and SDD report-tracking hygiene issue addressed with no new Critical/Important breakage; Task 2 may now begin while the Minor remains ledgered for whole-phase triage.
 - Fix round 1 removes the final late numeric-policy fallback: `_build_session_state()` now requires `graph_step_budget` from the already resolved policy and raises before emitting prompt state when it is absent. RED was `1 failed, 13 deselected in 0.94s` because a synthetic long task silently rendered the configured default; GREEN was `1 passed, 13 deselected in 0.91s`. The prompt-injection fixture now supplies the same required scalar as production and remains green.
 - Final fix-round evidence is `22 passed, 2 warnings` for policy/context, `59 passed, 2 warnings` for the prescribed regression, and `8 passed, 69 deselected, 3 warnings` for affected controller contracts, with targeted Ruff, compilation, and diff checks clean. The ignored Task 1 report remains on disk but is no longer tracked. No `db_connected` follow-up, later Phase 3 lifecycle concern, live-system action, or unowned backend/frontend path entered this correction.
 - One frozen policy is now resolved at the outer conversation boundary before any run mutation. `TaskMode`, `TaskModeSource`, `RunBudgets`, and `ResolvedRunPolicy` live in `api_contract/run_context.py`; the pure resolver and the existing classifier rules live in `service/conversations/run_context.py`. Precedence is explicit non-normal request, then persisted resume mode, then automatic/default selection. The policy carries the authorized provider/model and DB-connected flag alongside exact graph/segment/tool/wall budgets.
