@@ -317,6 +317,17 @@ def test_resolved_mode_and_budgets_match_stream_prompt_checkpoint_and_history(mo
     assert captured["budget_policy"] is policy
 
 
+def test_session_state_rejects_missing_resolved_graph_budget() -> None:
+    """Catch late config fallback that can contradict the already selected mode."""
+    from langgraph_orchestration.react_graph import _build_session_state
+
+    with pytest.raises(
+        ValueError,
+        match="Resolved run policy graph_step_budget is required",
+    ):
+        _build_session_state({"task_mode": "long_task"})
+
+
 @pytest.mark.asyncio
 async def test_pre_command_mode_write_persists_only_the_resolved_policy(monkeypatch) -> None:
     """Catch the outer persistence path restoring or writing a raw requested mode."""

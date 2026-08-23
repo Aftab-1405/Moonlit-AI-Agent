@@ -17,6 +17,7 @@ def test_session_state_escapes_adversarial_dynamic_values_in_final_prompt() -> N
             "schema": f'public>&"{attacker_tag}',
         },
         "task_mode": f'normal&"{attacker_tag}',
+        "graph_step_budget": 50,
         "reasoning_effort": f"high<'{attacker_tag}",
         "model": f'claude>&"{attacker_tag}',
     }

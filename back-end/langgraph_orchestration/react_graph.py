@@ -37,8 +37,6 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 
-from config import get_config
-
 
 def format_previous_user_turn(content: str, turn_index: int | None = None) -> str:
     """Envelope a restored user message as history, with its turn index.
@@ -243,7 +241,7 @@ def _build_session_state(configurable: dict) -> str:
     mode_info = _MODE_INFO.get(raw_task_mode, _MODE_INFO["normal"])
     graph_step_budget = configurable.get("graph_step_budget")
     if graph_step_budget is None:
-        graph_step_budget = get_config().AGENT_DEFAULT_STEPS
+        raise ValueError("Resolved run policy graph_step_budget is required")
 
     db_type = _escape_state_value(db_type, "none")
     database = _escape_state_value(database, "none")
