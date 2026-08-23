@@ -1,6 +1,7 @@
 """Conversation ports exposed to orchestration."""
 
 from datetime import datetime, timedelta, timezone
+from typing import Callable
 
 from firebase_admin import firestore
 from google.api_core.exceptions import Aborted, FailedPrecondition
@@ -124,54 +125,88 @@ class FirestoreConversationTaskStateStore:
             data = snapshot.to_dict() if snapshot.exists else {}
             previous_status = data.get("task_status", "")
             previous_task_mode = data.get("task_mode", "normal") or "normal"
+            current_fence = max(0, int(data.get("task_run_fence", 0) or 0))
+            current_expiry = data.get("task_lease_expires_at")
             if data.get("task_status") == "running" and self._lease_is_active(data, now):
                 if data.get("task_run_id") == run_id:
                     return TaskRunAcquisition(
-                        True,
-                        data.get("task_run_previous_status", ""),
-                        data.get("task_run_previous_mode", "normal") or "normal",
+                        acquired=True,
+                        run_id=run_id,
+                        fence=current_fence,
+                        lease_expires_at=current_expiry,
+                        previous_status=data.get("task_run_previous_status", ""),
+                        previous_task_mode=data.get("task_run_previous_mode", "normal") or "normal",
                     )
-                return TaskRunAcquisition(False, previous_status, previous_task_mode)
+                return TaskRunAcquisition(
+                    acquired=False,
+                    run_id=run_id,
+                    fence=current_fence,
+                    lease_expires_at=current_expiry,
+                    previous_status=previous_status,
+                    previous_task_mode=previous_task_mode,
+                )
             if not snapshot.exists:
                 raise ValueError(f"Conversation {conversation_id} does not exist")
+            next_fence = current_fence + 1
+            lease_expires_at = now + timedelta(seconds=max(1, lease_seconds))
             try:
                 ref.update(
                     {
                         "task_status": "running",
                         "task_mode": task_mode,
                         "task_run_id": run_id,
+                        "task_run_fence": next_fence,
                         "task_run_previous_status": previous_status,
                         "task_run_previous_mode": previous_task_mode,
                         "task_status_updated_at": now,
-                        "task_lease_expires_at": now + timedelta(seconds=max(1, lease_seconds)),
+                        "task_lease_expires_at": lease_expires_at,
                     },
                     option=LastUpdateOption(snapshot.update_time),
                     retry=_task_state_retry(),
                     timeout=_TASK_STATE_RPC_TIMEOUT_SECONDS,
                 )
-                return TaskRunAcquisition(True, previous_status, previous_task_mode)
+                return TaskRunAcquisition(
+                    acquired=True,
+                    run_id=run_id,
+                    fence=next_fence,
+                    lease_expires_at=lease_expires_at,
+                    previous_status=previous_status,
+                    previous_task_mode=previous_task_mode,
+                )
             except (Aborted, FailedPrecondition):
                 continue
         raise RuntimeError("Could not acquire task lease after concurrent updates")
 
-    def renew_task_run(self, conversation_id: str, run_id: str, lease_seconds: int) -> bool:
-        """Extend the lease for an in-flight task run owned by ``run_id``."""
-        now = datetime.now(timezone.utc)
+    def renew_task_run(
+        self,
+        conversation_id: str,
+        run_id: str,
+        fence: int,
+        lease_seconds: int,
+    ) -> bool:
+        """Extend an unexpired task run owned by ``(run_id, fence)``."""
         return self._update_if_owner(
             conversation_id,
             run_id,
-            {
-                "task_status_updated_at": now,
-                "task_lease_expires_at": now + timedelta(seconds=max(1, lease_seconds)),
+            fence,
+            lambda checked_at: {
+                "task_status_updated_at": checked_at,
+                "task_lease_expires_at": checked_at + timedelta(seconds=max(1, lease_seconds)),
             },
-            require_running=True,
         )
 
-    def update_task_checkpoint_summary(self, conversation_id: str, summary: str, run_id: str) -> bool:
+    def update_task_checkpoint_summary(
+        self,
+        conversation_id: str,
+        summary: str,
+        run_id: str,
+        fence: int,
+    ) -> bool:
         """Persist the latest checkpoint summary for an owned task run."""
         return self._update_if_owner(
             conversation_id,
             run_id,
+            fence,
             {"task_checkpoint_summary": summary},
         )
 
@@ -179,25 +214,26 @@ class FirestoreConversationTaskStateStore:
         self,
         conversation_id: str,
         run_id: str,
-        updates: dict,
-        *,
-        require_running: bool = False,
+        fence: int,
+        updates: dict | Callable[[datetime], dict],
     ) -> bool:
-        """Apply ``updates`` only if ``run_id`` still owns the task run (CAS-guarded)."""
+        """Apply updates only while the unexpired ``(run_id, fence)`` owns the run."""
         ref = self._conversation_ref(conversation_id)
         for _attempt in range(_TASK_STATE_CAS_ATTEMPTS):
+            checked_at = datetime.now(timezone.utc)
             snapshot = ref.get(
                 retry=_task_state_retry(),
                 timeout=_TASK_STATE_RPC_TIMEOUT_SECONDS,
             )
             data = snapshot.to_dict() if snapshot.exists else {}
-            if data.get("task_run_id") != run_id:
+            if data.get("task_run_id") != run_id or data.get("task_run_fence") != fence:
                 return False
-            if require_running and data.get("task_status") != "running":
+            if data.get("task_status") != "running" or not self._lease_is_active(data, checked_at):
                 return False
+            resolved_updates = updates(checked_at) if callable(updates) else updates
             try:
                 ref.update(
-                    updates,
+                    resolved_updates,
                     option=LastUpdateOption(snapshot.update_time),
                     retry=_task_state_retry(),
                     timeout=_TASK_STATE_RPC_TIMEOUT_SECONDS,
@@ -207,27 +243,48 @@ class FirestoreConversationTaskStateStore:
                 continue
         raise RuntimeError("Could not update task lease after concurrent updates")
 
-    def reset_task_checkpoint(self, conversation_id: str, task_mode: str, run_id: str) -> bool:
+    def reset_task_checkpoint(
+        self,
+        conversation_id: str,
+        task_mode: str,
+        run_id: str,
+        fence: int,
+    ) -> bool:
         """Clear the checkpoint summary and set a fresh task mode for the run."""
         return self._update_if_owner(
             conversation_id,
             run_id,
+            fence,
             {"task_checkpoint_summary": "", "task_mode": task_mode},
         )
 
-    def update_task_mode(self, conversation_id: str, task_mode: str, run_id: str) -> bool:
+    def update_task_mode(
+        self,
+        conversation_id: str,
+        task_mode: str,
+        run_id: str,
+        fence: int,
+    ) -> bool:
         """Update the task mode for an owned, in-flight task run."""
         return self._update_if_owner(
             conversation_id,
             run_id,
+            fence,
             {"task_mode": task_mode},
         )
 
-    def save_paused_task(self, conversation_id: str, task_mode: str, run_id: str) -> bool:
+    def save_paused_task(
+        self,
+        conversation_id: str,
+        task_mode: str,
+        run_id: str,
+        fence: int,
+    ) -> bool:
         """Mark the task run as paused due to the step limit, clearing the lease."""
         return self._update_if_owner(
             conversation_id,
             run_id,
+            fence,
             {
                 "task_status": "paused_step_limit",
                 "task_mode": task_mode,
@@ -239,12 +296,20 @@ class FirestoreConversationTaskStateStore:
             },
         )
 
-    def save_interrupted_task(self, conversation_id: str, task_mode: str, reason: str, run_id: str) -> bool:
+    def save_interrupted_task(
+        self,
+        conversation_id: str,
+        task_mode: str,
+        reason: str,
+        run_id: str,
+        fence: int,
+    ) -> bool:
         """Persist an interrupted (cancelled/error) task run and clear the lease."""
         safe_reason = reason if reason in {"cancelled", "error"} else "error"
         return self._update_if_owner(
             conversation_id,
             run_id,
+            fence,
             {
                 "task_status": f"paused_{safe_reason}",
                 "task_mode": task_mode,
@@ -256,11 +321,18 @@ class FirestoreConversationTaskStateStore:
             },
         )
 
-    def clear_task_status(self, conversation_id: str, task_mode: str, run_id: str) -> bool:
+    def clear_task_status(
+        self,
+        conversation_id: str,
+        task_mode: str,
+        run_id: str,
+        fence: int,
+    ) -> bool:
         """Reset the conversation to idle (no task running) and clear lease fields."""
         return self._update_if_owner(
             conversation_id,
             run_id,
+            fence,
             {
                 "task_status": "",
                 "task_mode": task_mode,

@@ -55,8 +55,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from html import escape
 from typing import AsyncGenerator, Optional
+from uuid import uuid4
 
 from fastapi.concurrency import run_in_threadpool
 from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage
@@ -64,7 +66,7 @@ from langchain_core.messages.utils import merge_message_runs
 from langgraph.errors import GraphRecursionError
 from langgraph.types import Command
 
-from api_contract.run_context import ResolvedRunPolicy
+from api_contract.run_context import ResolvedRunPolicy, RunControl
 from core.errors import log_safe_exception, public_tool_error
 from langgraph_orchestration.context_usage import (
     build_summary_completed_events,
@@ -276,14 +278,16 @@ async def check_and_perform_compaction(agent, config, conversation_id, chat_mode
                 )
 
                 task_run_id = config["configurable"].get("task_run_id")
+                task_run_fence = config["configurable"].get("task_run_fence")
                 persisted = False
-                if task_run_id:
+                if task_run_id and task_run_fence is not None:
                     try:
                         persisted = await asyncio.to_thread(
                             get_conversation_task_state_store().update_task_checkpoint_summary,
                             conversation_id,
                             updated_summary,
                             task_run_id,
+                            task_run_fence,
                         )
                     except Exception as write_err:
                         # WENH [6]: If the Firestore write raised (e.g.
@@ -565,6 +569,10 @@ async def stream_conversation(
     compaction_done = False
     run_lease: TaskRunLease | None = None
     interruption_reason = "error"
+    run_control = RunControl(
+        deadline_monotonic=time.monotonic() + run_policy.budgets.wall_clock_seconds,
+        tool_limit=run_policy.budgets.tool_calls,
+    )
 
     try:
         selected_model = run_policy.model
@@ -577,10 +585,14 @@ async def stream_conversation(
             run_lease = TaskRunLease(
                 conversation_id,
                 run_policy.task_mode,
+                uuid4().hex,
+                run_control,
             )
             try:
                 acquisition = await run_lease.acquire()
                 existing_task_status = acquisition.previous_status
+                run_lease.register_stream_task(asyncio.current_task())
+                run_lease.ensure_owned()
             except ConcurrentTaskRunError:
                 logger.info(
                     "Rejected concurrent task run for conversation %s",
@@ -848,6 +860,7 @@ async def stream_conversation(
                 "wall_clock_budget_seconds": run_policy.budgets.wall_clock_seconds,
                 "reasoning_effort": reasoning_effort,
                 "task_run_id": run_lease.run_id if run_lease is not None else None,
+                "task_run_fence": run_lease.fence if run_lease is not None else None,
             },
             "recursion_limit": segment_step_limit,
         }
@@ -1103,18 +1116,6 @@ async def stream_conversation(
         for summary_event in post_summary_events:
             yield sse_encode(summary_event)
 
-        # WENH [1]: Register the current task with the lease so the renew loop
-        # can cancel it on ownership loss (FIX [M2]). Without this, a
-        # long-running tool call (e.g. 30s execute_query) continues past
-        # lease theft, mutating state that another stream now owns. Set
-        # AFTER `run_lease` is confirmed acquired (acquire() at line 531
-        # above) and BEFORE the streaming loop begins (the first
-        # `agent.astream` call lives inside `_stream_graph_with_continuations`).
-        if run_lease is not None:
-            import asyncio as _asyncio
-
-            run_lease._stream_task = _asyncio.current_task()
-
         try:
             async for part in _stream_graph_with_continuations(
                 agent,
@@ -1336,14 +1337,6 @@ async def stream_conversation(
             except BaseException:
                 # Closing the renewal loop must not block cancellation.
                 pass
-
-        # WENH [1]: Clear the stream task reference so the renew loop does
-        # not hold a stale reference after this stream has ended. This pairs
-        # with the assignment above (right before the streaming loop) and
-        # is placed AFTER the lease is released so the renew loop has
-        # already exited (close() cancels _renew_task).
-        if run_lease is not None:
-            run_lease._stream_task = None
 
         # Best-effort compaction. Runs only if compaction has not already
         # run for this turn (see FIX [M1] — `compaction_done` replaces the

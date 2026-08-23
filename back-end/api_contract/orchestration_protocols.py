@@ -1,6 +1,7 @@
 """Agent orchestration protocols."""
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Protocol, runtime_checkable
 
 
@@ -9,8 +10,11 @@ class TaskRunAcquisition:
     """Result of attempting to acquire a conversation's task-run execution lease."""
 
     acquired: bool
-    previous_status: str = ""
-    previous_task_mode: str = "normal"
+    run_id: str
+    fence: int
+    lease_expires_at: datetime
+    previous_status: str
+    previous_task_mode: str
 
 
 @runtime_checkable
@@ -66,7 +70,13 @@ class ConversationSummarizer(Protocol):
 class ConversationTaskStateStore(Protocol):
     """Port for task-mode state persisted with a conversation."""
 
-    def update_task_checkpoint_summary(self, conversation_id: str, summary: str, run_id: str) -> bool:
+    def update_task_checkpoint_summary(
+        self,
+        conversation_id: str,
+        summary: str,
+        run_id: str,
+        fence: int,
+    ) -> bool:
         """Persist a checkpoint summary only for the active run owner."""
 
     def try_acquire_task_run(
@@ -78,20 +88,57 @@ class ConversationTaskStateStore(Protocol):
     ) -> TaskRunAcquisition:
         """Atomically acquire an expiring execution lease."""
 
-    def renew_task_run(self, conversation_id: str, run_id: str, lease_seconds: int) -> bool:
-        """Extend a lease only when ``run_id`` still owns it."""
+    def renew_task_run(
+        self,
+        conversation_id: str,
+        run_id: str,
+        fence: int,
+        lease_seconds: int,
+    ) -> bool:
+        """Extend an unexpired lease only when ``(run_id, fence)`` owns it."""
 
-    def reset_task_checkpoint(self, conversation_id: str, task_mode: str, run_id: str) -> bool:
+    def reset_task_checkpoint(
+        self,
+        conversation_id: str,
+        task_mode: str,
+        run_id: str,
+        fence: int,
+    ) -> bool:
         """Clear checkpoint state when ``run_id`` owns the active lease."""
 
-    def update_task_mode(self, conversation_id: str, task_mode: str, run_id: str) -> bool:
+    def update_task_mode(
+        self,
+        conversation_id: str,
+        task_mode: str,
+        run_id: str,
+        fence: int,
+    ) -> bool:
         """Update the mode when a resumed run restores persisted settings."""
 
-    def save_paused_task(self, conversation_id: str, task_mode: str, run_id: str) -> bool:
+    def save_paused_task(
+        self,
+        conversation_id: str,
+        task_mode: str,
+        run_id: str,
+        fence: int,
+    ) -> bool:
         """Persist paused state and release the owned execution lease."""
 
-    def save_interrupted_task(self, conversation_id: str, task_mode: str, reason: str, run_id: str) -> bool:
+    def save_interrupted_task(
+        self,
+        conversation_id: str,
+        task_mode: str,
+        reason: str,
+        run_id: str,
+        fence: int,
+    ) -> bool:
         """Persist resumable interruption and release the owned lease."""
 
-    def clear_task_status(self, conversation_id: str, task_mode: str, run_id: str) -> bool:
+    def clear_task_status(
+        self,
+        conversation_id: str,
+        task_mode: str,
+        run_id: str,
+        fence: int,
+    ) -> bool:
         """Clear task status only when ``run_id`` owns the lease."""
