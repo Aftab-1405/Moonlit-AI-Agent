@@ -10,7 +10,7 @@ Last updated: 2026-08-23
 - [x] Phase 1 implementation plan written and executed.
 - [x] Phase 1 — Session and admission-control baseline.
 - [x] Phase 2 — Request, authentication, and security boundaries.
-- [ ] Phase 3 — Ownership-safe LangGraph lifecycle and terminal durability.
+- [-] Phase 3 — Ownership-safe LangGraph lifecycle and terminal durability.
 - [ ] Phase 4 — Bounded streaming, tools, and query artifacts.
 - [ ] Phase 5 — VAMP, skills, and typed contracts.
 - [ ] Phase 6 — Storage, SOLID boundaries, and reproducible tooling.
@@ -82,6 +82,16 @@ Exit criteria: SOLID findings distinguish pragmatic trade-offs from changes that
 Exit criteria: final report is evidence-backed, prioritized, actionable, and distinguishes verified defects from risks or coverage gaps.
 
 ## Work log
+
+### 2026-08-23 — Remediation Phase 3 preflight and implementation plan
+
+- Phase 3 is active. The implementation plan is `docs/superpowers/plans/2026-08-23-phase-3-langgraph-lifecycle-durability.md`; after independent pre-implementation review it now divides work into nine sequential TDD tasks: immutable run policy, lease/fence safety, immutable checkpoint generations, hard run budgets, atomic command/lease/quota admission, durable protected-action reservation, recoverable finalization primitives, sole outer terminal coordination, and truthful browser recovery.
+- The focused hermetic preflight command covering context synchronization, stream contracts, conversation identity, tool safety, and API contracts passed `156 passed, 3 warnings in 1.81s`. Targeted backend Ruff was clean. The warnings are the existing installed SlowAPI/Python 3.14 deprecations; the restricted wrapper also emitted its known stream-FD diagnostics without changing the test result.
+- Three independent read-only audits confirmed `ORCH-001` through `ORCH-005` plus `STREAM-003` and `STREAM-004` remain open. Verified defects include late mode drift, recursion-limit double counting, a 21st tool call under a 20-call cap, no total wall deadline, stale-checkpoint continuation, fail-open lease renewal past durable expiry, unfenced checkpoint/tool/artifact/final writes, lease release before compaction/final response persistence, no user-scoped command identity, terminal-less EOF treated as success, and public `done` before assistant durability.
+- Phase 3 rulings are explicit: retain configured graph totals `50/100/200`; count every tool under one atomic limit of `20`; use independent wall budgets `180/600/1200` seconds for normal/tool/long modes; require a user-scoped UUIDv4 command ID; use bounded no-replay recovery; represent Firestore/Redis cross-store completion as recoverable `finalizing`; and reserve public `done` for durable completion only.
+- Independent plan review found four material gaps in the first draft: local pre/post saver checks could not undo an in-flight stale Redis write; automatic reclaim had no durable protected-action proof; finalizer-only recovery depended on an in-memory assistant snapshot; and command claim/lease/quota were not one ownership gate. The revised design uses Firestore-selected immutable fence-qualified checkpoint generations, a pre-action durable reservation, a generation-backed finalization envelope plus staged assistant, one atomic command/lease claim, and idempotent command-attempt quota tokens. It also separates execution, checkpoint, finalization, live status, and public result types.
+- Both independent final scoped re-reviews are clean with no remaining Critical/Important issue. The last corrections separate reserved from active checkpoint generations, make graph entry require verified activation, add a user-scoped finalizer-only replacement-fence claim, allow a retry to claim an unattempted `accepted` command, define the no-evidence expired-run transition, make normalization and the 1 MiB envelope bound exact, and record named RED cases plus dirty-journal/frontend attribution rules.
+- No production or test source has changed at this checkpoint. Preflight reports are local scratch context under `.superpowers/phase3-preflight/`. The unowned React Flow skill edit and unrelated frontend edits remain untouched and unstaged. No live service, dependency, migration, deployment, remote, push, or merge action occurred.
 
 ### 2026-08-23 — Remediation Phase 2 residual correction closed
 
