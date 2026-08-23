@@ -8,7 +8,7 @@ from types import MappingProxyType
 
 import pytest
 from firebase_admin import firestore
-from google.api_core.exceptions import Aborted
+from google.api_core.exceptions import Aborted, DeadlineExceeded
 from google.cloud.firestore_v1 import LastUpdateOption
 
 from service.conversations import orchestration_access
@@ -36,14 +36,24 @@ class _ImmutableSnapshot:
 class _FakeDocumentReference:
     """Small immutable-snapshot CAS model of one Firestore document."""
 
-    def __init__(self, data: dict | None, *, update_script: list[str] | None = None) -> None:
+    def __init__(
+        self,
+        data: dict | None,
+        *,
+        update_script: list[str] | None = None,
+        get_hook=None,
+    ) -> None:
         self.data = deepcopy(data) if data is not None else None
         self.update_time = 1
         self.update_script = list(update_script or [])
         self.mutations: list[dict] = []
+        self.get_hook = get_hook
 
     def get(self, **_kwargs) -> _ImmutableSnapshot:
-        return _ImmutableSnapshot(self.data, self.update_time)
+        snapshot = _ImmutableSnapshot(self.data, self.update_time)
+        if self.get_hook is not None:
+            self.get_hook()
+        return snapshot
 
     def update(self, updates: dict, *, option: LastUpdateOption, **_kwargs) -> None:
         assert option._last_update_time == self.update_time
@@ -53,6 +63,8 @@ class _FakeDocumentReference:
         self._commit(updates)
         if action == "commit_then_abort":
             raise Aborted("scripted ambiguous commit")
+        if action == "commit_then_timeout":
+            raise DeadlineExceeded("scripted ambiguous timeout")
 
     def _commit(self, updates: dict) -> None:
         assert self.data is not None
@@ -87,6 +99,24 @@ def _conversation(**overrides) -> dict:
         "task_run_fence": 0,
         **overrides,
     }
+
+
+def _store_whose_read_crosses_expiry(monkeypatch, data: dict):
+    class _CrossingDateTime(datetime):
+        current = NOW
+
+        @classmethod
+        def now(cls, tz=None):
+            return cls.current if tz is not None else cls.current.replace(tzinfo=None)
+
+    monkeypatch.setattr(orchestration_access, "datetime", _CrossingDateTime)
+    ref = _FakeDocumentReference(
+        data,
+        get_hook=lambda: setattr(_CrossingDateTime, "current", NOW + timedelta(seconds=2)),
+    )
+    task_store = FirestoreConversationTaskStateStore()
+    monkeypatch.setattr(task_store, "_conversation_ref", lambda _conversation_id: ref)
+    return task_store, ref
 
 
 def test_first_acquisition_assigns_first_fence_and_exact_expiry(store) -> None:
@@ -188,6 +218,26 @@ def test_ambiguous_acquisition_commit_reenters_without_allocating_second_fence(s
     assert len(ref.mutations) == 1
 
 
+def test_acquisition_reconciles_commit_then_timeout_without_second_fence(store) -> None:
+    task_store, ref = store(
+        _conversation(task_status="paused_error", task_mode="long_task"),
+        update_script=["commit_then_timeout"],
+    )
+
+    result = task_store.try_acquire_task_run("conversation-1", "tool_task", "run-a", 30)
+
+    assert result == orchestration_access.TaskRunAcquisition(
+        acquired=True,
+        run_id="run-a",
+        fence=1,
+        lease_expires_at=NOW + timedelta(seconds=30),
+        previous_status="paused_error",
+        previous_task_mode="long_task",
+    )
+    assert ref.data["task_run_fence"] == 1
+    assert len(ref.mutations) == 1
+
+
 def test_expired_same_owner_cannot_renew_or_mutate(store) -> None:
     task_store, ref = store(
         _conversation(
@@ -239,6 +289,68 @@ def test_renew_cas_retry_rechecks_expiry_at_each_snapshot(monkeypatch) -> None:
 
     assert renewed is False
     assert ref.data["task_lease_expires_at"] == NOW + timedelta(seconds=1)
+    assert ref.mutations == []
+
+
+def test_acquisition_uses_post_read_time_for_expired_takeover(monkeypatch) -> None:
+    task_store, ref = _store_whose_read_crosses_expiry(
+        monkeypatch,
+        _conversation(
+            task_status="running",
+            task_mode="normal",
+            task_run_id="run-a",
+            task_run_fence=4,
+            task_lease_expires_at=NOW + timedelta(seconds=1),
+        ),
+    )
+
+    result = task_store.try_acquire_task_run("conversation-1", "long_task", "run-b", 30)
+
+    assert result.acquired is True
+    assert result.fence == 5
+    assert result.lease_expires_at == NOW + timedelta(seconds=32)
+    assert ref.data["task_run_id"] == "run-b"
+    assert ref.data["task_run_fence"] == 5
+
+
+def test_renewal_uses_post_read_time_and_cannot_revive_expired_lease(monkeypatch) -> None:
+    task_store, ref = _store_whose_read_crosses_expiry(
+        monkeypatch,
+        _conversation(
+            task_status="running",
+            task_run_id="run-a",
+            task_run_fence=3,
+            task_lease_expires_at=NOW + timedelta(seconds=1),
+        ),
+    )
+
+    renewed = task_store.renew_task_run("conversation-1", "run-a", 3, 30)
+
+    assert renewed is False
+    assert ref.data["task_lease_expires_at"] == NOW + timedelta(seconds=1)
+    assert ref.mutations == []
+
+
+def test_owned_mutation_uses_post_read_time_and_rejects_expired_lease(monkeypatch) -> None:
+    task_store, ref = _store_whose_read_crosses_expiry(
+        monkeypatch,
+        _conversation(
+            task_status="running",
+            task_run_id="run-a",
+            task_run_fence=3,
+            task_lease_expires_at=NOW + timedelta(seconds=1),
+        ),
+    )
+
+    updated = task_store.update_task_checkpoint_summary(
+        "conversation-1",
+        "must-not-write",
+        "run-a",
+        3,
+    )
+
+    assert updated is False
+    assert "task_checkpoint_summary" not in ref.data
     assert ref.mutations == []
 
 

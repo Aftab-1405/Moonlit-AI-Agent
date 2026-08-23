@@ -328,6 +328,44 @@ async def test_close_is_idempotent_and_leaves_no_renewal_task() -> None:
     assert renewal_task is not None and renewal_task.done()
 
 
+@pytest.mark.asyncio
+async def test_concurrent_close_waiters_share_blocked_renewal_cleanup() -> None:
+    loop = asyncio.get_running_loop()
+    clock = FakeMonotonicClock()
+    store = ScriptedTaskStateStore(loop)
+    store.block_renewal = True
+    lease = _lease(store, clock)
+    await lease.acquire()
+    await clock.advance_to(2.0)
+    await store.renew_observed.wait()
+
+    first_close = asyncio.create_task(lease.close())
+    await _eventually(lambda: lease._closed)
+    second_close = asyncio.create_task(lease.close())
+    try:
+        for _attempt in range(10):
+            resumed = loop.create_future()
+            loop.call_soon(resumed.set_result, None)
+            await resumed
+        assert first_close.done() is False
+        assert second_close.done() is False
+
+        first_close.cancel()
+        await _eventually(first_close.done)
+        with pytest.raises(asyncio.CancelledError):
+            await first_close
+        assert second_close.done() is False
+
+        store.renew_release.set()
+        await second_close
+        assert lease._renew_task is None
+        assert lease._close_task is None
+        assert [mutation[0] for mutation in store.mutations].count("renew") == 1
+    finally:
+        store.renew_release.set()
+        await asyncio.gather(first_close, second_close, return_exceptions=True)
+
+
 def test_run_control_rejects_expired_cancelled_and_fenced_mutations() -> None:
     from api_contract.run_context import RunControl
 

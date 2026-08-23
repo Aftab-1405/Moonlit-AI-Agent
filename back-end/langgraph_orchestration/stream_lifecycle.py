@@ -61,6 +61,7 @@ class TaskRunLease:
         self._ownership_lost = asyncio.Event()
         self._stream_task: asyncio.Task | None = None
         self._close_lock = asyncio.Lock()
+        self._close_task: asyncio.Task | None = None
         self._closed = False
 
     async def acquire(self) -> TaskRunAcquisition:
@@ -149,19 +150,31 @@ class TaskRunLease:
     async def close(self) -> None:
         """Stop the renew loop and cancel its background task if running."""
         async with self._close_lock:
-            if self._closed:
-                return
-            self._closed = True
-            self._stop_renewal.set()
-            renew_task = self._renew_task
-            self._renew_task = None
-            self._stream_task = None
-        if renew_task is not None:
-            renew_task.cancel()
-            try:
+            cleanup_task = self._close_task
+            if cleanup_task is None:
+                if self._closed:
+                    return
+                self._closed = True
+                cleanup_task = asyncio.create_task(self._close_once())
+                self._close_task = cleanup_task
+        await asyncio.shield(cleanup_task)
+
+    async def _close_once(self) -> None:
+        """Perform the single shared cleanup awaited by every close caller."""
+        self._stop_renewal.set()
+        self._stream_task = None
+        renew_task = self._renew_task
+        try:
+            if renew_task is not None:
+                renew_task.cancel()
                 await renew_task
-            except asyncio.CancelledError:
-                pass
+        except asyncio.CancelledError:
+            pass
+        finally:
+            self._renew_task = None
+            async with self._close_lock:
+                if self._close_task is asyncio.current_task():
+                    self._close_task = None
 
     def ensure_owned(self) -> None:
         """Raise ``RuntimeError`` if the lease was lost mid-stream."""

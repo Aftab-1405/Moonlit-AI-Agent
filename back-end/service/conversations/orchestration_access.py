@@ -4,7 +4,14 @@ from datetime import datetime, timedelta, timezone
 from typing import Callable
 
 from firebase_admin import firestore
-from google.api_core.exceptions import Aborted, FailedPrecondition
+from google.api_core.exceptions import (
+    Aborted,
+    DeadlineExceeded,
+    FailedPrecondition,
+    GatewayTimeout,
+    RetryError,
+    ServiceUnavailable,
+)
 from google.api_core.retry import Retry
 from google.cloud.firestore_v1 import LastUpdateOption
 
@@ -20,6 +27,17 @@ from service.firestore.firestore_service import FirestoreService
 
 _TASK_STATE_RPC_TIMEOUT_SECONDS = 8.0
 _TASK_STATE_CAS_ATTEMPTS = 3
+_AMBIGUOUS_TASK_STATE_ERRORS = (DeadlineExceeded, GatewayTimeout, ServiceUnavailable)
+
+
+def _is_ambiguous_task_state_error(error: Exception) -> bool:
+    """Return whether a failed RPC may have committed its write durably."""
+    if isinstance(error, _AMBIGUOUS_TASK_STATE_ERRORS):
+        return True
+    return isinstance(error, RetryError) and isinstance(
+        error.cause,
+        _AMBIGUOUS_TASK_STATE_ERRORS,
+    )
 
 
 def _task_state_retry() -> Retry:
@@ -117,11 +135,11 @@ class FirestoreConversationTaskStateStore:
         """
         ref = self._conversation_ref(conversation_id)
         for _attempt in range(_TASK_STATE_CAS_ATTEMPTS):
-            now = datetime.now(timezone.utc)
             snapshot = ref.get(
                 retry=_task_state_retry(),
                 timeout=_TASK_STATE_RPC_TIMEOUT_SECONDS,
             )
+            now = datetime.now(timezone.utc)
             data = snapshot.to_dict() if snapshot.exists else {}
             previous_status = data.get("task_status", "")
             previous_task_mode = data.get("task_mode", "normal") or "normal"
@@ -175,6 +193,40 @@ class FirestoreConversationTaskStateStore:
                 )
             except (Aborted, FailedPrecondition):
                 continue
+            except Exception as write_error:
+                if not _is_ambiguous_task_state_error(write_error):
+                    raise
+                try:
+                    reconciliation = ref.get(
+                        retry=_task_state_retry(),
+                        timeout=_TASK_STATE_RPC_TIMEOUT_SECONDS,
+                    )
+                except Exception as read_error:
+                    if not _is_ambiguous_task_state_error(read_error):
+                        raise
+                    continue
+                reconciled_at = datetime.now(timezone.utc)
+                reconciled = reconciliation.to_dict() if reconciliation.exists else {}
+                committed = (
+                    reconciled.get("task_status") == "running"
+                    and reconciled.get("task_mode") == task_mode
+                    and reconciled.get("task_run_id") == run_id
+                    and reconciled.get("task_run_fence") == next_fence
+                    and reconciled.get("task_lease_expires_at") == lease_expires_at
+                    and reconciled.get("task_run_previous_status") == previous_status
+                    and reconciled.get("task_run_previous_mode") == previous_task_mode
+                    and self._lease_is_active(reconciled, reconciled_at)
+                )
+                if committed:
+                    return TaskRunAcquisition(
+                        acquired=True,
+                        run_id=run_id,
+                        fence=next_fence,
+                        lease_expires_at=lease_expires_at,
+                        previous_status=previous_status,
+                        previous_task_mode=previous_task_mode,
+                    )
+                continue
         raise RuntimeError("Could not acquire task lease after concurrent updates")
 
     def renew_task_run(
@@ -220,11 +272,11 @@ class FirestoreConversationTaskStateStore:
         """Apply updates only while the unexpired ``(run_id, fence)`` owns the run."""
         ref = self._conversation_ref(conversation_id)
         for _attempt in range(_TASK_STATE_CAS_ATTEMPTS):
-            checked_at = datetime.now(timezone.utc)
             snapshot = ref.get(
                 retry=_task_state_retry(),
                 timeout=_TASK_STATE_RPC_TIMEOUT_SECONDS,
             )
+            checked_at = datetime.now(timezone.utc)
             data = snapshot.to_dict() if snapshot.exists else {}
             if data.get("task_run_id") != run_id or data.get("task_run_fence") != fence:
                 return False
