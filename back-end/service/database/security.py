@@ -215,6 +215,7 @@ class DatabaseSecurity:
         try:
             import sqlglot
             from sqlglot import expressions as exp
+            from sqlglot.optimizer.scope import traverse_scope
 
             statements = [
                 item
@@ -268,16 +269,29 @@ class DatabaseSecurity:
                 return analysis
 
             if dialect == "oracle":
-                for column in statement.find_all(exp.Column):
-                    identifier = column.this
-                    if (
-                        column.table
-                        and isinstance(identifier, exp.Identifier)
-                        and not identifier.args.get("quoted", False)
-                        and column.name.casefold() == "nextval"
-                    ):
-                        analysis["warnings"].append(_SEQUENCE_ADVANCEMENT_WARNING)
-                        return analysis
+                def qualifier_is_relation_bound(scope, qualifier: str) -> bool:
+                    current = scope
+                    normalized = qualifier.casefold()
+                    while current is not None:
+                        if normalized in {
+                            str(name).casefold() for name in current.sources
+                        }:
+                            return True
+                        current = current.parent
+                    return False
+
+                for scope in traverse_scope(statement):
+                    for column in scope.external_columns:
+                        identifier = column.this
+                        if (
+                            column.table
+                            and isinstance(identifier, exp.Identifier)
+                            and not identifier.args.get("quoted", False)
+                            and column.name.casefold() == "nextval"
+                            and not qualifier_is_relation_bound(scope, column.table)
+                        ):
+                            analysis["warnings"].append(_SEQUENCE_ADVANCEMENT_WARNING)
+                            return analysis
 
             if dialect == "mysql":
                 for assignment in statement.find_all(exp.PropertyEQ):

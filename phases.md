@@ -83,6 +83,13 @@ Exit criteria: final report is evidence-backed, prioritized, actionable, and dis
 
 ## Work log
 
+### 2026-08-23 — Remediation Phase 2 / Task 11 scope-aware Oracle sequence detection
+
+- Oracle sequence detection now traverses SQLGlot scopes and examines only external unquoted `NEXTVAL` columns. A qualifier found in the current scope or any ancestor `sources` mapping is relation-bound and remains allowed; an unresolved qualifier is still rejected with the unchanged `Sequence advancement is prohibited by read-only policy` warning. This covers table names/aliases, derived-table aliases, CTEs, and correlated outer relations without raw SQL checks, global aliases, or a second policy.
+- Strict TDD evidence: the exact RED selection reported the expected `5 failed, 1 passed in 0.14s`—all five relation-bound cases failed while the nested unresolved sequence regression passed. Focused GREEN reported `6 passed in 0.10s`; the authoritative SQL policy/adapter regression reported `152 passed in 0.24s`; and targeted Ruff reported `All checks passed!`.
+- Self-review confirmed quoted `"NEXTVAL"` remains an ordinary column, unquoted unresolved top-level and nested `.NEXTVAL` remain blocked, current/ancestor scope resolution handles case-folded aliases without sibling/global leakage, and SQL Server sequence/hint plus MySQL assignment branches are unchanged. The SQLGlot imports remain inside the existing analysis `try` block, and no dead code or accidental formatting change was introduced.
+- Validation was repository-local only. No dependency, network, live database/service, migration, deployment, remote, push, merge, or Phase 3 action occurred; the unowned React Flow skill and unrelated frontend paths remained untouched and unstaged. Deployment must still verify tenant-scoped least-privilege database roles, revoked function/sequence grants, DBMS read-only transactions, and resource limits. Phase 2 remains reopened until Task 11's independent review and the final correction-range review are clean.
+
 ### 2026-08-23 — Remediation Phase 2 / final-fix re-review reopened the phase
 
 - Fresh scoped re-review of final-fix commit `c6fc196` marks seven targets addressed: safe validation serialization; bounded ASGI aggregation/frame progress/disconnect handling; the four required stateful-SQL cases; canonical HTTP/SSE/model/tool code-message forwarding; exact Firebase 8,192 acceptance/8,193 rejection; real-ASGI 405 envelope/headers/`Allow`; and typed model-selection reasons.

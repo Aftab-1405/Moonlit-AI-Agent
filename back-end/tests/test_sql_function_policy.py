@@ -298,6 +298,33 @@ def test_stateful_select_constructs_are_rejected_by_actual_dialect(
     assert result["warnings"] == [warning]
 
 
+@pytest.mark.parametrize(
+    "query",
+    [
+        "SELECT e.NEXTVAL FROM employees e",
+        "SELECT employees.NEXTVAL FROM employees",
+        "SELECT d.NEXTVAL FROM (SELECT 1 AS NEXTVAL FROM dual) d",
+        "WITH e AS (SELECT 1 AS NEXTVAL FROM dual) SELECT e.NEXTVAL FROM e",
+        "SELECT (SELECT e.NEXTVAL FROM dual) FROM employees e",
+    ],
+)
+def test_oracle_relation_bound_nextval_columns_remain_allowed(query: str) -> None:
+    result = DatabaseSecurity.analyze_sql_query(query, dialect="oracle")
+    assert result["is_safe"] is True
+    assert result["warnings"] == []
+
+
+def test_oracle_nested_unresolved_nextval_sequence_remains_blocked() -> None:
+    result = DatabaseSecurity.analyze_sql_query(
+        "SELECT (SELECT my_seq.NEXTVAL FROM dual) FROM employees e",
+        dialect="oracle",
+    )
+    assert result["is_safe"] is False
+    assert result["warnings"] == [
+        "Sequence advancement is prohibited by read-only policy"
+    ]
+
+
 def test_sqlserver_nolock_hint_remains_allowed() -> None:
     """Preserve the deliberately harmless SQL Server non-locking table hint."""
     result = DatabaseSecurity.analyze_sql_query(

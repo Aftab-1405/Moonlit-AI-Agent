@@ -4,6 +4,13 @@ Last updated: 2026-08-23
 
 ## Remediation decision log
 
+### 2026-08-23 — Remediation Phase 2 / Task 11 scope-aware Oracle sequence detection
+
+- The Oracle guard now uses SQLGlot `traverse_scope(statement)`: only an external column whose identifier is unquoted `NEXTVAL` is a sequence candidate, and its qualifier is treated as relation-bound when its case-folded name exists in the current scope or any ancestor `sources` mapping. Table aliases/names, subquery aliases, CTEs, and correlated outer relations therefore remain usable while unresolved qualifiers retain the stable sequence-advancement rejection.
+- Strict TDD: the prescribed RED selection produced exactly `5 failed, 1 passed in 0.14s`; the five allowed relation-bound fixtures exposed the false positive, and the nested genuine sequence already passed. Focused GREEN was `6 passed in 0.10s`; the full SQL function-policy/database-adapter gate was `152 passed in 0.24s`; targeted Ruff returned `All checks passed!`.
+- Self-review verified top-level/nested unresolved sequences, quoted versus unquoted `NEXTVAL`, current/parent scope visibility, case-folded relation matching, derived tables, CTEs, correlated references, stable warnings, and unchanged SQL Server/MySQL branches. The implementation uses no SQL substring matching, global alias set, duplicate SQL policy, dependency, or out-of-scope refactor.
+- Tests and probes were repository-local. No live database/service, dependency, network, migration, deployment, remote, push, merge, or Phase 3 work occurred, and the protected React Flow/frontend changes remained untouched. Deployment still must verify tenant-scoped least-privilege roles, revoked function/sequence grants, DBMS read-only transactions, and resource limits. Independent Task 11 and correction-range reviews remain required before Phase 2 can close again.
+
 ### 2026-08-23 — Remediation Phase 2 / Task 10 fail-closed exception diagnostics
 
 - `log_safe_exception()` is now a metadata-only diagnostic boundary. It records the stable operation name, exception class name, canonical `PublicError.code`, and current request ID, but never renders `str(exc)`, exception arguments, a `detail=` field, or traceback metadata. Heuristic redaction is not a security boundary because exceptions can echo arbitrary caller-controlled values.
