@@ -4,6 +4,13 @@ Last updated: 2026-08-23
 
 ## Remediation decision log
 
+### 2026-08-23 — Remediation Phase 2 reopened after final-fix re-review
+
+- The scoped re-review of `1723f0b..c6fc196` confirms the validation serializer, bounded ASGI framing/disconnect handling, the four required stateful-SQL blocks, canonical coded-error forwarding, exact 8,192/8,193 token boundary, real-ASGI 405 contract, and typed model-selection reason. Those changes remain valid and their post-commit isolation gates remain green (`462 passed` for exact `HEAD`; `508 passed` for committed production plus the current local test corpus).
+- Phase 2 is nevertheless **not closed**. `log_safe_exception()` still logs `sanitize_error_message(str(exc))`; direct probes prove all-letter tokens, single-label hosts, bare password text, and IPv6 survive unchanged. Because Firebase/Redis/database-pool boundaries can receive exceptions that echo caller-supplied values, the named active diagnostic boundary is not fail-closed and the final-review logging finding remains open.
+- The Oracle sequence guard also introduces a verified Important false positive: `DatabaseSecurity.analyze_sql_query("SELECT e.NEXTVAL FROM employees e", dialect="oracle")` returns `is_safe=false` even though `e` is a table alias and `NEXTVAL` may be an ordinary qualified column. The guard must distinguish an actual sequence qualifier from a relation/alias in the parsed statement while continuing to block `my_seq.NEXTVAL` sequence advancement.
+- Controller probes reproduced both findings exactly. Per the single final-fix-wave review rule, no second implementation loop was started during closure. The next work must be a dedicated focused correction with behavioral RED→GREEN coverage for input-adjacent exception logging and Oracle alias/column semantics, followed by one fresh scoped review. No deployment, migration, remote, push, merge, or unrelated working-tree action occurred.
+
 ### 2026-08-23 — Remediation Phase 2 final-review closure
 
 - One safe validation serializer is authoritative at the HTTP boundary: it returns only normalized `loc` segments and stable Pydantic `type` values. Raw `input`, `ctx`, validation URLs/messages, passwords, DSNs, private hosts, SQL, tokens, and extra-field values never cross the 422 response. Real-ASGI probes cover all sentinels, the exact 8,192/8,193 Firebase-token boundary, and a 405 response with the common envelope, `Allow`, request ID, and security headers.

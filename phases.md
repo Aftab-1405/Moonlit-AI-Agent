@@ -83,6 +83,13 @@ Exit criteria: final report is evidence-backed, prioritized, actionable, and dis
 
 ## Work log
 
+### 2026-08-23 — Remediation Phase 2 / final-fix re-review reopened the phase
+
+- Fresh scoped re-review of final-fix commit `c6fc196` marks seven targets addressed: safe validation serialization; bounded ASGI aggregation/frame progress/disconnect handling; the four required stateful-SQL cases; canonical HTTP/SSE/model/tool code-message forwarding; exact Firebase 8,192 acceptance/8,193 rejection; real-ASGI 405 envelope/headers/`Allow`; and typed model-selection reasons.
+- Two Important findings remain. First, active auth/Redis/database diagnostics are still not fail-closed because `log_safe_exception()` includes heuristic-sanitized `str(exc)`. Direct probes show complete all-letter tokens, single-label hosts, bare passwords, and IPv6 are retained. Second, the new Oracle rule rejects the legal qualified column query `SELECT e.NEXTVAL FROM employees e` because it treats every unquoted qualified `NEXTVAL` column as sequence advancement without checking relation aliases.
+- Phase 2 status is therefore **reopened / incomplete** despite the green commit-isolation evidence (`462 passed, 3 warnings` exact `HEAD`; `508 passed, 3 warnings` committed production plus local tests; Ruff and compile clean). Passing tests did not cover these two adversarial semantics. No Phase 3 work may start until a dedicated focused correction proves both cases RED→GREEN and receives a fresh scoped review.
+- The one permitted closure fix wave has ended, so no second unreviewed patch loop was started here. The exact residual scope and reproduction evidence are preserved in `memory.md` and the local SDD report. Unowned React Flow skill and frontend changes remain untouched; no push, merge, remote, deployment, migration, or live-service action occurred.
+
 ### 2026-08-23 — Remediation Phase 2 / final-review fix wave
 
 - The single permitted final-review wave closes all five Important findings. The common 422 serializer now exposes only normalized locations and stable validation types; request bodies are aggregated into one bounded byte buffer with an explicit 1,024-frame ceiling and disconnect short-circuit; SQLGlot dialect guards reject sequence advancement, MySQL assignment, and state-changing SQL Server lock hints before database entry; every reviewed coded HTTP/SSE/model/tool failure resolves through the canonical catalog; and the named request/auth/database/tool diagnostics use sanitized, request-correlated logging without traceback data or caller-controlled values.
