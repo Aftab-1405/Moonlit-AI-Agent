@@ -327,6 +327,41 @@ def test_oracle_unquoted_qualifier_does_not_bind_quoted_lowercase_alias() -> Non
     ]
 
 
+def test_oracle_quoted_qualifier_does_not_bind_unquoted_alias() -> None:
+    result = DatabaseSecurity.analyze_sql_query(
+        'SELECT "e".NEXTVAL FROM employees e',
+        dialect="oracle",
+    )
+    assert result["is_safe"] is False
+    assert result["warnings"] == [
+        "Sequence advancement is prohibited by read-only policy"
+    ]
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "SELECT d.x FROM employees e, (SELECT e.NEXTVAL AS x FROM dual) d",
+        (
+            "WITH c AS (SELECT e.NEXTVAL AS x FROM dual) "
+            "SELECT c.x FROM c JOIN employees e ON 1 = 1"
+        ),
+        (
+            "SELECT (SELECT e.NEXTVAL FROM dual), "
+            "(SELECT 1 FROM employees e) FROM dual"
+        ),
+    ],
+)
+def test_oracle_nextval_does_not_bind_relations_outside_visible_scope(
+    query: str,
+) -> None:
+    result = DatabaseSecurity.analyze_sql_query(query, dialect="oracle")
+    assert result["is_safe"] is False
+    assert result["warnings"] == [
+        "Sequence advancement is prohibited by read-only policy"
+    ]
+
+
 def test_oracle_nested_unresolved_nextval_sequence_remains_blocked() -> None:
     result = DatabaseSecurity.analyze_sql_query(
         "SELECT (SELECT my_seq.NEXTVAL FROM dual) FROM employees e",

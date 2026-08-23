@@ -304,6 +304,8 @@ class DatabaseSecurity:
                                 == normalized
                             ):
                                 return True
+                        if not current.can_be_correlated:
+                            break
                         current = current.parent
                     return False
 
