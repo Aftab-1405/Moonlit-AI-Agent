@@ -4,6 +4,13 @@ Last updated: 2026-08-23
 
 ## Remediation decision log
 
+### 2026-08-23 — Remediation Phase 2 / Task 10 fail-closed exception diagnostics
+
+- `log_safe_exception()` is now a metadata-only diagnostic boundary. It records the stable operation name, exception class name, canonical `PublicError.code`, and current request ID, but never renders `str(exc)`, exception arguments, a `detail=` field, or traceback metadata. Heuristic redaction is not a security boundary because exceptions can echo arbitrary caller-controlled values.
+- The obsolete `_LEAKAGE_PATTERNS`, `sanitize_error_message()`, and `sanitize_exception()` implementation and exports were removed after the repository call-site scan found no production consumer. The former helper unit tests were replaced with behavioral log-record assertions, including opaque token-like text, a single-label host, a password phrase, and IPv6. Firebase ID-token and database-pool fakes now echo their submitted values, and assertions inspect captured logging output instead of fake calls.
+- Strict TDD: the required RED selection failed as intended with all four direct sentinels plus the submitted Firebase token and pool IPv6 value exposed in the current heuristic logs (`6 failed, 3 warnings`). GREEN passed `110` focused core-error/tool-safety tests with the three known SlowAPI Python 3.14 deprecations, and targeted Ruff passed. The required sanitizer-symbol scan returned zero Python hits; no compatibility alias remains.
+- Verification is repository-only with existing fakes. No live Firebase, Redis, database, migration, dependency, deployment, remote, push, merge, Phase 3, or Task 11 action occurred. The unrelated React Flow skill and all dirty frontend paths remain unowned and unstaged.
+
 ### 2026-08-23 — Remediation Phase 2 reopened after final-fix re-review
 
 - The scoped re-review of `1723f0b..c6fc196` confirms the validation serializer, bounded ASGI framing/disconnect handling, the four required stateful-SQL blocks, canonical coded-error forwarding, exact 8,192/8,193 token boundary, real-ASGI 405 contract, and typed model-selection reason. Those changes remain valid and their post-commit isolation gates remain green (`462 passed` for exact `HEAD`; `508 passed` for committed production plus the current local test corpus).

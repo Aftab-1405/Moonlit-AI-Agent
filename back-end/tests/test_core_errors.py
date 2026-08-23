@@ -1,9 +1,8 @@
-"""Tests for ``core.errors`` — DB error classification and sanitization.
+"""Tests for ``core.errors`` — DB error classification and safe diagnostics.
 
 The bank-grade audit identified that raw DB driver errors leak schema
-names, column names, and connection-string fragments to the API caller
-and to the LLM in tool output. These tests verify the sanitization
-helper strips every documented leakage vector.
+names, column names, and connection-string fragments to the API caller,
+LLM tool output, and server diagnostics.
 """
 
 from __future__ import annotations
@@ -16,8 +15,6 @@ import pytest
 import core.errors as error_module
 from core.errors import (
     classify_db_error,
-    sanitize_error_message,
-    sanitize_exception,
 )
 from core.logging import bind_request_id, clear_request_id
 
@@ -58,67 +55,6 @@ class TestClassifyDbError:
     def test_classifies_known_patterns(self, message: str, expected: str) -> None:
         """Verify the parametrized table maps each DB error message to its stable category."""
         assert classify_db_error(message) == expected
-
-
-class TestSanitizeErrorMessage:
-    """Tests for the PII-safe error formatter."""
-
-    def test_strips_connection_string(self) -> None:
-        """Replace embedded connection strings with a ``[connection-string]`` placeholder."""
-        msg = "Error connecting to postgresql://user:secret@host:5432/db"
-        result = sanitize_error_message(msg)
-        assert "secret" not in result
-        assert "[connection-string]" in result
-
-    def test_strips_key_value_credentials(self) -> None:
-        """Redact ``password=`` and ``user=`` style credentials from free-form text."""
-        msg = "host=db.example.com password=hunter2 user=admin"
-        result = sanitize_error_message(msg)
-        assert "hunter2" not in result
-        assert "admin" not in result
-        assert "[redacted]" in result
-
-    def test_strips_filesystem_paths(self) -> None:
-        """Replace filesystem paths with a ``[path]`` placeholder."""
-        msg = "Error in /home/user/app/config.py at line 42"
-        result = sanitize_error_message(msg)
-        assert "[path]" in result
-        assert "/home/user/app/config.py" not in result
-
-    def test_truncates_long_messages(self) -> None:
-        """Truncate messages longer than max_length with an ellipsis character."""
-        msg = "x" * 1000
-        result = sanitize_error_message(msg)
-        assert len(result) <= 281  # max_length + ellipsis char
-        assert result.endswith("…")
-
-    def test_preserves_short_safe_messages(self) -> None:
-        """Pass through short messages that contain no leakage patterns unchanged."""
-        msg = "Column not found"
-        assert sanitize_error_message(msg) == "Column not found"
-
-    def test_handles_empty(self) -> None:
-        """Return an empty string for an empty input."""
-        assert sanitize_error_message("") == ""
-
-
-class TestSanitizeException:
-    """Tests for the exception-formatter wrapper."""
-
-    def test_extracts_message(self) -> None:
-        """Extract the exception's message and sanitize embedded credentials."""
-        exc = RuntimeError("host=db.example.com password=secret")
-        result = sanitize_exception(exc)
-        assert "secret" not in result
-
-    def test_does_not_include_traceback(self) -> None:
-        """Verify the sanitized exception text excludes the traceback frames."""
-        try:
-            raise ValueError("sensitive info")
-        except ValueError as exc:
-            result = sanitize_exception(exc)
-        assert "Traceback" not in result
-        assert "sensitive info" in result  # value preserved (no leakage pattern)
 
 
 class TestPublicError:
@@ -220,45 +156,36 @@ class TestPublicError:
         )
 
 
-def test_safe_exception_log_is_sanitized_and_correlated(caplog: pytest.LogCaptureFixture) -> None:
-    """Raw diagnostic fields must not leak even though useful correlation is retained."""
+@pytest.mark.parametrize(
+    "raw_message,sentinel",
+    [
+        ("firebase token rejected: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+        ("cannot resolve customerhostsentinel", "customerhostsentinel"),
+        ("password authentication failed: correcthorsebatterystaple", "correcthorsebatterystaple"),
+        ("connect failed: fd00::1234", "fd00::1234"),
+    ],
+)
+def test_safe_exception_log_never_renders_exception_message(
+    caplog: pytest.LogCaptureFixture,
+    raw_message: str,
+    sentinel: str,
+) -> None:
+    """Correlated diagnostics retain metadata without rendering exception text."""
     logger = logging.getLogger("tests.safe-error")
-    public = error_module.PublicError(
-        "DB_PERMISSION_DENIED",
-        "Database permission denied.",
-    )
-    raw = (
-        "permission denied password=log-secret "
-        "postgresql://admin:dsn-secret@private-db.internal/payroll "
-        "SELECT salary FROM private_payroll "
-        "/srv/moonlit/secrets.env x-amzn-requestid=provider-secret"
-    )
+    public = error_module.PublicError("DB_CONNECTION_ERROR", "Database connection failed.")
     bind_request_id("req_safe_error_test")
     try:
         with caplog.at_level(logging.ERROR, logger=logger.name):
-            error_module.log_safe_exception(
-                logger,
-                "execute_query",
-                RuntimeError(raw),
-                public,
-            )
+            error_module.log_safe_exception(logger, "connect_database", RuntimeError(raw_message), public)
     finally:
         clear_request_id()
 
     record = caplog.records[-1]
     rendered = record.getMessage()
-    assert "execute_query" in rendered
+    assert sentinel not in rendered
+    assert "detail=" not in rendered
+    assert "connect_database" in rendered
     assert "RuntimeError" in rendered
-    assert "DB_PERMISSION_DENIED" in rendered
-    assert "detail=" in rendered
+    assert "DB_CONNECTION_ERROR" in rendered
     assert record.request_id == "req_safe_error_test"
     assert record.exc_info is None
-    for secret in (
-        "log-secret",
-        "dsn-secret",
-        "private-db.internal",
-        "SELECT salary FROM private_payroll",
-        "/srv/moonlit/secrets.env",
-        "provider-secret",
-    ):
-        assert secret not in rendered

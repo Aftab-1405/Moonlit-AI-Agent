@@ -1,20 +1,20 @@
-"""Sanitized exception formatting for API responses and LLM tool output.
+"""Stable API/LLM errors and fail-closed exception diagnostics.
 
 Two concerns are interleaved in this module:
 
-1. **User-facing / LLM-facing error sanitization** — DB driver errors and
+1. **User-facing / LLM-facing stable errors** — DB driver errors and
    internal tracebacks routinely leak schema names, column names,
-   connection strings, and hostnames. When these are surfaced to the LLM
-   in tool output, the LLM may quote them back to the user. When they
-   are surfaced in HTTP error responses, attackers gain reconnaissance.
+   connection strings, and hostnames. Public boundaries therefore expose
+   only fixed ``PublicError`` values.
 
 2. **Classified error categories** — the AI tool executor needs a
    stable category string ("table_not_found", "permission_denied",
    "timeout", "syntax_error", "unknown") so it can write a helpful
    retry message instead of dumping the raw exception.
 
-Mapping and sanitization helpers are pure; ``log_safe_exception`` is the
-single correlated diagnostic side effect.
+``log_safe_exception`` records stable metadata only. It never renders
+exception text or traceback data because heuristic redaction cannot safely
+recognize every caller-controlled value an exception might echo.
 """
 
 from __future__ import annotations
@@ -25,11 +25,6 @@ from dataclasses import dataclass
 from typing import Literal, Mapping
 
 from core.logging import current_request_id
-
-#: Maximum length of any sanitized error string. Long errors are
-#: truncated with an ellipsis; the tail is never kept because driver
-#: errors often put the offending SQL fragment at the end.
-_MAX_SANITIZED_LEN: int = 280
 
 #: Token bucket of regex patterns matched against the *lower-cased* error
 #: message. First match wins. Order matters — more specific patterns first.
@@ -96,85 +91,6 @@ def classify_db_error(message: str) -> ErrorCategory:
     return "unknown"
 
 
-#: Substrings removed from sanitized error messages because they reveal
-#: infrastructure details (schema names, hosts, paths) that the LLM and
-#: end users do not need.
-_LEAKAGE_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
-    # Full database DSNs, including credentials, host, port, and database.
-    (
-        re.compile(
-            r"\b(?:postgres(?:ql)?|mysql|mariadb|oracle|sqlserver|mssql)://[^\s]+",
-            re.IGNORECASE,
-        ),
-        "[connection-string]",
-    ),
-    # Connection-string fragments: `user:pass@host:port/db`
-    (
-        re.compile(r"\b[A-Za-z0-9_.-]+:[^@\s]+@[A-Za-z0-9_.-]+(?::\d+)?(?:/\S*)?"),
-        "[connection-string]",
-    ),
-    # `host=...` `password=...` `user=...` key/value fragments
-    (
-        re.compile(
-            r"\b(host|user|username|password|passwd|dsn|port|database|dbname|token|api[_-]?key|secret)\s*=\s*[^\s;]+",
-            re.IGNORECASE,
-        ),
-        "[redacted]",
-    ),
-    # Provider request identifiers can disclose account and request metadata.
-    (
-        re.compile(
-            r"\b(?:x-amzn-requestid|request[_ -]?id|requestid)\s*[:=]\s*[^\s;,]+",
-            re.IGNORECASE,
-        ),
-        "[request-id]",
-    ),
-    # Private hosts and RFC1918 addresses that reveal deployment topology.
-    (
-        re.compile(
-            r"\b(?:localhost|[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.(?:internal|local|lan)|"
-            r"10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|"
-            r"172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2})\b",
-            re.IGNORECASE,
-        ),
-        "[private-host]",
-    ),
-    # Public IPs and DNS names are also deployment/customer topology and must
-    # not appear in diagnostics emitted by request-time boundaries.
-    (
-        re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b"),
-        "[host]",
-    ),
-    (
-        re.compile(r"\b(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,63}\b"),
-        "[host]",
-    ),
-    # JWTs, API tokens, and session cookies are commonly rendered as long
-    # URL-safe opaque strings without an identifying ``token=`` prefix.
-    (
-        re.compile(r"\beyJ[A-Za-z0-9_-]{16,}(?:\.[A-Za-z0-9_-]{8,}){1,2}\b"),
-        "[token]",
-    ),
-    (
-        re.compile(r"\b(?=[A-Za-z0-9_-]{32,}\b)(?=[A-Za-z0-9_-]*[A-Za-z])(?=[A-Za-z0-9_-]*\d)[A-Za-z0-9_-]+\b"),
-        "[token]",
-    ),
-    # Filesystem paths from tracebacks
-    (re.compile(r"/(?:[A-Za-z0-9_.-]+/)+[A-Za-z0-9_.-]+"), "[path]"),
-    # SQL Server / Oracle bracketed identifiers leaked in errors
-    (re.compile(r"'[^']*\.dbo\.[^']*'"), "[schema]"),
-    # SQL text can expose schema/data even when individual identifiers look safe.
-    (
-        re.compile(
-            r"\b(?:select|insert|update|delete|merge|alter|create|drop|truncate|"
-            r"grant|revoke|call|exec(?:ute)?)\b.*",
-            re.IGNORECASE | re.DOTALL,
-        ),
-        "[sql]",
-    ),
-)
-
-
 @dataclass(frozen=True)
 class PublicError:
     """Immutable error code and message safe for public boundaries."""
@@ -226,42 +142,6 @@ _PUBLIC_ERRORS_BY_CODE = {
 }
 
 
-def sanitize_error_message(message: str, *, max_length: int = _MAX_SANITIZED_LEN) -> str:
-    """Return a PII-safe, length-capped version of ``message``.
-
-    Args:
-        message: Raw error string (typically ``str(exception)``).
-        max_length: Maximum returned length.
-
-    Returns:
-        Sanitized message with connection strings, credentials, and
-        filesystem paths replaced by ``[redacted]`` / ``[path]``.
-        Truncated to ``max_length`` with a trailing ellipsis if needed.
-    """
-    if not message:
-        return ""
-    sanitized = message
-    for pattern, replacement in _LEAKAGE_PATTERNS:
-        sanitized = pattern.sub(replacement, sanitized)
-    if len(sanitized) > max_length:
-        sanitized = sanitized[: max_length - 1] + "…"
-    return sanitized
-
-
-def sanitize_exception(exc: BaseException) -> str:
-    """Sanitize an exception for correlated server diagnostics only.
-
-    Args:
-        exc: Any exception.
-
-    Returns:
-        A sanitized, length-capped string. Never includes the exception
-        traceback. Public responses must use a stable ``PublicError``
-        instead of this diagnostic string.
-    """
-    return sanitize_error_message(str(exc))
-
-
 def public_database_error(exc: BaseException) -> PublicError:
     """Map a database exception to a stable public error."""
     category = classify_db_error(str(exc))
@@ -309,14 +189,13 @@ def log_safe_exception(
     exc: BaseException,
     public_error: PublicError,
 ) -> None:
-    """Log sanitized exception detail with the active request correlation ID."""
+    """Log stable exception metadata with the active request correlation ID."""
     request_id = current_request_id() or "-"
     logger.error(
-        "%s failed: exception_type=%s error_code=%s detail=%s request_id=%s",
+        "%s failed: exception_type=%s error_code=%s request_id=%s",
         operation,
         type(exc).__name__,
         public_error.code,
-        sanitize_exception(exc) or "[no-detail]",
         request_id,
         extra={"request_id": request_id},
     )
@@ -331,6 +210,4 @@ __all__ = [
     "public_database_error",
     "public_error_for_code",
     "public_tool_error",
-    "sanitize_error_message",
-    "sanitize_exception",
 ]

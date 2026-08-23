@@ -779,7 +779,7 @@ async def test_firebase_id_token_verification_failure_logs_safely(
 
     async def failing_thread_boundary(function, *args, **kwargs):
         del function, args, kwargs
-        raise RuntimeError(RAW_SECRET)
+        raise RuntimeError(f"Firebase token rejected: {token}")
 
     monkeypatch.setattr(auth_controller, "run_in_threadpool", failing_thread_boundary)
 
@@ -886,8 +886,9 @@ def test_database_pool_creation_failure_logs_safely(
         requires_server = True
 
         def create_connection_pool(self, config: dict):
-            del config
-            raise RuntimeError(RAW_SECRET)
+            raise RuntimeError(
+                f"connect failed host={config['host']} password={config['password']} fd00::1234"
+            )
 
     monkeypatch.setattr(
         connection_manager_module.ConnectionManager,
@@ -911,6 +912,7 @@ def test_database_pool_creation_failure_logs_safely(
     _assert_safe_log_records(caplog.records)
     rendered = " ".join(record.getMessage() for record in caplog.records)
     assert all(str(value) not in rendered for value in config.values())
+    assert "fd00::1234" not in rendered
 
 
 def test_database_connection_acquisition_failure_logs_safely(
