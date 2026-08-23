@@ -1690,13 +1690,17 @@ async def test_concurrent_agent_run_has_stable_sse_error(
 
     monkeypatch.setattr(stream_conversation_module, "TaskRunLease", BusyLease)
 
+    from service.conversations.run_context import resolve_run_policy
+
     events = [
         line
         async for line in stream_conversation_module.stream_conversation(
             "00000000-0000-4000-8000-000000000001",
             "hello",
             "user-1",
-            model="provider.model-v1",
+            run_policy=resolve_run_policy(
+                "hello", "normal", None, "bedrock", "provider.model-v1", False
+            ),
         )
     ]
 
@@ -1721,6 +1725,8 @@ async def test_agent_stream_failure_logs_safely_and_emits_stable_sse(
         staticmethod(lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError(RAW_SECRET))),
     )
 
+    from service.conversations.run_context import resolve_run_policy
+
     with caplog.at_level(logging.ERROR, logger=stream_conversation_module.logger.name):
         events = [
             line
@@ -1728,7 +1734,9 @@ async def test_agent_stream_failure_logs_safely_and_emits_stable_sse(
                 "00000000-0000-4000-8000-000000000001",
                 "hello",
                 "user-1",
-                model="mock-model",
+                run_policy=resolve_run_policy(
+                    "hello", "normal", None, "bedrock", "mock-model", False
+                ),
             )
         ]
 
@@ -1754,6 +1762,8 @@ async def test_conversation_streaming_service_failure_logs_safely_and_emits_stab
         staticmethod(lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError(RAW_SECRET))),
     )
 
+    from service.conversations.run_context import resolve_run_policy
+
     with caplog.at_level(logging.ERROR, logger=conversation_streaming_module.logger.name):
         events = [
             line
@@ -1761,6 +1771,9 @@ async def test_conversation_streaming_service_failure_logs_safely_and_emits_stab
                 "00000000-0000-4000-8000-000000000001",
                 None,
                 "user-1",
+                resolve_run_policy(
+                    None, "normal", None, "bedrock", "mock-model", False
+                ),
             )
         ]
 

@@ -37,6 +37,8 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 
+from config import get_config
+
 
 def format_previous_user_turn(content: str, turn_index: int | None = None) -> str:
     """Envelope a restored user message as history, with its turn index.
@@ -222,30 +224,26 @@ def _build_session_state(configurable: dict) -> str:
     reasoning_effort = configurable.get("reasoning_effort") or "none"
     model_id = configurable.get("model") or "none"
 
-    # ENH [TASK-MODE-AWARENESS]: Map the active task_mode to its step budget
-    # and a one-line description so the agent can answer factual questions
-    # about its own capabilities ("how many steps do you perform in normal
-    # mode?") without hallucinating. The full reference is in the static
-    # system prompt's <task_mode_reference> block; this per-turn block
-    # surfaces the CURRENT mode's specifics.
+    # Labels and descriptions are presentation metadata. All numeric limits
+    # come from the already resolved policy fields in ``configurable``.
     _MODE_INFO = {
         "normal": {
             "label": "Standard",
-            "step_budget": 50,
             "description": "quick Q&A, single queries, short lookups",
         },
         "tool_task": {
             "label": "Tool Task",
-            "step_budget": 100,
             "description": "multi-tool workflows, schema exploration, comparisons",
         },
         "long_task": {
             "label": "Long Task",
-            "step_budget": 200,
             "description": "reports, deep analyses, multi-step deliverables",
         },
     }
     mode_info = _MODE_INFO.get(raw_task_mode, _MODE_INFO["normal"])
+    graph_step_budget = configurable.get("graph_step_budget")
+    if graph_step_budget is None:
+        graph_step_budget = get_config().AGENT_DEFAULT_STEPS
 
     db_type = _escape_state_value(db_type, "none")
     database = _escape_state_value(database, "none")
@@ -263,7 +261,7 @@ def _build_session_state(configurable: dict) -> str:
         f"database: {database}\n"
         f"schema: {schema}\n"
         f"task_mode: {task_mode} ({mode_label})\n"
-        f"task_mode_step_budget: {mode_info['step_budget']} steps per turn\n"
+        f"task_mode_step_budget: {graph_step_budget} steps per turn\n"
         f"task_mode_description: {mode_description}\n"
         f"reasoning_effort: {reasoning_effort}\n"
         f"model: {model_id}\n"

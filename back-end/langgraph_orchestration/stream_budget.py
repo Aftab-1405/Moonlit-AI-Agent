@@ -41,6 +41,7 @@ import logging
 
 from fastapi.concurrency import run_in_threadpool
 
+from api_contract.run_context import ResolvedRunPolicy
 from langgraph_orchestration.conversation_access import (
     get_default_conversation_summarizer,
 )
@@ -60,13 +61,12 @@ logger = logging.getLogger(__name__)
 
 async def prepare_stream_budget(
     *,
-    selected_model: str,
+    run_policy: ResolvedRunPolicy,
     response_style: str,
     system_prompt: str,
     request_tools: list,
     historical_context: str | None,
     task_checkpoint_summary: str,
-    task_mode: str,
     conversation: dict | None,
 ) -> dict:
     """Count independent payload sections concurrently and compute one budget.
@@ -87,6 +87,7 @@ async def prepare_stream_budget(
       - ``token_counting_mode`` / ``token_counting_reason``: whether
         exact or estimated token counts were used.
     """
+    selected_model = run_policy.model
     count_tasks = [
         _count_tokens(
             selected_model,
@@ -169,7 +170,7 @@ async def prepare_stream_budget(
         selected_model,
         system_prompt_tokens=system_tokens,
         tool_schema_tokens=tool_tokens,
-        output_reserve_tokens=output_reserve_for_task_mode(task_mode),
+        output_reserve_tokens=output_reserve_for_task_mode(run_policy.task_mode),
         token_counting_mode=counting_mode,
     )
     # CENH [6]: Reserve space for the <context_map> SystemMessage

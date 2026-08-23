@@ -47,6 +47,7 @@ from typing import AsyncGenerator, Optional
 
 from fastapi.concurrency import run_in_threadpool
 
+from api_contract.run_context import ResolvedRunPolicy
 from core.errors import log_safe_exception, public_tool_error
 
 logger = logging.getLogger(__name__)
@@ -107,16 +108,14 @@ class ConversationStreamingService:
         conversation_id: str,
         prompt: str | None,
         user_id: str,
+        run_policy: ResolvedRunPolicy,
         db_config: dict = None,
         enable_reasoning: bool = True,
         reasoning_effort: str = "medium",
         response_style: str = "balanced",
         max_rows: int = None,
         api_key: str = None,
-        provider: str | None = None,
-        model: str | None = None,
         resume: dict | None = None,
-        task_mode: str = "normal",
     ) -> AsyncGenerator[str, None]:
         """Consume SSE events from the LangGraph agent, persist them, and pass them through to the client.
 
@@ -191,18 +190,13 @@ class ConversationStreamingService:
             # orchestration touches task/checkpoint state.
             await store_prompt_once()
             if prompt_stored or conv_data:
-                task_mode_stored = (
-                    (conv_data.get("task_mode", "normal") if conv_data else None) or task_mode or "normal"
-                )
-                if resume is not None and task_mode == "normal" and task_mode_stored != "normal":
-                    task_mode = task_mode_stored
                 try:
                     from service.firestore.firestore_service import FirestoreService
 
                     db = FirestoreService.get_db()
                     await run_in_threadpool(
                         db.collection("conversations").document(conversation_id).update,
-                        {"task_mode": task_mode},
+                        {"task_mode": run_policy.task_mode},
                     )
                 except Exception as e:
                     public = public_tool_error(
@@ -219,12 +213,10 @@ class ConversationStreamingService:
                 response_style=response_style,
                 max_rows=max_rows,
                 api_key=api_key,
-                provider=provider or "bedrock",
-                model=model,
                 enable_reasoning=enable_reasoning,
                 reasoning_effort=reasoning_effort,
                 resume=resume,
-                task_mode=task_mode,
+                run_policy=run_policy,
             ):
                 event = _parse_sse_event(sse_line)
                 if event is None:

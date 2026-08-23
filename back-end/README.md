@@ -47,6 +47,7 @@ back-end/
 │   ├── database_schemas.py            # ConnectDatabaseData, TableSchemaData, etc.
 │   ├── orchestration_protocols.py     # Agent orchestration protocols
 │   ├── query_schemas.py               # QueryResultData, RunSqlQueryData
+│   ├── run_context.py                 # Frozen task-mode and run-budget policy contracts
 │   ├── runtime_ports.py               # Port registry + typed accessors
 │   └── streaming.py                   # SSE event models (TokenEvent, ToolStartEvent, DoneEvent, …)
 │
@@ -80,7 +81,6 @@ back-end/
 │   ├── stream_lifecycle.py            # TaskRunLease — per-stream task-mode + interrupt lifecycle
 │   ├── stream_protocol.py             # sse_encode / sse_error / sse_done
 │   ├── summarization_context.py       # Summarization sub-agent context
-│   ├── task_mode_detector.py          # Auto-classify normal/tool/long task modes
 │   ├── tool_executor.py               # Tool dispatch + arg validation
 │   ├── tool_schemas.py                # Pydantic schemas for agent tool args/results
 │   ├── tools.py                       # Tool implementations exposed to the agent
@@ -105,6 +105,7 @@ back-end/
 │   │   ├── conversation_service.py               # Facade for controller
 │   │   ├── conversation_streaming_service.py     # SSE headers + quota-error helpers
 │   │   ├── orchestration_access.py               # Conversation state read/summarize ports
+│   │   ├── run_context.py                        # Pure immutable run-policy resolver
 │   │   ├── summary_memory.py                     # Summary-memory port access
 │   │   └── vector_memory_cleanup.py              # Qdrant pointer cleanup
 │   ├── database/
@@ -600,10 +601,13 @@ must be verified in the deployment environment.
 | Variable | Default | Description |
 |---|---|---|
 | `AGENT_DEFAULT_STEPS` | `50` | Max LangGraph steps for a normal task. |
-| `AGENT_TOOL_TASK_STEPS` | `100` | Max steps when task mode = `tool`. |
-| `AGENT_LONG_TASK_STEPS` | `200` | Max steps when task mode = `long`. |
-| `AGENT_TOTAL_STEP_BUDGET` | `500` | Hard ceiling across all task modes. |
+| `AGENT_TOOL_TASK_STEPS` | `100` | Max LangGraph steps for a `tool_task` run. |
+| `AGENT_LONG_TASK_STEPS` | `200` | Max LangGraph steps for a `long_task` run. |
 | `AGENT_STEP_SEGMENT_STEPS` | `50` | Step interval at which the graph is checkpointed/compacted. |
+| `AGENT_TOOL_CALLS_PER_RUN` | `20` | Tool-call ceiling carried by every resolved run policy. |
+| `AGENT_NORMAL_WALL_CLOCK_SECONDS` | `180` | Wall-clock ceiling carried by a normal run policy. |
+| `AGENT_TOOL_TASK_WALL_CLOCK_SECONDS` | `600` | Wall-clock ceiling carried by a `tool_task` run policy. |
+| `AGENT_LONG_TASK_WALL_CLOCK_SECONDS` | `1200` | Wall-clock ceiling carried by a `long_task` run policy. |
 | `AGENT_AUTO_TASK_MODE` | `true` | If true, the backend auto-detects long/tool tasks from the prompt. |
 
 ### User Settings Defaults

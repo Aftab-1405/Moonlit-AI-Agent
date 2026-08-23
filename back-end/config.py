@@ -373,14 +373,21 @@ class Config:
     AGENT_DEFAULT_STEPS = int(os.getenv("AGENT_DEFAULT_STEPS", 50))
     AGENT_TOOL_TASK_STEPS = int(os.getenv("AGENT_TOOL_TASK_STEPS", 100))
     AGENT_LONG_TASK_STEPS = int(os.getenv("AGENT_LONG_TASK_STEPS", 200))
-    AGENT_TOTAL_STEP_BUDGET = int(os.getenv("AGENT_TOTAL_STEP_BUDGET", 500))
     # Persist and compact long workflows in bounded graph segments. Reaching a
     # segment boundary is an internal checkpoint, not a user-visible failure.
     AGENT_STEP_SEGMENT_STEPS = int(os.getenv("AGENT_STEP_SEGMENT_STEPS", 50))
-    # ENH [AUTO-TASK-MODE]: When True (default), the backend auto-detects
-    # long / tool tasks from the user's prompt and elevates the task_mode
-    # so the agent gets a 100- or 200-step budget instead of the default
-    # 50-step ceiling. Set to "false" to require explicit user selection.
+    AGENT_TOOL_CALLS_PER_RUN = int(os.getenv("AGENT_TOOL_CALLS_PER_RUN", 20))
+    AGENT_NORMAL_WALL_CLOCK_SECONDS = int(
+        os.getenv("AGENT_NORMAL_WALL_CLOCK_SECONDS", 180)
+    )
+    AGENT_TOOL_TASK_WALL_CLOCK_SECONDS = int(
+        os.getenv("AGENT_TOOL_TASK_WALL_CLOCK_SECONDS", 600)
+    )
+    AGENT_LONG_TASK_WALL_CLOCK_SECONDS = int(
+        os.getenv("AGENT_LONG_TASK_WALL_CLOCK_SECONDS", 1200)
+    )
+    # When True (default), the pure run-policy resolver may elevate normal
+    # prompts to tool_task or long_task before any run mutation occurs.
     AGENT_AUTO_TASK_MODE = os.getenv("AGENT_AUTO_TASK_MODE", "true").lower() == "true"
 
     # Session/Cookie Configuration (base defaults)

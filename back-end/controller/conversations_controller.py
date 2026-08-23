@@ -51,6 +51,7 @@ from api_contract.streaming import STREAMING_RESPONSES
 from core.errors import log_safe_exception, public_tool_error
 from dependencies import get_authenticated_db_config, get_current_user
 from service.conversations.conversation_service import ConversationService
+from service.conversations.run_context import resolve_run_policy
 from service.llm import LLMOptionsService, ModelSelectionError, ModelSelectionReason
 
 logger = logging.getLogger(__name__)
@@ -225,6 +226,19 @@ async def _handle_agent_stream(
             detail=detail,
         ) from exc
 
+    requested_mode = stream_generator_kwargs.pop("task_mode", "normal") or "normal"
+    is_resume = stream_generator_kwargs.get("resume") is not None
+    run_policy = None
+    if not is_resume:
+        run_policy = resolve_run_policy(
+            stream_generator_kwargs.get("prompt"),
+            requested_mode,
+            None,
+            provider,
+            model,
+            bool((stream_generator_kwargs.get("db_config") or {}).get("db_type")),
+        )
+
     if require_existing_conversation:
         try:
             # FIX [L7]: Previously this called get_conversation_data, which
@@ -249,6 +263,28 @@ async def _handle_agent_stream(
                 status_code=403,
                 detail={"error": public.code, "message": public.message},
             ) from e
+
+    if is_resume:
+        try:
+            conversation = await run_in_threadpool(
+                ConversationService.get_conversation_data,
+                conversation_id,
+                user_id,
+            )
+        except _TRANSIENT_FIRESTORE_ERRORS as exc:
+            raise _firestore_unavailable_response(exc) from exc
+        if conversation is None:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        run_policy = resolve_run_policy(
+            stream_generator_kwargs.get("prompt"),
+            requested_mode,
+            conversation.get("task_mode") or "normal",
+            provider,
+            model,
+            bool((stream_generator_kwargs.get("db_config") or {}).get("db_type")),
+        )
+
+    assert run_policy is not None
 
     user_quota = request.app.state.user_quota
     quota_allowed, usage = await user_quota.check_and_increment(user_id)
@@ -310,8 +346,7 @@ async def _handle_agent_stream(
                     conversation_id=conversation_id,
                     user_id=user_id,
                     api_key=api_key,
-                    provider=provider,
-                    model=model,
+                    run_policy=run_policy,
                     **stream_generator_kwargs,
                 )
                 async for sse_line in _stream_with_heartbeats(source):

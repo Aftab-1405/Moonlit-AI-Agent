@@ -64,6 +64,7 @@ from langchain_core.messages.utils import merge_message_runs
 from langgraph.errors import GraphRecursionError
 from langgraph.types import Command
 
+from api_contract.run_context import ResolvedRunPolicy
 from core.errors import log_safe_exception, public_tool_error
 from langgraph_orchestration.context_usage import (
     build_summary_completed_events,
@@ -367,7 +368,7 @@ from langgraph_orchestration.stream_protocol import (
     sse_error,
 )
 from langgraph_orchestration.tools import ALL_TOOLS
-from llm_provider.model_factory import get_chat_model, get_default_model
+from llm_provider.model_factory import get_chat_model
 
 logger = logging.getLogger(__name__)
 
@@ -528,16 +529,14 @@ async def stream_conversation(
     message: str | None,
     user_id: str,
     *,
+    run_policy: ResolvedRunPolicy,
     db_config: Optional[dict] = None,
     response_style: str = "balanced",
     max_rows: Optional[int] = None,
     api_key: Optional[str] = None,
-    provider: str = "bedrock",
-    model: Optional[str] = None,
     enable_reasoning: bool = True,
     reasoning_effort: str = "medium",
     resume: Optional[dict] = None,
-    task_mode: str = "normal",
 ) -> AsyncGenerator[str, None]:
     """Stream a full agent turn as SSE-encoded JSON events.
 
@@ -568,7 +567,7 @@ async def stream_conversation(
     interruption_reason = "error"
 
     try:
-        selected_model = model or get_default_model(provider)
+        selected_model = run_policy.model
         request_tools = ALL_TOOLS
 
         is_continue_task = isinstance(resume, dict) and resume.get("continue_task", False)
@@ -577,7 +576,7 @@ async def stream_conversation(
         if not str(selected_model).startswith("mock"):
             run_lease = TaskRunLease(
                 conversation_id,
-                task_mode or "normal",
+                run_policy.task_mode,
             )
             try:
                 acquisition = await run_lease.acquire()
@@ -594,6 +593,7 @@ async def stream_conversation(
         system_prompt = PromptBuilder.build_system_prompt(
             response_style,
             user_message=message or "",
+            run_policy=run_policy,
             # ENH [5]: When the user has no live database connection, drop
             # the database-related skill cards from <available_skills> —
             # saves ~250 tokens for zero benefit on non-DB turns.
@@ -670,13 +670,6 @@ async def stream_conversation(
                 conversation_id,
             )
 
-        # Determine recursion limit dynamically by task mode.
-        # For continue_task resumes: restore task_mode from persisted Firestore state
-        # so the step budget scales correctly across continuation calls.
-        from config import get_config
-
-        Config = get_config()
-
         initial_context = await load_initial_stream_context(
             conversation_id,
             user_id,
@@ -686,109 +679,33 @@ async def stream_conversation(
         conv_data = initial_context.conversation
         historical_context = initial_context.historical_context
 
-        if is_continue_task and task_mode in (None, "normal", ""):
-            stored_task_mode = (
-                run_lease.previous_task_mode
-                if run_lease is not None
-                else (conv_data or {}).get("task_mode", "normal") or "normal"
-            )
-            if stored_task_mode != "normal":
-                task_mode = stored_task_mode
-                if run_lease is not None:
-                    await run_lease.change_task_mode(task_mode)
-                logger.info(
-                    "Restored task_mode=%s from Firestore for continue_task on %s",
-                    task_mode,
-                    conversation_id,
-                )
-
-        task_mode = task_mode or "normal"
-
-        # ENH [AUTO-TASK-MODE]: Auto-detect long / tool tasks from the
-        # user's prompt so the agent gets a 100- or 200-step budget
-        # instead of the default 50-step ceiling. Without this, prompts
-        # like "analyze the data and produce a report" hit the 50-step
-        # limit mid-flight and surface a "Task Paused" dialog to the
-        # user, who then has to click "Continue Task". The classifier
-        # only ever UPGRADES `normal` → `tool_task` / `long_task`; an
-        # explicit user choice is always respected. Disable by setting
-        # `AGENT_AUTO_TASK_MODE=false` in the environment.
-        _task_mode_source = "user"
-        if is_new_turn and task_mode == "normal":
-            try:
-                from langgraph_orchestration.task_mode_detector import (
-                    classify_task_mode,
-                    should_auto_classify,
-                )
-
-                classification = classify_task_mode(
-                    message,
-                    current_mode=task_mode,
-                    allow_auto=should_auto_classify(),
-                )
-                if classification["task_mode"] != task_mode:
-                    logger.info(
-                        "Auto-detected task_mode=%s for conversation %s (intent=%s, pattern=%r, source=%s)",
-                        classification["task_mode"],
-                        conversation_id,
-                        classification["detected_intent"],
-                        classification["matched_pattern"],
-                        classification["source"],
-                    )
-                    task_mode = classification["task_mode"]
-                    _task_mode_source = classification["source"]
-            except Exception as detect_err:
-                _log_stream_exception("detect_stream_task_mode", detect_err)
-
-        # ENH [AUTO-TASK-MODE]: Notify the frontend of the effective task
-        # mode so it can show a badge ("Long Task: 200 steps") and the
-        # user understands why the agent is taking longer. The event is
-        # emitted BEFORE the model is built so the badge appears as soon
-        # as the stream starts.
-        if is_new_turn:
-            task_mode_labels = {
-                "normal": "Standard",
-                "tool_task": "Tool Task",
-                "long_task": "Long Task",
+        task_mode_labels = {
+            "normal": "Standard",
+            "tool_task": "Tool Task",
+            "long_task": "Long Task",
+        }
+        yield sse_encode(
+            {
+                "type": "task_mode",
+                "task_mode": run_policy.task_mode,
+                "label": task_mode_labels[run_policy.task_mode],
+                "recursion_limit": run_policy.budgets.graph_steps,
+                "source": run_policy.task_mode_source,
             }
-            yield sse_encode(
-                {
-                    "type": "task_mode",
-                    "task_mode": task_mode,
-                    "label": task_mode_labels.get(task_mode, task_mode),
-                    "recursion_limit": min(
-                        {
-                            "normal": Config.AGENT_DEFAULT_STEPS,
-                            "tool_task": Config.AGENT_TOOL_TASK_STEPS,
-                            "long_task": Config.AGENT_LONG_TASK_STEPS,
-                        }.get(task_mode, Config.AGENT_DEFAULT_STEPS),
-                        Config.AGENT_TOTAL_STEP_BUDGET,
-                    ),
-                    "source": _task_mode_source,
-                }
-            )
-
-        if task_mode == "tool_task":
-            recursion_limit = Config.AGENT_TOOL_TASK_STEPS
-        elif task_mode == "long_task":
-            recursion_limit = Config.AGENT_LONG_TASK_STEPS
-        else:
-            recursion_limit = Config.AGENT_DEFAULT_STEPS
-        recursion_limit = min(recursion_limit, Config.AGENT_TOTAL_STEP_BUDGET)
-        segment_step_limit = min(
-            recursion_limit,
-            max(1, getattr(Config, "AGENT_STEP_SEGMENT_STEPS", 50)),
         )
+
+        recursion_limit = run_policy.budgets.graph_steps
+        segment_step_limit = run_policy.budgets.segment_steps
 
         # ENH [LATENCY]: output_reserve_for_task_mode imported at module level
 
         chat_model = get_chat_model(
-            provider,
+            run_policy.provider,
             selected_model,
             api_key,
             enable_reasoning=enable_reasoning,
             reasoning_effort=reasoning_effort,
-            max_tokens=output_reserve_for_task_mode(task_mode),
+            max_tokens=output_reserve_for_task_mode(run_policy.task_mode),
         )
         agent = build_react_agent(
             chat_model,
@@ -802,13 +719,12 @@ async def stream_conversation(
 
         try:
             budget_info = await prepare_stream_budget(
-                selected_model=selected_model,
+                run_policy=run_policy,
                 response_style=response_style,
                 system_prompt=system_prompt,
                 request_tools=request_tools,
                 historical_context=historical_context,
                 task_checkpoint_summary=task_checkpoint_summary,
-                task_mode=task_mode,
                 conversation=conv_data,
             )
 
@@ -924,7 +840,12 @@ async def stream_conversation(
                 # configurable so the per-turn <current_session_state> block
                 # in prepare_model_messages can advertise them to the LLM
                 # without an extra get_connection_status round-trip.
-                "task_mode": task_mode or "normal",
+                "task_mode": run_policy.task_mode,
+                "task_mode_source": run_policy.task_mode_source,
+                "graph_step_budget": run_policy.budgets.graph_steps,
+                "segment_step_budget": run_policy.budgets.segment_steps,
+                "tool_call_budget": run_policy.budgets.tool_calls,
+                "wall_clock_budget_seconds": run_policy.budgets.wall_clock_seconds,
                 "reasoning_effort": reasoning_effort,
                 "task_run_id": run_lease.run_id if run_lease is not None else None,
             },
@@ -1279,7 +1200,7 @@ async def stream_conversation(
                         "conversation_id": conversation_id,
                         "can_continue": True,
                         "steps_used": recursion_limit,
-                        "task_mode": task_mode,
+                        "task_mode": run_policy.task_mode,
                         "message": (
                             f"The agent reached its step budget ({recursion_limit} steps). "
                             'The task context has been saved. Click "Continue" to resume.'

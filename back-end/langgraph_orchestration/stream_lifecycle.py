@@ -102,15 +102,6 @@ class TaskRunLease:
         """Reset the active checkpoint under the current ownership."""
         return await self._owned_transition("reset_task_checkpoint", self.task_mode, self.run_id)
 
-    async def change_task_mode(self, task_mode: str) -> bool:
-        """Update the active task mode on the owned lease.
-
-        Args:
-            task_mode: New task mode to persist (``normal|tool_task|long_task``).
-        """
-        self.task_mode = task_mode
-        return await self._owned_transition("update_task_mode", self.task_mode, self.run_id)
-
     async def pause(self) -> bool:
         """Mark the active task as paused and stop the renew loop."""
         updated = await self._owned_transition("save_paused_task", self.task_mode, self.run_id)

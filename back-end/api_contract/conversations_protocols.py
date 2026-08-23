@@ -2,6 +2,8 @@
 
 from typing import Any, AsyncGenerator, Protocol, runtime_checkable
 
+from api_contract.run_context import ResolvedRunPolicy
+
 
 @runtime_checkable
 class ConversationMemoryCleaner(Protocol):
@@ -46,12 +48,10 @@ class ConversationAgentStreamer(Protocol):
         response_style: str = "balanced",
         max_rows: int | None = None,
         api_key: str | None = None,
-        provider: str = "bedrock",
-        model: str | None = None,
         enable_reasoning: bool = True,
         reasoning_effort: str = "medium",
         resume: dict | None = None,
-        task_mode: str = "normal",
+        run_policy: ResolvedRunPolicy,
     ) -> AsyncGenerator[str, None]:
         """Yield SSE events from the configured agent implementation."""
 

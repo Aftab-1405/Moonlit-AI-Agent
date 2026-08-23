@@ -8,7 +8,6 @@ from types import SimpleNamespace
 
 from langchain_core.messages import AIMessageChunk
 
-import config as config_module
 from langgraph_orchestration import stream_conversation as stream_module
 from langgraph_orchestration.context_usage import (
     build_summary_completed_events,
@@ -325,14 +324,6 @@ def test_stream_emits_one_summary_event_and_keeps_following_turn_in_sync(monkeyp
             ),
         }
 
-    fake_config = SimpleNamespace(
-        AGENT_DEFAULT_STEPS=10,
-        AGENT_TOOL_TASK_STEPS=10,
-        AGENT_LONG_TASK_STEPS=10,
-        AGENT_TOTAL_STEP_BUDGET=10,
-        AGENT_STEP_SEGMENT_STEPS=10,
-    )
-    monkeypatch.setattr(config_module, "get_config", lambda: fake_config)
     monkeypatch.setattr(stream_module, "ALL_TOOLS", [])
     monkeypatch.setattr(stream_module, "get_checkpointer", lambda: _Checkpointer())
     monkeypatch.setattr(stream_module, "clear_checkpointer_thread", _no_op)
@@ -355,14 +346,23 @@ def test_stream_emits_one_summary_event_and_keeps_following_turn_in_sync(monkeyp
     monkeypatch.setattr(vamp_memory_service, "get_vamp_memory_service", lambda: _VampService())
 
     async def _collect(prompt: str) -> list[dict]:
+        from service.conversations.run_context import resolve_run_policy
+
+        run_policy = resolve_run_policy(
+            prompt,
+            "tool_task",
+            None,
+            "bedrock",
+            "mock-model",
+            False,
+        )
         lines = [
             line
             async for line in stream_module.stream_conversation(
                 "conversation-id",
                 prompt,
                 "user-id",
-                model="mock-model",
-                task_mode="tool_task",
+                run_policy=run_policy,
             )
         ]
         return [json.loads(line.removeprefix("data: ")) for line in lines]
