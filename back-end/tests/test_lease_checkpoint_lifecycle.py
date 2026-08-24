@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import pytest
 
 from api_contract.orchestration_protocols import TaskRunAcquisition
+from api_contract.run_context import create_checkpoint_generation
 from api_contract.runtime_ports import register_port
 from langgraph_orchestration.stream_lifecycle import TaskRunLease
 
@@ -62,10 +63,20 @@ class ScriptedTaskStateStore:
         self.renew_release = threading.Event()
         self._lock = threading.Lock()
 
-    def try_acquire_task_run(self, conversation_id, task_mode, run_id, lease_seconds):
+    def try_acquire_task_run(
+        self,
+        conversation_id,
+        task_mode,
+        run_id,
+        lease_seconds,
+        logical_thread_id,
+        resume_checkpoint,
+    ):
+        del resume_checkpoint
         with self._lock:
             self.owner = run_id
             self.mutations.append(("acquire", conversation_id, run_id, self.fence))
+            generation = create_checkpoint_generation(logical_thread_id, run_id, self.fence)
             return TaskRunAcquisition(
                 acquired=True,
                 run_id=run_id,
@@ -73,6 +84,8 @@ class ScriptedTaskStateStore:
                 lease_expires_at=self.lease_expires_at,
                 previous_status="",
                 previous_task_mode=task_mode,
+                reserved_checkpoint_generation=generation,
+                active_checkpoint_generation=None,
             )
 
     def renew_task_run(self, conversation_id, run_id, fence, lease_seconds):
@@ -100,6 +113,15 @@ class ScriptedTaskStateStore:
 
     def reset_task_checkpoint(self, conversation_id, task_mode, run_id, fence):
         return self._owned("reset", conversation_id, run_id, fence)
+
+    def activate_checkpoint_generation(
+        self,
+        conversation_id,
+        generation,
+        run_id,
+        fence,
+    ):
+        return self._owned("activate_generation", conversation_id, run_id, fence, generation)
 
     def update_task_checkpoint_summary(self, conversation_id, summary, run_id, fence):
         return self._owned("checkpoint", conversation_id, run_id, fence, summary)
@@ -149,9 +171,11 @@ def _lease(
     control = RunControl(deadline_monotonic=100.0, tool_limit=20)
     return TaskRunLease(
         "conversation-1",
+        "user-1:conversation-1",
         "normal",
         "run-a",
         control,
+        resume_checkpoint=False,
         lease_seconds=lease_seconds,
         renew_interval_seconds=renew_interval_seconds,
         monotonic=clock,
@@ -425,6 +449,10 @@ async def test_stream_registers_current_task_before_prompt_or_graph_setup(monkey
     from langgraph_orchestration import stream_conversation as stream_module
     from service.conversations.run_context import resolve_run_policy
 
+    register_port(
+        "conversation_task_state_store",
+        ScriptedTaskStateStore(asyncio.get_running_loop()),
+    )
     observed_registration: list[bool] = []
 
     class FakeLease:
@@ -439,6 +467,11 @@ async def test_stream_registers_current_task_before_prompt_or_graph_setup(monkey
 
         async def acquire(self):
             self.acquired = True
+            generation = create_checkpoint_generation(
+                "user-1:conversation-1",
+                self.run_id,
+                self.fence,
+            )
             return TaskRunAcquisition(
                 acquired=True,
                 run_id=self.run_id,
@@ -446,6 +479,8 @@ async def test_stream_registers_current_task_before_prompt_or_graph_setup(monkey
                 lease_expires_at=WALL_NOW + timedelta(seconds=30),
                 previous_status="",
                 previous_task_mode="normal",
+                reserved_checkpoint_generation=generation,
+                active_checkpoint_generation=None,
             )
 
         def register_stream_task(self, task) -> None:
@@ -453,6 +488,9 @@ async def test_stream_registers_current_task_before_prompt_or_graph_setup(monkey
 
         def ensure_owned(self) -> None:
             return None
+
+        async def reset_checkpoint(self):
+            return True
 
         async def interrupt(self, _reason):
             self.acquired = False

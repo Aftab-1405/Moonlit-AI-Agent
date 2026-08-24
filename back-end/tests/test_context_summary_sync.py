@@ -265,10 +265,10 @@ def test_stream_emits_one_summary_event_and_keeps_following_turn_in_sync(monkeyp
             conversation["last_summarized_idx"] = 2
             return {"created": True, "reason": "complete", "end_idx": 2, "tail_tokens": 100}
 
-    class _Checkpointer:
-        async def aget_tuple(self, config):
-            del config
-            return None
+    from langgraph.checkpoint.memory import InMemorySaver
+
+    class _Checkpointer(InMemorySaver):
+        pass
 
     class _VampService:
         async def retrieve_context(self, *args, **kwargs):
@@ -326,7 +326,6 @@ def test_stream_emits_one_summary_event_and_keeps_following_turn_in_sync(monkeyp
 
     monkeypatch.setattr(stream_module, "ALL_TOOLS", [])
     monkeypatch.setattr(stream_module, "get_checkpointer", lambda: _Checkpointer())
-    monkeypatch.setattr(stream_module, "clear_checkpointer_thread", _no_op)
     monkeypatch.setattr(stream_module, "load_initial_stream_context", _load_context)
     monkeypatch.setattr(stream_module, "prepare_stream_budget", _prepare_budget)
     monkeypatch.setattr(stream_module, "get_default_conversation_summarizer", lambda: summarizer)

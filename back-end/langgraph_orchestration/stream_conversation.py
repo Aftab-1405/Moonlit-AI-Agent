@@ -8,11 +8,10 @@ Stream lifecycle (one SSE request == one agent turn)
    model call. The lease prevents two concurrent streams from mutating the
    same conversation's Redis checkpointer state. Acquisition is skipped for
    mock models used in unit tests.
-2. **Checkpoint clearing (new-turn path).** For a brand-new user message
-   (no resume), the Redis checkpointer thread is wiped via
-   :func:`clear_checkpointer_thread` so the agent starts from a clean
-   state rather than resuming a half-finished tool call from the previous
-   turn. Paused/resumable tasks preserve their checkpoint.
+2. **Checkpoint generation preparation.** Every attempt receives a new
+   immutable physical namespace. Fresh turns activate an empty generation;
+   explicit resumes clone and verify the previously active generation before
+   owner-CAS activation.
 3. **Context budget & VAMP retrieval.** :func:`prepare_stream_budget`
    measures system prompt, tool schemas, VAMP historical context, and any
    task checkpoint summary, then subtracts them from the model's context
@@ -66,7 +65,12 @@ from langchain_core.messages.utils import merge_message_runs
 from langgraph.errors import GraphRecursionError
 from langgraph.types import Command
 
-from api_contract.run_context import ResolvedRunPolicy, RunControl
+from api_contract.run_context import (
+    ResolvedRunPolicy,
+    RunControl,
+    create_checkpoint_generation,
+)
+from api_contract.runtime_ports import get_conversation_task_state_store
 from core.errors import log_safe_exception, public_tool_error
 from langgraph_orchestration.context_usage import (
     build_summary_completed_events,
@@ -341,7 +345,9 @@ async def check_and_perform_compaction(agent, config, conversation_id, chat_mode
 
 
 from langgraph_orchestration.checkpointing import (
+    GenerationCheckpointer,
     get_checkpointer,
+    prepare_checkpoint_generation,
 )
 from langgraph_orchestration.prompt_builder import PromptBuilder
 from langgraph_orchestration.react_graph import (
@@ -386,33 +392,6 @@ def _log_stream_exception(
 ) -> None:
     """Emit correlated, sanitized diagnostics for a stream operation."""
     log_safe_exception(logger, operation, exc, public_tool_error(code, message))
-
-
-# Safety limit — prevents runaway tool loops (applies to node transitions)
-async def clear_checkpointer_thread(checkpointer, thread_id: str) -> None:
-    """Completely clear all checkpoint data for the given thread_id.
-
-    Called on every new user turn (when no resumable task is in flight) so
-    the agent starts fresh and cannot accidentally resume a half-finished
-    tool call from the previous turn — Bedrock rejects message histories
-    where an ``AIMessage.tool_calls`` block is missing its matching
-    ``ToolMessage`` response.
-
-    FIX [M3]: The previous implementation caught every exception and only
-    logged a warning, then continued streaming. If Redis was down or
-    returned an error, the Redis checkpoint STILL contained the previous
-    turn's messages, so ``agent.astream`` silently resumed from the stale
-    checkpoint and Bedrock rejected the message history. Treat
-    checkpoint-clear failure as fatal for a new turn: raise
-    ``RuntimeError`` so the caller can return a clean error to the user
-    instead of producing a broken stream.
-    """
-    try:
-        await checkpointer.adelete_thread(thread_id)
-        logger.info("Cleared checkpoint for thread %s", thread_id)
-    except Exception as e:
-        _log_stream_exception("clear_checkpointer_thread", e)
-        raise RuntimeError(f"Could not clear previous checkpoint for {thread_id}; retry the request.") from e
 
 
 # ENH [LATENCY]: These were previously lazy imports inside functions.
@@ -580,17 +559,19 @@ async def stream_conversation(
 
         is_continue_task = isinstance(resume, dict) and resume.get("continue_task", False)
         is_new_turn = (resume is None) and (message is not None)
-        existing_task_status = ""
+        namespaced_thread_id = f"{user_id}:{conversation_id}"
+        acquisition = None
         if not str(selected_model).startswith("mock"):
             run_lease = TaskRunLease(
                 conversation_id,
+                namespaced_thread_id,
                 run_policy.task_mode,
                 uuid4().hex,
                 run_control,
+                resume_checkpoint=resume is not None,
             )
             try:
                 acquisition = await run_lease.acquire()
-                existing_task_status = acquisition.previous_status
                 run_lease.register_stream_task(asyncio.current_task())
                 run_lease.ensure_owned()
             except ConcurrentTaskRunError:
@@ -602,6 +583,32 @@ async def stream_conversation(
                 yield sse_done()
                 return
 
+        base_checkpointer = get_checkpointer()
+        if acquisition is not None:
+            checkpointer = await prepare_checkpoint_generation(
+                base_checkpointer,
+                conversation_id=conversation_id,
+                acquisition=acquisition,
+                task_state_store=get_conversation_task_state_store(),
+                run_control=run_control,
+            )
+        else:
+            generation = create_checkpoint_generation(
+                namespaced_thread_id,
+                uuid4().hex,
+                1,
+            )
+            checkpointer = GenerationCheckpointer(
+                base_checkpointer,
+                generation,
+                reserved_generation=generation,
+                active_generation=generation,
+                run_control=run_control,
+            )
+
+        if is_new_turn and run_lease is not None:
+            await run_lease.reset_checkpoint()
+
         system_prompt = PromptBuilder.build_system_prompt(
             response_style,
             user_message=message or "",
@@ -612,73 +619,9 @@ async def stream_conversation(
             db_connected=bool(db_config and db_config.get("db_type")),
         )
 
-        checkpointer = get_checkpointer()
-
-        # Namespace thread_id by user_id to prevent unauthenticated checkpoint access.
-        namespaced_thread_id = f"{user_id}:{conversation_id}"
-
-        # Clear checkpointer and task_checkpoint_summary if it is a new user turn.
-        # Skip clearing when the agent is continuing a paused long task.
-        #
-        # FIX [L4]: The previous guard `and not str(selected_model).startswith("mock")`
-        # skipped checkpoint clearing for mock models, so sequential messages
-        # to the same conversation_id in unit tests resumed from the first
-        # turn's checkpoint — producing non-deterministic test results. Mock
-        # models still go through the checkpointer and need a clean slate
-        # between turns just like real models. The lease acquire path above
-        # is what skips for mocks (run_lease stays None); the checkpoint
-        # clear itself must still run.
-        #
-        # WENH [4]: Initialize the stale-checkpoint nudge flag. If
-        # `clear_checkpointer_thread` fails below, we set this to a system
-        # nudge that gets appended to the user's request later, telling the
-        # model to ignore any stale tool_calls in the history. FIX [M3]
-        # made checkpoint-clear failures fatal to prevent stale-checkpoint
-        # resume bugs, but a transient Redis outage shouldn't block ALL
-        # new turns — so we catch the failure here, log a warning, and
-        # proceed without clearing (with the nudge as a defense-in-depth
-        # prompt to the model).
-        _stale_checkpoint_nudge = None
-        if is_new_turn:
-            resumable_statuses = {
-                "running",
-                "paused_step_limit",
-                "paused_cancelled",
-                "paused_error",
-            }
-            if existing_task_status not in resumable_statuses:
-                # WENH [4]: Fallback for clear_checkpointer_thread failures.
-                # FIX [M3] made checkpoint-clear failures fatal to prevent
-                # stale-checkpoint resume bugs. But a transient Redis outage
-                # shouldn't block ALL new turns for the affected conversation.
-                # On failure, fall back to proceeding without clearing, but
-                # inject a system nudge that tells the model to ignore stale
-                # tool_calls in the history. The nudge is appended to the
-                # current user request below (where the HumanMessage is built).
-                try:
-                    await clear_checkpointer_thread(checkpointer, namespaced_thread_id)
-                except Exception as clear_err:
-                    _log_stream_exception("clear_new_turn_checkpoint", clear_err)
-                    _stale_checkpoint_nudge = (
-                        "<system_nudge>The previous checkpoint could not be "
-                        "cleared. If you see any tool_calls in the history "
-                        "without matching tool results, ignore them and "
-                        "start fresh.</system_nudge>"
-                    )
-                if run_lease is not None:
-                    try:
-                        await run_lease.reset_checkpoint()
-                    except Exception as e:
-                        _log_stream_exception("reset_task_checkpoint_summary", e)
-                        raise
-            else:
-                logger.info(
-                    "Preserving checkpoint for paused task %s — new message continues the task.",
-                    conversation_id,
-                )
-        elif is_continue_task:
+        if is_continue_task:
             logger.info(
-                "continue_task=True: skipping checkpoint clear for conversation %s",
+                "continue_task=True: activated cloned checkpoint generation for conversation %s",
                 conversation_id,
             )
 
@@ -1084,14 +1027,7 @@ async def stream_conversation(
             # FIX [CTX-SUMMARY]: Summarization now runs above (unconditionally
             # for non-resume turns). This branch just loads history.
             history = await _load_firestore_history(conversation_id, message, hot_history_budget, selected_model)
-            # WENH [4]: Append the stale-checkpoint nudge (set when
-            # `clear_checkpointer_thread` failed above) to the user's
-            # request so the model knows to ignore stale tool_calls in
-            # the resumed history. The nudge is only set on failure, so
-            # the happy path is unchanged.
             _current_message_text = message or ""
-            if _stale_checkpoint_nudge:
-                _current_message_text = _current_message_text + "\n" + _stale_checkpoint_nudge
             initial_messages = history + [HumanMessage(content=format_current_user_request(_current_message_text))]
             initial_messages = merge_message_runs(initial_messages)
             if history:
@@ -1102,11 +1038,7 @@ async def stream_conversation(
                 )
             graph_input = {"messages": initial_messages}
         else:
-            # WENH [4]: Same stale-checkpoint nudge as above for the
-            # no-checkpoint branch (no Firestore history to seed).
             _current_message_text = message or ""
-            if _stale_checkpoint_nudge:
-                _current_message_text = _current_message_text + "\n" + _stale_checkpoint_nudge
             initial_messages = [HumanMessage(content=format_current_user_request(_current_message_text))]
             graph_input = {"messages": initial_messages}
 

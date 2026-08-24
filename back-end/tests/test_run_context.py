@@ -209,10 +209,10 @@ def test_resolved_mode_and_budgets_match_stream_prompt_checkpoint_and_history(mo
     conversation = {"task_mode": "long_task", "messages": []}
     captured: dict[str, object] = {}
 
-    class Checkpointer:
-        async def aget_tuple(self, config):
-            del config
-            return None
+    from langgraph.checkpoint.memory import InMemorySaver
+
+    class Checkpointer(InMemorySaver):
+        pass
 
     async def no_op(*args, **kwargs):
         del args, kwargs
@@ -255,7 +255,6 @@ def test_resolved_mode_and_budgets_match_stream_prompt_checkpoint_and_history(mo
         lambda: SimpleNamespace(build_available_skills_context=lambda **kwargs: ""),
     )
     monkeypatch.setattr(stream_module, "get_checkpointer", lambda: Checkpointer())
-    monkeypatch.setattr(stream_module, "clear_checkpointer_thread", no_op)
     monkeypatch.setattr(stream_module, "load_initial_stream_context", load_context)
     monkeypatch.setattr(stream_module, "prepare_stream_budget", prepare_budget)
     monkeypatch.setattr(stream_module, "get_chat_model", lambda *args, **kwargs: object())

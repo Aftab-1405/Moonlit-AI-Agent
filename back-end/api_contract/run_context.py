@@ -12,6 +12,49 @@ TaskModeSource = Literal["default", "explicit", "automatic", "resume"]
 
 
 @dataclass(frozen=True)
+class CheckpointGeneration:
+    """Immutable physical checkpoint namespace reserved for one fenced run."""
+
+    logical_thread_id: str
+    physical_thread_id: str
+    run_id: str
+    fence: int
+    source_generation: CheckpointGeneration | None = None
+
+
+def create_checkpoint_generation(
+    logical_thread_id: str,
+    run_id: str,
+    fence: int,
+    *,
+    source_generation: CheckpointGeneration | None = None,
+) -> CheckpointGeneration:
+    """Build the canonical physical namespace for one fenced graph attempt."""
+    normalized_logical_id = str(logical_thread_id).strip()
+    normalized_run_id = str(run_id).strip()
+    if not normalized_logical_id:
+        raise ValueError("logical_thread_id is required")
+    if not normalized_run_id:
+        raise ValueError("run_id is required")
+    if fence < 1:
+        raise ValueError("fence must be positive")
+    if (
+        source_generation is not None
+        and source_generation.logical_thread_id != normalized_logical_id
+    ):
+        raise ValueError("source generation must belong to the same logical thread")
+    return CheckpointGeneration(
+        logical_thread_id=normalized_logical_id,
+        physical_thread_id=(
+            f"{normalized_logical_id}:checkpoint-generation:{fence}:{normalized_run_id}"
+        ),
+        run_id=normalized_run_id,
+        fence=fence,
+        source_generation=source_generation,
+    )
+
+
+@dataclass(frozen=True)
 class RunBudgets:
     """Hard graph, segment, tool, and wall-clock ceilings for one run."""
 

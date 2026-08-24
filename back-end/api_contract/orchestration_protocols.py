@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol, runtime_checkable
 
+from api_contract.run_context import CheckpointGeneration
+
 
 @dataclass(frozen=True)
 class TaskRunAcquisition:
@@ -15,6 +17,8 @@ class TaskRunAcquisition:
     lease_expires_at: datetime
     previous_status: str
     previous_task_mode: str
+    reserved_checkpoint_generation: CheckpointGeneration
+    active_checkpoint_generation: CheckpointGeneration | None
 
 
 @runtime_checkable
@@ -79,14 +83,25 @@ class ConversationTaskStateStore(Protocol):
     ) -> bool:
         """Persist a checkpoint summary only for the active run owner."""
 
+    def activate_checkpoint_generation(
+        self,
+        conversation_id: str,
+        generation: CheckpointGeneration,
+        run_id: str,
+        fence: int,
+    ) -> bool:
+        """Select a verified reserved generation only for its live owner."""
+
     def try_acquire_task_run(
         self,
         conversation_id: str,
         task_mode: str,
         run_id: str,
         lease_seconds: int,
+        logical_thread_id: str,
+        resume_checkpoint: bool,
     ) -> TaskRunAcquisition:
-        """Atomically acquire an expiring execution lease."""
+        """Atomically acquire a lease and reserve its immutable generation."""
 
     def renew_task_run(
         self,

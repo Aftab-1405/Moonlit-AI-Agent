@@ -11,6 +11,7 @@ from firebase_admin import firestore
 from google.api_core.exceptions import Aborted, DeadlineExceeded
 from google.cloud.firestore_v1 import LastUpdateOption
 
+from api_contract.run_context import create_checkpoint_generation
 from service.conversations import orchestration_access
 from service.conversations.orchestration_access import FirestoreConversationTaskStateStore
 
@@ -93,12 +94,40 @@ def store(monkeypatch: pytest.MonkeyPatch):
 
 
 def _conversation(**overrides) -> dict:
-    return {
+    conversation = {
         "task_status": "",
         "task_mode": "normal",
         "task_run_fence": 0,
         **overrides,
     }
+    if (
+        conversation.get("task_status") == "running"
+        and "reserved_checkpoint_generation" not in conversation
+    ):
+        generation = create_checkpoint_generation(
+            "user-1:conversation-1",
+            conversation["task_run_id"],
+            conversation["task_run_fence"],
+        )
+        conversation["reserved_checkpoint_generation"] = (
+            orchestration_access._generation_to_record(generation)
+        )
+        conversation.setdefault(
+            "active_checkpoint_generation",
+            orchestration_access._generation_to_record(generation),
+        )
+    return conversation
+
+
+def _acquire(task_store, task_mode: str, run_id: str, lease_seconds: int, *, resume=False):
+    return task_store.try_acquire_task_run(
+        "conversation-1",
+        task_mode,
+        run_id,
+        lease_seconds,
+        "user-1:conversation-1",
+        resume,
+    )
 
 
 def _store_whose_read_crosses_expiry(monkeypatch, data: dict):
@@ -122,7 +151,7 @@ def _store_whose_read_crosses_expiry(monkeypatch, data: dict):
 def test_first_acquisition_assigns_first_fence_and_exact_expiry(store) -> None:
     task_store, ref = store(_conversation(task_status="paused_error", task_mode="long_task"))
 
-    result = task_store.try_acquire_task_run("conversation-1", "tool_task", "run-a", 30)
+    result = _acquire(task_store, "tool_task", "run-a", 30)
 
     expected_expiry = NOW + timedelta(seconds=30)
     assert result.acquired is True
@@ -147,7 +176,7 @@ def test_active_collision_preserves_owner_state_without_mutation(store) -> None:
     )
     task_store, ref = store(original)
 
-    result = task_store.try_acquire_task_run("conversation-1", "long_task", "run-b", 30)
+    result = _acquire(task_store, "long_task", "run-b", 30)
 
     assert result.acquired is False
     assert result.run_id == "run-b"
@@ -170,7 +199,7 @@ def test_expired_takeover_increments_fence_and_replaces_owner(store) -> None:
         )
     )
 
-    result = task_store.try_acquire_task_run("conversation-1", "long_task", "run-b", 45)
+    result = _acquire(task_store, "long_task", "run-b", 45)
 
     assert result.acquired is True
     assert result.run_id == "run-b"
@@ -195,7 +224,7 @@ def test_same_attempt_reentry_returns_original_fence_without_extending_lease(sto
         )
     )
 
-    result = task_store.try_acquire_task_run("conversation-1", "tool_task", "run-a", 90)
+    result = _acquire(task_store, "tool_task", "run-a", 90)
 
     assert result.acquired is True
     assert result.run_id == "run-a"
@@ -209,7 +238,7 @@ def test_same_attempt_reentry_returns_original_fence_without_extending_lease(sto
 def test_ambiguous_acquisition_commit_reenters_without_allocating_second_fence(store) -> None:
     task_store, ref = store(_conversation(), update_script=["commit_then_abort"])
 
-    result = task_store.try_acquire_task_run("conversation-1", "normal", "run-a", 30)
+    result = _acquire(task_store, "normal", "run-a", 30)
 
     assert result.acquired is True
     assert result.run_id == "run-a"
@@ -224,7 +253,7 @@ def test_acquisition_reconciles_commit_then_timeout_without_second_fence(store) 
         update_script=["commit_then_timeout"],
     )
 
-    result = task_store.try_acquire_task_run("conversation-1", "tool_task", "run-a", 30)
+    result = _acquire(task_store, "tool_task", "run-a", 30)
 
     assert result == orchestration_access.TaskRunAcquisition(
         acquired=True,
@@ -233,6 +262,12 @@ def test_acquisition_reconciles_commit_then_timeout_without_second_fence(store) 
         lease_expires_at=NOW + timedelta(seconds=30),
         previous_status="paused_error",
         previous_task_mode="long_task",
+        reserved_checkpoint_generation=create_checkpoint_generation(
+            "user-1:conversation-1",
+            "run-a",
+            1,
+        ),
+        active_checkpoint_generation=None,
     )
     assert ref.data["task_run_fence"] == 1
     assert len(ref.mutations) == 1
@@ -304,7 +339,7 @@ def test_acquisition_uses_post_read_time_for_expired_takeover(monkeypatch) -> No
         ),
     )
 
-    result = task_store.try_acquire_task_run("conversation-1", "long_task", "run-b", 30)
+    result = _acquire(task_store, "long_task", "run-b", 30)
 
     assert result.acquired is True
     assert result.fence == 5

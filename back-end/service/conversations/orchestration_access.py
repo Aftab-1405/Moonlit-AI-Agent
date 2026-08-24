@@ -21,6 +21,7 @@ from api_contract.orchestration_protocols import (
     ConversationTaskStateStore,
     TaskRunAcquisition,
 )
+from api_contract.run_context import CheckpointGeneration, create_checkpoint_generation
 from service.conversations.conversation_repository import ConversationRepository
 from service.conversations.conversation_service import ConversationService
 from service.firestore.firestore_service import FirestoreService
@@ -28,6 +29,40 @@ from service.firestore.firestore_service import FirestoreService
 _TASK_STATE_RPC_TIMEOUT_SECONDS = 8.0
 _TASK_STATE_CAS_ATTEMPTS = 3
 _AMBIGUOUS_TASK_STATE_ERRORS = (DeadlineExceeded, GatewayTimeout, ServiceUnavailable)
+
+
+def _generation_to_record(generation: CheckpointGeneration | None) -> dict | None:
+    """Serialize a generation without deriving identity from its physical ID."""
+    if generation is None:
+        return None
+    return {
+        "logical_thread_id": generation.logical_thread_id,
+        "physical_thread_id": generation.physical_thread_id,
+        "run_id": generation.run_id,
+        "fence": generation.fence,
+        "source_generation": _generation_to_record(generation.source_generation),
+    }
+
+
+def _generation_from_record(value: object) -> CheckpointGeneration | None:
+    """Deserialize and validate explicit generation identity fields."""
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise RuntimeError("Checkpoint generation state is malformed.")
+    try:
+        source = _generation_from_record(value.get("source_generation"))
+        generation = create_checkpoint_generation(
+            str(value["logical_thread_id"]),
+            str(value["run_id"]),
+            int(value["fence"]),
+            source_generation=source,
+        )
+    except (KeyError, TypeError, ValueError) as error:
+        raise RuntimeError("Checkpoint generation state is malformed.") from error
+    if value.get("physical_thread_id") != generation.physical_thread_id:
+        raise RuntimeError("Checkpoint generation physical identity is invalid.")
+    return generation
 
 
 def _is_ambiguous_task_state_error(error: Exception) -> bool:
@@ -110,6 +145,8 @@ class FirestoreConversationTaskStateStore:
         task_mode: str,
         run_id: str,
         lease_seconds: int,
+        logical_thread_id: str,
+        resume_checkpoint: bool,
     ) -> TaskRunAcquisition:
         """Acquire a task run lease via Firestore compare-and-set.
 
@@ -145,7 +182,15 @@ class FirestoreConversationTaskStateStore:
             previous_task_mode = data.get("task_mode", "normal") or "normal"
             current_fence = max(0, int(data.get("task_run_fence", 0) or 0))
             current_expiry = data.get("task_lease_expires_at")
+            active_generation = _generation_from_record(
+                data.get("active_checkpoint_generation")
+            )
             if data.get("task_status") == "running" and self._lease_is_active(data, now):
+                reserved_generation = _generation_from_record(
+                    data.get("reserved_checkpoint_generation")
+                )
+                if reserved_generation is None:
+                    raise RuntimeError("Active task run has no reserved checkpoint generation.")
                 if data.get("task_run_id") == run_id:
                     return TaskRunAcquisition(
                         acquired=True,
@@ -154,6 +199,8 @@ class FirestoreConversationTaskStateStore:
                         lease_expires_at=current_expiry,
                         previous_status=data.get("task_run_previous_status", ""),
                         previous_task_mode=data.get("task_run_previous_mode", "normal") or "normal",
+                        reserved_checkpoint_generation=reserved_generation,
+                        active_checkpoint_generation=active_generation,
                     )
                 return TaskRunAcquisition(
                     acquired=False,
@@ -162,11 +209,30 @@ class FirestoreConversationTaskStateStore:
                     lease_expires_at=current_expiry,
                     previous_status=previous_status,
                     previous_task_mode=previous_task_mode,
+                    reserved_checkpoint_generation=reserved_generation,
+                    active_checkpoint_generation=active_generation,
                 )
             if not snapshot.exists:
                 raise ValueError(f"Conversation {conversation_id} does not exist")
+            if resume_checkpoint and active_generation is None:
+                raise RuntimeError("Resume requires an active checkpoint source generation.")
             next_fence = current_fence + 1
             lease_expires_at = now + timedelta(seconds=max(1, lease_seconds))
+            source_generation = None
+            if resume_checkpoint and active_generation is not None:
+                source_generation = CheckpointGeneration(
+                    logical_thread_id=active_generation.logical_thread_id,
+                    physical_thread_id=active_generation.physical_thread_id,
+                    run_id=active_generation.run_id,
+                    fence=active_generation.fence,
+                )
+            reserved_generation = create_checkpoint_generation(
+                logical_thread_id,
+                run_id,
+                next_fence,
+                source_generation=source_generation,
+            )
+            reserved_record = _generation_to_record(reserved_generation)
             try:
                 ref.update(
                     {
@@ -178,6 +244,7 @@ class FirestoreConversationTaskStateStore:
                         "task_run_previous_mode": previous_task_mode,
                         "task_status_updated_at": now,
                         "task_lease_expires_at": lease_expires_at,
+                        "reserved_checkpoint_generation": reserved_record,
                     },
                     option=LastUpdateOption(snapshot.update_time),
                     retry=_task_state_retry(),
@@ -190,6 +257,8 @@ class FirestoreConversationTaskStateStore:
                     lease_expires_at=lease_expires_at,
                     previous_status=previous_status,
                     previous_task_mode=previous_task_mode,
+                    reserved_checkpoint_generation=reserved_generation,
+                    active_checkpoint_generation=active_generation,
                 )
             except (Aborted, FailedPrecondition):
                 continue
@@ -215,6 +284,7 @@ class FirestoreConversationTaskStateStore:
                     and reconciled.get("task_lease_expires_at") == lease_expires_at
                     and reconciled.get("task_run_previous_status") == previous_status
                     and reconciled.get("task_run_previous_mode") == previous_task_mode
+                    and reconciled.get("reserved_checkpoint_generation") == reserved_record
                     and self._lease_is_active(reconciled, reconciled_at)
                 )
                 if committed:
@@ -225,9 +295,48 @@ class FirestoreConversationTaskStateStore:
                         lease_expires_at=lease_expires_at,
                         previous_status=previous_status,
                         previous_task_mode=previous_task_mode,
+                        reserved_checkpoint_generation=reserved_generation,
+                        active_checkpoint_generation=active_generation,
                     )
                 continue
         raise RuntimeError("Could not acquire task lease after concurrent updates")
+
+    def activate_checkpoint_generation(
+        self,
+        conversation_id: str,
+        generation: CheckpointGeneration,
+        run_id: str,
+        fence: int,
+    ) -> bool:
+        """Owner-CAS select a completely prepared reserved generation."""
+        reserved_record = _generation_to_record(generation)
+        ref = self._conversation_ref(conversation_id)
+        for _attempt in range(_TASK_STATE_CAS_ATTEMPTS):
+            snapshot = ref.get(
+                retry=_task_state_retry(),
+                timeout=_TASK_STATE_RPC_TIMEOUT_SECONDS,
+            )
+            checked_at = datetime.now(timezone.utc)
+            data = snapshot.to_dict() if snapshot.exists else {}
+            if data.get("task_run_id") != run_id or data.get("task_run_fence") != fence:
+                return False
+            if data.get("task_status") != "running" or not self._lease_is_active(data, checked_at):
+                return False
+            if data.get("reserved_checkpoint_generation") != reserved_record:
+                return False
+            if data.get("active_checkpoint_generation") == reserved_record:
+                return True
+            try:
+                ref.update(
+                    {"active_checkpoint_generation": reserved_record},
+                    option=LastUpdateOption(snapshot.update_time),
+                    retry=_task_state_retry(),
+                    timeout=_TASK_STATE_RPC_TIMEOUT_SECONDS,
+                )
+                return True
+            except (Aborted, FailedPrecondition):
+                continue
+        raise RuntimeError("Could not activate checkpoint generation after concurrent updates")
 
     def renew_task_run(
         self,

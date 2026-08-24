@@ -28,10 +28,12 @@ class TaskRunLease:
     def __init__(
         self,
         conversation_id: str,
+        logical_thread_id: str,
         task_mode: str,
         run_id: str,
         run_control: RunControl,
         *,
+        resume_checkpoint: bool,
         lease_seconds: int = DEFAULT_LEASE_SECONDS,
         renew_interval_seconds: int = DEFAULT_RENEW_INTERVAL_SECONDS,
         monotonic: Callable[[], float] = time.monotonic,
@@ -39,9 +41,11 @@ class TaskRunLease:
         wait_until: Callable[[float, asyncio.Event], Awaitable[bool]] | None = None,
     ) -> None:
         self.conversation_id = conversation_id
+        self.logical_thread_id = logical_thread_id
         self.task_mode = task_mode
         self.run_id = run_id
         self.run_control = run_control
+        self.resume_checkpoint = resume_checkpoint
         self.lease_seconds = max(1, lease_seconds)
         self.renew_interval_seconds = min(
             max(1, renew_interval_seconds),
@@ -76,6 +80,8 @@ class TaskRunLease:
                 self.task_mode,
                 self.run_id,
                 self.lease_seconds,
+                self.logical_thread_id,
+                self.resume_checkpoint,
             )
         )
         try:
@@ -96,6 +102,13 @@ class TaskRunLease:
             raise ConcurrentTaskRunError("Another request is already running for this conversation.")
         if result.run_id != self.run_id or result.fence < 1:
             raise RuntimeError("Task lease acquisition returned an invalid owner fence.")
+        generation = result.reserved_checkpoint_generation
+        if (
+            generation.logical_thread_id != self.logical_thread_id
+            or generation.run_id != self.run_id
+            or generation.fence != result.fence
+        ):
+            raise RuntimeError("Task lease acquisition returned an invalid checkpoint generation.")
         self.previous_status = result.previous_status
         self.previous_task_mode = result.previous_task_mode
         self.fence = result.fence
