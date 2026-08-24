@@ -187,10 +187,11 @@ async def _seed_checkpoint(
     value: str,
     *,
     parent_config: dict | None = None,
+    checkpoint_ns: str = "",
 ) -> dict:
     config = deepcopy(parent_config) if parent_config is not None else {"configurable": {}}
     config["configurable"]["thread_id"] = physical_thread_id
-    config["configurable"]["checkpoint_ns"] = ""
+    config["configurable"]["checkpoint_ns"] = checkpoint_ns
     checkpoint = _checkpoint(checkpoint_id, value)
     return await saver.aput(
         config,
@@ -290,6 +291,77 @@ async def test_fresh_generation_rewrites_every_async_saver_path() -> None:
     ) is None
 
 
+def test_fresh_generation_rewrites_every_sync_saver_path() -> None:
+    saver = InMemorySaver()
+    generation = create_checkpoint_generation("user-1:conversation-1", "run-a", 1)
+    checkpointer = GenerationCheckpointer(
+        saver,
+        generation,
+        reserved_generation=generation,
+        active_generation=generation,
+        run_control=RunControl(deadline_monotonic=100.0, tool_limit=20),
+        monotonic=lambda: 1.0,
+    )
+    logical_config = {
+        "configurable": {
+            "thread_id": generation.logical_thread_id,
+            "checkpoint_ns": "subgraph",
+        }
+    }
+    checkpoint = _checkpoint("0001", "generation-state")
+
+    written = checkpointer.put(
+        logical_config,
+        checkpoint,
+        {"source": "loop", "step": 1, "parents": {}},
+        checkpoint["channel_versions"],
+    )
+    checkpointer.put_writes(
+        written,
+        [("messages", "pending-state")],
+        "task-1",
+        "tools",
+    )
+
+    assert saver.get_tuple(logical_config) is None
+    assert checkpointer.get(logical_config) == checkpoint
+    listed = list(checkpointer.list(None))
+    assert len(listed) == 1
+    assert listed[0].config["configurable"]["thread_id"] == generation.logical_thread_id
+    assert listed[0].pending_writes == [("task-1", "messages", "pending-state")]
+
+    checkpointer.delete_thread(generation.logical_thread_id)
+    assert saver.get_tuple(
+        {"configurable": {"thread_id": generation.physical_thread_id}}
+    ) is None
+
+
+@pytest.mark.asyncio
+async def test_preparation_rejects_target_state_in_non_default_namespace() -> None:
+    saver = InMemorySaver()
+    generation = create_checkpoint_generation("user-1:conversation-1", "run-a", 3)
+    await _seed_checkpoint(
+        saver,
+        generation.physical_thread_id,
+        "0001",
+        "unexpected-target-state",
+        checkpoint_ns="subgraph",
+    )
+    store = GenerationStateStore(owner="run-a", fence=3, reserved=generation, active=None)
+
+    with pytest.raises(RuntimeError, match="not empty"):
+        await prepare_checkpoint_generation(
+            saver,
+            conversation_id="conversation-1",
+            acquisition=_acquisition(generation),
+            task_state_store=store,
+            run_control=RunControl(deadline_monotonic=100.0, tool_limit=20),
+            monotonic=lambda: 1.0,
+        )
+
+    assert store.active is None
+
+
 @pytest.mark.asyncio
 async def test_resume_clone_preserves_checkpoint_and_pending_write_fidelity() -> None:
     saver = InMemorySaver()
@@ -337,6 +409,99 @@ async def test_resume_clone_preserves_checkpoint_and_pending_write_fidelity() ->
     assert cloned.metadata == source_state.metadata
     assert cloned.pending_writes == source_state.pending_writes
     assert cloned.config["configurable"]["thread_id"] == generation.logical_thread_id
+    assert store.active == generation
+
+
+@pytest.mark.asyncio
+async def test_resume_clone_preserves_real_multi_namespace_state() -> None:
+    saver = InMemorySaver()
+    source = create_checkpoint_generation("user-1:conversation-1", "run-old", 4)
+    sub_first = await _seed_checkpoint(
+        saver,
+        source.physical_thread_id,
+        "1001",
+        "sub-1",
+        checkpoint_ns="worker",
+    )
+    sub_latest = await _seed_checkpoint(
+        saver,
+        source.physical_thread_id,
+        "1002",
+        "sub-2",
+        parent_config=sub_first,
+        checkpoint_ns="worker",
+    )
+    root_first = await _seed_checkpoint(
+        saver,
+        source.physical_thread_id,
+        "0001",
+        "root-1",
+    )
+    root_latest = await _seed_checkpoint(
+        saver,
+        source.physical_thread_id,
+        "0002",
+        "root-2",
+        parent_config=root_first,
+    )
+    await saver.aput_writes(
+        root_latest,
+        [("messages", "root-pending"), ("custom", {"root": 2})],
+        "root-task",
+        "root-path",
+    )
+    await saver.aput_writes(
+        sub_latest,
+        [("messages", "sub-pending"), ("custom", {"sub": 2})],
+        "sub-task",
+        "sub-path",
+    )
+    generation = create_checkpoint_generation(
+        "user-1:conversation-1",
+        "run-a",
+        5,
+        source_generation=source,
+    )
+    store = GenerationStateStore(owner="run-a", fence=5, reserved=generation, active=source)
+
+    await prepare_checkpoint_generation(
+        saver,
+        conversation_id="conversation-1",
+        acquisition=_acquisition(generation, active=source),
+        task_state_store=store,
+        run_control=RunControl(deadline_monotonic=100.0, tool_limit=20),
+        monotonic=lambda: 1.0,
+    )
+
+    target_items = [
+        item
+        async for item in saver.alist(
+            {"configurable": {"thread_id": generation.physical_thread_id}}
+        )
+    ]
+    by_identity = {
+        (
+            item.config["configurable"]["checkpoint_ns"],
+            item.config["configurable"]["checkpoint_id"],
+        ): item
+        for item in target_items
+    }
+    assert set(by_identity) == {
+        ("", "0001"),
+        ("", "0002"),
+        ("worker", "1001"),
+        ("worker", "1002"),
+    }
+    assert by_identity[("", "0002")].parent_config["configurable"]["checkpoint_id"] == "0001"
+    assert by_identity[("worker", "1002")].parent_config["configurable"]["checkpoint_id"] == "1001"
+    assert by_identity[("", "0002")].pending_writes == [
+        ("root-task", "messages", "root-pending"),
+        ("root-task", "custom", {"root": 2}),
+    ]
+    assert by_identity[("worker", "1002")].pending_writes == [
+        ("sub-task", "messages", "sub-pending"),
+        ("sub-task", "custom", {"sub": 2}),
+    ]
     assert store.active == generation
 
 
@@ -440,14 +605,14 @@ async def test_resume_clone_failure_never_activates_reserved_generation_or_enter
 
 
 def test_takeover_acquisition_reserves_one_generation_without_activating_it(monkeypatch) -> None:
+    source = create_checkpoint_generation("user-1:conversation-1", "run-old", 4)
     ref = FakeDocumentReference(
         {
-            "task_status": "paused_error",
+            "task_status": "resumable_interrupt",
             "task_mode": "long_task",
             "task_run_fence": 4,
-            "active_checkpoint_generation": _generation_record(
-                create_checkpoint_generation("user-1:conversation-1", "run-old", 4)
-            ),
+            "reserved_checkpoint_generation": _generation_record(source),
+            "active_checkpoint_generation": _generation_record(source),
         }
     )
     store = FirestoreConversationTaskStateStore()
@@ -478,7 +643,7 @@ def test_resume_acquisition_without_active_source_never_reserves_empty_generatio
 ) -> None:
     ref = FakeDocumentReference(
         {
-            "task_status": "paused_error",
+            "task_status": "resumable_interrupt",
             "task_mode": "long_task",
             "task_run_fence": 4,
         }
@@ -486,7 +651,7 @@ def test_resume_acquisition_without_active_source_never_reserves_empty_generatio
     store = FirestoreConversationTaskStateStore()
     monkeypatch.setattr(store, "_conversation_ref", lambda _conversation_id: ref)
 
-    with pytest.raises(RuntimeError, match="active checkpoint source"):
+    with pytest.raises(RuntimeError, match="resumable checkpoint source"):
         store.try_acquire_task_run(
             "conversation-1",
             "tool_task",
@@ -496,8 +661,85 @@ def test_resume_acquisition_without_active_source_never_reserves_empty_generatio
             True,
         )
 
-    assert ref.data["task_status"] == "paused_error"
+    assert ref.data["task_status"] == "resumable_interrupt"
     assert "reserved_checkpoint_generation" not in ref.data
+    assert ref.version == 1
+
+
+@pytest.mark.parametrize(
+    "status",
+    [
+        "paused_error",
+        "paused_cancelled",
+        "paused_step_limit",
+        "",
+        "running",
+    ],
+)
+def test_resume_rejects_every_non_resumable_status_before_mutation(
+    monkeypatch,
+    status: str,
+) -> None:
+    source = create_checkpoint_generation("user-1:conversation-1", "run-old", 4)
+    data = {
+        "task_status": status,
+        "task_mode": "long_task",
+        "task_run_fence": 4,
+        "reserved_checkpoint_generation": _generation_record(source),
+        "active_checkpoint_generation": _generation_record(source),
+    }
+    if status == "running":
+        data.update(
+            {
+                "task_run_id": "run-old",
+                "task_lease_expires_at": datetime(2000, 1, 1, tzinfo=timezone.utc),
+            }
+        )
+    ref = FakeDocumentReference(data)
+    store = FirestoreConversationTaskStateStore()
+    monkeypatch.setattr(store, "_conversation_ref", lambda _conversation_id: ref)
+
+    with pytest.raises(RuntimeError, match="resumable checkpoint source"):
+        store.try_acquire_task_run(
+            "conversation-1",
+            "tool_task",
+            "run-b",
+            30,
+            "user-1:conversation-1",
+            True,
+        )
+
+    assert ref.data == data
+    assert ref.version == 1
+
+
+def test_resume_rejects_mismatched_reserved_and_active_source_identity_before_mutation(
+    monkeypatch,
+) -> None:
+    source = create_checkpoint_generation("user-1:conversation-1", "run-old", 4)
+    mismatched = create_checkpoint_generation("user-1:conversation-1", "run-other", 3)
+    data = {
+        "task_status": "resumable_interrupt",
+        "task_mode": "long_task",
+        "task_run_fence": 4,
+        "reserved_checkpoint_generation": _generation_record(mismatched),
+        "active_checkpoint_generation": _generation_record(source),
+    }
+    ref = FakeDocumentReference(data)
+    store = FirestoreConversationTaskStateStore()
+    monkeypatch.setattr(store, "_conversation_ref", lambda _conversation_id: ref)
+
+    with pytest.raises(RuntimeError, match="resumable checkpoint source"):
+        store.try_acquire_task_run(
+            "conversation-1",
+            "tool_task",
+            "run-b",
+            30,
+            "user-1:conversation-1",
+            True,
+        )
+
+    assert ref.data == data
     assert ref.version == 1
 
 

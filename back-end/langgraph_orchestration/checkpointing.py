@@ -255,7 +255,7 @@ async def prepare_checkpoint_generation(
         )
 
     target_config = {"configurable": {"thread_id": generation.physical_thread_id}}
-    if await saver.aget_tuple(target_config) is not None:
+    async for _item in saver.alist(target_config, limit=1):
         raise RuntimeError("Reserved checkpoint generation is not empty before preparation.")
 
     if generation.source_generation is not None:
@@ -290,31 +290,43 @@ async def _clone_generation(
     target: CheckpointGeneration,
 ) -> None:
     source_config = {"configurable": {"thread_id": source.physical_thread_id}}
-    source_items = [item async for item in saver.alist(source_config)]
+    source_items = await _generation_items(saver, source_config)
     if not source_items:
         raise RuntimeError("Resumable checkpoint source generation is empty.")
 
-    for item in reversed(source_items):
-        configurable = {
-            "thread_id": target.physical_thread_id,
-            "checkpoint_ns": item.config.get("configurable", {}).get("checkpoint_ns", ""),
-        }
-        if item.parent_config is not None:
-            parent_id = item.parent_config.get("configurable", {}).get("checkpoint_id")
-            if parent_id:
-                configurable["checkpoint_id"] = parent_id
-        target_config = {"configurable": configurable}
-        written_config = await saver.aput(
-            target_config,
-            deepcopy(item.checkpoint),
-            deepcopy(item.metadata),
-            deepcopy(item.checkpoint.get("channel_versions", {})),
-        )
-        pending_by_task: dict[str, list[tuple[str, Any]]] = defaultdict(list)
-        for task_id, channel, value in item.pending_writes or []:
-            pending_by_task[task_id].append((channel, deepcopy(value)))
-        for task_id, writes in pending_by_task.items():
-            await saver.aput_writes(written_config, writes, task_id)
+    remaining = dict(source_items)
+    while remaining:
+        ready: list[tuple[tuple[str, str], CheckpointTuple]] = []
+        for identity, item in remaining.items():
+            parent_identity = _checkpoint_parent_identity(item)
+            if parent_identity is None or parent_identity not in remaining:
+                ready.append((identity, item))
+        if not ready:
+            raise RuntimeError("Checkpoint generation contains a cyclic parent chain.")
+
+        for identity, item in sorted(ready, key=lambda entry: entry[0]):
+            checkpoint_ns, _checkpoint_id = identity
+            parent_identity = _checkpoint_parent_identity(item)
+            if parent_identity is not None and parent_identity[0] != checkpoint_ns:
+                raise RuntimeError("Checkpoint generation parent crosses checkpoint namespaces.")
+            configurable = {
+                "thread_id": target.physical_thread_id,
+                "checkpoint_ns": checkpoint_ns,
+            }
+            if parent_identity is not None:
+                configurable["checkpoint_id"] = parent_identity[1]
+            written_config = await saver.aput(
+                {"configurable": configurable},
+                deepcopy(item.checkpoint),
+                deepcopy(item.metadata),
+                deepcopy(item.checkpoint.get("channel_versions", {})),
+            )
+            pending_by_task: dict[str, list[tuple[str, Any]]] = defaultdict(list)
+            for task_id, channel, value in item.pending_writes or []:
+                pending_by_task[task_id].append((channel, deepcopy(value)))
+            for task_id, writes in pending_by_task.items():
+                await saver.aput_writes(written_config, writes, task_id)
+            del remaining[identity]
 
 
 async def _verify_generation_clone(
@@ -328,21 +340,49 @@ async def _verify_generation_clone(
         raise RuntimeError("Checkpoint generation clone verification failed.")
 
 
-async def _generation_snapshot(saver: BaseCheckpointSaver, thread_id: str) -> list[tuple]:
-    config = {"configurable": {"thread_id": thread_id}}
-    snapshot = []
+async def _generation_items(
+    saver: BaseCheckpointSaver,
+    config: RunnableConfig,
+) -> dict[tuple[str, str], CheckpointTuple]:
+    items: dict[tuple[str, str], CheckpointTuple] = {}
     async for item in saver.alist(config):
         configurable = item.config.get("configurable", {})
-        parent = (item.parent_config or {}).get("configurable", {})
-        snapshot.append(
-            (
-                configurable.get("checkpoint_ns", ""),
-                configurable.get("checkpoint_id"),
-                parent.get("checkpoint_id"),
-                deepcopy(item.checkpoint),
-                deepcopy(item.metadata),
-                deepcopy(item.pending_writes or []),
-            )
+        checkpoint_ns = configurable.get("checkpoint_ns", "")
+        checkpoint_id = configurable.get("checkpoint_id")
+        if not isinstance(checkpoint_ns, str) or not isinstance(checkpoint_id, str):
+            raise RuntimeError("Checkpoint generation contains invalid checkpoint identity.")
+        identity = (checkpoint_ns, checkpoint_id)
+        if identity in items:
+            raise RuntimeError("Checkpoint generation contains duplicate checkpoint identity.")
+        items[identity] = item
+    return items
+
+
+def _checkpoint_parent_identity(item: CheckpointTuple) -> tuple[str, str] | None:
+    if item.parent_config is None:
+        return None
+    configurable = item.parent_config.get("configurable", {})
+    checkpoint_id = configurable.get("checkpoint_id")
+    if checkpoint_id is None:
+        return None
+    checkpoint_ns = configurable.get("checkpoint_ns", "")
+    if not isinstance(checkpoint_ns, str) or not isinstance(checkpoint_id, str):
+        raise RuntimeError("Checkpoint generation contains invalid parent identity.")
+    return checkpoint_ns, checkpoint_id
+
+
+async def _generation_snapshot(
+    saver: BaseCheckpointSaver,
+    thread_id: str,
+) -> dict[tuple[str, str], tuple]:
+    config = {"configurable": {"thread_id": thread_id}}
+    snapshot = {}
+    for identity, item in (await _generation_items(saver, config)).items():
+        snapshot[identity] = (
+            _checkpoint_parent_identity(item),
+            deepcopy(item.checkpoint),
+            deepcopy(item.metadata),
+            deepcopy(item.pending_writes or []),
         )
     return snapshot
 

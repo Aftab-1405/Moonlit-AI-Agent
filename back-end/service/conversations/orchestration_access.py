@@ -75,6 +75,21 @@ def _is_ambiguous_task_state_error(error: Exception) -> bool:
     )
 
 
+def _same_generation_identity(
+    left: CheckpointGeneration | None,
+    right: CheckpointGeneration | None,
+) -> bool:
+    """Compare one generation's explicit identity without its prior lineage."""
+    if left is None or right is None:
+        return False
+    return (
+        left.logical_thread_id == right.logical_thread_id
+        and left.physical_thread_id == right.physical_thread_id
+        and left.run_id == right.run_id
+        and left.fence == right.fence
+    )
+
+
 def _task_state_retry() -> Retry:
     """Build a Retry policy for Firestore task-state RPCs."""
     return Retry(deadline=_TASK_STATE_RPC_TIMEOUT_SECONDS)
@@ -185,13 +200,45 @@ class FirestoreConversationTaskStateStore:
             active_generation = _generation_from_record(
                 data.get("active_checkpoint_generation")
             )
-            if data.get("task_status") == "running" and self._lease_is_active(data, now):
+            running_with_active_lease = (
+                data.get("task_status") == "running"
+                and self._lease_is_active(data, now)
+            )
+            reserved_generation = None
+            if resume_checkpoint or running_with_active_lease:
                 reserved_generation = _generation_from_record(
                     data.get("reserved_checkpoint_generation")
                 )
+            if running_with_active_lease:
                 if reserved_generation is None:
                     raise RuntimeError("Active task run has no reserved checkpoint generation.")
                 if data.get("task_run_id") == run_id:
+                    if resume_checkpoint:
+                        source_generation = reserved_generation.source_generation
+                        valid_resume_reentry = (
+                            data.get("task_run_previous_status")
+                            == "resumable_interrupt"
+                            and reserved_generation.logical_thread_id
+                            == logical_thread_id
+                            and reserved_generation.run_id == run_id
+                            and reserved_generation.fence == current_fence
+                            and source_generation is not None
+                            and source_generation.logical_thread_id
+                            == logical_thread_id
+                            and source_generation.run_id != run_id
+                            and source_generation.fence < current_fence
+                            and (
+                                _same_generation_identity(
+                                    active_generation,
+                                    source_generation,
+                                )
+                                or active_generation == reserved_generation
+                            )
+                        )
+                        if not valid_resume_reentry:
+                            raise RuntimeError(
+                                "Resume requires a quiesced resumable checkpoint source generation."
+                            )
                     return TaskRunAcquisition(
                         acquired=True,
                         run_id=run_id,
@@ -214,8 +261,20 @@ class FirestoreConversationTaskStateStore:
                 )
             if not snapshot.exists:
                 raise ValueError(f"Conversation {conversation_id} does not exist")
-            if resume_checkpoint and active_generation is None:
-                raise RuntimeError("Resume requires an active checkpoint source generation.")
+            if resume_checkpoint:
+                resumable_source_matches = (
+                    data.get("task_status") == "resumable_interrupt"
+                    and not data.get("task_run_id")
+                    and data.get("task_lease_expires_at") is None
+                    and active_generation is not None
+                    and reserved_generation == active_generation
+                    and active_generation.logical_thread_id == logical_thread_id
+                    and active_generation.fence == current_fence
+                )
+                if not resumable_source_matches:
+                    raise RuntimeError(
+                        "Resume requires a quiesced resumable checkpoint source generation."
+                    )
             next_fence = current_fence + 1
             lease_expires_at = now + timedelta(seconds=max(1, lease_seconds))
             source_generation = None
@@ -336,6 +395,35 @@ class FirestoreConversationTaskStateStore:
                 return True
             except (Aborted, FailedPrecondition):
                 continue
+            except Exception as write_error:
+                if not _is_ambiguous_task_state_error(write_error):
+                    raise
+                try:
+                    reconciliation = ref.get(
+                        retry=_task_state_retry(),
+                        timeout=_TASK_STATE_RPC_TIMEOUT_SECONDS,
+                    )
+                except Exception as read_error:
+                    if not _is_ambiguous_task_state_error(read_error):
+                        raise
+                    continue
+                reconciled_at = datetime.now(timezone.utc)
+                reconciled = reconciliation.to_dict() if reconciliation.exists else {}
+                owner_matches = (
+                    reconciled.get("task_run_id") == run_id
+                    and reconciled.get("task_run_fence") == fence
+                )
+                if not owner_matches:
+                    return False
+                if (
+                    reconciled.get("task_status") != "running"
+                    or not self._lease_is_active(reconciled, reconciled_at)
+                    or reconciled.get("reserved_checkpoint_generation") != reserved_record
+                ):
+                    return False
+                if reconciled.get("active_checkpoint_generation") == reserved_record:
+                    return True
+                continue
         raise RuntimeError("Could not activate checkpoint generation after concurrent updates")
 
     def renew_task_run(
@@ -377,6 +465,8 @@ class FirestoreConversationTaskStateStore:
         run_id: str,
         fence: int,
         updates: dict | Callable[[datetime], dict],
+        *,
+        require_active_reserved_match: bool = False,
     ) -> bool:
         """Apply updates only while the unexpired ``(run_id, fence)`` owns the run."""
         ref = self._conversation_ref(conversation_id)
@@ -390,6 +480,12 @@ class FirestoreConversationTaskStateStore:
             if data.get("task_run_id") != run_id or data.get("task_run_fence") != fence:
                 return False
             if data.get("task_status") != "running" or not self._lease_is_active(data, checked_at):
+                return False
+            if require_active_reserved_match and (
+                data.get("active_checkpoint_generation") is None
+                or data.get("active_checkpoint_generation")
+                != data.get("reserved_checkpoint_generation")
+            ):
                 return False
             resolved_updates = updates(checked_at) if callable(updates) else updates
             try:
@@ -441,13 +537,13 @@ class FirestoreConversationTaskStateStore:
         run_id: str,
         fence: int,
     ) -> bool:
-        """Mark the task run as paused due to the step limit, clearing the lease."""
+        """Publish a quiesced resumable checkpoint source and clear its lease."""
         return self._update_if_owner(
             conversation_id,
             run_id,
             fence,
             {
-                "task_status": "paused_step_limit",
+                "task_status": "resumable_interrupt",
                 "task_mode": task_mode,
                 "task_status_updated_at": datetime.now(timezone.utc),
                 "task_run_id": firestore.DELETE_FIELD,
@@ -455,6 +551,7 @@ class FirestoreConversationTaskStateStore:
                 "task_run_previous_status": firestore.DELETE_FIELD,
                 "task_run_previous_mode": firestore.DELETE_FIELD,
             },
+            require_active_reserved_match=True,
         )
 
     def save_interrupted_task(

@@ -546,6 +546,7 @@ async def stream_conversation(
     # inside `_stream_graph_with_continuations` or inside the
     # `GraphRecursionError` handler.
     compaction_done = False
+    resumable_interrupt_observed = False
     run_lease: TaskRunLease | None = None
     interruption_reason = "error"
     run_control = RunControl(
@@ -1068,6 +1069,8 @@ async def stream_conversation(
                 # token events before sending to the user. This is the safety
                 # net for models that mimic the input envelope tags.
                 for event in events:
+                    if event.get("type") == "agent_interrupt":
+                        resumable_interrupt_observed = True
                     if event.get("type") == "token":
                         cleaned = tag_stripper.process_chunk(event.get("content", ""))
                         if cleaned:
@@ -1160,7 +1163,9 @@ async def stream_conversation(
         if remaining:
             yield sse_encode({"type": "token", "content": remaining})
 
-        if not step_limit_reached and not str(selected_model).startswith("mock"):
+        if resumable_interrupt_observed and run_lease is not None:
+            await run_lease.pause()
+        elif not step_limit_reached and not str(selected_model).startswith("mock"):
             try:
                 if run_lease is not None:
                     await run_lease.complete()

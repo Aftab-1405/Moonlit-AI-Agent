@@ -532,6 +532,172 @@ async def test_stream_registers_current_task_before_prompt_or_graph_setup(monkey
 
 
 @pytest.mark.asyncio
+async def test_human_interrupt_pauses_only_after_graph_writes_quiesce(monkeypatch) -> None:
+    from langgraph.checkpoint.memory import InMemorySaver
+
+    from langgraph_orchestration import stream_conversation as stream_module
+    from service.conversations.run_context import resolve_run_policy
+
+    actions: list[str] = []
+    stream_errors: list[tuple[str, BaseException]] = []
+    graph_quiesced = False
+    register_port(
+        "conversation_task_state_store",
+        ScriptedTaskStateStore(asyncio.get_running_loop()),
+    )
+
+    class FakeLease:
+        def __init__(self, *_args, **_kwargs) -> None:
+            self.acquired = False
+            self.run_id = "run-a"
+            self.fence = 1
+
+        async def acquire(self):
+            self.acquired = True
+            generation = create_checkpoint_generation(
+                "user-1:conversation-1",
+                self.run_id,
+                self.fence,
+            )
+            return TaskRunAcquisition(
+                acquired=True,
+                run_id=self.run_id,
+                fence=self.fence,
+                lease_expires_at=WALL_NOW + timedelta(seconds=30),
+                previous_status="",
+                previous_task_mode="normal",
+                reserved_checkpoint_generation=generation,
+                active_checkpoint_generation=None,
+            )
+
+        def register_stream_task(self, _task) -> None:
+            return None
+
+        def ensure_owned(self) -> None:
+            return None
+
+        async def reset_checkpoint(self):
+            return True
+
+        async def pause(self):
+            assert graph_quiesced is True
+            actions.append("pause")
+            self.acquired = False
+            return True
+
+        async def complete(self):
+            actions.append("complete")
+            self.acquired = False
+            return True
+
+        async def interrupt(self, _reason):
+            actions.append("interrupt")
+            self.acquired = False
+            return True
+
+        async def close(self):
+            actions.append("close")
+
+    async def prepare_generation(*_args, **_kwargs):
+        return InMemorySaver()
+
+    async def load_context(*_args, **_kwargs):
+        return SimpleNamespace(conversation={"messages": []}, historical_context=None)
+
+    async def prepare_budget(**_kwargs):
+        return {
+            "hot_history_budget": 8_000,
+            "active_context_budget": 8_000,
+            "tail_tokens": 0,
+            "active_context_tokens": 0,
+        }
+
+    async def no_checkpoint(*_args, **_kwargs):
+        return False
+
+    async def load_history(*_args, **_kwargs):
+        return []
+
+    async def stream_parts(*_args, **_kwargs):
+        nonlocal graph_quiesced
+        try:
+            yield {
+                "type": "updates",
+                "data": {
+                    "__interrupt__": [
+                        SimpleNamespace(
+                            id="interrupt-1",
+                            value={"message": "Approve this action?"},
+                        )
+                    ]
+                },
+            }
+        finally:
+            graph_quiesced = True
+
+    async def no_op(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(stream_module, "TaskRunLease", FakeLease)
+    monkeypatch.setattr(
+        stream_module,
+        "_log_stream_exception",
+        lambda operation, error, **_kwargs: stream_errors.append((operation, error)),
+    )
+    monkeypatch.setattr(stream_module, "prepare_checkpoint_generation", prepare_generation)
+    monkeypatch.setattr(stream_module, "ALL_TOOLS", [])
+    monkeypatch.setattr(stream_module, "load_initial_stream_context", load_context)
+    monkeypatch.setattr(stream_module, "prepare_stream_budget", prepare_budget)
+    monkeypatch.setattr(
+        stream_module,
+        "get_default_conversation_summarizer",
+        lambda: SimpleNamespace(
+            get_background_summary_pressure=lambda *args, **kwargs: {
+                "tail_tokens": 0,
+                "pressure_budget": 8_000,
+                "threshold_tokens": 7_200,
+                "complete_turn_count": 0,
+                "should_schedule": False,
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        stream_module.PromptBuilder,
+        "build_system_prompt",
+        lambda *args, **kwargs: "system",
+    )
+    monkeypatch.setattr(stream_module, "get_chat_model", lambda *args, **kwargs: object())
+    monkeypatch.setattr(stream_module, "build_react_agent", lambda *args, **kwargs: object())
+    monkeypatch.setattr(stream_module, "_has_checkpoint", no_checkpoint)
+    monkeypatch.setattr(stream_module, "_load_firestore_history", load_history)
+    monkeypatch.setattr(stream_module, "_stream_graph_with_continuations", stream_parts)
+    monkeypatch.setattr(stream_module, "check_and_perform_compaction", no_op)
+
+    policy = resolve_run_policy(
+        "perform a guided action",
+        "normal",
+        None,
+        "bedrock",
+        "provider.model-v1",
+        False,
+    )
+    events = [
+        event
+        async for event in stream_module.stream_conversation(
+            "conversation-1",
+            "perform a guided action",
+            "user-1",
+            run_policy=policy,
+        )
+    ]
+
+    assert stream_errors == []
+    assert any('"type": "agent_interrupt"' in event for event in events)
+    assert graph_quiesced is True
+    assert actions == ["pause", "close"]
+
+
+@pytest.mark.asyncio
 async def test_checkpoint_summary_mutation_uses_run_id_and_fence(monkeypatch) -> None:
     from langgraph_orchestration import stream_conversation as stream_module
 
