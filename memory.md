@@ -4,6 +4,12 @@ Last updated: 2026-08-25
 
 ## Remediation decision log
 
+### 2026-08-25 — Request-path incident: fail closed at asset and settings contracts
+
+- Agent SSE startup depends on a valid complete skill catalog. `SkillRegistry` intentionally fails closed on malformed assets; therefore every `SKILL.md` must retain `name`, `description`, `when_to_use`, and `avoid_when` frontmatter. The incident's `react-flow-diagram` body/`diagram_type` work was preserved, while the two accidentally removed routing fields were restored. Focused registry/prompt tests and direct prompt construction are green.
+- Account task-mode preference is now a first-class strict server contract: `taskMode` accepts only `auto`, `normal`, `tool_task`, or `long_task`; defaults to `auto`; normalizes internal stored patches; and falls back to `auto` for corrupt stored values. Unknown public fields remain forbidden. This closes the frontend-complete-payload 422 without excluding the preference from cross-browser persistence.
+- HTTP 200 from `/pass_user_prompt_to_llm` establishes only that a `StreamingResponse` was created; graph/prompt failures can still arrive as SSE error frames. Development reloader shutdowns and settings 422s are diagnostically separate from stream completion. The frontend's `auto`→`normal` wire mapping still cannot distinguish an explicit Standard selection from automatic classification; resolve that semantic contract in Task 4 rather than broadening this incident fix.
+
 ### 2026-08-25 — Remediation Phase 3 / Task 3 full-fidelity copy and resumable publication
 
 - Independent-review fix round 2 is implemented and awaiting fresh re-review. `agent_interrupt` is no longer a promise published ahead of durability: every resumable frame remains buffered until the graph iterator closes and `TaskRunLease.pause()` succeeds. Step-limit continuation uses the same rule. Pause error/cancellation exposes no resumable frame; the outer error/finally path records a non-resumable interruption instead. Immediate consumer stop after the first published interrupt cannot overwrite the already committed pause because a successful pause clears local acquisition first.

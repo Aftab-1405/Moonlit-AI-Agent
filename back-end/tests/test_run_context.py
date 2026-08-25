@@ -200,7 +200,6 @@ def test_resolved_mode_and_budgets_match_stream_prompt_checkpoint_and_history(mo
 
     from langgraph_orchestration import stream_conversation as stream_module
     from langgraph_orchestration.react_graph import _build_session_state
-    from skills import skill_registry
 
     policy = _resolve(
         prompt="Analyze the database and produce a detailed report.",
@@ -249,11 +248,6 @@ def test_resolved_mode_and_budgets_match_stream_prompt_checkpoint_and_history(mo
         yield {"type": "messages", "data": (AIMessageChunk(content="ok"),)}
 
     monkeypatch.setattr(stream_module, "ALL_TOOLS", [])
-    monkeypatch.setattr(
-        skill_registry,
-        "get_skill_registry",
-        lambda: SimpleNamespace(build_available_skills_context=lambda **kwargs: ""),
-    )
     monkeypatch.setattr(stream_module, "get_checkpointer", lambda: Checkpointer())
     monkeypatch.setattr(stream_module, "load_initial_stream_context", load_context)
     monkeypatch.setattr(stream_module, "prepare_stream_budget", prepare_budget)

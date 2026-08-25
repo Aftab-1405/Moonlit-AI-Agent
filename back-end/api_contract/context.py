@@ -29,6 +29,7 @@ class SaveUserSettingsRequest(ExternalRequestModel):
     enableReasoning: Optional[bool] = None
     reasoningEffort: Optional[Literal["low", "medium", "high"]] = None
     responseStyle: Optional[Literal["concise", "balanced", "detailed"]] = None
+    taskMode: Optional[Literal["auto", "normal", "tool_task", "long_task"]] = None
     llmProvider: Optional[str] = Field(None, max_length=Config.LLM_PROVIDER_MAX_LENGTH)
     llmModel: Optional[str] = Field(None, max_length=Config.LLM_MODEL_MAX_LENGTH)
 

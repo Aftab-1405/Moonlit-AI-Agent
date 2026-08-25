@@ -23,6 +23,7 @@ DEFAULT_PREFERENCES: dict[str, Any] = {
     "enableReasoning": Config.USER_SETTINGS_DEFAULT_ENABLE_REASONING,
     "reasoningEffort": Config.USER_SETTINGS_DEFAULT_REASONING_EFFORT,
     "responseStyle": Config.USER_SETTINGS_DEFAULT_RESPONSE_STYLE,
+    "taskMode": "auto",
     "llmProvider": Config.USER_SETTINGS_DEFAULT_LLM_PROVIDER,
     "llmModel": Config.USER_SETTINGS_DEFAULT_LLM_MODEL,
 }
@@ -35,6 +36,7 @@ _ENUMS = {
     "connectionPersistence": {0, 5, 15, 30, 60},
     "reasoningEffort": {"low", "medium", "high"},
     "responseStyle": {"concise", "balanced", "detailed"},
+    "taskMode": {"auto", "normal", "tool_task", "long_task"},
 }
 
 
@@ -74,6 +76,8 @@ def _coerce_value(key: str, value: Any) -> Any:
             normalized = normalized.lower()
         if key == "responseStyle":
             normalized = normalized.lower()
+        if key == "taskMode":
+            normalized = normalized.lower()
         return normalized if normalized in _ENUMS[key] else None
 
     if key in {"llmProvider", "llmModel", "nullDisplay"}:
@@ -112,6 +116,10 @@ class UserSettingsService:
         doc = ContextRepository.get(uid) or {}
         stored = doc.get("preferences") if isinstance(doc.get("preferences"), dict) else {}
         merged = {**DEFAULT_PREFERENCES, **stored}
+        merged["taskMode"] = (
+            _coerce_value("taskMode", stored.get("taskMode"))
+            or DEFAULT_PREFERENCES["taskMode"]
+        )
         return merged
 
     @staticmethod

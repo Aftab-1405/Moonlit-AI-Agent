@@ -83,6 +83,13 @@ Exit criteria: final report is evidence-backed, prioritized, actionable, and dis
 
 ## Work log
 
+### 2026-08-25 — Request-path incident: skill registry and user-settings contract
+
+- Investigated a live-development failure where chat requests returned HTTP 200 but failed inside the SSE stream. The direct request-path blocker was malformed `react-flow-diagram` metadata: its required `when_to_use` and `avoid_when` fields had been removed, so both startup budget initialization and runtime `PromptBuilder` skill discovery raised `SkillRegistryError`. Restored only those required fields while preserving the concurrent `diagram_type` skill changes.
+- Reproduced the separate repeated `POST /api/v1/user/settings` 422: the frontend's complete default payload always includes `taskMode`, while `SaveUserSettingsRequest` forbade it. Added the exact persisted preference contract (`auto`, `normal`, `tool_task`, `long_task`), service default/normalization, invalid-value rejection/fallback, and a focused full-payload regression suite. Strict undeclared-field rejection remains enabled.
+- RED evidence: skill/prompt slice `1 failed, 2 passed`; task-mode slice `8 failed, 5 passed`. GREEN evidence: skill/prompt `3 passed`; expanded task-mode schema/service/endpoint suite `14 passed`; final composed registry/real-prompt-stream/settings-endpoint/API gate `76 passed, 3 known SlowAPI/Python 3.14 warnings`; frontend serializer `1 passed`; direct prompt construction succeeded. Independent review found no product-code Critical/Important/Minor issue; its ignored-test delivery finding is closed by explicitly tracking the exact regression file.
+- Development `WatchFiles` shutdown/startup messages were reloads caused by code/test edits, not application-startup failure. A later revoked Firebase session cookie is a separate authentication state requiring a fresh sign-in if encountered. The pre-existing inability to distinguish user-selected `normal` from frontend `auto` on the chat wire is recorded for Task 4 budget semantics. No migration, deployment, live-service mutation, network, remote, push, or merge action occurred.
+
 ### 2026-08-25 — Remediation Phase 3 / Task 3 independent-review fix round 2
 
 - Task 3 fix round 2 is implemented and explicitly awaiting fresh independent re-review. Human-interrupt frames are buffered until graph iteration quiesces and the owner-fenced pause commits; a consumer stopping on the first interrupt therefore sees durable resumability. Human or step-limit pause failure takes the existing safe non-resumable error path and emits neither `agent_interrupt` nor `agent_step_limit_reached(can_continue=true)`.
