@@ -6,17 +6,34 @@ import asyncio
 from copy import deepcopy
 from dataclasses import FrozenInstanceError
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from langgraph.checkpoint.base import BaseCheckpointSaver, empty_checkpoint
+from langgraph.checkpoint.base import (
+    WRITES_IDX_MAP,
+    BaseCheckpointSaver,
+    CheckpointTuple,
+    empty_checkpoint,
+)
 from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.checkpoint.redis.util import (
+    from_storage_safe_id,
+    from_storage_safe_str,
+    to_storage_safe_id,
+    to_storage_safe_str,
+)
+from langgraph.constants import TASKS
 
 from api_contract.orchestration_protocols import TaskRunAcquisition
 from api_contract.run_context import (
     CheckpointGeneration,
     RunControl,
     create_checkpoint_generation,
+)
+from langgraph_orchestration.checkpoint_savers import (
+    FullCopyAsyncRedisSaver,
+    FullCopyInMemorySaver,
 )
 from langgraph_orchestration.checkpointing import (
     GenerationCheckpointer,
@@ -108,6 +125,150 @@ class BarrierCheckpointSaver(BaseCheckpointSaver):
         return await self.inner.aget_tuple(
             {"configurable": {"thread_id": generation.physical_thread_id}}
         )
+
+
+class ProductionShapedRedisSaver(FullCopyAsyncRedisSaver):
+    """Deterministic Redis-boundary adapter without a live Redis service."""
+
+    def __init__(self) -> None:
+        BaseCheckpointSaver.__init__(self)
+        self.checkpoints: dict[str, dict[tuple[str, str], dict[str, Any]]] = {}
+        self.raw_writes: dict[str, list[dict[str, Any]]] = {}
+        self.boundaries: list[str] = []
+
+    async def alist(self, config, *, filter=None, before=None, limit=None):
+        del filter, before
+        thread_id = config["configurable"]["thread_id"]
+        items = sorted(
+            self.checkpoints.get(thread_id, {}).items(),
+            reverse=True,
+        )
+        if limit is not None:
+            items = items[:limit]
+        for (checkpoint_ns, checkpoint_id), stored in items:
+            writes = [
+                raw
+                for raw in self.raw_writes.get(thread_id, [])
+                if from_storage_safe_str(raw["checkpoint_ns"]) == checkpoint_ns
+                and from_storage_safe_id(raw["checkpoint_id"]) == checkpoint_id
+            ]
+            writes.sort(key=lambda raw: (raw["task_path"], raw["task_id"], raw["idx"]))
+            yield CheckpointTuple(
+                config={
+                    "configurable": {
+                        "thread_id": thread_id,
+                        "checkpoint_ns": checkpoint_ns,
+                        "checkpoint_id": checkpoint_id,
+                    }
+                },
+                checkpoint=deepcopy(stored["checkpoint"]),
+                metadata=deepcopy(stored["metadata"]),
+                parent_config=(
+                    {
+                        "configurable": {
+                            "thread_id": thread_id,
+                            "checkpoint_ns": checkpoint_ns,
+                            "checkpoint_id": stored["parent_checkpoint_id"],
+                        }
+                    }
+                    if stored["parent_checkpoint_id"] is not None
+                    else None
+                ),
+                pending_writes=[
+                    (
+                        raw["task_id"],
+                        raw["channel"],
+                        self.serde.loads_typed(
+                            (raw["type"], self._decode_blob(raw["blob"]))
+                        ),
+                    )
+                    for raw in writes
+                ],
+            )
+
+    async def aput(self, config, checkpoint, metadata, new_versions):
+        del new_versions
+        configurable = config["configurable"]
+        thread_id = configurable["thread_id"]
+        checkpoint_ns = configurable.get("checkpoint_ns", "")
+        checkpoint_id = checkpoint["id"]
+        parent_checkpoint_id = configurable.get("checkpoint_id")
+        if parent_checkpoint_id == checkpoint_id:
+            parent_checkpoint_id = None
+        self.checkpoints.setdefault(thread_id, {})[(checkpoint_ns, checkpoint_id)] = {
+            "checkpoint": deepcopy(checkpoint),
+            "metadata": deepcopy(metadata),
+            "parent_checkpoint_id": parent_checkpoint_id,
+        }
+        self.boundaries.extend(["checkpoint_index", "latest_pointer", "checkpoint_ttl"])
+        return {
+            "configurable": {
+                "thread_id": thread_id,
+                "checkpoint_ns": checkpoint_ns,
+                "checkpoint_id": checkpoint_id,
+            }
+        }
+
+    async def aput_writes(self, config, writes, task_id, task_path=""):
+        configurable = config["configurable"]
+        thread_id = configurable["thread_id"]
+        for position, (channel, value) in enumerate(writes):
+            type_, blob = self.serde.dumps_typed(value)
+            self.raw_writes.setdefault(thread_id, []).append(
+                {
+                    "checkpoint_ns": to_storage_safe_str(
+                        configurable.get("checkpoint_ns", "")
+                    ),
+                    "checkpoint_id": to_storage_safe_id(configurable["checkpoint_id"]),
+                    "task_id": task_id,
+                    "task_path": task_path,
+                    "idx": WRITES_IDX_MAP.get(channel, position),
+                    "channel": channel,
+                    "type": type_,
+                    "blob": self._encode_blob(blob),
+                }
+            )
+        self.boundaries.extend(["write_redis", "write_registry", "write_ttl"])
+
+    async def _aload_full_thread_write_records(self, thread_id: str):
+        self.boundaries.append("writes_index")
+        return deepcopy(self.raw_writes.get(thread_id, []))
+
+
+def _memory_write_manifest(saver: InMemorySaver, thread_id: str) -> list[tuple]:
+    records = []
+    for (stored_thread_id, checkpoint_ns, checkpoint_id), writes in saver.writes.items():
+        if stored_thread_id != thread_id:
+            continue
+        for (task_id, idx), (_task_id, channel, value, task_path) in writes.items():
+            records.append(
+                (
+                    checkpoint_ns,
+                    checkpoint_id,
+                    task_path,
+                    task_id,
+                    idx,
+                    channel,
+                    saver.serde.loads_typed(value),
+                )
+            )
+    return sorted(records, key=repr)
+
+
+def _redis_write_manifest(saver: ProductionShapedRedisSaver, thread_id: str) -> list[tuple]:
+    return sorted(
+        (
+            record["checkpoint_ns"],
+            record["checkpoint_id"],
+            record["task_path"],
+            record["task_id"],
+            record["idx"],
+            record["channel"],
+            record["type"],
+            record["blob"],
+        )
+        for record in saver.raw_writes.get(thread_id, [])
+    )
 
 
 class FakeSnapshot:
@@ -364,7 +525,7 @@ async def test_preparation_rejects_target_state_in_non_default_namespace() -> No
 
 @pytest.mark.asyncio
 async def test_resume_clone_preserves_checkpoint_and_pending_write_fidelity() -> None:
-    saver = InMemorySaver()
+    saver = FullCopyInMemorySaver()
     source = create_checkpoint_generation("user-1:conversation-1", "run-old", 4)
     first_config = await _seed_checkpoint(
         saver,
@@ -414,7 +575,7 @@ async def test_resume_clone_preserves_checkpoint_and_pending_write_fidelity() ->
 
 @pytest.mark.asyncio
 async def test_resume_clone_preserves_real_multi_namespace_state() -> None:
-    saver = InMemorySaver()
+    saver = FullCopyInMemorySaver()
     source = create_checkpoint_generation("user-1:conversation-1", "run-old", 4)
     sub_first = await _seed_checkpoint(
         saver,
@@ -506,20 +667,225 @@ async def test_resume_clone_preserves_real_multi_namespace_state() -> None:
 
 
 @pytest.mark.asyncio
+async def test_in_memory_full_copy_preserves_hidden_task_paths_without_aliasing() -> None:
+    saver = FullCopyInMemorySaver()
+    source = create_checkpoint_generation("user-1:conversation-1", "run-old", 4)
+    source_config = await _seed_checkpoint(
+        saver,
+        source.physical_thread_id,
+        "0001",
+        "source-state",
+    )
+    await saver.aput_writes(
+        source_config,
+        [(TASKS, {"send": "task-a"})],
+        "task-a",
+        "z-path",
+    )
+    await saver.aput_writes(
+        source_config,
+        [(TASKS, {"send": "task-z"})],
+        "task-z",
+        "a-path",
+    )
+    generation = create_checkpoint_generation(
+        "user-1:conversation-1",
+        "run-a",
+        5,
+        source_generation=source,
+    )
+    store = GenerationStateStore(owner="run-a", fence=5, reserved=generation, active=source)
+
+    await prepare_checkpoint_generation(
+        saver,
+        conversation_id="conversation-1",
+        acquisition=_acquisition(generation, active=source),
+        task_state_store=store,
+        run_control=RunControl(deadline_monotonic=100.0, tool_limit=20),
+        monotonic=lambda: 1.0,
+    )
+
+    assert _memory_write_manifest(
+        saver,
+        generation.physical_thread_id,
+    ) == _memory_write_manifest(saver, source.physical_thread_id)
+    assert saver.storage[generation.physical_thread_id] is not saver.storage[
+        source.physical_thread_id
+    ]
+    assert saver.storage[generation.physical_thread_id][""] is not saver.storage[
+        source.physical_thread_id
+    ][""]
+
+
+@pytest.mark.asyncio
+async def test_resume_clone_fails_closed_when_saver_has_no_full_copy_capability() -> None:
+    saver = InMemorySaver()
+    source = create_checkpoint_generation("user-1:conversation-1", "run-old", 4)
+    await _seed_checkpoint(saver, source.physical_thread_id, "0001", "source-state")
+    generation = create_checkpoint_generation(
+        "user-1:conversation-1",
+        "run-a",
+        5,
+        source_generation=source,
+    )
+    store = GenerationStateStore(owner="run-a", fence=5, reserved=generation, active=source)
+
+    with pytest.raises(RuntimeError, match="full-thread copy"):
+        await prepare_checkpoint_generation(
+            saver,
+            conversation_id="conversation-1",
+            acquisition=_acquisition(generation, active=source),
+            task_state_store=store,
+            run_control=RunControl(deadline_monotonic=100.0, tool_limit=20),
+            monotonic=lambda: 1.0,
+        )
+
+    assert store.active == source
+
+
+@pytest.mark.asyncio
+async def test_redis_full_copy_preserves_raw_write_identity_through_owned_boundaries() -> None:
+    saver = ProductionShapedRedisSaver()
+    source = create_checkpoint_generation("user-1:conversation-1", "run-old", 4)
+    first_config = await _seed_checkpoint(
+        saver,
+        source.physical_thread_id,
+        "0001",
+        "source-state-1",
+    )
+    latest_config = await _seed_checkpoint(
+        saver,
+        source.physical_thread_id,
+        "0002",
+        "source-state-2",
+        parent_config=first_config,
+    )
+    await saver.aput_writes(
+        latest_config,
+        [(TASKS, {"send": "task-a"})],
+        "task-a",
+        "z-path",
+    )
+    await saver.aput_writes(
+        latest_config,
+        [(TASKS, {"send": "task-z"})],
+        "task-z",
+        "a-path",
+    )
+    await saver.aput_writes(
+        latest_config,
+        [(TASKS, {"send": "regular-at-zero"}), ("__interrupt__", "special")],
+        "task-mixed",
+        "m-path",
+    )
+    saver.boundaries.clear()
+    generation = create_checkpoint_generation(
+        "user-1:conversation-1",
+        "run-a",
+        5,
+        source_generation=source,
+    )
+    store = GenerationStateStore(owner="run-a", fence=5, reserved=generation, active=source)
+
+    await prepare_checkpoint_generation(
+        saver,
+        conversation_id="conversation-1",
+        acquisition=_acquisition(generation, active=source),
+        task_state_store=store,
+        run_control=RunControl(deadline_monotonic=100.0, tool_limit=20),
+        monotonic=lambda: 1.0,
+    )
+
+    assert _redis_write_manifest(
+        saver,
+        generation.physical_thread_id,
+    ) == _redis_write_manifest(saver, source.physical_thread_id)
+    assert {
+        "writes_index",
+        "checkpoint_index",
+        "latest_pointer",
+        "checkpoint_ttl",
+        "write_redis",
+        "write_registry",
+        "write_ttl",
+    } <= set(saver.boundaries)
+    assert saver.boundaries.count("writes_index") == 3
+    target_latest = saver.checkpoints[generation.physical_thread_id][("", "0002")]
+    assert target_latest["parent_checkpoint_id"] == "0001"
+    assert store.active == generation
+
+
+@pytest.mark.asyncio
+async def test_redis_full_copy_pages_complete_raw_write_index() -> None:
+    documents = [
+        {
+            "checkpoint_ns": "",
+            "checkpoint_id": "0001",
+            "task_id": f"task-{index}",
+            "task_path": f"path-{index}",
+            "idx": 0,
+            "channel": TASKS,
+            "type": "json",
+            "$.blob": "e30=",
+        }
+        for index in range(3)
+    ]
+
+    class PagedWriteIndex:
+        def __init__(self) -> None:
+            self.offsets: list[int] = []
+
+        async def search(self, query):
+            self.offsets.append(query._offset)
+            return SimpleNamespace(
+                docs=documents[query._offset : query._offset + query._num]
+            )
+
+    saver = object.__new__(FullCopyAsyncRedisSaver)
+    saver._COPY_PAGE_SIZE = 2
+    saver.checkpoint_writes_index = PagedWriteIndex()
+
+    records = await FullCopyAsyncRedisSaver._aload_full_thread_write_records(
+        saver,
+        "source-thread",
+    )
+
+    assert [record["task_id"] for record in records] == [
+        "task-0",
+        "task-1",
+        "task-2",
+    ]
+    assert saver.checkpoint_writes_index.offsets == [0, 2]
+
+
+def test_redis_full_copy_rejects_fractional_effective_index() -> None:
+    saver = ProductionShapedRedisSaver()
+    type_, blob = saver.serde.dumps_typed({"send": "task"})
+
+    with pytest.raises(RuntimeError, match="effective index"):
+        saver._normalize_write_record(
+            {
+                "checkpoint_ns": to_storage_safe_str(""),
+                "checkpoint_id": to_storage_safe_id("0001"),
+                "task_id": "task-1",
+                "task_path": "path-1",
+                "idx": 0.5,
+                "channel": TASKS,
+                "type": type_,
+                "blob": saver._encode_blob(blob),
+            }
+        )
+
+
+@pytest.mark.asyncio
 async def test_resume_clone_failure_never_activates_reserved_generation_or_enters_graph(
     monkeypatch,
 ) -> None:
-    class FailingCloneSaver(InMemorySaver):
-        def __init__(self) -> None:
-            super().__init__()
-            self.target_writes = 0
-
-        async def aput(self, config, checkpoint, metadata, new_versions):
-            if config["configurable"]["thread_id"].endswith(":5:run-a"):
-                self.target_writes += 1
-                if self.target_writes == 2:
-                    raise RuntimeError("clone storage unavailable")
-            return await super().aput(config, checkpoint, metadata, new_versions)
+    class FailingCloneSaver(FullCopyInMemorySaver):
+        async def acopy_thread(self, source_thread_id, target_thread_id):
+            await super().acopy_thread(source_thread_id, target_thread_id)
+            del self.storage[target_thread_id][""]["0002"]
+            raise RuntimeError("clone storage unavailable")
 
     saver = FailingCloneSaver()
     source = create_checkpoint_generation("user-1:conversation-1", "run-old", 4)

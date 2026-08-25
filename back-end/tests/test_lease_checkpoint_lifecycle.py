@@ -531,8 +531,7 @@ async def test_stream_registers_current_task_before_prompt_or_graph_setup(monkey
     assert observed_registration == [True]
 
 
-@pytest.mark.asyncio
-async def test_human_interrupt_pauses_only_after_graph_writes_quiesce(monkeypatch) -> None:
+def _install_pause_boundary_stream_fakes(monkeypatch, *, stream_parts, pause):
     from langgraph.checkpoint.memory import InMemorySaver
 
     from langgraph_orchestration import stream_conversation as stream_module
@@ -540,7 +539,6 @@ async def test_human_interrupt_pauses_only_after_graph_writes_quiesce(monkeypatc
 
     actions: list[str] = []
     stream_errors: list[tuple[str, BaseException]] = []
-    graph_quiesced = False
     register_port(
         "conversation_task_state_store",
         ScriptedTaskStateStore(asyncio.get_running_loop()),
@@ -580,9 +578,10 @@ async def test_human_interrupt_pauses_only_after_graph_writes_quiesce(monkeypatc
             return True
 
         async def pause(self):
-            assert graph_quiesced is True
-            actions.append("pause")
+            actions.append("pause_started")
+            await pause()
             self.acquired = False
+            actions.append("pause_committed")
             return True
 
         async def complete(self):
@@ -617,23 +616,6 @@ async def test_human_interrupt_pauses_only_after_graph_writes_quiesce(monkeypatc
 
     async def load_history(*_args, **_kwargs):
         return []
-
-    async def stream_parts(*_args, **_kwargs):
-        nonlocal graph_quiesced
-        try:
-            yield {
-                "type": "updates",
-                "data": {
-                    "__interrupt__": [
-                        SimpleNamespace(
-                            id="interrupt-1",
-                            value={"message": "Approve this action?"},
-                        )
-                    ]
-                },
-            }
-        finally:
-            graph_quiesced = True
 
     async def no_op(*_args, **_kwargs):
         return None
@@ -681,6 +663,83 @@ async def test_human_interrupt_pauses_only_after_graph_writes_quiesce(monkeypatc
         "provider.model-v1",
         False,
     )
+    return stream_module, policy, actions, stream_errors
+
+
+@pytest.mark.asyncio
+async def test_human_interrupt_is_emitted_only_after_durable_pause(monkeypatch) -> None:
+    graph_quiesced = False
+
+    async def stream_parts(*_args, **_kwargs):
+        nonlocal graph_quiesced
+        try:
+            yield {
+                "type": "updates",
+                "data": {
+                    "__interrupt__": [
+                        SimpleNamespace(
+                            id="interrupt-1",
+                            value={"message": "Approve this action?"},
+                        )
+                    ]
+                },
+            }
+        finally:
+            graph_quiesced = True
+
+    async def pause():
+        assert graph_quiesced is True
+
+    stream_module, policy, actions, stream_errors = _install_pause_boundary_stream_fakes(
+        monkeypatch,
+        stream_parts=stream_parts,
+        pause=pause,
+    )
+    stream = stream_module.stream_conversation(
+        "conversation-1",
+        "perform a guided action",
+        "user-1",
+        run_policy=policy,
+    )
+    observed_at_interrupt = None
+    try:
+        async for event in stream:
+            if '"type": "agent_interrupt"' in event:
+                observed_at_interrupt = (graph_quiesced, list(actions))
+                break
+    finally:
+        await stream.aclose()
+
+    assert stream_errors == []
+    assert observed_at_interrupt == (
+        True,
+        ["pause_started", "pause_committed"],
+    )
+
+
+@pytest.mark.asyncio
+async def test_human_interrupt_pause_failure_emits_no_resumable_frame(monkeypatch) -> None:
+    async def stream_parts(*_args, **_kwargs):
+        yield {
+            "type": "updates",
+            "data": {
+                "__interrupt__": [
+                    SimpleNamespace(
+                        id="interrupt-1",
+                        value={"message": "Approve this action?"},
+                    )
+                ]
+            },
+        }
+
+    async def pause():
+        raise RuntimeError("pause storage unavailable")
+
+    stream_module, policy, actions, _stream_errors = _install_pause_boundary_stream_fakes(
+        monkeypatch,
+        stream_parts=stream_parts,
+        pause=pause,
+    )
     events = [
         event
         async for event in stream_module.stream_conversation(
@@ -691,10 +750,42 @@ async def test_human_interrupt_pauses_only_after_graph_writes_quiesce(monkeypatc
         )
     ]
 
-    assert stream_errors == []
-    assert any('"type": "agent_interrupt"' in event for event in events)
-    assert graph_quiesced is True
-    assert actions == ["pause", "close"]
+    assert not any('"type": "agent_interrupt"' in event for event in events)
+    assert any('"type": "error"' in event for event in events)
+    assert actions == ["pause_started", "interrupt", "close"]
+
+
+@pytest.mark.asyncio
+async def test_step_limit_pause_failure_emits_no_continuation_frame(monkeypatch) -> None:
+    from langgraph.errors import GraphRecursionError
+
+    async def stream_parts(*_args, **_kwargs):
+        if False:
+            yield None
+        raise GraphRecursionError("scripted step limit")
+
+    async def pause():
+        raise RuntimeError("pause storage unavailable")
+
+    stream_module, policy, actions, _stream_errors = _install_pause_boundary_stream_fakes(
+        monkeypatch,
+        stream_parts=stream_parts,
+        pause=pause,
+    )
+    events = [
+        event
+        async for event in stream_module.stream_conversation(
+            "conversation-1",
+            "perform a guided action",
+            "user-1",
+            run_policy=policy,
+        )
+    ]
+
+    assert not any('"type": "agent_step_limit_reached"' in event for event in events)
+    assert not any('"can_continue": true' in event for event in events)
+    assert any('"type": "error"' in event for event in events)
+    assert actions == ["pause_started", "interrupt", "close"]
 
 
 @pytest.mark.asyncio

@@ -1,6 +1,6 @@
 # Moonlit Backend Agent Workflow Audit
 
-Last updated: 2026-08-24
+Last updated: 2026-08-25
 
 ## Remediation program
 
@@ -82,6 +82,13 @@ Exit criteria: SOLID findings distinguish pragmatic trade-offs from changes that
 Exit criteria: final report is evidence-backed, prioritized, actionable, and distinguishes verified defects from risks or coverage gaps.
 
 ## Work log
+
+### 2026-08-25 — Remediation Phase 3 / Task 3 independent-review fix round 2
+
+- Task 3 fix round 2 is implemented and explicitly awaiting fresh independent re-review. Human-interrupt frames are buffered until graph iteration quiesces and the owner-fenced pause commits; a consumer stopping on the first interrupt therefore sees durable resumability. Human or step-limit pause failure takes the existing safe non-resumable error path and emits neither `agent_interrupt` nor `agent_step_limit_reached(can_continue=true)`.
+- Generation cloning now invokes the installed `BaseCheckpointSaver.acopy_thread(source_thread_id, target_thread_id)` extension point and converts its unsupported `NotImplementedError` into an explicit fail-closed preparation error. The global development saver is a repository-owned full-copy `InMemorySaver` subclass that deep-copies complete namespace/checkpoint/blob/write state, including hidden task path. The global production saver is a repository-owned `AsyncRedisSaver` subclass that reads paged raw write-index records, validates task path/effective index/type/blob identity, reconstructs interleaved regular/special write positions exactly, and persists through normal `aput`/`aput_writes` APIs so installed index/latest-pointer/registry/TTL/cluster behavior remains authoritative. Both implementations compare full-fidelity source/target manifests internally; preparation retains its public snapshot verification and owner/fence activation order.
+- Strict pre-production RED evidence is event ordering/failure `3 failed, 13 deselected` and full-copy fidelity/capability `3 failed, 18 deselected`. Focused GREEN is events `3 passed, 13 deselected`, storage `3 passed, 18 deselected`, and the final focused slice `8 passed, 31 deselected`; a self-review raw-validation case was RED `1 failed` then GREEN `1 passed`. The fresh generation/store/lease gate is `64 passed`; the complete affected gate is `235 passed, 3 warnings`. The storage-specific implementation was mechanically extracted to `checkpoint_savers.py`, leaving orchestration and saver internals under separate responsibilities with an accurately typed async Redis context manager.
+- Scope remains Task 3 only and awaits re-review. No Task 4 budget implementation, compatibility clone/status path, raw Redis-key copy, dependency patch, migration, deployment, live service, network, remote, push, or merge action occurred. Repository tests use deterministic in-memory/Redis-shaped boundaries; a live Redis staging check remains deployment work. All unowned skill/frontend/security-test and SDD scratch paths remain untouched and unstaged.
 
 ### 2026-08-24 — Remediation Phase 3 / Task 3 independent-review fix round 1
 

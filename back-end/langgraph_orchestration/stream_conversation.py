@@ -546,7 +546,7 @@ async def stream_conversation(
     # inside `_stream_graph_with_continuations` or inside the
     # `GraphRecursionError` handler.
     compaction_done = False
-    resumable_interrupt_observed = False
+    buffered_resumable_events: list[dict] = []
     run_lease: TaskRunLease | None = None
     interruption_reason = "error"
     run_control = RunControl(
@@ -1070,7 +1070,8 @@ async def stream_conversation(
                 # net for models that mimic the input envelope tags.
                 for event in events:
                     if event.get("type") == "agent_interrupt":
-                        resumable_interrupt_observed = True
+                        buffered_resumable_events.append(event)
+                        continue
                     if event.get("type") == "token":
                         cleaned = tag_stripper.process_chunk(event.get("content", ""))
                         if cleaned:
@@ -1124,11 +1125,11 @@ async def stream_conversation(
                     except Exception as comp_err:
                         _log_stream_exception("compact_after_agent_step_limit", comp_err)
                 compaction_done = True
-                try:
-                    if run_lease is not None:
-                        await run_lease.pause()
-                except Exception as db_err:
-                    _log_stream_exception("save_paused_task_status", db_err)
+                if run_lease is None:
+                    raise RuntimeError(
+                        "Agent step-limit continuation requires a durable task lease."
+                    )
+                await run_lease.pause()
                 yield sse_encode(
                     {
                         "type": "agent_step_limit_reached",
@@ -1163,8 +1164,12 @@ async def stream_conversation(
         if remaining:
             yield sse_encode({"type": "token", "content": remaining})
 
-        if resumable_interrupt_observed and run_lease is not None:
+        if buffered_resumable_events and run_lease is None:
+            raise RuntimeError("Agent interrupt requires a durable task lease.")
+        if buffered_resumable_events and run_lease is not None:
             await run_lease.pause()
+            for event in buffered_resumable_events:
+                yield sse_encode(event)
         elif not step_limit_reached and not str(selected_model).startswith("mock"):
             try:
                 if run_lease is not None:

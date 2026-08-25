@@ -8,8 +8,8 @@ Development defaults to InMemorySaver.
 import asyncio
 import logging
 import time
-from collections import defaultdict
 from collections.abc import AsyncIterator, Callable, Iterator, Sequence
+from contextlib import AbstractAsyncContextManager
 from copy import deepcopy
 from typing import Any, Optional
 
@@ -21,8 +21,6 @@ from langgraph.checkpoint.base import (
     CheckpointMetadata,
     CheckpointTuple,
 )
-from langgraph.checkpoint.memory import InMemorySaver
-from langgraph.checkpoint.redis.aio import AsyncRedisSaver
 
 from api_contract.orchestration_protocols import (
     ConversationTaskStateStore,
@@ -30,11 +28,17 @@ from api_contract.orchestration_protocols import (
 )
 from api_contract.run_context import CheckpointGeneration, RunControl
 from config import get_config
+from langgraph_orchestration.checkpoint_savers import (
+    FullCopyAsyncRedisSaver,
+    FullCopyInMemorySaver,
+    checkpoint_parent_identity,
+    generation_items,
+)
 
 logger = logging.getLogger(__name__)
 
 _checkpointer: Optional[BaseCheckpointSaver] = None
-_redis_saver: Optional[AsyncRedisSaver] = None
+_redis_saver: AbstractAsyncContextManager[FullCopyAsyncRedisSaver] | None = None
 
 
 class GenerationCheckpointer(BaseCheckpointSaver):
@@ -289,44 +293,15 @@ async def _clone_generation(
     source: CheckpointGeneration,
     target: CheckpointGeneration,
 ) -> None:
-    source_config = {"configurable": {"thread_id": source.physical_thread_id}}
-    source_items = await _generation_items(saver, source_config)
-    if not source_items:
-        raise RuntimeError("Resumable checkpoint source generation is empty.")
-
-    remaining = dict(source_items)
-    while remaining:
-        ready: list[tuple[tuple[str, str], CheckpointTuple]] = []
-        for identity, item in remaining.items():
-            parent_identity = _checkpoint_parent_identity(item)
-            if parent_identity is None or parent_identity not in remaining:
-                ready.append((identity, item))
-        if not ready:
-            raise RuntimeError("Checkpoint generation contains a cyclic parent chain.")
-
-        for identity, item in sorted(ready, key=lambda entry: entry[0]):
-            checkpoint_ns, _checkpoint_id = identity
-            parent_identity = _checkpoint_parent_identity(item)
-            if parent_identity is not None and parent_identity[0] != checkpoint_ns:
-                raise RuntimeError("Checkpoint generation parent crosses checkpoint namespaces.")
-            configurable = {
-                "thread_id": target.physical_thread_id,
-                "checkpoint_ns": checkpoint_ns,
-            }
-            if parent_identity is not None:
-                configurable["checkpoint_id"] = parent_identity[1]
-            written_config = await saver.aput(
-                {"configurable": configurable},
-                deepcopy(item.checkpoint),
-                deepcopy(item.metadata),
-                deepcopy(item.checkpoint.get("channel_versions", {})),
-            )
-            pending_by_task: dict[str, list[tuple[str, Any]]] = defaultdict(list)
-            for task_id, channel, value in item.pending_writes or []:
-                pending_by_task[task_id].append((channel, deepcopy(value)))
-            for task_id, writes in pending_by_task.items():
-                await saver.aput_writes(written_config, writes, task_id)
-            del remaining[identity]
+    try:
+        await saver.acopy_thread(
+            source.physical_thread_id,
+            target.physical_thread_id,
+        )
+    except NotImplementedError as exc:
+        raise RuntimeError(
+            "Checkpoint saver does not support full-thread copy."
+        ) from exc
 
 
 async def _verify_generation_clone(
@@ -340,46 +315,15 @@ async def _verify_generation_clone(
         raise RuntimeError("Checkpoint generation clone verification failed.")
 
 
-async def _generation_items(
-    saver: BaseCheckpointSaver,
-    config: RunnableConfig,
-) -> dict[tuple[str, str], CheckpointTuple]:
-    items: dict[tuple[str, str], CheckpointTuple] = {}
-    async for item in saver.alist(config):
-        configurable = item.config.get("configurable", {})
-        checkpoint_ns = configurable.get("checkpoint_ns", "")
-        checkpoint_id = configurable.get("checkpoint_id")
-        if not isinstance(checkpoint_ns, str) or not isinstance(checkpoint_id, str):
-            raise RuntimeError("Checkpoint generation contains invalid checkpoint identity.")
-        identity = (checkpoint_ns, checkpoint_id)
-        if identity in items:
-            raise RuntimeError("Checkpoint generation contains duplicate checkpoint identity.")
-        items[identity] = item
-    return items
-
-
-def _checkpoint_parent_identity(item: CheckpointTuple) -> tuple[str, str] | None:
-    if item.parent_config is None:
-        return None
-    configurable = item.parent_config.get("configurable", {})
-    checkpoint_id = configurable.get("checkpoint_id")
-    if checkpoint_id is None:
-        return None
-    checkpoint_ns = configurable.get("checkpoint_ns", "")
-    if not isinstance(checkpoint_ns, str) or not isinstance(checkpoint_id, str):
-        raise RuntimeError("Checkpoint generation contains invalid parent identity.")
-    return checkpoint_ns, checkpoint_id
-
-
 async def _generation_snapshot(
     saver: BaseCheckpointSaver,
     thread_id: str,
 ) -> dict[tuple[str, str], tuple]:
     config = {"configurable": {"thread_id": thread_id}}
     snapshot = {}
-    for identity, item in (await _generation_items(saver, config)).items():
+    for identity, item in (await generation_items(saver, config)).items():
         snapshot[identity] = (
-            _checkpoint_parent_identity(item),
+            checkpoint_parent_identity(item),
             deepcopy(item.checkpoint),
             deepcopy(item.metadata),
             deepcopy(item.pending_writes or []),
@@ -412,7 +356,7 @@ async def init_checkpointer(*, app_env: str, redis_url: str | None) -> None:
         if not redis_url:
             raise RuntimeError("Redis-backed LangGraph checkpointing is required in production/staging")
         try:
-            cm = AsyncRedisSaver.from_conn_string(redis_url=redis_url)
+            cm = FullCopyAsyncRedisSaver.from_conn_string(redis_url=redis_url)
             saver = await cm.__aenter__()
             _redis_saver = cm
             _checkpointer = saver
@@ -425,7 +369,7 @@ async def init_checkpointer(*, app_env: str, redis_url: str | None) -> None:
             logger.exception("Redis checkpointer initialization failed: %s", e)
             raise RuntimeError("Redis checkpointer initialization failed") from e
 
-    _checkpointer = InMemorySaver()
+    _checkpointer = FullCopyInMemorySaver()
     logger.info("LangGraph checkpointer: InMemorySaver")
 
 
@@ -462,5 +406,5 @@ def get_checkpointer() -> BaseCheckpointSaver:
         "Dev fallback: instantiating InMemorySaver without lifespan init "
         "(OK for local scripts; use lifespan in production)"
     )
-    _checkpointer = InMemorySaver()
+    _checkpointer = FullCopyInMemorySaver()
     return _checkpointer
