@@ -249,10 +249,39 @@ export function getPreferenceSectionSurfaceSx(theme) {
 }
 
 /** Welcome hero typography — the large headline on the empty chat state. */
-export function getWelcomeHeroSx(theme) {
+export function getWelcomeHeroSx(theme, shimmerName = null) {
+  let shimmerSx = {};
+  if (shimmerName) {
+    const { mode, text } = theme.palette;
+    const baseColor = mode === 'dark' ? text.secondary : text.primary;
+    const highlightColor = mode === 'dark' ? text.primary : text.secondary;
+    shimmerSx = {
+      color: 'transparent',
+      backgroundImage: `linear-gradient(110deg, ${baseColor} 35%, ${highlightColor} 50%, ${baseColor} 65%)`,
+      backgroundSize: '250% 100%',
+      backgroundPosition: '150% 50%',
+      backgroundClip: 'text',
+      WebkitBackgroundClip: 'text',
+      WebkitTextFillColor: 'transparent',
+      animation: `${shimmerName} 3.2s linear infinite`,
+      '@media (prefers-reduced-motion: reduce)': {
+        color: 'text.primary',
+        backgroundImage: 'none',
+        animation: 'none',
+        WebkitTextFillColor: 'currentColor',
+      },
+    };
+  }
+
   return {
     ...theme.typography.uiDisplaySm,
+    width: '100%',
+    maxWidth: COMPOSER_MAX_WIDTH,
+    fontSize: { xs: 'clamp(1rem, 4.75vw, 1.75rem)', md: '2rem' },
     color: 'text.primary',
-    textWrap: 'balance',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    ...shimmerSx,
   };
 }

@@ -3,11 +3,7 @@ import { keyframes, useTheme } from '@mui/material/styles';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ChatInput from '@/features/chat/ChatInput';
 import WelcomeSuggestions from '@/features/chat/WelcomeSuggestions';
-import {
-  COMPOSER_MAX_WIDTH,
-  getWelcomeHeroSx,
-  getWelcomeLayoutSx,
-} from '@/features/styles/interfaceChrome';
+import { getWelcomeHeroSx, getWelcomeLayoutSx } from '@/features/styles/interfaceChrome';
 import {
   getWelcomeCategories,
   getWelcomeGreeting,
@@ -32,6 +28,11 @@ const softReveal = keyframes`
     opacity: 1;
     transform: translateY(0);
   }
+`;
+
+const welcomeShimmer = keyframes`
+  from { background-position: 150% 50%; }
+  to { background-position: -150% 50%; }
 `;
 
 const WELCOME_LAYOUT = getWelcomeLayoutSx();
@@ -113,6 +114,7 @@ function WelcomeScreen({ visible, user, chatInputProps, onOpenDatabase }) {
         >
           <Box
             sx={{
+              width: '100%',
               animation: visible ? `${softReveal} 200ms ease-out both` : 'none',
               '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
             }}
@@ -120,28 +122,11 @@ function WelcomeScreen({ visible, user, chatInputProps, onOpenDatabase }) {
             <Typography
               component="h1"
               sx={{
-                ...getWelcomeHeroSx(theme),
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 1.5,
-                maxWidth: COMPOSER_MAX_WIDTH,
+                ...getWelcomeHeroSx(theme, welcomeShimmer),
+                mx: 'auto',
               }}
             >
-              <Box
-                component="img"
-                src="/moonlit.svg"
-                alt=""
-                aria-hidden="true"
-                sx={{
-                  width: { xs: 28, md: 32 },
-                  height: { xs: 28, md: 32 },
-                  flexShrink: 0,
-                }}
-              />
-              <Box component="span" sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>
-                {greeting}
-              </Box>
+              {greeting}
             </Typography>
           </Box>
 
