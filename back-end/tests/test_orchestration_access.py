@@ -497,6 +497,39 @@ def test_pause_publishes_only_canonical_resumable_interrupt_status(store) -> Non
     assert ref.data["reserved_checkpoint_generation"] == ref.data["active_checkpoint_generation"]
 
 
+def test_pause_reconciles_commit_then_timeout(store) -> None:
+    generation = create_checkpoint_generation("user-1:conversation-1", "run-a", 1)
+    task_store, ref = store(
+        _conversation(
+            task_status="running",
+            task_mode="long_task",
+            task_run_id="run-a",
+            task_run_fence=1,
+            task_lease_expires_at=NOW + timedelta(seconds=30),
+            reserved_checkpoint_generation=orchestration_access._generation_to_record(
+                generation
+            ),
+            active_checkpoint_generation=orchestration_access._generation_to_record(
+                generation
+            ),
+        ),
+        update_script=["commit_then_timeout"],
+    )
+
+    paused = task_store.save_paused_task(
+        "conversation-1",
+        "long_task",
+        "run-a",
+        1,
+    )
+
+    assert paused is True
+    assert ref.data["task_status"] == "resumable_interrupt"
+    assert "task_run_id" not in ref.data
+    assert "task_lease_expires_at" not in ref.data
+    assert len(ref.mutations) == 1
+
+
 def test_expired_same_owner_cannot_renew_or_mutate(store) -> None:
     task_store, ref = store(
         _conversation(

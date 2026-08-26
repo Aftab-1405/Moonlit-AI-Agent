@@ -467,8 +467,9 @@ class FirestoreConversationTaskStateStore:
         updates: dict | Callable[[datetime], dict],
         *,
         require_active_reserved_match: bool = False,
+        committed_state_matches: Callable[[dict], bool] | None = None,
     ) -> bool:
-        """Apply updates only while the unexpired ``(run_id, fence)`` owns the run."""
+        """Apply an owned update and optionally reconcile an ambiguous commit."""
         ref = self._conversation_ref(conversation_id)
         for _attempt in range(_TASK_STATE_CAS_ATTEMPTS):
             snapshot = ref.get(
@@ -477,6 +478,8 @@ class FirestoreConversationTaskStateStore:
             )
             checked_at = datetime.now(timezone.utc)
             data = snapshot.to_dict() if snapshot.exists else {}
+            if committed_state_matches is not None and committed_state_matches(data):
+                return True
             if data.get("task_run_id") != run_id or data.get("task_run_fence") != fence:
                 return False
             if data.get("task_status") != "running" or not self._lease_is_active(data, checked_at):
@@ -497,6 +500,22 @@ class FirestoreConversationTaskStateStore:
                 )
                 return True
             except (Aborted, FailedPrecondition):
+                continue
+            except Exception as write_error:
+                if committed_state_matches is None or not _is_ambiguous_task_state_error(write_error):
+                    raise
+                try:
+                    reconciliation = ref.get(
+                        retry=_task_state_retry(),
+                        timeout=_TASK_STATE_RPC_TIMEOUT_SECONDS,
+                    )
+                except Exception as read_error:
+                    if not _is_ambiguous_task_state_error(read_error):
+                        raise
+                    continue
+                reconciled = reconciliation.to_dict() if reconciliation.exists else {}
+                if committed_state_matches(reconciled):
+                    return True
                 continue
         raise RuntimeError("Could not update task lease after concurrent updates")
 
@@ -538,6 +557,29 @@ class FirestoreConversationTaskStateStore:
         fence: int,
     ) -> bool:
         """Publish a quiesced resumable checkpoint source and clear its lease."""
+        paused_at = datetime.now(timezone.utc)
+
+        def pause_is_committed(data: dict) -> bool:
+            active_record = data.get("active_checkpoint_generation")
+            if not (
+                data.get("task_status") == "resumable_interrupt"
+                and data.get("task_mode") == task_mode
+                and data.get("task_status_updated_at") == paused_at
+                and data.get("task_run_fence") == fence
+                and "task_run_id" not in data
+                and "task_lease_expires_at" not in data
+                and "task_run_previous_status" not in data
+                and "task_run_previous_mode" not in data
+                and active_record == data.get("reserved_checkpoint_generation")
+            ):
+                return False
+            active_generation = _generation_from_record(active_record)
+            return bool(
+                active_generation is not None
+                and active_generation.run_id == run_id
+                and active_generation.fence == fence
+            )
+
         return self._update_if_owner(
             conversation_id,
             run_id,
@@ -545,13 +587,14 @@ class FirestoreConversationTaskStateStore:
             {
                 "task_status": "resumable_interrupt",
                 "task_mode": task_mode,
-                "task_status_updated_at": datetime.now(timezone.utc),
+                "task_status_updated_at": paused_at,
                 "task_run_id": firestore.DELETE_FIELD,
                 "task_lease_expires_at": firestore.DELETE_FIELD,
                 "task_run_previous_status": firestore.DELETE_FIELD,
                 "task_run_previous_mode": firestore.DELETE_FIELD,
             },
             require_active_reserved_match=True,
+            committed_state_matches=pause_is_committed,
         )
 
     def save_interrupted_task(
