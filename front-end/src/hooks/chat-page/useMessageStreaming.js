@@ -295,7 +295,7 @@ export function useMessageStreaming({
             }
             const stepId = `workflow-${event.stage || 'status'}`;
             const existing = eventTimeline.find((item) => item.id === stepId);
-            const content = event.content || 'Preparing context...';
+            const content = event.content || 'Preparing context';
             if (existing) {
               existing.content = content;
               existing.isComplete = event.status === 'done';

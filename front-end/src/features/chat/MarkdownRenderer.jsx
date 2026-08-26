@@ -4,6 +4,10 @@ import { memo, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { CodeViewer } from '@/components';
+import {
+  getMarkdownBoundarySx,
+  markFirstMarkdownElement,
+} from '@/features/chat/markdownRendererStyles';
 import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
 import { TRANSITIONS } from '@/theme/themeEffects';
 
@@ -23,6 +27,7 @@ import { TRANSITIONS } from '@/theme/themeEffects';
 // Languages rendered as interactive canvas artifacts — never shown as code blocks.
 const CANVAS_LANGUAGES = new Set(['diagram-flow']);
 const REMARK_PLUGINS = [remarkGfm];
+const REHYPE_PLUGINS = [markFirstMarkdownElement];
 
 const streamingCaret = keyframes`
   0%, 45% { opacity: 0.72; }
@@ -124,9 +129,10 @@ const MarkdownRenderer = memo(function MarkdownRenderer({
           </InlineCode>
         );
       },
-      pre: ({ children }) => <>{children}</>,
-      table: ({ children }) => (
+      pre: ({ children, className }) => <Box className={className}>{children}</Box>,
+      table: ({ children, className }) => (
         <Box
+          className={className}
           sx={{
             overflowX: 'auto',
             my: isCompact ? 1 : 2,
@@ -286,8 +292,7 @@ const MarkdownRenderer = memo(function MarkdownRenderer({
         lineHeight: 1.4,
         letterSpacing: '-0.008em',
       },
-      '& > :first-of-type': { mt: 0 },
-      '& > :last-child': { mb: 0 },
+      ...getMarkdownBoundarySx(),
       '& table': {
         overflowWrap: 'normal',
         wordBreak: 'normal',
@@ -351,7 +356,11 @@ const MarkdownRenderer = memo(function MarkdownRenderer({
       aria-busy={isStreaming || undefined}
       sx={containerSx}
     >
-      <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={components}>
+      <ReactMarkdown
+        remarkPlugins={REMARK_PLUGINS}
+        rehypePlugins={REHYPE_PLUGINS}
+        components={components}
+      >
         {processedContent || ''}
       </ReactMarkdown>
     </Box>

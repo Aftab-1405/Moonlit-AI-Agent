@@ -251,7 +251,7 @@ export function buildStepsSummary(normalizedSteps) {
     if (activeThinking.id?.startsWith('workflow-')) {
       return activeThinking.content;
     }
-    return 'Thinking…';
+    return 'Thinking';
   }
 
   const completedTools = normalizedSteps.filter((s) => s.type === 'tool' && !s.isRunning);
@@ -276,7 +276,7 @@ export function buildStepsSummary(normalizedSteps) {
     if (skillSteps.length > 0) {
       return 'Loaded skills';
     }
-    return 'Processing…';
+    return 'Processing';
   }
 
   // ── Completed state ──────────────────────────────────────────────────

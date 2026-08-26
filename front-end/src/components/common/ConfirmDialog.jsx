@@ -101,7 +101,7 @@ function ConfirmDialog({
   icon = null,
   showIcon = false,
   loading,
-  loadingText = 'Working...',
+  loadingText = 'Working',
   disabled = false,
   maxWidth = 'xs',
   closeOnConfirm = false,
@@ -330,7 +330,7 @@ function ConfirmDialog({
         {details !== null && details !== undefined ? (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
             {detailsLabel ? (
-              <Typography sx={{ ...theme.typography.uiMonoLabel, color: 'text.disabled' }}>
+              <Typography sx={{ ...theme.typography.uiCaptionMd, color: 'text.disabled' }}>
                 {detailsLabel}
               </Typography>
             ) : null}

@@ -434,7 +434,7 @@ export const getPopoverSectionLabelSx = (theme, { pt = 0.5 } = {}) => ({
   px: UI_POPOVER.rowPaddingX,
   pt,
   pb: 0.375,
-  ...theme.typography.uiSectionLabel,
+  ...theme.typography.uiCaptionMd,
   fontWeight: 400,
   color: 'text.disabled',
   display: 'block',

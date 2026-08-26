@@ -883,7 +883,7 @@ function DiagramFlowRenderer({
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
         <ArtifactShell
-          title="DIAGRAM"
+          title="Diagram"
           chrome={chrome}
           onClose={onClose}
           onRequestClose={onRequestClose}
@@ -946,7 +946,7 @@ function DiagramFlowRenderer({
 
   const flowContent = (
     <ArtifactShell
-      title="DIAGRAM"
+      title="Diagram"
       chrome={chrome}
       onClose={onClose}
       onRequestClose={onRequestClose}
@@ -990,7 +990,7 @@ function DiagramFlowRenderer({
           >
             <CircularProgress size={32} sx={{ color: 'text.secondary' }} />
             <Typography sx={{ ...theme.typography.uiCaptionMd, color: 'text.secondary' }}>
-              Receiving diagram data...
+              Receiving diagram data
             </Typography>
           </Box>
         ) : (

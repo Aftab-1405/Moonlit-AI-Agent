@@ -41,7 +41,10 @@ import {
   getDiagramArtifactPhase,
 } from '@/features/chat/diagramArtifactModel';
 import MarkdownRenderer from '@/features/chat/MarkdownRenderer';
-import { getResponsivePillIconButtonSx } from '@/features/styles/interfaceChrome';
+import {
+  getMobileEdgeControlSx,
+  getResponsivePillIconButtonSx,
+} from '@/features/styles/interfaceChrome';
 import {
   HOVER_CAPABLE_QUERY,
   REDUCED_MOTION_QUERY,
@@ -55,6 +58,8 @@ import InlineExecutionTable from './InlineExecutionTable';
 const COPY_FEEDBACK_DURATION = 2000;
 const CANVAS_CODE_LANGUAGES = new Set(['diagram-flow']);
 const FENCED_CODE_BLOCK_PATTERN = /```([A-Za-z0-9_-]+)[^\n]*\n([\s\S]*?)```/g;
+const MOBILE_ASSISTANT_ACTION_EDGE_SX = getMobileEdgeControlSx('left', 1.25);
+const MOBILE_USER_ACTION_EDGE_SX = getMobileEdgeControlSx('right', 1.25);
 
 const softPulse = keyframes`
   0%, 100% { opacity: 1; }
@@ -249,7 +254,7 @@ const UserMessage = memo(function UserMessage({ message }) {
             className="msg-actions-row"
             role="group"
             aria-label="Message actions"
-            sx={getMessageActionsRowSx(theme)}
+            sx={{ ...getMessageActionsRowSx(theme), ...MOBILE_USER_ACTION_EDGE_SX }}
           >
             <CopyButton copied={copied} onClick={handleCopy} data-testid="action-bar-copy" />
           </Box>
@@ -324,10 +329,7 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
   onOpen,
 }) {
   const theme = useTheme();
-  const presentation = getDiagramArtifactCardPresentation({
-    isGenerating,
-    title: artifact.title,
-  });
+  const presentation = getDiagramArtifactCardPresentation({ isGenerating });
 
   return (
     <Box
@@ -336,7 +338,7 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
       role={isGenerating ? 'status' : undefined}
       aria-live={isGenerating ? 'polite' : undefined}
       aria-busy={isGenerating || undefined}
-      aria-label={isGenerating ? 'Moonlit is building the diagram' : `Open ${presentation.title}`}
+      aria-label={presentation.ariaLabel}
       onClick={presentation.isInteractive ? () => onOpen?.(artifact) : undefined}
       sx={{
         position: 'relative',
@@ -423,19 +425,21 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
           </Typography>
         </Box>
 
-        <Typography
-          sx={{
-            ...theme.typography.uiCaptionMd,
-            fontFamily: theme.typography.fontFamily,
-            lineHeight: 1.25,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            color: theme.palette.text.secondary,
-          }}
-        >
-          {presentation.metadata}
-        </Typography>
+        {presentation.metadata ? (
+          <Typography
+            sx={{
+              ...theme.typography.uiCaptionMd,
+              fontFamily: theme.typography.fontFamily,
+              lineHeight: 1.25,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              color: theme.palette.text.secondary,
+            }}
+          >
+            {presentation.metadata}
+          </Typography>
+        ) : null}
       </Box>
 
       <Box
@@ -919,6 +923,7 @@ const AIMessage = memo(function AIMessage({
             aria-label="Message actions"
             sx={(theme) => ({
               ...getMessageActionsRowSx(theme),
+              ...MOBILE_ASSISTANT_ACTION_EDGE_SX,
               width: '100%',
               mt: 0.15,
               pl: { xs: 0, sm: 0.5 },

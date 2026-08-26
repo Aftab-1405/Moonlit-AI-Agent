@@ -174,7 +174,7 @@ const GlobalOverlays = memo(function GlobalOverlays({
         confirmText="Run query"
         cancelText="Cancel"
         maxWidth="xs"
-        loadingText="Running..."
+        loadingText="Running"
       />
 
       <ConfirmDialog
@@ -186,7 +186,7 @@ const GlobalOverlays = memo(function GlobalOverlays({
         intent="danger"
         confirmText="Delete"
         cancelText="Cancel"
-        loadingText="Deleting..."
+        loadingText="Deleting"
         maxWidth="xs"
         closeOnConfirm
       />

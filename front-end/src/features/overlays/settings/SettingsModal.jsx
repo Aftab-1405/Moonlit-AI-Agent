@@ -31,6 +31,7 @@ import {
   PreferenceSection,
 } from '@/features/overlays/preference-surface';
 import UserDBContextManagerForAI from '@/features/overlays/settings/UserDBContextManagerForAI';
+import { canResetSettingsSection } from '@/features/overlays/settings/settingsModalModel';
 import { getPopoverPaperSx, UI_Z_INDEX } from '@/styles/shared';
 
 // Settings nav items. Icons are chosen for semantic clarity:
@@ -398,18 +399,18 @@ function SettingsModal({ open, onClose, initialSection = null }) {
       <PreferenceLayout sidebar={NavContent}>
         {renderContent()}
 
-        <PreferenceFooterActions sx={{ justifyContent: 'flex-start' }}>
-          <Button
-            color="secondary"
-            onClick={() => {
-              resetSettings();
-            }}
-            size="small"
-            sx={subtleButtonSx}
-          >
-            Reset to defaults
-          </Button>
-        </PreferenceFooterActions>
+        {canResetSettingsSection(activeSection) && (
+          <PreferenceFooterActions sx={{ justifyContent: 'flex-start' }}>
+            <Button
+              color="secondary"
+              onClick={resetSettings}
+              size="small"
+              sx={subtleButtonSx}
+            >
+              Reset to defaults
+            </Button>
+          </PreferenceFooterActions>
+        )}
       </PreferenceLayout>
     </DialogShell>
   );

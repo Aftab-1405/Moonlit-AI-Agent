@@ -230,7 +230,7 @@ function TableItem({ table, currentDatabase, fetchTableSchema }) {
       <Collapse in={expanded} timeout={160}>
         <Box sx={{ pl: 5.5, pr: 0.25, pb: 0.25 }}>
           {columnsLoading ? (
-            <SchemaStatusText>Loading columns…</SchemaStatusText>
+            <SchemaStatusText>Loading columns</SchemaStatusText>
           ) : columnsError ? (
             <SchemaStatusText color="error.main">{columnsError}</SchemaStatusText>
           ) : columns.length === 0 ? (

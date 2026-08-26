@@ -45,6 +45,15 @@ export function getResponsivePillIconButtonSx(theme, { desktopSize, mobileSize =
   };
 }
 
+/** Offset a mobile touch target by its container gutter while preserving its size. */
+export function getMobileEdgeControlSx(edge, gutter) {
+  const marginProperty = edge === 'right' ? 'mr' : 'ml';
+
+  return {
+    [marginProperty]: { xs: -gutter, sm: 0 },
+  };
+}
+
 /** Spacing and minimum-height contract for the chat composer. */
 export function getComposerLayoutSx(theme) {
   return {
@@ -58,11 +67,111 @@ export function getComposerLayoutSx(theme) {
   };
 }
 
+/** In-flow conversation panel that must shrink with the chat viewport. */
+export function getChatConversationPanelSx() {
+  return {
+    display: 'flex',
+    flexDirection: 'column',
+    flex: 1,
+    width: '100%',
+    maxWidth: '100%',
+    minWidth: 0,
+    minHeight: 0,
+    position: 'relative',
+  };
+}
+
+/** Full-viewport layout contract for the immersive schema mindmap viewer. */
+export function getMindmapViewerLayoutSx() {
+  return {
+    paper: {
+      width: '100vw',
+      maxWidth: '100vw',
+      height: '100dvh',
+      maxHeight: '100dvh',
+      minHeight: '100dvh',
+      m: 0,
+      borderRadius: 0,
+      '@supports not (height: 100dvh)': {
+        height: '100vh',
+        maxHeight: '100vh',
+        minHeight: '100vh',
+      },
+    },
+    header: {
+      minHeight: { xs: 64, sm: 68 },
+      px: { xs: 1.5, sm: 2.5, md: 3 },
+      py: 0,
+      flexShrink: 0,
+    },
+    content: {
+      width: '100%',
+      maxWidth: 'none',
+      mx: 0,
+      px: { xs: 1, sm: 1.5, md: 2 },
+      pt: { xs: 1, sm: 1.5, md: 2 },
+      pb: { xs: 'max(8px, env(safe-area-inset-bottom))', sm: 1.5, md: 2 },
+      display: 'flex',
+      flexDirection: 'column',
+      flex: 1,
+      overflow: 'hidden',
+      minHeight: 0,
+    },
+    canvas: {
+      display: 'flex',
+      flexDirection: 'column',
+      flex: 1,
+      width: '100%',
+      minWidth: 0,
+      minHeight: 0,
+    },
+  };
+}
+
+/** Keep the full schema legible while avoiding excessive empty fit-view space. */
+export function getMindmapFitViewOptions(isMobile) {
+  return { padding: isMobile ? 0.18 : 0.1 };
+}
+
+/** Trackpad and mouse-wheel gestures zoom the mindmap; dragging pans it. */
+export function getMindmapInteractionProps(isMobile) {
+  return {
+    panOnScroll: false,
+    panOnDrag: true,
+    zoomOnScroll: !isMobile,
+    zoomOnPinch: true,
+    preventScrolling: true,
+  };
+}
+
 /** Responsive spacing contract for the empty chat state. */
 export function getWelcomeLayoutSx() {
   return {
-    outer: { px: { xs: 1, md: 3 }, py: { xs: 2.5, md: 4 } },
-    content: { gap: { xs: 2, md: 3 } },
+    outer: {
+      alignItems: { xs: 'stretch', sm: 'safe center' },
+      px: { xs: 1, md: 3 },
+      pt: { xs: 2.5, md: 4 },
+      pb: { xs: 0, sm: 2.5, md: 4 },
+    },
+    content: {
+      height: { xs: '100%', sm: 'auto' },
+      minHeight: 0,
+      gap: { xs: 0, sm: 2, md: 3 },
+    },
+    hero: {
+      flex: { xs: 1, sm: '0 0 auto' },
+      minHeight: 0,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    composer: {
+      width: '100%',
+      flexShrink: 0,
+    },
+    suggestions: {
+      display: { xs: 'none', sm: 'block' },
+    },
   };
 }
 

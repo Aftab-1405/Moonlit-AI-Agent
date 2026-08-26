@@ -15,7 +15,11 @@ import { MenuIcon, ScrollDownIcon } from '@/components/icons';
 import { ChatInput, MessageList, WelcomeScreen } from '@/features/chat';
 import ChatHeader from '@/features/chat/ChatHeader';
 import GuidedConfirmationPrompt from '@/features/chat/GuidedConfirmationPrompt';
-import { getResponsivePillIconButtonSx } from '@/features/styles/interfaceChrome';
+import {
+  getChatConversationPanelSx,
+  getMobileEdgeControlSx,
+  getResponsivePillIconButtonSx,
+} from '@/features/styles/interfaceChrome';
 import { getInteractiveIconButtonSx, getScrollbarStyles, UI_LAYOUT } from '@/styles/shared';
 
 const ChatColumn = memo(function ChatColumn({
@@ -69,6 +73,7 @@ const ChatColumn = memo(function ChatColumn({
               position: 'absolute',
               top: 'max(env(safe-area-inset-top), 8px)',
               left: 12,
+              ...getMobileEdgeControlSx('left', 1.5),
               zIndex: 6,
               bgcolor: 'transparent',
               '&:hover': { bgcolor: 'action.hover' },
@@ -101,15 +106,7 @@ const ChatColumn = memo(function ChatColumn({
         />
 
         <Fade in={showConversationPanel} timeout={300} unmountOnExit>
-          <Box
-            sx={{
-              display: 'flex',
-              flexDirection: 'column',
-              flex: 1,
-              minHeight: 0,
-              position: 'relative',
-            }}
-          >
+          <Box sx={getChatConversationPanelSx()}>
             <Box
               ref={setScrollContainerRef}
               sx={{

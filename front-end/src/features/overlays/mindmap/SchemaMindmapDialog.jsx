@@ -7,11 +7,14 @@
 //   - Its state survives sidebar unmount/remount (e.g. narrow ↔ desktop).
 //   - The Sidebar feature stays focused on navigation/list interactions.
 //
-// The dialog itself is unchanged visually — only its mount point moved.
+// The dialog uses an immersive viewport layout so the schema canvas remains
+// the primary surface on desktop and mobile.
 
-import { Box, Button, CircularProgress, Dialog, DialogContent, Typography } from '@mui/material';
+import { Box, CircularProgress, Dialog, DialogContent, IconButton, Typography } from '@mui/material';
 import { useReducedMotion } from 'framer-motion';
 import { lazy, memo, Suspense } from 'react';
+import { CloseIcon, MindmapIcon } from '@/components/icons';
+import { getMindmapViewerLayoutSx } from '@/features/styles/interfaceChrome';
 import {
   getDialogHeaderSx,
   getDialogPaperSx,
@@ -52,13 +55,15 @@ const SchemaMindmapDialog = memo(
     const transitionDuration = reduceMotion ? 0 : 300;
     const schemaSurfaceLeft = '0px';
     const schemaSurfaceWidth = '100vw';
+    const layoutSx = getMindmapViewerLayoutSx();
+    const tableCount = schemaData?.tables?.length || 0;
 
     return (
       <Dialog
         open={open}
         onClose={onClose}
         aria-labelledby="schema-mindmap-title"
-        fullScreen={false}
+        fullScreen
         maxWidth={false}
         fullWidth={false}
         keepMounted
@@ -77,17 +82,11 @@ const SchemaMindmapDialog = memo(
         PaperProps={{
           sx: {
             ...getDialogPaperSx(theme, { isMobile: true }),
+            ...layoutSx.paper,
             position: 'fixed',
             inset: '0 auto auto auto',
             left: schemaSurfaceLeft,
             top: 0,
-            width: schemaSurfaceWidth,
-            maxWidth: schemaSurfaceWidth,
-            height: '100vh',
-            maxHeight: '100vh',
-            minHeight: '100vh',
-            m: 0,
-            borderRadius: 0,
             backgroundColor: theme.palette.background.default,
             boxShadow: 'none',
             opacity: open ? 1 : 0,
@@ -98,70 +97,79 @@ const SchemaMindmapDialog = memo(
         <Box
           sx={{
             ...getDialogHeaderSx(theme),
-            px: { xs: 2.5, sm: 5, md: 8, lg: 10 },
-            height: { xs: 'auto', md: 96 },
-            pt: { xs: 2, md: 0 },
-            pb: { xs: 2, md: 0 },
-            alignItems: { xs: 'center', md: 'flex-end' },
-            borderBottom: 0,
-            maxWidth: 1380,
-            mx: 'auto',
+            ...layoutSx.header,
             width: '100%',
+            borderBottomColor: theme.palette.border.separator,
+            backgroundColor: theme.palette.background.default,
           }}
         >
-          <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0, flex: 1 }}>
-            <Typography
-              id="schema-mindmap-title"
-              component="h2"
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0, flex: 1 }}>
+            <Box
+              aria-hidden
               sx={{
-                ...theme.typography.h3,
-                color: 'text.primary',
-                lineHeight: 1.25,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
+                display: 'grid',
+                placeItems: 'center',
+                width: 34,
+                height: 34,
+                flexShrink: 0,
+                borderRadius: '10px',
+                border: '1px solid',
+                borderColor: theme.palette.border.subtle,
+                color: 'text.secondary',
+                backgroundColor: theme.palette.layer.surfaceMuted,
               }}
             >
-              {currentDatabase ? `${currentDatabase} schema` : 'Schema Mindmap'}
-            </Typography>
+              <MindmapIcon sx={{ fontSize: 19 }} />
+            </Box>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography
+                id="schema-mindmap-title"
+                component="h2"
+                sx={{
+                  ...theme.typography.uiBodyMd,
+                  color: 'text.primary',
+                  lineHeight: 1.25,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {currentDatabase ? `${currentDatabase} schema` : 'Schema mindmap'}
+              </Typography>
+              <Typography
+                sx={{
+                  ...theme.typography.uiCaptionSm,
+                  mt: 0.125,
+                  color: 'text.secondary',
+                  lineHeight: 1.3,
+                }}
+              >
+                {schemaData
+                  ? `${tableCount} ${tableCount === 1 ? 'table' : 'tables'}`
+                  : 'Schema overview'}
+              </Typography>
+            </Box>
           </Box>
-          <Button
+          <IconButton
             type="button"
             autoFocus
             onClick={onClose}
-            size="small"
             aria-label="Close schema mindmap"
             sx={{
-              ...theme.typography.uiNavItem,
-              mb: { xs: 0, md: 1.5 },
-              textTransform: 'none',
-              fontWeight: 400,
               color: 'text.secondary',
               ...getInteractiveControlSx(theme, {
-                size: { xs: 44, md: 34 },
+                size: { xs: 44, sm: 36 },
                 radius: theme.shape.radius.pill,
               }),
-              px: 1.5,
-              height: { xs: 44, md: 34 },
             }}
           >
-            Close
-          </Button>
+            <CloseIcon sx={{ fontSize: 19 }} />
+          </IconButton>
         </Box>
 
         <DialogContent
           sx={{
-            width: '100%',
-            maxWidth: 1380,
-            mx: 'auto',
-            px: { xs: 2.5, sm: 5, md: 8, lg: 10 },
-            pt: { xs: 2, md: 4 },
-            pb: { xs: 4, md: 6 },
-            display: 'flex',
-            flexDirection: 'column',
-            flex: 1,
-            overflow: 'hidden',
-            minHeight: 0,
+            ...layoutSx.content,
             contain: 'layout paint style',
             ...getScrollbarStyles(theme),
           }}
@@ -176,33 +184,31 @@ const SchemaMindmapDialog = memo(
               <CircularProgress />
             </Box>
           ) : schemaData ? (
-            <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-              <Box sx={{ flex: 1, minHeight: 0 }}>
-                <Suspense
-                  fallback={
-                    <Box
-                      role="status"
-                      aria-live="polite"
-                      aria-label="Loading schema diagram"
-                      sx={{
-                        display: 'flex',
-                        justifyContent: 'center',
-                        alignItems: 'center',
-                        height: '100%',
-                      }}
-                    >
-                      <CircularProgress />
-                    </Box>
-                  }
-                >
-                  <SchemaFlowDiagram
-                    active={open}
-                    database={schemaData.database}
-                    tables={schemaData.tables || []}
-                    columns={schemaData.columns || {}}
-                  />
-                </Suspense>
-              </Box>
+            <Box sx={layoutSx.canvas}>
+              <Suspense
+                fallback={
+                  <Box
+                    role="status"
+                    aria-live="polite"
+                    aria-label="Loading schema diagram"
+                    sx={{
+                      display: 'flex',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      height: '100%',
+                    }}
+                  >
+                    <CircularProgress />
+                  </Box>
+                }
+              >
+                <SchemaFlowDiagram
+                  active={open}
+                  database={schemaData.database}
+                  tables={schemaData.tables || []}
+                  columns={schemaData.columns || {}}
+                />
+              </Suspense>
             </Box>
           ) : (
             <Box

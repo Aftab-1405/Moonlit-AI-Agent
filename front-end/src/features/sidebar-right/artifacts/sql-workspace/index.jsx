@@ -368,7 +368,7 @@ function SqlWorkspace({
       }}
     >
       <ArtifactShell
-        title="EDITOR"
+        title="Editor"
         chrome={chrome}
         onClose={onClose}
         onRequestClose={onRequestClose}

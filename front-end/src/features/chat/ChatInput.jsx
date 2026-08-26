@@ -497,10 +497,8 @@ function ChatInput({
   const composerSurfaceSx = useMemo(() => getComposerSurfaceSx(theme), [theme]);
   const composerLayoutSx = useMemo(() => getComposerLayoutSx(theme), [theme]);
   const inputPlaceholder = isStreaming
-    ? 'Draft your next message…'
-    : isConnected
-      ? 'Ask about your database… (type / for commands)'
-      : 'How can I help you today?… (type / for commands)';
+    ? 'Draft your next message'
+    : 'How can I help you today?';
 
   const selectedProviderOption = useMemo(() => {
     return providerOptions.find((provider) => provider.name === selectedProvider) || null;
@@ -1014,7 +1012,7 @@ function ChatInput({
                   >
                     <ModelSelectorLabel
                       key={selectedModel || (llmOptionsLoading ? 'loading' : 'choose-model')}
-                      label={selectedModel || (llmOptionsLoading ? 'Loading...' : 'Choose model')}
+                      label={selectedModel || (llmOptionsLoading ? 'Loading' : 'Choose model')}
                     />
                   </Button>
                 </span>

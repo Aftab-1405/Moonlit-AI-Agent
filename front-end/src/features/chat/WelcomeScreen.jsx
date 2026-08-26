@@ -115,6 +115,7 @@ function WelcomeScreen({ visible, user, chatInputProps, onOpenDatabase }) {
           <Box
             sx={{
               width: '100%',
+              ...WELCOME_LAYOUT.hero,
               animation: visible ? `${softReveal} 200ms ease-out both` : 'none',
               '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
             }}
@@ -132,22 +133,24 @@ function WelcomeScreen({ visible, user, chatInputProps, onOpenDatabase }) {
 
           <Box
             sx={{
-              width: '100%',
+              ...WELCOME_LAYOUT.composer,
               animation: visible ? `${softReveal} 240ms ease-out both` : 'none',
               animationDelay: visible ? '45ms' : '0ms',
               '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
             }}
           >
             <ChatInput {...chatInputProps}>
-              <WelcomeSuggestions
-                key={isConnected ? 'connected' : 'disconnected'}
-                categories={categories}
-                activeCategoryId={activeCategoryId}
-                onCategoryChange={setActiveCategoryId}
-                onActivate={handleActivate}
-                canOpenDatabase={typeof onOpenDatabase === 'function'}
-                disabled={disabled || isStreaming || typeof onSend !== 'function'}
-              />
+              <Box sx={WELCOME_LAYOUT.suggestions}>
+                <WelcomeSuggestions
+                  key={isConnected ? 'connected' : 'disconnected'}
+                  categories={categories}
+                  activeCategoryId={activeCategoryId}
+                  onCategoryChange={setActiveCategoryId}
+                  onActivate={handleActivate}
+                  canOpenDatabase={typeof onOpenDatabase === 'function'}
+                  disabled={disabled || isStreaming || typeof onSend !== 'function'}
+                />
+              </Box>
             </ChatInput>
           </Box>
         </Box>

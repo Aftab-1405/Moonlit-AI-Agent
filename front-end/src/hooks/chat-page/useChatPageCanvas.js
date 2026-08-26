@@ -10,7 +10,7 @@
 //     `SqlEditorSurface` switches to streaming mode.
 //   - Auto-open effect — when the agent starts streaming a query, open the
 //     SQL editor early (with empty query) so the user sees the "Agent is
-//     writing…" indicator while the agent composes the query.
+//     writing" indicator while the agent composes the query.
 //
 // The hook accepts `isCurrentlyStreaming` and `messages` from the caller
 // (the controller) so the streaming detection can be computed in one place.
@@ -96,7 +96,7 @@ export function useChatPageCanvas({
 
   // ── Open SQL editor early when agent starts writing a query ──────────────
   // When `write_sql_editor_query` enters `running` state, open the editor
-  // immediately (with empty query) so the user sees the "Agent is writing…"
+  // immediately (with empty query) so the user sees the "Agent is writing"
   // indicator while the agent composes the query. The actual query arrives
   // when the `ui_action` event fires (via the UI action dispatcher).
   useEffect(() => {

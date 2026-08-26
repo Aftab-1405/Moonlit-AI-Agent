@@ -30,7 +30,6 @@ export { default as FullscreenEnterIcon } from '@mui/icons-material/FullscreenRo
 export { default as GitHubBrandIcon } from '@mui/icons-material/GitHub';
 export { default as HelpIcon } from '@mui/icons-material/HelpOutlineRounded';
 export { default as HomeIcon } from '@mui/icons-material/HomeRounded';
-export { default as DiagramIcon } from '@mui/icons-material/HubRounded';
 export { default as ImageIcon } from '@mui/icons-material/ImageOutlined';
 export { default as InfoIcon } from '@mui/icons-material/InfoOutlined';
 export { default as AnalyticsIcon } from '@mui/icons-material/InsightsRounded';
@@ -39,6 +38,7 @@ export { default as PrimaryKeyIcon } from '@mui/icons-material/KeyRounded';
 export { default as LinkIcon } from '@mui/icons-material/LinkRounded';
 export { default as LogoutIcon } from '@mui/icons-material/LogoutOutlined';
 export { default as MenuIcon } from '@mui/icons-material/MenuRounded';
+export { default as MindmapIcon } from '@mui/icons-material/AccountTreeRounded';
 export { default as MoreIcon } from '@mui/icons-material/MoreHorizRounded';
 export { default as PauseIcon } from '@mui/icons-material/PauseCircleOutlineRounded';
 export { default as UserIcon } from '@mui/icons-material/PersonRounded';

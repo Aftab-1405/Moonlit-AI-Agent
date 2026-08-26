@@ -381,7 +381,7 @@ function CodeViewer({
         )}
         {isSQL && onRunQuery && (
           <ActionButton
-            title={isRunning ? 'Running…' : 'Run query'}
+            title={isRunning ? 'Running' : 'Run query'}
             onClick={handleRun}
             disabled={isRunning || isStreaming}
             icon={

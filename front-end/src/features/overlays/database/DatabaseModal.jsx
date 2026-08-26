@@ -50,6 +50,10 @@ import { UI_LAYOUT } from '@/styles/shared';
 import { getSelectedDatabase } from '@/utils/databaseResponse';
 import logger from '@/utils/logger';
 import {
+  getConnectedActionDisabledSx,
+  getConnectionActionState,
+} from './databaseModalState';
+import {
   connectionStringSchema,
   credentialsSchema,
   dbFieldSchemas,
@@ -551,7 +555,16 @@ function DatabaseModal({
 
   const toggleGroupSx = useMemo(() => getPreferenceToggleGroupSx(theme), [theme]);
   const dangerButtonSx = useMemo(() => getPreferenceButtonSx(theme, { tone: 'danger' }), [theme]);
-  const successButtonSx = useMemo(() => getPreferenceButtonSx(theme, { tone: 'success' }), [theme]);
+  const connectionActionState = getConnectionActionState({ loading, connected: connectionActive });
+  const connectionButtonSx = useMemo(() => {
+    const sx = getPreferenceButtonSx(theme, { tone: connectionActionState.tone });
+    if (connectionActionState.tone !== 'success') return sx;
+
+    return {
+      ...sx,
+      ...getConnectedActionDisabledSx(theme),
+    };
+  }, [connectionActionState.tone, theme]);
 
   const navContent = (
     <PreferenceNavList ariaLabel="Database type">
@@ -809,16 +822,16 @@ function DatabaseModal({
             <Box />
           )}
           <Button
-            variant="contained"
-            color="primary"
+            variant="outlined"
+            color={connectionActionState.tone}
             disableElevation
             onClick={handleConnect}
-            disabled={loading || connectionActive}
+            disabled={connectionActionState.disabled}
             startIcon={loading ? <ButtonLoadingSpinner /> : null}
             size="small"
-            sx={successButtonSx}
+            sx={connectionButtonSx}
           >
-            {loading ? 'Connecting…' : connectionActive ? 'Connected' : 'Connect'}
+            {connectionActionState.label}
           </Button>
         </PreferenceFooterActions>
       </PreferenceLayout>

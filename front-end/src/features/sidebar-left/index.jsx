@@ -3,7 +3,7 @@ import { useTheme } from '@mui/material/styles';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DatabaseIcon,
-  DiagramIcon,
+  MindmapIcon,
   NewChatIcon,
   RecentChatIcon,
   SearchIcon,
@@ -25,6 +25,7 @@ import {
   buildDesktopNavSx,
   buildMobileDrawerPaperStyles,
   buildNavRowSx,
+  buildSidebarFooterSx,
   buildSidebarSectionLabelSx,
   getCollapsingLabelSx,
   getSidebarRailTooltipSlotProps,
@@ -291,7 +292,7 @@ function Sidebar({
         isConnected && currentDatabase
           ? 'Mindmap'
           : 'Connect a database to view the schema mindmap',
-      icon: <DiagramIcon sx={{ fontSize: 18 }} />,
+      icon: <MindmapIcon sx={{ fontSize: 18 }} />,
       onClick: onOpenMindmap,
       disabled: !isConnected || !currentDatabase,
     });
@@ -512,7 +513,7 @@ function Sidebar({
           <RecentChatIcon sx={{ fontSize: 18 }} />
           <Typography
             component="span"
-            sx={{ ...buildSidebarSectionLabelSx(), px: 0, pt: 0, pb: 0 }}
+            sx={{ ...buildSidebarSectionLabelSx(theme), px: 0, pt: 0, pb: 0 }}
           >
             Recents
           </Typography>
@@ -521,7 +522,7 @@ function Sidebar({
           className="toggle-hint"
           component="span"
           sx={{
-            ...theme.typography.uiNavShortcut,
+            ...theme.typography.uiCaptionXs,
             color: 'text.secondary',
             opacity: 0,
             transition: 'opacity 0.15s ease',
@@ -676,11 +677,7 @@ function Sidebar({
     return (
       <Box
         component="footer"
-        sx={{
-          px: ROW_PX,
-          py: 0.75,
-          borderTop: `1px solid ${theme.palette.divider}`,
-        }}
+        sx={buildSidebarFooterSx()}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           <Tooltip

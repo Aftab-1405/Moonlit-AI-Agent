@@ -1,7 +1,10 @@
 import { Box, CircularProgress, IconButton, InputBase, Tooltip, Typography } from '@mui/material';
 import { memo, useCallback, useState } from 'react';
 import { CheckIcon, CloseIcon, MenuIcon } from '@/components/icons';
-import { getResponsivePillIconButtonSx } from '@/features/styles/interfaceChrome';
+import {
+  getMobileEdgeControlSx,
+  getResponsivePillIconButtonSx,
+} from '@/features/styles/interfaceChrome';
 import { getInteractiveIconButtonSx, UI_LAYOUT } from '@/styles/shared';
 import { prepareConversationRename } from './chatHeaderModel';
 
@@ -95,6 +98,7 @@ const ChatHeader = memo(function ChatHeader({
                 size: UI_LAYOUT.touchTarget,
                 radius: theme.shape.radius.pill,
               }),
+              ...getMobileEdgeControlSx('left', 1),
               flexShrink: 0,
               bgcolor: 'transparent',
               '&:hover': { bgcolor: 'action.hover' },

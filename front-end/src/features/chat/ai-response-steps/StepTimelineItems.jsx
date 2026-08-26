@@ -17,6 +17,7 @@ import {
 } from '@/features/chat/ai-response-steps/ToolResultDetails';
 import {
   getFlatStepControlSx,
+  getTimelineNodeTopSx,
   slideIn,
   TIMELINE_LINE_X,
 } from '@/features/chat/ai-response-steps/timelineShared';
@@ -57,9 +58,14 @@ const pulse = keyframes`
 `;
 
 const TIMELINE_CONTENT_PL = { xs: 3.5, md: 4 };
-const TIMELINE_ITEM_PY = 0.5;
-const TIMELINE_NODE_TOP = { xs: 20, sm: 21 };
+const TIMELINE_ITEM_PADDING_PX = 4;
+const TIMELINE_ITEM_PY = `${TIMELINE_ITEM_PADDING_PX}px`;
 const STEP_TITLE_MIN_HEIGHT = { xs: 44, md: 32 };
+const TIMELINE_NODE_TOP = getTimelineNodeTopSx({
+  mobileTitleMinHeight: STEP_TITLE_MIN_HEIGHT.xs,
+  desktopTitleMinHeight: STEP_TITLE_MIN_HEIGHT.md,
+  itemPadding: TIMELINE_ITEM_PADDING_PX,
+});
 const REASONING_MAX_WIDTH = '72ch';
 
 const getTimelineNodeSx = ({ color, animation, theme, top = TIMELINE_NODE_TOP }) => ({

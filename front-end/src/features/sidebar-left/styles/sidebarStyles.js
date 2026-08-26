@@ -221,20 +221,23 @@ export function buildMobileDrawerPaperStyles(theme) {
 }
 
 // ─── Section label ────────────────────────────────────────────────────────────
-// Returns sx that matches theme.typography.uiSectionLabel.
-// Used as a spread: sx={{ ...buildSidebarSectionLabelSx(), px: 0, pt: 0, pb: 0 }}
-export function buildSidebarSectionLabelSx() {
+// Uses the same sentence-case type treatment as the sidebar navigation.
+// Used as a spread: sx={{ ...buildSidebarSectionLabelSx(theme), px: 0, pt: 0, pb: 0 }}
+export function buildSidebarSectionLabelSx(theme) {
   return {
+    ...theme.typography.uiNavItem,
     px: 2,
     pt: 2,
     pb: 0.75,
-    fontSize: '0.8125rem',
-    fontFamily: '"Geist Mono", ui-monospace, monospace',
     fontWeight: 400,
-    lineHeight: 1.3,
     color: 'text.secondary',
-    letterSpacing: '1.2px',
-    textTransform: 'uppercase',
     opacity: 0.88,
+  };
+}
+
+export function buildSidebarFooterSx() {
+  return {
+    px: ROW_PX,
+    py: 0.75,
   };
 }

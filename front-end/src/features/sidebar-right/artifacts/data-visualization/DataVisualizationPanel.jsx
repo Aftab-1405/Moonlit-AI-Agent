@@ -123,7 +123,7 @@ function DataVisualizationPanel({
       }}
     >
       <ArtifactShell
-        title="PERSPECTIVE"
+        title="Perspective"
         chrome={chrome}
         onClose={onClose}
         onRequestClose={onRequestClose}
