@@ -150,7 +150,7 @@ class RequestBodyLimitMiddleware:
                     "body": body,
                     "more_body": False,
                 }
-            return {"type": "http.disconnect"}
+            return await receive()
 
         await self.app(scope, replay_receive, send)
 

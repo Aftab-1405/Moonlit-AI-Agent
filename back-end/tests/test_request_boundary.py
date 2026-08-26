@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import Awaitable, Callable
 
@@ -390,3 +391,43 @@ async def test_ordinary_chunked_body_replays_one_complete_frame() -> None:
     assert received_frames == [
         {"type": "http.request", "body": b"ordinary-body", "more_body": False}
     ]
+
+
+@pytest.mark.asyncio
+async def test_streaming_response_waits_for_real_disconnect_after_body_replay() -> None:
+    """Keep streaming after request parsing until the client actually disconnects."""
+    from starlette.responses import StreamingResponse
+
+    from core.http_boundary import RequestBodyLimitMiddleware
+
+    request_sent = False
+    disconnect = asyncio.Event()
+
+    async def receive() -> ASGIMessage:
+        nonlocal request_sent
+        if not request_sent:
+            request_sent = True
+            return {
+                "type": "http.request",
+                "body": b"{}",
+                "more_body": False,
+            }
+        await disconnect.wait()
+        return {"type": "http.disconnect"}
+
+    async def downstream_app(scope: ASGIMessage, receive: Receive, send: Send) -> None:
+        request = await receive()
+        assert request["type"] == "http.request"
+
+        async def stream():
+            await asyncio.sleep(0)
+            yield b"data: agent output\n\n"
+
+        response = StreamingResponse(stream(), media_type="text/event-stream")
+        await response(scope, receive, send)
+
+    app = RequestBodyLimitMiddleware(downstream_app, max_body_bytes=4)
+
+    sent = await asyncio.wait_for(invoke(app, http_scope(), receive), timeout=1)
+
+    assert b"".join(message.get("body", b"") for message in sent) == b"data: agent output\n\n"
