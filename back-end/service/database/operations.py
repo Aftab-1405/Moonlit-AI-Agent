@@ -37,7 +37,6 @@ import time
 from typing import Dict, List, Optional, Tuple
 
 from config import get_config
-from core.audit import audit_log
 from core.errors import log_safe_exception, public_database_error, public_tool_error
 from service.database.security import DatabaseSecurity
 
@@ -615,18 +614,6 @@ def execute_sql_query(
                 message += f"{row_count} rows. "
 
             logger.info(f"Query executed: {row_count} rows in {execution_time}ms")
-            audit_log(
-                actor=f"user:{user_id}" if user_id else "user:unknown",
-                action="sql.execute",
-                resource=f"db:{db_config.get('db_type', 'unknown')}/{db_config.get('database', 'unknown')}",
-                outcome="success",
-                details={
-                    "row_count": row_count,
-                    "truncated": truncated,
-                    "execution_time_ms": execution_time,
-                    "statement_type": analysis["query_type"],
-                },
-            )
             return {
                 "status": "success",
                 "result": result,
@@ -641,13 +628,6 @@ def execute_sql_query(
     except ValueError as err:
         public = public_database_error(err)
         log_safe_exception(logger, "validate_sql_query", err, public)
-        audit_log(
-            actor=f"user:{user_id}" if user_id else "user:unknown",
-            action="sql.execute",
-            resource=f"db:{db_config.get('db_type', 'unknown')}/{db_config.get('database', 'unknown')}",
-            outcome="denied",
-            details={"reason": "validation_error"},
-        )
         return {
             "status": "error",
             "error_code": public.code,
@@ -661,13 +641,6 @@ def execute_sql_query(
             "Database connection failed.",
         )
         log_safe_exception(logger, "execute_sql_query_connection", err, public)
-        audit_log(
-            actor=f"user:{user_id}" if user_id else "user:unknown",
-            action="sql.execute",
-            resource=f"db:{db_config.get('db_type', 'unknown')}/{db_config.get('database', 'unknown')}",
-            outcome="failure",
-            details={"reason": "connection_error"},
-        )
         return {
             "status": "error",
             "error_code": public.code,
@@ -679,13 +652,6 @@ def execute_sql_query(
         # error into a stable category and emit a sanitized message.
         public = public_database_error(err)
         log_safe_exception(logger, "execute_sql_query", err, public)
-        audit_log(
-            actor=f"user:{user_id}" if user_id else "user:unknown",
-            action="sql.execute",
-            resource=f"db:{db_config.get('db_type', 'unknown')}/{db_config.get('database', 'unknown')}",
-            outcome="failure",
-            details={"reason": public.code},
-        )
         return {
             "status": "error",
             "error_code": public.code,

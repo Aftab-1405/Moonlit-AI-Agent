@@ -373,7 +373,13 @@ class DatabaseService:
         """
         from service.database.operations import execute_sql_query
 
-        result = execute_sql_query(db_config, sql_query, max_rows=max_rows, timeout_seconds=timeout)
+        result = execute_sql_query(
+            db_config,
+            sql_query,
+            user_id=user_id,
+            max_rows=max_rows,
+            timeout_seconds=timeout,
+        )
         if user_id:
             try:
                 from service.database.context_sync import (

@@ -79,6 +79,24 @@ def _audit_payloads(records: list[logging.LogRecord]) -> list[dict[str, Any]]:
     return [json.loads(record.getMessage()) for record in records if record.name == "audit"]
 
 
+@contextmanager
+def _capture_direct_audit_records():
+    """Capture the dedicated audit logger without relying on root propagation."""
+    records: list[logging.LogRecord] = []
+
+    class Handler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    handler = Handler()
+    audit_logger = logging.getLogger("audit")
+    audit_logger.addHandler(handler)
+    try:
+        yield records
+    finally:
+        audit_logger.removeHandler(handler)
+
+
 def test_redact_normalizes_common_sensitive_key_styles() -> None:
     """Secret keys must be recognized across camel, Pascal, kebab, and snake case."""
     payload = {
@@ -1451,11 +1469,55 @@ def test_query_value_error_returns_stable_http_contract(
     _assert_secret_absent(result)
 
 
-def test_successful_query_audit_omits_sql_literals(
+def test_database_service_forwards_sql_actor(
     monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Successful SQL audit records retain safe metrics without the submitted SQL."""
+    """Catch the authenticated actor being dropped between service and SQL executor."""
+    captured: dict[str, Any] = {}
+
+    def execute_stub(
+        db_config,
+        sql_query,
+        *,
+        user_id,
+        max_rows,
+        timeout_seconds,
+    ):
+        captured.update(
+            db_config=db_config,
+            sql_query=sql_query,
+            user_id=user_id,
+            max_rows=max_rows,
+            timeout_seconds=timeout_seconds,
+        )
+        return {"status": "success", "row_count": 0}
+
+    context_sync = _ContextSync()
+    monkeypatch.setattr(database_operations, "execute_sql_query", execute_stub)
+    monkeypatch.setattr(context_sync_module, "get_default_context_sync", lambda: context_sync)
+
+    result = DatabaseService.execute_query(
+        {"db_type": "mysql", "database": "private-db"},
+        "SELECT 1",
+        "user-1",
+        max_rows=25,
+        timeout=7,
+    )
+
+    assert result["status"] == "success"
+    assert captured == {
+        "db_config": {"db_type": "mysql", "database": "private-db"},
+        "sql_query": "SELECT 1",
+        "user_id": "user-1",
+        "max_rows": 25,
+        "timeout_seconds": 7,
+    }
+
+
+def test_lower_sql_operation_does_not_emit_http_security_event(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Catch duplicate human SQL events outside the privileged HTTP middleware."""
     cursor = _SuccessfulQueryCursor()
 
     class Adapter:
@@ -1475,29 +1537,22 @@ def test_successful_query_audit_omits_sql_literals(
         "service.database.connection_manager.get_connection_manager",
         lambda: _QueryManager(cursor),
     )
-    query = "SELECT salary FROM private_payroll WHERE employee_id = 'boundary-secret'"
-
-    with caplog.at_level(logging.INFO, logger="audit"):
+    with _capture_direct_audit_records() as records:
         result = database_operations.execute_sql_query(
             {"db_type": "mysql", "database": "analytics"},
-            query,
+            "SELECT salary FROM private_payroll WHERE employee_id = 'boundary-secret'",
             user_id="user-1",
         )
 
     assert result["status"] == "success"
-    payloads = _audit_payloads(caplog.records)
-    assert len(payloads) == 1
-    details = payloads[0]["details"]
-    assert set(details) == {"row_count", "truncated", "execution_time_ms", "statement_type"}
-    assert details["statement_type"] == "SELECT"
-    assert "boundary-secret" not in " ".join(record.getMessage() for record in caplog.records)
+    assert _audit_payloads(records) == []
 
 
-def test_value_error_audit_omits_sql_literals(
+def test_value_error_stays_safe_without_lower_audit_event(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Validation-denied audit records contain a stable reason but no submitted SQL."""
+    """Preserve the safe validation contract after centralizing HTTP audit ownership."""
     cursor = _SuccessfulQueryCursor()
 
     class Adapter:
@@ -1519,25 +1574,24 @@ def test_value_error_audit_omits_sql_literals(
     )
     query = "SELECT 'boundary-secret'"
 
-    with caplog.at_level(logging.INFO, logger="audit"):
-        result = database_operations.execute_sql_query(
-            {"db_type": "mysql", "database": "analytics"},
-            query,
-            user_id="user-1",
-        )
+    with _capture_direct_audit_records() as records:
+        with caplog.at_level(logging.INFO):
+            result = database_operations.execute_sql_query(
+                {"db_type": "mysql", "database": "analytics"},
+                query,
+                user_id="user-1",
+            )
 
     assert result["status"] == "error"
-    payloads = _audit_payloads(caplog.records)
-    assert len(payloads) == 1
-    assert payloads[0]["details"] == {"reason": "validation_error"}
+    assert _audit_payloads(records) == []
     _assert_safe_log_records(caplog.records)
 
 
-def test_driver_failure_audit_omits_sql_literals(
+def test_driver_failure_stays_safe_without_lower_audit_event(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Unexpected driver failures log only stable categories and safe audit metadata."""
+    """Preserve stable driver failures after centralizing HTTP audit ownership."""
     cursor = _FailingCursor()
     monkeypatch.setattr("service.database.adapters.get_adapter", lambda _db_type: _FailingAdapter())
     monkeypatch.setattr(
@@ -1546,21 +1600,20 @@ def test_driver_failure_audit_omits_sql_literals(
     )
     query = "SELECT 'boundary-secret'"
 
-    with caplog.at_level(logging.INFO):
-        result = database_operations.execute_sql_query(
-            {"db_type": "mysql", "database": "analytics"},
-            query,
-            user_id="user-1",
-        )
+    with _capture_direct_audit_records() as records:
+        with caplog.at_level(logging.INFO):
+            result = database_operations.execute_sql_query(
+                {"db_type": "mysql", "database": "analytics"},
+                query,
+                user_id="user-1",
+            )
 
     assert result == {
         "status": "error",
         "error_code": "DB_PERMISSION_DENIED",
         "message": "Database permission denied.",
     }
-    payloads = _audit_payloads(caplog.records)
-    assert len(payloads) == 1
-    assert payloads[0]["details"] == {"reason": "DB_PERMISSION_DENIED"}
+    assert _audit_payloads(records) == []
     _assert_safe_log_records(caplog.records)
 
 
