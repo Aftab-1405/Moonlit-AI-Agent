@@ -553,10 +553,8 @@ def test_ai_execution_rejects_dangerous_function_before_database_boundary(
 
     assert result == {
         "status": "error",
-        "message": (
-            "Query blocked for security reasons: "
-            "Function pg_read_file is prohibited: file access"
-        ),
+        "error_code": "QUERY_POLICY_DENIED",
+        "message": ("Query blocked for security reasons: Function pg_read_file is prohibited: file access"),
     }
     assert boundary.attempts == 0
 
@@ -582,6 +580,7 @@ def test_ai_execution_rejects_stateful_select_before_database_boundary(
 
     assert result == {
         "status": "error",
+        "error_code": "QUERY_POLICY_DENIED",
         "message": f"Query blocked for security reasons: {warning}",
     }
     assert boundary.attempts == 0

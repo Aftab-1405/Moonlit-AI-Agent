@@ -26,9 +26,28 @@ import re
 from contextlib import contextmanager
 from typing import Dict, List, Optional
 
+from core.audit import audit_log
 from core.errors import log_safe_exception, public_database_error, public_tool_error
 
 logger = logging.getLogger(__name__)
+
+
+def _audited_agent_query_result(
+    user_id: str,
+    result: Dict,
+    *,
+    outcome: str,
+    details: Dict | None = None,
+) -> Dict:
+    """Emit one allow-listed terminal agent SQL event and return its public result."""
+    audit_log(
+        actor=f"user:{user_id}" if user_id else "user:unknown",
+        action="agent.sql.execute",
+        resource="db:agent-query",
+        outcome=outcome,
+        details=details or {},
+    )
+    return result
 
 
 def _database_failure(operation: str, exc: BaseException, *, status_style: bool = False) -> Dict:
@@ -294,18 +313,33 @@ class AIToolExecutor:
         context_sync = get_default_context_sync()
 
         if not query:
-            return {"error": "Query is required"}
+            return _audited_agent_query_result(
+                user_id,
+                {"error": "Query is required"},
+                outcome="failure",
+                details={"reason": "QUERY_REQUIRED"},
+            )
 
         connection = context_sync.get_connection(user_id)
         if not connection.get("connected"):
-            return {"error": "Not connected to any database"}
+            return _audited_agent_query_result(
+                user_id,
+                {"error": "Not connected to any database"},
+                outcome="failure",
+                details={"reason": "DB_CONNECTION_REQUIRED"},
+            )
 
         try:
             if db_config:
                 logger.debug("Executing query with explicit db_config")
                 result = AIToolExecutor._execute_query_with_db_config(db_config, connection, query, max_rows)
             else:
-                return {"error": "No database config available. Please re-connect to the database."}
+                return _audited_agent_query_result(
+                    user_id,
+                    {"error": "No database config available. Please re-connect to the database."},
+                    outcome="failure",
+                    details={"reason": "DB_CONNECTION_REQUIRED"},
+                )
             database = connection.get("database")
             row_count = result.get("row_count", 0)
             status = "success" if result.get("status") == "success" else "error"
@@ -317,20 +351,35 @@ class AIToolExecutor:
                 # a total when additional rows may exist.
                 total_rows = None if result.get("truncated") else result.get("row_count", 0)
                 result_data = result.get("result", [])
-                return {
-                    "success": True,
-                    "columns": result.get("columns", []),
-                    "data": result_data,
-                    "row_count": len(result_data),
-                    "total_rows": total_rows,
-                    "truncated": result.get("truncated", False),
-                }
+                return _audited_agent_query_result(
+                    user_id,
+                    {
+                        "success": True,
+                        "columns": result.get("columns", []),
+                        "data": result_data,
+                        "row_count": len(result_data),
+                        "total_rows": total_rows,
+                        "truncated": result.get("truncated", False),
+                    },
+                    outcome="success",
+                    details={
+                        "statement_type": result.get("query_type", "UNKNOWN"),
+                        "row_count": len(result_data),
+                    },
+                )
             else:
-                return {
-                    "success": False,
-                    "error_code": result.get("error_code", "DB_OPERATION_FAILED"),
-                    "error": result.get("message", "Database operation failed."),
-                }
+                error_code = result.get("error_code", "DB_OPERATION_FAILED")
+                outcome = "denied" if error_code == "QUERY_POLICY_DENIED" else "failure"
+                return _audited_agent_query_result(
+                    user_id,
+                    {
+                        "success": False,
+                        "error_code": error_code,
+                        "error": result.get("message", "Database operation failed."),
+                    },
+                    outcome=outcome,
+                    details={"reason": error_code},
+                )
 
         except Exception as e:
             public = public_database_error(e)
@@ -376,11 +425,16 @@ class AIToolExecutor:
                     clear_public,
                 )
 
-            return {
-                "success": False,
-                "error_code": public.code,
-                "error": public.message,
-            }
+            return _audited_agent_query_result(
+                user_id,
+                {
+                    "success": False,
+                    "error_code": public.code,
+                    "error": public.message,
+                },
+                outcome="failure",
+                details={"reason": public.code},
+            )
 
     @staticmethod
     def _execute_query_with_db_config(db_config: Dict, connection: Dict, query: str, max_rows: int) -> Dict:
@@ -407,6 +461,7 @@ class AIToolExecutor:
         if not db_config:
             return {
                 "status": "error",
+                "error_code": "DB_CONNECTION_REQUIRED",
                 "message": "No database connection available. Please connect to a database first.",
             }
 
@@ -418,6 +473,7 @@ class AIToolExecutor:
         if len(query) > Config.SQL_QUERY_MAX_LENGTH:
             return {
                 "status": "error",
+                "error_code": "QUERY_POLICY_DENIED",
                 "message": (f"Query too long. Maximum: {Config.SQL_QUERY_MAX_LENGTH} characters."),
             }
 
@@ -426,12 +482,14 @@ class AIToolExecutor:
         if not analysis["is_safe"]:
             return {
                 "status": "error",
+                "error_code": "QUERY_POLICY_DENIED",
                 "message": f"Query blocked for security reasons: {', '.join(analysis['warnings'])}",
             }
 
         if analysis["query_type"] not in ("SELECT", "WITH"):
             return {
                 "status": "error",
+                "error_code": "QUERY_POLICY_DENIED",
                 "message": f"READ-ONLY MODE: Only SELECT/WITH queries are allowed. {analysis['query_type']} is blocked.",
             }
 
@@ -570,6 +628,7 @@ class AIToolExecutor:
                 "row_count": row_count,
                 "truncated": truncated,
                 "execution_time_ms": execution_time,
+                "query_type": analysis["query_type"],
             }
 
         except Exception as e:

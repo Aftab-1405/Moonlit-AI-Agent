@@ -1618,6 +1618,110 @@ def test_driver_failure_stays_safe_without_lower_audit_event(
 
 
 @pytest.mark.parametrize(
+    ("inner_result", "expected_outcome", "expected_details"),
+    [
+        (
+            {
+                "status": "success",
+                "columns": ["value"],
+                "result": [{"value": 1}],
+                "row_count": 1,
+                "truncated": False,
+                "query_type": "SELECT",
+            },
+            "success",
+            {"statement_type": "SELECT", "row_count": 1},
+        ),
+        (
+            {
+                "status": "error",
+                "error_code": "QUERY_POLICY_DENIED",
+                "message": "Query blocked by policy.",
+            },
+            "denied",
+            {"reason": "QUERY_POLICY_DENIED"},
+        ),
+        (
+            {
+                "status": "error",
+                "error_code": "DB_PERMISSION_DENIED",
+                "message": "Database permission denied.",
+            },
+            "failure",
+            {"reason": "DB_PERMISSION_DENIED"},
+        ),
+    ],
+)
+def test_agent_sql_emits_one_sanitized_terminal_event(
+    monkeypatch: pytest.MonkeyPatch,
+    inner_result: dict,
+    expected_outcome: str,
+    expected_details: dict,
+) -> None:
+    """Catch missing, duplicate, misclassified, or content-bearing agent SQL events."""
+    context_sync = _ContextSync()
+    monkeypatch.setattr(context_sync_module, "get_default_context_sync", lambda: context_sync)
+    monkeypatch.setattr(
+        AIToolExecutor,
+        "_execute_query_with_db_config",
+        staticmethod(lambda *_args: dict(inner_result)),
+    )
+    query = "SELECT 'private-sql' FROM private_table"
+    db_config = {"db_type": "mysql", "database": "private-db"}
+
+    with _capture_direct_audit_records() as records:
+        AIToolExecutor._execute_query("user-1", query, 100, db_config)
+
+    payloads = _audit_payloads(records)
+    assert len(payloads) == 1
+    assert payloads[0]["actor"] == "user:user-1"
+    assert payloads[0]["action"] == "agent.sql.execute"
+    assert payloads[0]["resource"] == "db:agent-query"
+    assert payloads[0]["outcome"] == expected_outcome
+    assert payloads[0]["details"] == expected_details
+    rendered = " ".join(record.getMessage() for record in records)
+    assert "private-sql" not in rendered
+    assert "private_table" not in rendered
+    assert "private-db" not in rendered
+
+
+def test_agent_sql_missing_config_emits_one_safe_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Audit an early terminal return that never reaches a database operation."""
+    context_sync = _ContextSync()
+    monkeypatch.setattr(context_sync_module, "get_default_context_sync", lambda: context_sync)
+
+    with _capture_direct_audit_records() as records:
+        result = AIToolExecutor._execute_query(
+            "user-1",
+            "SELECT 'private-sql'",
+            100,
+            None,
+        )
+
+    assert result == {"error": "No database config available. Please re-connect to the database."}
+    payloads = _audit_payloads(records)
+    assert len(payloads) == 1
+    assert payloads[0]["outcome"] == "failure"
+    assert payloads[0]["details"] == {"reason": "DB_CONNECTION_REQUIRED"}
+    assert "private-sql" not in records[0].getMessage()
+
+
+def test_agent_sql_policy_denial_has_a_stable_error_code() -> None:
+    """Let the outer executor distinguish policy rejection from database failure."""
+    result = AIToolExecutor._execute_query_with_db_config(
+        {"db_type": "mysql", "database": "private-db"},
+        {"connected": True, "database": "private-db"},
+        "DELETE FROM private_table",
+        100,
+    )
+
+    assert result["status"] == "error"
+    assert result["error_code"] == "QUERY_POLICY_DENIED"
+
+
+@pytest.mark.parametrize(
     "connect_call",
     [
         lambda: connection_handlers.connect_mysql("db.example.com", 3306, "user", "password"),
