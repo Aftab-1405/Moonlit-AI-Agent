@@ -361,6 +361,9 @@ per-environment subclasses (`DevelopmentConfig`, `StagingConfig`, `ProductionCon
 | `STARTUP_DIAGNOSTICS_ENABLED` | `True` in development; `False` otherwise | Run bounded Redis and Firestore connectivity probes and emit a sanitized startup summary. |
 | `STARTUP_DIAGNOSTICS_TIMEOUT_SECONDS` | `5` | Maximum duration of the live Redis and Firestore startup probes. |
 | `LOG_FILE` | `backend.log` | Path appended to by the `FileHandler` configured in `main.py`. |
+| `AUDIT_LOG_FILE` | `audit.log` | Dedicated JSON-lines security audit path. The file and rotated successors are created with mode `0600`. |
+| `AUDIT_LOG_MAX_BYTES` | `10485760` | Rotate the active audit file after it reaches 10 MiB. Must be greater than zero. |
+| `AUDIT_LOG_BACKUP_COUNT` | `10` | Number of rotated audit files retained locally. Must be zero or greater. |
 | `LOG_FORMAT` | `%(asctime)s - %(name)s - %(levelname)s - request_id=%(request_id)s - %(message)s` | Python logging format string. Root handlers receive the request-correlation filter after logging is configured. |
 | `THIRD_PARTY_LOG_LEVEL` | `WARNING` | Log level applied to every "noisy" third-party logger. |
 | `NOISY_LOGGER_NAMES` | (long default — see `config.py`) | Comma-separated logger names silenced to `THIRD_PARTY_LOG_LEVEL`. |
@@ -370,16 +373,21 @@ per-environment subclasses (`DevelopmentConfig`, `StagingConfig`, `ProductionCon
 
 Logging safety contract:
 
-- SQL audit events never contain submitted SQL or query previews. Successful events retain only
-  statement type, row count, truncation status, and execution time; denied and failed events use
-  stable reason/error codes.
+- Human HTTP SQL audit events never contain submitted SQL or query previews; they retain only the
+  fixed method/status metadata observed by the privileged-action middleware. Agent SQL success
+  retains statement type and returned row count, while denial/failure uses a stable reason code.
+- Selected privileged authentication, database lifecycle, conversation deletion, context/history,
+  settings, session-close, metrics-reset, and SQL actions emit one actor/action/resource/outcome
+  event correlated with the response `X-Request-ID`.
 - Database exceptions are logged through `core.errors.log_safe_exception`, which records only the
   operation, exception type, stable error code, and request ID. Raw exception text and tracebacks
   are excluded.
 - Structured redaction canonicalizes snake_case, kebab-case, camelCase, and PascalCase sensitive
   keys. Database connection strings, DSNs, passwords, and credential aliases are fully redacted.
-- Deployment must separately enforce restricted log/SIEM access, encryption, rotation, retention,
-  deletion, and monitoring for audit-delivery failures.
+- `audit.log` is only an application handoff point. Deployment must ship active and rotated records
+  to a centralized tamper-resistant sink and separately enforce restricted access, encryption,
+  multi-process-safe collection/rotation, retention/deletion, clock synchronization, and alerts
+  for delivery failures.
 
 ### Security / Cookies / CSRF
 
@@ -833,7 +841,10 @@ Configured in `pyproject.toml`:
 2. **Multi-worker production deployments require shared Redis** — both `REDIS_URL` (for sessions + quota + LangGraph checkpointer) and `RATELIMIT_STORAGE_URL` (for slowapi) must point at a shared Redis backend. In-memory storage would fragment quota and rate-limit counters across workers.
 3. **The auth router is mounted at the root** (no `/api/v1` prefix). All four auth endpoints (`/set_authenticated_user_session`, `/check_authenticated_user_session`, `/logout_authenticated_user_session`, `/firebase-config-and-csrf-token`) are therefore at the root. Every other endpoint is under `/api/v1/...`.
 4. **`DEV_AUTH_BYPASS=True` is dev-only** — when enabled, requests without a session cookie authenticate as a local dev user. FIX [M17] restricts the bypass to ONLY the no-cookie case: a presented-but-invalid cookie returns 401/503, never silently dev-auths.
-5. **`backend.log`** is the default `LOG_FILE` target and will be created at the project root. Consider gitignoring it.
+5. **Application log paths must be writable** — `backend.log` is the default `LOG_FILE`; `audit.log`
+   is the default `AUDIT_LOG_FILE`. The audit path uses 10 MiB rotation with 10 backups and mode
+   `0600`. Production must mount or ship all active/rotated audit files; a local file alone is not
+   centralized or tamper-resistant compliance evidence.
 6. **The `skills/` directory contains 4 `SKILL.md` files** (agent skill prompts) loaded at runtime by `skills/skill_registry.py`. They're runtime data, not Python modules.
 7. **Dependency installation is lock-controlled** — `pyproject.toml` declares runtime and dev
    dependencies, `uv.lock` is committed, and CI/production must use `--locked`. Production also

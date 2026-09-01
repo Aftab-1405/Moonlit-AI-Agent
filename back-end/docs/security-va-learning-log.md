@@ -1,6 +1,6 @@
 # Security Vulnerability Assessment Learning Log
 
-Last updated: 2026-08-30
+Last updated: 2026-09-02
 
 This document records each audit finding as it is independently validated against the current
 backend. Its purpose is both operational and educational: preserve what was found, show how the
@@ -40,6 +40,7 @@ For each finding:
 | DEP-002 | Low | VALID — FIXED | Known-vulnerable dependency exclusion |
 | API-001 | Medium | VALID — FIXED | Pre-parse request resource bounds |
 | CORE-001 | Medium | VALID — FIXED | Sensitive-data exclusion from logs |
+| CORE-002 | Medium | VALID — FIXED | Privileged-action audit coverage and correlation |
 
 ## DEP-001 — Unlocked production dependencies and missing artifact integrity
 
@@ -318,6 +319,125 @@ Verification completed with the locked uv environment:
 The VA lesson is to test the rendered output of every relevant sink with fabricated markers. A
 safe client response does not prove safe logs, and a redaction helper does not protect values whose
 field names never match its policy.
+
+## CORE-002 — Privileged actions lacked a reliable correlated audit trail
+
+### Vulnerability class
+
+- CWE-778 — Insufficient Logging
+- OWASP A09:2021 — Security Logging and Monitoring Failures
+- Primary impact: detection, attribution, non-repudiation, and incident response
+
+### Original attack path
+
+```text
+authenticated user performs or attempts a privileged action
+→ controller succeeds or rejects before any structured security event is emitted
+→ ordinary product logs contain incomplete actor/action/outcome evidence
+→ investigators cannot reliably correlate or reconstruct the activity
+```
+
+Human SQL had a separate attribution defect: the controller passed `user_id` to
+`DatabaseService.execute_query()`, but the service did not forward it to the lower executor that
+owned the old audit calls. Those records therefore used `user:unknown`. Agent-generated SQL did
+not call the audit emitter at all, and an audit handler failure had no safe operational signal.
+
+### Validation and verdict
+
+The finding was partly stale and partly valid. Before this remediation, the outer pure-ASGI
+response boundary already generated, validated, bound, returned, and cleared `X-Request-ID`.
+Root-handler filters also attached it to child-logger records. Those request-correlation claims in
+the original finding had already been fixed.
+
+The remaining source paths were confirmed:
+
+- production had only four `audit_log()` call sites, all inside human SQL execution;
+- login/logout, database lifecycle, conversation deletion, context/history deletion, settings,
+  and session closure had no consistent structured outcome event;
+- `DatabaseService.execute_query()` omitted `user_id` when calling `execute_sql_query()`;
+- `audit_log()` did not inherit the bound request ID;
+- `AIToolExecutor._execute_query()` emitted no structured terminal event; and
+- the audit logger had only a `NullHandler`, no dedicated configured sink, and no delivery-failure
+  counter or payload-free warning.
+
+Test-first regressions reproduced missing request correlation, missing sink APIs, every missing
+middleware behavior, the dropped SQL actor, duplicate lower-layer SQL ownership, absent agent SQL
+events, missing policy-denial classification, and the double sink/telemetry failure edge case.
+
+Verdict: **VALID — FIXED** in application source on 2026-09-02.
+
+### Impact
+
+- Malicious or compromised users could perform sensitive changes without a consistent record of
+  actor, action, outcome, and request correlation.
+- Authentication/CSRF denials and destructive operations could not be reliably distinguished from
+  ordinary application noise during incident response.
+- Human SQL records could not be attributed on the normal API path, and agent SQL activity was
+  absent from the structured trail.
+- Silent handler loss could create an undetected monitoring blind spot.
+
+This finding did not directly bypass authentication or authorization. It weakened detection,
+investigation, accountability, and compliance evidence when another failure or abuse occurred.
+
+### Selected remediation
+
+- Added an immutable 15-route privileged-action matrix and a pure-ASGI middleware that observes
+  final status without buffering request or response bodies.
+- Kept `ResponseSecurityMiddleware` outermost, so each selected event inherits the same validated
+  request ID returned in `X-Request-ID`.
+- Classified `2xx/3xx` as success, `401/403` as denied, other `4xx/5xx` as failure, and downstream
+  exceptions as one failure event before the existing safe error boundary handles them.
+- Read actor identity only from authenticated request state after downstream processing. Missing
+  identity uses `user:anonymous`; cookies and request bodies are never inspected by the audit
+  middleware.
+- Centralized human HTTP SQL auditing in middleware and removed four duplicate lower-operation
+  emitters. `DatabaseService` now preserves its authenticated-user plumbing.
+- Added exactly one `agent.sql.execute` event for success, policy denial, early connection/config
+  failure, and database failure. Agent audit details use only statement type, row count, or a
+  stable reason code.
+- Configured one owner-only (`0600`) rotating JSON-lines sink. Configuration is idempotent, the
+  audit logger no longer propagates into general logs, and process-local delivery failures produce
+  a counter plus a payload-free warning.
+- Preserved the fail-open request contract even when both the primary audit sink and its telemetry
+  logger fail.
+
+The event allow-list excludes raw SQL, database names, path parameters, request/response bodies,
+conversation or memory content, tokens, cookies, passwords, connection strings, and exception
+text.
+
+### Verification evidence
+
+Verification used the locked uv environment with `APP_ENV=testing` and a test-only `SECRET_KEY`:
+
+- Focused CORE-002 regression group: **331 passed**, with 3 existing SlowAPI/Python 3.14
+  deprecation warnings.
+- Complete backend suite excluding the separately known ignored terminal-contract file:
+  **747 passed**, with the same 3 warnings.
+- Repository-wide `ruff check .`: passed.
+- Targeted `ruff format --check` passed for the formatter-clean CORE-002 modules and tests.
+- Repository-wide `ruff format --check .` remains non-clean because 37 pre-existing files would be
+  reformatted; unrelated formatting was deliberately not introduced as part of this security fix.
+- `git diff --check`: passed.
+
+The initial full baseline encountered one lease lifecycle timing failure; its immediate isolated
+rerun passed. The final complete run passed the same lifecycle test as part of all 747 tests.
+
+### Residual risk and VA lesson
+
+- `audit.log` is a local application handoff point, not proof of durable centralized retention.
+  Production must mount or ship every active/rotated file to an access-controlled,
+  tamper-resistant sink and verify ingestion, alerts, retention/deletion, encryption, disk
+  capacity, backup controls, and clock synchronization.
+- The process-local failure counter is useful for application health but must be scraped or mapped
+  to deployed alerting before it becomes an operational guarantee.
+- Python's rotating file handler is not a centralized multi-process audit system. Multi-worker
+  production deployments must use deployment-managed collection/rotation or a supported SIEM
+  transport and verify that concurrent processes do not lose records.
+
+The VA lesson is to validate logging findings as an end-to-end evidence chain: event coverage,
+actor attribution, outcome classification, request correlation, privacy allow-list, delivery
+health, and durable retention are separate controls. Adding middleware closes consistency gaps,
+but application events alone do not prove SIEM ingestion or tamper resistance.
 
 ## CONTRACT-003 — Malformed tool results were relabeled as successful evidence
 
