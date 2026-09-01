@@ -1,8 +1,33 @@
 # Moonlit Backend Audit Memory
 
-Last updated: 2026-08-25
+Canonical location: `back-end/docs/memory.md`
+
+Last updated: 2026-08-30
 
 ## Remediation decision log
+
+### 2026-08-30 — CORE-001 sensitive database logging
+
+- CORE-001 was valid but partly remediated: query-operation exceptions already used stable safe
+  logging, while SQL audit previews, camel-case redaction misses, connection-string/DSN fields, and
+  raw adapter exception logs remained reproducible with fabricated markers.
+- The approved source-level omission design removes SQL from audit records, retains safe execution
+  metadata, canonicalizes common key styles, comprehensively redacts connection configs, and routes
+  MySQL/PostgreSQL/SQL Server/Oracle diagnostics through `log_safe_exception` without traceback or
+  exception text.
+- Test-first evidence: 9 focused regression tests failed on the old behavior and passed after the
+  change. The broader focused group passed 148 tests; the unaffected backend suite passed 621 with
+  3 existing dependency warnings. Targeted Ruff, diff checking, and core security/error mypy pass;
+  wider adapter/operations mypy retains 64 pre-existing errors. The unrelated terminal-contract
+  file remains at its known 9 failures and 2 passes. Deployment verification remains required for
+  log/SIEM access, retention, encryption, backups, rotation, and audit-delivery monitoring.
+
+### 2026-08-28 — DEP-001 reproducible uv dependency workflow
+
+- `pyproject.toml` is now the only dependency source of truth. Runtime dependencies and the seven development/audit tools are separated, uv is pinned to `0.12.5`, the broad `requirements.txt` alternate install path was removed, and the universal `uv.lock` records 163 exact package entries with SHA-256 hashes for every artifact of all 162 registry packages.
+- Production uses `uv sync --locked --no-dev --no-build`: stale metadata fails instead of rewriting the lock, development/audit tooling is excluded, and source-distribution build hooks are rejected. Gunicorn is now declared and locked because it is the documented production process manager. Dependency updates are explicit reviewed lock changes.
+- TDD evidence: the new dependency-policy tests first failed on the missing `[project.dependencies]` and `uv.lock`, then passed 2/2. A clean production environment synchronized 136 compatible packages and passed major runtime imports. A separate clean development/audit environment synchronized 159 compatible packages; `pip-audit` found no known vulnerabilities, Ruff passed the entire backend, and targeted mypy passed.
+- Full locked-environment pytest reported 614 passed and 9 terminal-contract failures. The same 9 failures reproduce unchanged in the prior environment, so they are pre-existing working-tree failures rather than uv regressions; the unaffected locked-environment suite passed 612 tests with the 3 existing SlowAPI/Python 3.14 warnings.
 
 ### 2026-08-25 — Request-path incident: fail closed at asset and settings contracts
 
@@ -544,11 +569,18 @@ Exit gate: clean locked builds are reproducible; unit/integration/contract/load 
 ### [CONTRACT-003] Tool-result validation failures are relabeled as successful results
 
 - Severity: Medium
-- Classification: verified serialization defect
+- Classification: **VALID — FIXED** in application source on 2026-08-30
 - Evidence: `tool_schemas.py:445-602` catches any result-model error and returns `{"success": True, "data": raw_result, "_structuring_error": ...}`. A probe with `row_count="not-an-int"` produced that success shape.
 - Impact: malformed adapter output silently bypasses the declared contract; the UI and model can treat invalid/partial data as verified success, cache it, and base further queries or claims on it.
 - Remediation: fail closed with `success=False`, a stable internal contract error code, and no raw unsafe payload to clients. Log schema errors with tool/run IDs; validate adapter result contracts in tests.
 - Validation: malformed/missing/wrong-type outputs for every tool result schema must produce a typed failure and never enter cache, model evidence, or a success UI state.
+- Resolution: all 19 registered tools now have exact argument/result-registry coverage; unknown or
+  malformed results return `TOOL_RESULT_INVALID`; missing core database-result fields cannot become
+  empty success results; bespoke emitters pass through canonical structuring. The UI/model split also
+  keeps full VAMP memory and skill bodies out of SSE and persisted timeline results. Focused backend
+  contract tests cover every registered success path, invalid/missing paths, bespoke events,
+  operation-specific analysis, safe web URLs, and memory disclosure; frontend tests enforce the
+  exact 19-tool catalog, summaries, bounded fallback, query metadata, and query-history models.
 
 ### [PERF-001] `get_query_history` performs synchronous storage I/O on the event loop
 
@@ -641,11 +673,10 @@ Exit gate: clean locked builds are reproducible; unit/integration/contract/load 
 ### [SUPPLY-001] Dependency installation is non-reproducible despite a clean installed-package vulnerability scan
 
 - Severity: Medium
-- Classification: verified release/supply-chain risk
-- Evidence: `requirements.txt` uses broad ranges and has no committed transitive lock or hashes; `pip-audit -r requirements.txt --disable-pip` cannot audit non-exact requirements. Auditing the installed environment reported no known vulnerabilities, but `pip check` reported incompatible Semgrep/MCP and OpenTelemetry package versions.
-- Impact: clean deployments can resolve different SDK combinations, including LangGraph/Qdrant/Firebase behavior this code relies on, and the current development environment is internally inconsistent. A point-in-time clean vulnerability scan does not make future installs reproducible.
-- Remediation: maintain separate locked runtime and dev/test dependency sets with hashes, rebuild the environment from the lock in CI, run `pip check` and `pip-audit` on that clean artifact, and define a controlled upgrade cadence with orchestration/serialization integration tests.
-- Validation: two clean builds from the same commit produce identical package graphs; `pip check`, vulnerability audit, imports, tests, and startup smoke all pass.
+- Classification: remediated release/supply-chain risk; deployment enforcement requires verification
+- Original evidence: `requirements.txt` used broad ranges with no committed transitive lock or hashes, and the prior shared environment contained unrelated dependency conflicts.
+- Remediation evidence (2026-08-28): dependencies moved to `pyproject.toml`, uv `0.12.5` is pinned, `uv.lock` contains the universal exact graph and SHA-256 artifact hashes, and production uses `--locked --no-dev --no-build`. Clean production and development/audit environments passed compatibility checks; the vulnerability audit found no known issues.
+- Remaining validation: CI and deployed images must actually use the committed lock and production flags, retain scan/SBOM evidence, and update through reviewed lockfile changes. The 9 pre-existing terminal-contract failures remain outside this dependency remediation.
 
 ### [DBSEC-001] A syntactically read-only query can still execute privileged or side-effecting functions
 

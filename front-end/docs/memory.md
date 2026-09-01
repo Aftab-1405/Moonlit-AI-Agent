@@ -1,5 +1,7 @@
 # Project Memory
 
+Canonical location: `front-end/docs/memory.md`
+
 ## Current Focus
 
 Current phase: Phase 6 — Cross-application responsive and final audit
@@ -42,7 +44,7 @@ contract around flat 8px hairline surfaces, 24px card padding, documented conten
 sentence-case display typography, and the canonical 768px topology boundary.
 Files changed: Landing presentation helper/tests; Hero, shared sections, capability/security/workflow
 cards, database strip, workspace illustration, page header/footer; focused landing audit; package
-script; and Phase 5 audit records. `front-end/DESIGN.md` was not changed.
+script; and Phase 5 audit records. `front-end/docs/design.md` was not changed.
 Validation: Twelve frontend Node tests, landing/auth-admin/dark/theme/interaction/input-focus/workspace
 audits, full ESLint, Knip, production build, diff checks, and a served `/` HTTP 200 check passed. The
 known Perspective vendor chunk-size warning remains. Live responsive browser interaction and
@@ -139,7 +141,7 @@ stabilized workspace-canvas callbacks so left-sidebar animation no longer reconc
 lists.
 Files changed: Preference surfaces, Settings/Database overlays, shared Drawer/Dialog/Confirm/toast
 primitives, chat/sidebar controller wiring, artifact header action mapping, workspace-canvas hook,
-the focused Phase 3 audit, and Phase 3 specification/plan documentation. `front-end/DESIGN.md` was
+the focused Phase 3 audit, and Phase 3 specification/plan documentation. `front-end/docs/design.md` was
 not changed.
 Validation: Seven Node test files; workspace, dark, theme, interaction, and input-focus audits; full
 lint; Knip; and production build passed. Browser checks covered desktop, 390px, 767px, and 768px,
@@ -161,7 +163,7 @@ removed unsupported shortcut labels; and upgraded the animated mobile drawer to 
 ownership with reduced-motion support.
 Files changed: Sidebar components/styles, shared Drawer and obsolete selectable-row helper,
 conversation/controller hooks, focused model tests, interaction audit, Phase 2 spec/plan, and audit
-documentation. `front-end/DESIGN.md` was not changed.
+documentation. `front-end/docs/design.md` was not changed.
 Validation: Six Node tests, four design audits, full lint, Knip, and production build passed. The
 build retains the existing Perspective chunk warning. Authenticated browser checks passed for
 expanded/collapsed desktop, Search/History initial focus, active-row semantics, 390/767px modal
@@ -181,7 +183,7 @@ directly; the collapsed desktop Profile popover supplies the explicit Settings f
 account metadata is normalized at the auth boundary without exposing raw Firebase objects or UID.
 Files changed: Auth normalization utility/tests, `AuthContext.jsx`, sidebar footer/model/tests,
 sidebar controller wiring, `UserProfileMenu.jsx`, `MainInterface.jsx`, and focused design/plan
-documents. `front-end/DESIGN.md` was not changed.
+documents. `front-end/docs/design.md` was not changed.
 Validation: Five Node test entries passed; dark, theme, interaction, and input-focus audits passed;
 lint and Knip passed; production build passed with the existing Perspective chunk warning.
 Authenticated browser checks passed for separate expanded controls, direct Settings, collapsed
@@ -200,7 +202,7 @@ responsive pill geometry, and corrected guided-confirmation stacking and focus t
 ordering, tool execution, streaming data flow, and artifact behavior were preserved.
 Files changed: `MessageList.jsx`, `MarkdownRenderer.jsx`, `CodeViewer.jsx`,
 `InlineExecutionTable.jsx`, `GuidedConfirmationPrompt.jsx`, `ai-response-steps/**`, shared interface
-chrome, the interaction audit, and Phase 1C design/plan/audit documentation. `front-end/DESIGN.md`
+chrome, the interaction audit, and Phase 1C design/plan/audit documentation. `front-end/docs/design.md`
 was not changed.
 Validation: Three focused Node tests passed; dark, theme, interaction, and input-focus audits
 passed; lint and Knip passed; the production build passed with the existing Perspective chunk
@@ -222,7 +224,7 @@ Auth fields and chat composer retain a single border. The AI Context segmented c
 the shared transparent-wrapper pattern, and the Connect Database Connection mode row no longer adds
 an unnecessary nested tint. Shared multi-row preference styling remains unchanged.
 Files changed: Chat/Auth/theme/shared input styles, focused audit scripts, AI Context and Database
-preference call sites, plus their design/implementation documents. `front-end/DESIGN.md` was not
+preference call sites, plus their design/implementation documents. `front-end/docs/design.md` was not
 changed.
 Validation: Dark, theme, interaction, and input-focus audits passed; lint and Knip passed;
 production build passed with the existing Perspective chunk warning. Computed browser checks
@@ -241,7 +243,7 @@ sidebar and scroll-control radii, and added the composer focus ring. Chat handle
 were not changed.
 Files changed: Theme tokens, semantic tokens, shared interface chrome, chat welcome/composer/column,
 theme/interaction audit scripts, Phase 1B specification/plan, and frontend audit documentation.
-`front-end/DESIGN.md` was not changed.
+`front-end/docs/design.md` was not changed.
 Validation: Three Node tests passed; lint, Knip, dark-only, theme, and interaction audits passed;
 production build passed with the existing Perspective chunk warning. Authenticated computed-style
 checks at 390/767/768px passed for typography, surface, pill geometry, control sizes, spacing, shell
@@ -259,7 +261,7 @@ control and light theme factory, ignored legacy stored/server theme preferences,
 tokens and Shiki/CodeMirror/Perspective integrations to dark, and added executable dark-only
 invariants.
 Files changed: Frontend boot/runtime/settings/theme and syntax files, audit scripts, focused tests,
-Knip configuration, README, and frontend audit documentation. `front-end/DESIGN.md` was not
+Knip configuration, README, and frontend audit documentation. `front-end/docs/design.md` was not
 changed.
 Validation: Three Node tests passed; dark-only, theme, and interaction audits passed; lint and
 Knip passed; production build passed with the existing oversized Perspective chunk warning.
@@ -277,7 +279,7 @@ Task: Read-only design and repository audit
 Summary: Read the full canonical design, mapped frontend architecture and chat composition,
 classified initial compliance gaps, established validation baseline, and defined incremental
 phases.
-Files changed: Documentation files only. `front-end/DESIGN.md` and UI code were not changed.
+Files changed: Documentation files only. `front-end/docs/design.md` and UI code were not changed.
 Validation: Frontend lint passed; build passed with an existing oversized Perspective chunk
 warning; theme and interaction audits passed their current assertions; landing content test
 passed; unauthenticated browser check redirected `/chat` to `/auth` and produced no console
@@ -295,7 +297,7 @@ unavailable. Their boundaries continue to be covered by focused automated contra
 
 ## Important Decisions
 
-- `front-end/DESIGN.md` remains authoritative and immutable.
+- `front-end/docs/design.md` remains authoritative and immutable.
 - Use foundation-first sequencing: canonical dark theme before chat component corrections.
 - Preserve existing architecture and user-owned staged changes.
 - Do not commit automatically while the repository contains the current large staged change set.

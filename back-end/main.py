@@ -3,6 +3,7 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from time import perf_counter
 
 import redis.asyncio as redis
 from fastapi import FastAPI, HTTPException, Request, status
@@ -21,6 +22,13 @@ from config import ProductionConfig, get_config
 from controller.rate_limiter import limiter
 from core.http_boundary import RequestBodyLimitMiddleware, ResponseSecurityMiddleware
 from core.logging import install_request_id_filter
+from core.startup_diagnostics import (
+    StartupProbeResult,
+    log_development_runtime_modes,
+    log_startup_probe,
+    log_startup_summary,
+    run_startup_probe,
+)
 from langgraph_orchestration.checkpointing import (
     init_checkpointer,
     shutdown_checkpointer,
@@ -48,6 +56,51 @@ for noisy_logger in AppConfig.NOISY_LOGGER_NAMES:
 from service.redis_service import get_redis_client, set_redis_client
 
 
+async def _run_startup_dependency_probes(
+    redis_client: redis.Redis | None,
+    *,
+    timeout_seconds: float,
+) -> list[StartupProbeResult]:
+    """Verify startup dependencies without exposing connection details."""
+    results: list[StartupProbeResult] = []
+
+    if redis_client is None:
+        redis_result = StartupProbeResult(
+            name="Redis",
+            status="not_checked",
+            detail="client not configured; using in-memory application state",
+            duration_ms=0,
+        )
+    else:
+
+        async def ping_redis() -> None:
+            if not await redis_client.ping():
+                raise ConnectionError("Redis PING returned a false response")
+
+        redis_result = await run_startup_probe(
+            "Redis",
+            ping_redis,
+            timeout_seconds=timeout_seconds,
+            success_detail="PING succeeded",
+        )
+    log_startup_probe(logger, redis_result)
+    results.append(redis_result)
+
+    def read_firestore() -> None:
+        db = FirestoreService.get_db()
+        next(db.collections(retry=None, timeout=timeout_seconds), None)
+
+    firestore_result = await run_startup_probe(
+        "Firestore",
+        lambda: asyncio.to_thread(read_firestore),
+        timeout_seconds=timeout_seconds,
+        success_detail="read probe succeeded",
+    )
+    log_startup_probe(logger, firestore_result)
+    results.append(firestore_result)
+    return results
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize and tear down application state (Firebase, Redis, checkpointer, VAMP).
@@ -56,8 +109,22 @@ async def lifespan(app: FastAPI):
         app: The FastAPI application instance.
     """
 
+    startup_started_at = perf_counter()
+    env = (AppConfig.APP_ENV or "development").lower()
+    diagnostics_results: list[StartupProbeResult] = []
+
     logger.info(f"🚀 Starting application in {AppConfig.APP_ENV.upper()} mode")
     logger.info(f"   Debug: {AppConfig.DEBUG}, Testing: {AppConfig.TESTING}")
+    if AppConfig.STARTUP_DIAGNOSTICS_ENABLED:
+        logger.info("Startup diagnostics [%s]", env)
+        if env == "development":
+            log_development_runtime_modes(
+                logger,
+                host=AppConfig.UVICORN_HOST,
+                http_rate_limit_enabled=AppConfig.RATELIMIT_ENABLED,
+                llm_rate_limit_enabled=AppConfig.LLM_RATELIMIT_ENABLED,
+                user_quota_enabled=AppConfig.USER_QUOTA_ENABLED,
+            )
 
     if isinstance(AppConfig, type) and issubclass(AppConfig, ProductionConfig):
         ProductionConfig.validate_production_settings()
@@ -71,7 +138,6 @@ async def lifespan(app: FastAPI):
     FirestoreService.initialize()
 
     redis_url = AppConfig.REDIS_URL
-    env = (AppConfig.APP_ENV or "development").lower()
     is_prod_like = env in ("staging", "production")
 
     if is_prod_like:
@@ -84,11 +150,25 @@ async def lifespan(app: FastAPI):
     checkpoint_redis_url: str | None = None
     if redis_url:
         checkpoint_redis_url = redis_url
-        client = redis.from_url(redis_url, decode_responses=True)
+        client = redis.from_url(
+            redis_url,
+            decode_responses=True,
+            socket_connect_timeout=AppConfig.REDIS_SOCKET_CONNECT_TIMEOUT_SECONDS,
+            socket_timeout=AppConfig.REDIS_SOCKET_TIMEOUT_SECONDS,
+            max_connections=AppConfig.REDIS_MAX_CONNECTIONS,
+        )
         set_redis_client(client)
-        logger.info("✅ Redis application state storage enabled")
+        logger.info("Redis client configured (reachability not yet verified)")
     else:
         logger.warning("⚠️ REDIS_URL not set, using in-memory application state")
+
+    if AppConfig.STARTUP_DIAGNOSTICS_ENABLED:
+        diagnostics_results.extend(
+            await _run_startup_dependency_probes(
+                get_redis_client(),
+                timeout_seconds=AppConfig.STARTUP_DIAGNOSTICS_TIMEOUT_SECONDS,
+            )
+        )
 
     # LangGraph thread persistence: Redis in staging/production, in-memory in dev.
     await init_checkpointer(
@@ -120,7 +200,28 @@ async def lifespan(app: FastAPI):
     from llm_provider.model_factory import prewarm_chat_models
 
     logger.info("Prewarming Bedrock model clients...")
-    await asyncio.to_thread(prewarm_chat_models)
+    bedrock_started_at = perf_counter()
+    prewarm_result = await asyncio.to_thread(prewarm_chat_models)
+    bedrock_duration_ms = (perf_counter() - bedrock_started_at) * 1000
+    attempted = prewarm_result["attempted"]
+    initialized = prewarm_result["initialized"]
+    if initialized == attempted:
+        bedrock_result = StartupProbeResult(
+            name="Bedrock",
+            status="not_checked",
+            detail=f"{initialized}/{attempted} clients constructed; API access not tested",
+            duration_ms=bedrock_duration_ms,
+        )
+    else:
+        bedrock_result = StartupProbeResult(
+            name="Bedrock",
+            status="warning",
+            detail=f"{initialized}/{attempted} clients constructed; API access not tested",
+            duration_ms=bedrock_duration_ms,
+        )
+    if AppConfig.STARTUP_DIAGNOSTICS_ENABLED:
+        log_startup_probe(logger, bedrock_result)
+        diagnostics_results.append(bedrock_result)
 
     vamp_stop = asyncio.Event()
     vamp_task = None
@@ -128,16 +229,43 @@ async def lifespan(app: FastAPI):
         from vamp_memory.maintenance import run_vamp_maintenance
         from vamp_memory.vamp_memory_service import get_vamp_memory_service
 
+        qdrant_started_at = perf_counter()
         try:
             # Warm and validate Qdrant before traffic arrives. Network work is
             # still asynchronous and a temporary outage remains recoverable.
             await get_vamp_memory_service().vector_store.ensure_ready()
         except Exception as exc:
-            logger.warning("VAMP vector store was not ready at startup: %s", exc)
+            qdrant_result = StartupProbeResult(
+                name="Qdrant",
+                status="warning",
+                detail=f"readiness probe failed ({type(exc).__name__})",
+                duration_ms=(perf_counter() - qdrant_started_at) * 1000,
+            )
+        else:
+            qdrant_result = StartupProbeResult(
+                name="Qdrant",
+                status="ok",
+                detail=f"collection={AppConfig.VAMP_QDRANT_COLLECTION}",
+                duration_ms=(perf_counter() - qdrant_started_at) * 1000,
+            )
+        if AppConfig.STARTUP_DIAGNOSTICS_ENABLED:
+            log_startup_probe(logger, qdrant_result)
+            diagnostics_results.append(qdrant_result)
+        elif qdrant_result.status == "ok":
+            logger.info("Qdrant vector store ready")
+        else:
+            logger.warning("VAMP vector store was not ready at startup (%s)", qdrant_result.detail)
 
         vamp_task = asyncio.create_task(
             run_vamp_maintenance(vamp_stop, AppConfig.VAMP_MAINTENANCE_INTERVAL_SECONDS),
             name="vamp-maintenance",
+        )
+
+    if AppConfig.STARTUP_DIAGNOSTICS_ENABLED:
+        log_startup_summary(
+            logger,
+            diagnostics_results,
+            total_duration_ms=(perf_counter() - startup_started_at) * 1000,
         )
 
     logger.info("✅ Application initialized successfully")

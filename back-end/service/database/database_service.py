@@ -302,7 +302,8 @@ class DatabaseService:
             return {"status": "error", "message": "No database selected"}
 
         schema = DatabaseOperations.get_table_schema(db_config, table_name, db_name)
-        row_count = DatabaseOperations.get_table_row_count(db_config, table_name, db_name)
+        row_counts = DatabaseOperations.get_table_row_counts(db_config, [table_name], db_name)
+        row_count = row_counts[0]["row_count"]
 
         return {
             "status": "success",

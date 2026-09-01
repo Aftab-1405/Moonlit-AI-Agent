@@ -25,7 +25,7 @@ const monoCaption = (fontSize, lineHeight, letterSpacing) => ({
   textTransform: 'uppercase',
 });
 
-/** Typography roles from DESIGN.md, with compatibility aliases for existing UI code. */
+/** Typography roles from docs/design.md, with compatibility aliases for existing UI code. */
 export const createTypography = (H) => ({
   fontFamily: FONTS.sans,
   fontFamilyMono: FONTS.mono,

@@ -32,7 +32,7 @@ The database-querying skill exposes the following tools. Pick the most specific 
 | Need tables, columns (name + PK), and foreign keys in one call | `get_schema_overview(target_tables?)` | chaining `get_table_indexes` + `get_foreign_keys` |
 | Need rich per-column metadata (data type, nullability, default, max length, PK flag, UNIQUE flag) for one table | `get_table_details(table_name)` | a hand-rolled `SELECT * FROM information_schema.columns` via `execute_query` |
 | Need only foreign-key relationships (for one table or the whole DB) | `get_foreign_keys(table_name?)` | `get_schema_overview` (which also fetches tables + columns you may not need) |
-| Need the row count of one table | `get_table_row_count(table_name)` | `SELECT COUNT(*) FROM table` via `execute_query` (slower, consumes the row budget, re-parses the SQL) |
+| Need exact whole-table row counts for 1-10 tables | `get_table_row_counts(table_names=[...])` once | repeated tool calls or `SELECT COUNT(*)` via `execute_query` (slower and consumes the row budget) |
 | Need to know whether a relation is a view (or materialized view) | `list_views()` | `get_schema_overview` (which filters `table_type = 'BASE TABLE'` and hides views) |
 | Need to know which indexes exist on a table | `get_table_indexes(table_name)` | a hand-rolled `SHOW INDEX` / `pg_indexes` query |
 | Need to know WHY a query is slow, or whether it will use an index, before running it | `explain_query(query)` | running the query and observing timing |
@@ -67,11 +67,11 @@ The `plan_format` field in the result tells you how to interpret the plan: `"jso
 - The **max character length** of a column (to size `VARCHAR` host variables, to know whether a value will be truncated).
 - The **UNIQUE flag** of a column (to know whether `DISTINCT` is redundant, to plan a `JOIN` strategy).
 
-### When to use `get_table_row_count` vs `execute_query("SELECT COUNT(*)")`
+### When to use `get_table_row_counts` vs `execute_query("SELECT COUNT(*)")`
 
-`get_table_row_count(table_name)` runs the same `SELECT COUNT(*) FROM <table>` operation as the UI's table inspector — but it bypasses the LLM-issued SQL parser, the per-conversation row-budget accounting, and the per-statement timeout scaffolding that wraps `execute_query`. The result is faster and free of row-budget cost.
+`get_table_row_counts(table_names=[...])` counts every requested table in one database statement. It bypasses the LLM-issued SQL parser and per-conversation row-budget accounting used by `execute_query`. Supply one to ten unique, unqualified names from the active database/schema. Include every table needed in the current batch; if the request needs more than ten tables, use the minimum number of batches. The result preserves input order and returns an exact count for each table.
 
-Prefer `get_table_row_count` whenever the user asks "how many rows are in this table?" or you need a cardinality estimate before deciding whether to add `LIMIT` to a query. Use `execute_query("SELECT COUNT(*) FROM table WHERE ...")` only when you need a **filtered** count (the dedicated tool counts all rows).
+Prefer `get_table_row_counts` whenever the user asks how many rows are in one or more tables, or you need whole-table cardinalities before choosing a query strategy. Batch up to ten names per call and never invoke it separately for each table. Use `execute_query("SELECT COUNT(*) FROM table WHERE ...")` only when you need a **filtered** count (the dedicated tool counts all rows).
 
 ### When to use `list_views`
 
@@ -98,7 +98,7 @@ On PostgreSQL and Oracle, `list_views` also returns materialized views (in the `
 ## Smart Workflow Decision Tree
 
 1. **Do you know the schema?** If not → `get_schema_overview` (broad) or `get_table_details` (specific table).
-2. **Need to know row counts?** → `get_table_row_count` (NOT `SELECT COUNT(*)` — saves your row budget).
+2. **Need to know row counts?** → `get_table_row_counts` with up to ten names per call; use the minimum batches for larger sets (NOT one call per table or `SELECT COUNT(*)`).
 3. **Writing a query?** → `execute_query` with a reasonable `max_rows` (start with 100).
 4. **Query too slow?** → `explain_query` to see the plan, then `get_table_indexes` to check for missing indexes.
 5. **Need to understand relationships?** → `get_foreign_keys` for the specific table.
@@ -106,7 +106,7 @@ On PostgreSQL and Oracle, `list_views` also returns materialized views (in the `
 7. **Looking for views?** → `list_views` to see views and materialized views.
 
 ## Anti-patterns (AVOID)
-- Calling `execute_query` with `SELECT COUNT(*)` — use `get_table_row_count` instead.
+- Calling `execute_query` with an unfiltered `SELECT COUNT(*)`, or counting tables one at a time — use one `get_table_row_counts` batch instead.
 - Calling `get_schema_overview` repeatedly — it's cached, but call `get_table_details` for deep info on one table.
 - Calling `execute_query` with `max_rows=1000` by default — start with 100, increase only if needed.
 - Running the same query twice — check `get_query_history` first.

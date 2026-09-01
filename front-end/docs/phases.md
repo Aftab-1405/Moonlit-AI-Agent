@@ -1,5 +1,7 @@
 # Frontend Design-Compliance Phases
 
+Canonical location: `front-end/docs/phases.md`
+
 ## Phase 0 — Repository and Design-System Understanding
 
 ### Objective
@@ -14,7 +16,7 @@ sidebar, API boundaries, existing tests, staged changes, and build behavior.
 
 ### Components / Files
 
-- `front-end/DESIGN.md`
+- `front-end/docs/design.md`
 - `front-end/src/main.jsx`, `App.jsx`, routes and guards
 - `front-end/src/theme/**`, `contexts/ThemeContext.jsx`, `SettingsContext.jsx`
 - `front-end/src/features/MainInterface.jsx`, shell, chat, sidebar, and shared styles

@@ -100,7 +100,7 @@ class PromptBuilder:
             <tool_selection_guide>
             Quick reference for common tasks (load the relevant skill for full guidance):
             - Schema discovery: use get_schema_overview (broad) or get_table_details (one table's types/constraints)
-            - Row counts: use get_table_row_count (fast, no row budget) instead of SELECT COUNT(*) via execute_query
+            - Row counts: use get_table_row_counts with up to 10 unique unqualified names per call (fast, no row budget); for more than 10, use the minimum number of batches instead of one call per table or SELECT COUNT(*) via execute_query
             - Query execution: use execute_query (read-only SELECT; full rows in UI, preview to you)
             - Query performance: use explain_query (execution plan) then get_table_indexes (missing indexes)
             - Foreign keys: use get_foreign_keys (single table or all)

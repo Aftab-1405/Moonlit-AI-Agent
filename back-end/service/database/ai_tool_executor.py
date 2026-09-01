@@ -1126,7 +1126,7 @@ class AIToolExecutor:
         except Exception as e:
             return _database_failure("get_foreign_keys", e)
 
-    # New AI tools: explain_query, get_table_details, get_table_row_count,
+    # New AI tools: explain_query, get_table_details, get_table_row_counts,
     # list_views. (get_foreign_keys already exists above and is reused as
     # the backing implementation for the new standalone get_foreign_keys
     # @tool function — it already supports the optional ``table_name``
@@ -1358,27 +1358,27 @@ class AIToolExecutor:
             return _database_failure("get_table_details", e)
 
     @staticmethod
-    def _get_table_row_count(user_id: str, db_config: dict, table_name: str) -> Dict:
-        """Get the row count for a table.
+    def _get_table_row_counts(
+        user_id: str,
+        db_config: dict,
+        table_names: List[str],
+        *,
+        timeout_seconds: int | None = None,
+    ) -> Dict:
+        """Get exact row counts for several tables in one database call.
 
-        ``DatabaseOperations.get_table_row_count`` already exists in
-        ``operations.py`` but is only exposed via the UI. The AI currently
-        has to run ``SELECT COUNT(*) FROM <table>`` via execute_query,
-        which is slower (goes through the full SQL security parser, sets
-        statement timeouts, etc.) and consumes the per-conversation row
-        budget. This tool exposes the existing fast path directly.
+        The batch operation avoids one tool invocation and one database
+        roundtrip per table while retaining the dedicated count path, which
+        does not consume the per-conversation query row budget.
 
         Returns:
-            ``{"success": True, "table": <name>, "row_count": N,
-            "is_estimate": False}`` on success, or ``{"error": ...}`` on
-            failure. The count is exact (not a pg_class estimate) because the
-            underlying operation runs ``SELECT COUNT(*)``.
+            A structured list of exact counts, or a safe database error.
         """
         from service.database.context_sync import get_default_context_sync
         from service.database.operations import DatabaseOperations
 
-        if not table_name:
-            return {"error": "Table name is required"}
+        if not table_names:
+            return {"error": "At least one table name is required"}
 
         context_sync = get_default_context_sync()
         connection = context_sync.get_connection(user_id)
@@ -1386,19 +1386,24 @@ class AIToolExecutor:
             return {"error": "Not connected to any database"}
 
         database = connection.get("database")
+        if not isinstance(database, str) or not database:
+            return {"error": "No database selected"}
 
         try:
-            count = DatabaseOperations.get_table_row_count(db_config, table_name, database)
+            effective_timeout = timeout_seconds if timeout_seconds is not None else 20 * len(table_names)
+            row_counts = DatabaseOperations.get_table_row_counts(
+                db_config,
+                table_names,
+                database,
+                timeout_seconds=effective_timeout,
+            )
             return {
                 "success": True,
-                "table": table_name,
-                "row_count": int(count),
-                # The underlying operation runs SELECT COUNT(*), so the
-                # count is exact (not a pg_class / sys.partitions estimate).
-                "is_estimate": False,
+                "table_count": len(row_counts),
+                "row_counts": row_counts,
             }
         except Exception as e:
-            return _database_failure("get_table_row_count", e)
+            return _database_failure("get_table_row_counts", e)
 
     @staticmethod
     def _list_views(user_id: str, db_config: dict) -> Dict:

@@ -1,10 +1,16 @@
-import { TOOL_ACTIONS } from '@/config/toolActions';
+import { TOOL_ACTIONS } from '../../../config/toolActions.js';
+
+export {
+  getColumnDisplayMeta,
+  getDetailedResult,
+  getGenericResultView,
+  getQueryHistoryItems,
+  getTableRowCountItems,
+  getTimelineResult,
+  getWebSearchItems,
+} from './toolResultPresentation.js';
 
 function formatToolName(name = '') {
-  return name.replace(/[_-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function humanizeSkillName(name = '') {
   return name.replace(/[_-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
@@ -28,77 +34,9 @@ function isSemanticFailure(name, result) {
       return (result.count ?? result.databases?.length ?? 0) === 0;
     case 'get_schema_overview':
       return (result.table_count ?? result.tables?.length ?? 0) === 0;
-    case 'get_table_columns':
-      return (result.column_count ?? result.columns?.length ?? 0) === 0;
     default:
       return false;
   }
-}
-
-export function getDetailedResult(name, result) {
-  if (!result) return 'No result';
-  if (result.success === false || result.error) {
-    return `Error: ${result.error || result.message || 'Unknown error'}`;
-  }
-
-  const details = {
-    read_skill: () => {
-      const skillName = result.skill_name || result.skillName;
-      return skillName
-        ? `Loaded ${humanizeSkillName(skillName)} instructions`
-        : 'Loaded skill instructions';
-    },
-    get_connection_status: () => {
-      if (!result.connected) return 'Not connected to any database';
-      let msg = `Connected to ${result.database || 'database'}`;
-      if (result.db_type) msg += ` (${result.db_type.toUpperCase()})`;
-      return msg;
-    },
-    get_database_list: () => {
-      const count = result.count ?? result.databases?.length ?? 0;
-      return `Found ${count} database${count !== 1 ? 's' : ''} available`;
-    },
-    get_schema_overview: () => {
-      const count = result.table_count ?? result.tables?.length ?? 0;
-      const database = result.database ? ` from ${result.database}` : '';
-      return `Retrieved ${count} table${count !== 1 ? 's' : ''}${database}`;
-    },
-    get_table_columns: () => {
-      const count = result.column_count ?? result.columns?.length ?? 0;
-      const table = result.table ? ` in ${result.table}` : '';
-      return `Retrieved ${count} column${count !== 1 ? 's' : ''}${table}`;
-    },
-    execute_query: () => {
-      const rowCount = result.row_count ?? 0;
-      const totalRows = result.total_rows ?? rowCount;
-      let msg = `Query returned ${rowCount} rows`;
-      if (result.truncated && totalRows > rowCount) {
-        msg += ` (of ${totalRows.toLocaleString()} total)`;
-      }
-      return msg;
-    },
-    get_table_indexes: () => `Found ${result.count ?? result.indexes?.length ?? 0} indexes`,
-    get_foreign_keys: () => {
-      const count = result.count ?? result.foreign_keys?.length ?? 0;
-      const table = result.table ? ` for ${result.table}` : '';
-      return `Found ${count} foreign key relationship${count !== 1 ? 's' : ''}${table}`;
-    },
-    web_search: () => {
-      const count = result.count ?? result.results?.length ?? 0;
-      const query = result.query ? ` for "${result.query}"` : '';
-      return `Found ${count} cited source${count !== 1 ? 's' : ''}${query}`;
-    },
-    open_sql_editor: () => 'UI action completed: SQL editor opened',
-    write_sql_editor_query: () => 'UI action completed: query prepared',
-    open_database_modal: () => 'UI action completed: database modal opened',
-    open_settings_modal: () => 'UI action completed: settings opened',
-    navigate_new_chat: () =>
-      result.requiresConfirmation
-        ? 'UI action awaiting confirmation: new chat'
-        : 'UI action completed: new chat opened',
-  };
-
-  return details[name]?.() || 'Completed successfully';
 }
 
 export function normalizeSteps(steps) {
@@ -170,17 +108,14 @@ function extractToolSubject(step) {
       if (typeof count === 'number') return `${count} ${noun}${count !== 1 ? 's' : ''}`;
       return null;
     }
-    case 'get_table_columns':
     case 'get_table_details': {
       const count = r.column_count ?? r.columns?.length;
       if (typeof count === 'number') return `${count} column${count !== 1 ? 's' : ''}`;
       return null;
     }
-    case 'get_table_row_count': {
-      const count = r.row_count;
-      const table = r.table ? ` in ${r.table}` : '';
-      if (typeof count === 'number')
-        return `${count.toLocaleString()} row${count !== 1 ? 's' : ''}${table}`;
+    case 'get_table_row_counts': {
+      const count = r.table_count ?? r.row_counts?.length;
+      if (typeof count === 'number') return `${count} table count${count !== 1 ? 's' : ''}`;
       return null;
     }
     case 'execute_query': {

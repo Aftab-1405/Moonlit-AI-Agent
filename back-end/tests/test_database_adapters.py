@@ -16,13 +16,21 @@ These tests cover the bank-grade security fixes:
 
 from __future__ import annotations
 
+import logging
+from contextlib import contextmanager
+
+import mysql.connector
+import pymssql
 import pytest
 
 from service.database.adapters import get_adapter
 from service.database.adapters.base_adapter import BaseDatabaseAdapter
 from service.database.adapters.mysql_adapter import MySQLAdapter
+from service.database.adapters.oracle_adapter import OracleAdapter
 from service.database.adapters.postgresql_adapter import PostgreSQLAdapter
 from service.database.adapters.sqlserver_adapter import SQLServerAdapter
+from service.database.database_service import DatabaseService
+from service.database.operations import DatabaseOperations
 from service.database.security import DatabaseSecurity
 
 
@@ -234,3 +242,280 @@ class TestDatabaseSecurity:
         """Verify ``clear_cache`` is safe to call with no prior cached entries."""
         # Should not raise.
         DatabaseSecurity.clear_cache()
+
+
+class TestAdapterExceptionLogging:
+    """Database-driver failures must never render their exception messages."""
+
+    secret = "password=adapter-secret postgresql://user:secret@private-db/payroll"
+
+    @staticmethod
+    def assert_safe_error_log(records: list[logging.LogRecord]) -> None:
+        rendered = " ".join(record.getMessage() for record in records)
+        assert records
+        assert "adapter-secret" not in rendered
+        assert "private-db" not in rendered
+        assert "exception_type=" in rendered
+        assert all(record.exc_info is None for record in records)
+
+    def test_mysql_acquisition_failure_is_logged_safely(
+        self,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        class Pool:
+            def __init__(self, secret: str) -> None:
+                self.secret = secret
+
+            def get_connection(self):
+                raise mysql.connector.Error(self.secret)
+
+        with caplog.at_level(logging.ERROR):
+            with pytest.raises(mysql.connector.Error):
+                MySQLAdapter().get_connection_from_pool(Pool(self.secret))
+
+        self.assert_safe_error_log(caplog.records)
+
+    def test_postgresql_acquisition_failure_is_logged_safely(
+        self,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        class Pool:
+            def __init__(self, secret: str) -> None:
+                self.secret = secret
+
+            def getconn(self):
+                raise RuntimeError(self.secret)
+
+        with caplog.at_level(logging.ERROR):
+            with pytest.raises(RuntimeError):
+                PostgreSQLAdapter().get_connection_from_pool(Pool(self.secret))
+
+        self.assert_safe_error_log(caplog.records)
+
+    def test_sqlserver_acquisition_failure_is_logged_safely(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        def fail_connect(**kwargs):
+            del kwargs
+            raise RuntimeError(self.secret)
+
+        monkeypatch.setattr(pymssql, "connect", fail_connect)
+        with caplog.at_level(logging.ERROR):
+            with pytest.raises(RuntimeError):
+                SQLServerAdapter().get_connection_from_pool(
+                    {"host": "db.example.com", "user": "user", "password": "password"}
+                )
+
+        self.assert_safe_error_log(caplog.records)
+
+    def test_oracle_acquisition_failure_is_logged_safely(
+        self,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        class Pool:
+            def __init__(self, secret: str) -> None:
+                self.secret = secret
+
+            def acquire(self):
+                raise RuntimeError(self.secret)
+
+        with caplog.at_level(logging.ERROR):
+            with pytest.raises(RuntimeError):
+                OracleAdapter().get_connection_from_pool(Pool(self.secret))
+
+        self.assert_safe_error_log(caplog.records)
+
+
+class TestTableRowCounts:
+    """Batch row counts use one validated, dialect-aware database statement."""
+
+    @pytest.mark.parametrize(
+        "db_config,database,expected_sql",
+        [
+            (
+                {"db_type": "mysql", "database": "sales"},
+                "sales",
+                "SELECT 'orders' AS table_name, COUNT(*) AS row_count FROM `sales`.`orders` "
+                "UNION ALL SELECT 'customers' AS table_name, COUNT(*) AS row_count "
+                "FROM `sales`.`customers`",
+            ),
+            (
+                {"db_type": "postgresql", "database": "sales", "schema": "public"},
+                "sales",
+                'SELECT \'orders\' AS table_name, COUNT(*) AS row_count FROM "public"."orders" '
+                "UNION ALL SELECT 'customers' AS table_name, COUNT(*) AS row_count "
+                'FROM "public"."customers"',
+            ),
+            (
+                {"db_type": "sqlserver", "database": "sales", "schema": "dbo"},
+                "sales",
+                "SELECT 'orders' AS table_name, COUNT(*) AS row_count FROM [dbo].[orders] "
+                "UNION ALL SELECT 'customers' AS table_name, COUNT(*) AS row_count "
+                "FROM [dbo].[customers]",
+            ),
+            (
+                {"db_type": "oracle", "database": "SALES"},
+                "SALES",
+                'SELECT \'orders\' AS table_name, COUNT(*) AS row_count FROM "SALES"."orders" '
+                "UNION ALL SELECT 'customers' AS table_name, COUNT(*) AS row_count "
+                'FROM "SALES"."customers"',
+            ),
+        ],
+    )
+    def test_counts_multiple_tables_in_one_statement(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        db_config: dict,
+        database: str,
+        expected_sql: str,
+    ) -> None:
+        class Cursor:
+            def __init__(self) -> None:
+                self.statements: list[str] = []
+
+            def execute(self, statement: str) -> None:
+                self.statements.append(statement)
+
+            def fetchall(self):
+                return [("orders", 1250), ("customers", 320)]
+
+        cursor = Cursor()
+
+        class Manager:
+            @contextmanager
+            def get_cursor(self, selected_config: dict):
+                assert selected_config is db_config
+                yield cursor
+
+        monkeypatch.setattr(
+            "service.database.connection_manager.get_connection_manager",
+            lambda: Manager(),
+        )
+
+        result = DatabaseOperations.get_table_row_counts(
+            db_config,
+            ["orders", "customers"],
+            database,
+        )
+
+        assert cursor.statements == [expected_sql]
+        assert result == [
+            {"table": "orders", "row_count": 1250, "is_estimate": False},
+            {"table": "customers", "row_count": 320, "is_estimate": False},
+        ]
+
+    def test_installs_database_timeout_before_batched_count(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        class Cursor:
+            def __init__(self) -> None:
+                self.statements: list[str] = []
+
+            def execute(self, statement: str) -> None:
+                self.statements.append(statement)
+
+            def fetchall(self):
+                return [("orders", 1250), ("customers", 320)]
+
+        cursor = Cursor()
+
+        class Manager:
+            @contextmanager
+            def get_cursor(self, _selected_config: dict):
+                yield cursor
+
+        monkeypatch.setattr(
+            "service.database.connection_manager.get_connection_manager",
+            lambda: Manager(),
+        )
+
+        result = DatabaseOperations.get_table_row_counts(
+            {"db_type": "mysql", "database": "sales"},
+            ["orders", "customers"],
+            "sales",
+            timeout_seconds=40,
+        )
+
+        assert cursor.statements == [
+            "SET SESSION MAX_EXECUTION_TIME=40000",
+            "SELECT 'orders' AS table_name, COUNT(*) AS row_count FROM `sales`.`orders` "
+            "UNION ALL SELECT 'customers' AS table_name, COUNT(*) AS row_count "
+            "FROM `sales`.`customers`",
+        ]
+        assert result == [
+            {"table": "orders", "row_count": 1250, "is_estimate": False},
+            {"table": "customers", "row_count": 320, "is_estimate": False},
+        ]
+
+    @pytest.mark.parametrize(
+        "db_config,table_names,database",
+        [
+            ({"db_type": "mysql", "database": "sales"}, [], "sales"),
+            (
+                {"db_type": "mysql", "database": "sales"},
+                [f"table_{index}" for index in range(11)],
+                "sales",
+            ),
+            ({"db_type": "mysql", "database": "sales"}, ["orders", "orders"], "sales"),
+            ({"db_type": "mysql", "database": "sales"}, ["orders", "invalid-table"], "sales"),
+            ({"db_type": "mysql", "database": "sales"}, ["analytics.orders"], "sales"),
+            ({"db_type": "mysql", "database": "sales"}, ["orders"], "invalid.database"),
+            (
+                {"db_type": "postgresql", "database": "sales", "schema": "invalid.schema"},
+                ["orders"],
+                "sales",
+            ),
+        ],
+    )
+    def test_rejects_invalid_batch_or_scope_before_database_access(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        db_config: dict,
+        table_names: list[str],
+        database: str,
+    ) -> None:
+        def fail_if_called():
+            raise AssertionError("database manager must not be created")
+
+        monkeypatch.setattr(
+            "service.database.connection_manager.get_connection_manager",
+            fail_if_called,
+        )
+
+        with pytest.raises(ValueError):
+            DatabaseOperations.get_table_row_counts(
+                db_config,
+                table_names,
+                database,
+            )
+
+    def test_table_inspector_consumes_the_batch_operation(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        calls = []
+        db_config = {"db_type": "mysql", "database": "sales"}
+        monkeypatch.setattr(
+            DatabaseOperations,
+            "get_table_schema",
+            lambda *_args: [("id", "integer")],
+        )
+
+        def get_counts(selected_config: dict, table_names: list[str], database: str):
+            calls.append((selected_config, table_names, database))
+            return [{"table": "orders", "row_count": 1250, "is_estimate": False}]
+
+        monkeypatch.setattr(DatabaseOperations, "get_table_row_counts", get_counts)
+
+        result = DatabaseService.get_table_info(db_config, "orders")
+
+        assert calls == [(db_config, ["orders"], "sales")]
+        assert result == {
+            "status": "success",
+            "table_name": "orders",
+            "schema": [("id", "integer")],
+            "row_count": 1250,
+        }

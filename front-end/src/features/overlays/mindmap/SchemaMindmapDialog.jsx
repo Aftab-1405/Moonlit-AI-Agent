@@ -10,7 +10,14 @@
 // The dialog uses an immersive viewport layout so the schema canvas remains
 // the primary surface on desktop and mobile.
 
-import { Box, CircularProgress, Dialog, DialogContent, IconButton, Typography } from '@mui/material';
+import {
+  Box,
+  CircularProgress,
+  Dialog,
+  DialogContent,
+  IconButton,
+  Typography,
+} from '@mui/material';
 import { useReducedMotion } from 'framer-motion';
 import { lazy, memo, Suspense } from 'react';
 import { CloseIcon, MindmapIcon } from '@/components/icons';

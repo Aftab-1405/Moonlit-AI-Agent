@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from typing import Any, Dict, Optional
 
 from config import get_config
+from core.errors import log_safe_exception, public_database_error
 
 Config = get_config()
 from .base_adapter import BaseDatabaseAdapter
@@ -71,11 +72,6 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
 
             if connection_string:
                 # Use connection string directly - supports SSL, remote DBs
-                import re
-
-                db_match = re.search(r"/([^/?]+)(\?|$)", connection_string)
-                db_name = db_match.group(1) if db_match else "unknown"
-
                 connection_pool = pool.ThreadedConnectionPool(
                     minconn=Config.DEFAULT_DB_POOL_MIN_CONNECTIONS,
                     maxconn=min(
@@ -85,7 +81,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
                     dsn=connection_string,
                     connect_timeout=Config.DB_CONNECT_TIMEOUT_SECONDS,
                 )
-                logger.info(f"Created PostgreSQL connection pool using connection string for database: {db_name}")
+                logger.info("Created remote PostgreSQL connection pool")
                 return connection_pool
             else:
                 pool_config = {
@@ -109,11 +105,11 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
                     pool_config["database"] = Config.DEFAULT_POSTGRESQL_DATABASE
 
                 connection_pool = pool.ThreadedConnectionPool(**pool_config)
-                logger.info(f"Created PostgreSQL connection pool for {config['user']}@{config['host']}")
+                logger.info("Created PostgreSQL connection pool")
                 return connection_pool
 
         except Exception as err:
-            logger.error(f"Failed to create PostgreSQL pool: {err}")
+            log_safe_exception(logger, "create_postgresql_pool", err, public_database_error(err))
             raise
 
     def get_connection_from_pool(self, pool: Any) -> Any:
@@ -121,7 +117,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
         try:
             return pool.getconn()
         except Exception as err:
-            logger.error(f"Failed to get PostgreSQL connection from pool: {err}")
+            log_safe_exception(logger, "acquire_postgresql_connection", err, public_database_error(err))
             raise
 
     def close_pool(self, pool: Any) -> bool:
@@ -131,7 +127,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
             logger.info("Closed PostgreSQL connection pool")
             return True
         except Exception as err:
-            logger.error(f"Failed to close PostgreSQL pool: {err}")
+            log_safe_exception(logger, "close_postgresql_pool", err, public_database_error(err))
             return False
 
     def return_connection_to_pool(self, pool: Any, connection: Any) -> None:
@@ -139,7 +135,13 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
         try:
             pool.putconn(connection)
         except Exception as err:
-            logger.warning(f"Failed to return PostgreSQL connection to pool: {err}")
+            log_safe_exception(
+                logger,
+                "return_postgresql_connection",
+                err,
+                public_database_error(err),
+                level=logging.WARNING,
+            )
             # Try to close the connection if we can't return it
             try:
                 connection.close()
@@ -266,8 +268,14 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
                 cursor.execute("SELECT 1")
                 cursor.fetchone()
                 return True
-        except Exception as e:
-            logger.debug(f"PostgreSQL connection validation failed: {e}")
+        except Exception as err:
+            log_safe_exception(
+                logger,
+                "validate_postgresql_connection",
+                err,
+                public_database_error(err),
+                level=logging.DEBUG,
+            )
         finally:
             # FIX [M11]: always close the cursor, even on the error path.
             if cursor is not None:

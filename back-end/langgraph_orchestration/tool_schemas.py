@@ -15,7 +15,7 @@ Benefits:
 import logging
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from core.errors import log_safe_exception, public_error_for_code
 
@@ -36,7 +36,39 @@ SUPPORTED_SETTINGS_SECTIONS = {"appearance", "ai", "database", "context"}
 class BaseToolArgs(BaseModel):
     """Base class for all tool arguments."""
 
-    pass
+    model_config = ConfigDict(extra="forbid")
+
+
+class ReadSkillArgs(BaseToolArgs):
+    """Arguments for loading one registered skill."""
+
+    skill_name: str = Field(..., min_length=1)
+
+    @field_validator("skill_name")
+    @classmethod
+    def normalize_skill_name(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("skill_name must not be empty")
+        return normalized
+
+
+class WebSearchArgs(BaseToolArgs):
+    """Arguments for a bounded web search."""
+
+    query: str = Field(..., min_length=1)
+
+    @field_validator("query")
+    @classmethod
+    def normalize_query(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("query must not be empty")
+        return normalized
+
+
+class GetQueryHistoryArgs(BaseToolArgs):
+    """Arguments for retrieving recent query history."""
 
 
 class GetConnectionStatusArgs(BaseToolArgs):
@@ -144,10 +176,27 @@ class GetTableDetailsArgs(BaseToolArgs):
     table_name: str = Field(..., description="Name of the table to fetch detailed column metadata for.")
 
 
-class GetTableRowCountArgs(BaseToolArgs):
-    """Arguments for the get_table_row_count tool."""
+class GetTableRowCountsArgs(BaseToolArgs):
+    """Arguments for counting several tables in one database roundtrip."""
 
-    table_name: str = Field(..., description="Name of the table to count rows in.")
+    model_config = ConfigDict(extra="forbid")
+
+    table_names: List[str] = Field(
+        ...,
+        min_length=1,
+        max_length=10,
+        description="One to ten unique table names to count in a single call.",
+    )
+
+    @field_validator("table_names")
+    @classmethod
+    def validate_unique_table_names(cls, value: List[str]) -> List[str]:
+        normalized = [name.strip() for name in value]
+        if any(not name for name in normalized):
+            raise ValueError("table_names must not contain empty names")
+        if len({name.casefold() for name in normalized}) != len(normalized):
+            raise ValueError("table_names must contain unique names")
+        return normalized
 
 
 class GetForeignKeysArgs(BaseToolArgs):
@@ -257,7 +306,10 @@ class RetrieveMemoryArgs(BaseToolArgs):
         if not query:
             raise ValueError("query must not be empty")
         return query
+
+
 TOOL_ARG_SCHEMAS = {
+    "read_skill": ReadSkillArgs,
     "get_connection_status": GetConnectionStatusArgs,
     "get_database_list": GetDatabaseListArgs,
     "execute_query": ExecuteQueryArgs,
@@ -267,9 +319,11 @@ TOOL_ARG_SCHEMAS = {
     # New high-value DB tools.
     "explain_query": ExplainQueryArgs,
     "get_table_details": GetTableDetailsArgs,
-    "get_table_row_count": GetTableRowCountArgs,
+    "get_table_row_counts": GetTableRowCountsArgs,
     "get_foreign_keys": GetForeignKeysArgs,
     "list_views": ListViewsArgs,
+    "web_search": WebSearchArgs,
+    "get_query_history": GetQueryHistoryArgs,
     "open_sql_editor": OpenSqlEditorArgs,
     "open_database_modal": OpenDatabaseModalArgs,
     "open_settings_modal": OpenSettingsModalArgs,
@@ -287,6 +341,14 @@ class ToolResultBase(BaseModel):
 
     success: bool = True
     error: Optional[str] = None
+
+
+class ReadSkillResult(ToolResultBase):
+    """Safe UI metadata for a loaded skill."""
+
+    skill_name: str
+    description: Optional[str] = None
+    already_loaded: bool = False
 
 
 class ConnectionStatusResult(ToolResultBase):
@@ -351,6 +413,78 @@ class SchemaOverviewResult(ToolResultBase):
     foreign_keys: List[Dict[str, Any]] = Field(default_factory=list)
 
 
+class NumericStatistics(BaseModel):
+    """Numeric metrics for one profiled column."""
+
+    min: float
+    max: float
+    mean: float
+    median: float
+    sample_stddev: Optional[float] = None
+
+
+class ColumnProfileResult(BaseModel):
+    """Validated profile metrics for one query-result column."""
+
+    count: int = Field(strict=True, ge=0)
+    non_null_count: int = Field(strict=True, ge=0)
+    null_count: int = Field(strict=True, ge=0)
+    distinct_count: int = Field(strict=True, ge=0)
+    numeric_count: int = Field(strict=True, ge=0)
+    numeric: Optional[NumericStatistics] = None
+
+    @model_validator(mode="after")
+    def validate_counts(self) -> "ColumnProfileResult":
+        if self.non_null_count + self.null_count != self.count:
+            raise ValueError("null and non-null counts must equal count")
+        if self.distinct_count > self.non_null_count or self.numeric_count > self.non_null_count:
+            raise ValueError("derived counts cannot exceed non-null count")
+        return self
+
+
+class ColumnQualityResult(BaseModel):
+    """Validated data-quality metrics for one query-result column."""
+
+    count: int = Field(strict=True, ge=0)
+    non_null_count: int = Field(strict=True, ge=0)
+    null_count: int = Field(strict=True, ge=0)
+    distinct_count: int = Field(strict=True, ge=0)
+
+    @model_validator(mode="after")
+    def validate_counts(self) -> "ColumnQualityResult":
+        if self.non_null_count + self.null_count != self.count:
+            raise ValueError("null and non-null counts must equal count")
+        if self.distinct_count > self.non_null_count:
+            raise ValueError("distinct count cannot exceed non-null count")
+        return self
+
+
+class AnalyzeQueryResult(ToolResultBase):
+    """Structured deterministic analysis over a prior query result."""
+
+    operation: Literal["profile", "data_quality", "correlation"]
+    analyzed_rows: int = Field(ge=0)
+    source_truncated: bool
+    scope_note: str
+    columns: Any
+    duplicate_row_count: Optional[int] = Field(default=None, ge=0)
+    paired_numeric_rows: Optional[int] = Field(default=None, ge=0)
+    pearson_correlation: Optional[float] = Field(default=None, ge=-1, le=1)
+
+    @model_validator(mode="after")
+    def validate_operation_fields(self) -> "AnalyzeQueryResult":
+        if self.operation == "correlation":
+            if not isinstance(self.columns, list) or len(self.columns) != 2:
+                raise ValueError("correlation requires exactly two columns")
+            if self.paired_numeric_rows is None or self.pearson_correlation is None:
+                raise ValueError("correlation metrics are required")
+        elif not isinstance(self.columns, dict):
+            raise ValueError(f"{self.operation} columns must be a mapping")
+        if self.operation == "data_quality" and self.duplicate_row_count is None:
+            raise ValueError("duplicate_row_count is required for data_quality")
+        return self
+
+
 # New tool result schemas (added for the high-value DB tools expansion)
 # Each result schema mirrors the dict shape returned by the matching
 # ``AIToolExecutor._<tool>`` method so ``structure_tool_result`` can coerce
@@ -378,12 +512,19 @@ class GetTableDetailsResult(ToolResultBase):
     column_count: int = 0
 
 
-class GetTableRowCountResult(ToolResultBase):
-    """Structured result for the get_table_row_count tool."""
+class TableRowCountResult(BaseModel):
+    """Exact row count for one table in a batch result."""
 
-    table: Optional[str] = None
-    row_count: int = 0
+    table: str
+    row_count: int = Field(ge=0)
     is_estimate: bool = False
+
+
+class GetTableRowCountsResult(ToolResultBase):
+    """Structured result for the get_table_row_counts tool."""
+
+    table_count: int = Field(default=0, ge=0)
+    row_counts: List[TableRowCountResult] = Field(default_factory=list)
 
 
 class GetForeignKeysResult(ToolResultBase):
@@ -402,21 +543,104 @@ class ListViewsResult(ToolResultBase):
     count: int = 0
 
 
+class WebSearchItem(BaseModel):
+    """One safe web-search citation card."""
+
+    title: str
+    url: str
+    content: str
+
+    @field_validator("url")
+    @classmethod
+    def validate_http_url(cls, value: str) -> str:
+        from urllib.parse import urlsplit
+
+        parsed = urlsplit(value)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("url must use http or https")
+        return value
+
+
+class WebSearchResult(ToolResultBase):
+    """Structured bounded web-search result."""
+
+    query: str
+    count: int = Field(ge=0, le=5)
+    results: List[WebSearchItem] = Field(max_length=5)
+
+
+class QueryHistoryItem(BaseModel):
+    """One bounded, user-scoped SQL history entry."""
+
+    query: str = Field(max_length=500)
+    database: str
+    row_count: int = Field(ge=0)
+    status: str
+    executed_at: str
+
+
+class QueryHistoryResult(ToolResultBase):
+    """Structured recent query history for the UI."""
+
+    count: int = Field(ge=0, le=10)
+    queries: List[QueryHistoryItem] = Field(max_length=10)
+
+
 class UiActionResult(ToolResultBase):
     """Structured result for UI action tools."""
 
     action: str
     requiresConfirmation: bool = False
+    approved: Optional[bool] = None
 
 
-# CENH [4]: Result schema for the `retrieve_memory` tool. The full memory
-# string is included for both UI and LLM context (it is already token-budget
-# bounded by the VAMP retrieval pipeline, so no separate preview is needed).
 class RetrieveMemoryResult(ToolResultBase):
-    """Structured result for the retrieve_memory tool."""
+    """Safe UI metadata for the retrieve_memory tool."""
 
-    memories: str = ""
-    found: bool = False
+    query: str
+    found: bool
+
+
+class RetrieveMemoryModelResult(RetrieveMemoryResult):
+    """Validated memory evidence that is available only to the model."""
+
+    memories: str
+
+
+TOOL_RESULT_SCHEMAS = {
+    "read_skill": ReadSkillResult,
+    "get_connection_status": ConnectionStatusResult,
+    "get_database_list": DatabaseListResult,
+    "execute_query": QueryResult,
+    "analyze_query_result": AnalyzeQueryResult,
+    "get_table_indexes": TableIndexesResult,
+    "get_schema_overview": SchemaOverviewResult,
+    "explain_query": ExplainQueryResult,
+    "get_table_details": GetTableDetailsResult,
+    "get_table_row_counts": GetTableRowCountsResult,
+    "get_foreign_keys": GetForeignKeysResult,
+    "list_views": ListViewsResult,
+    "web_search": WebSearchResult,
+    "get_query_history": QueryHistoryResult,
+    "open_sql_editor": UiActionResult,
+    "open_database_modal": UiActionResult,
+    "open_settings_modal": UiActionResult,
+    "navigate_new_chat": UiActionResult,
+    "retrieve_memory": RetrieveMemoryResult,
+}
+
+REQUIRED_RAW_RESULT_FIELDS = {
+    "get_connection_status": {"connected"},
+    "get_database_list": {"databases"},
+    "execute_query": {"data", "columns", "row_count", "truncated"},
+    "get_table_indexes": {"table", "indexes"},
+    "get_schema_overview": {"tables", "columns", "foreign_keys"},
+    "explain_query": {"query", "plan_format", "plan", "row_count"},
+    "get_table_details": {"table", "columns", "constraints"},
+    "get_table_row_counts": {"row_counts"},
+    "get_foreign_keys": {"foreign_keys"},
+    "list_views": {"views", "materialized_views"},
+}
 
 
 # HELPER FUNCTIONS
@@ -467,8 +691,44 @@ def structure_tool_result(tool_name: str, raw_result: Dict[str, Any]) -> Dict[st
             "error": public.message,
         }
 
+    required_fields = REQUIRED_RAW_RESULT_FIELDS.get(tool_name, set())
+    if not required_fields.issubset(raw_result):
+        public = public_error_for_code("TOOL_RESULT_INVALID")
+        return {
+            "success": False,
+            "error_code": public.code,
+            "error": public.message,
+        }
+
     try:
-        if tool_name == "get_connection_status":
+        if tool_name == "read_skill":
+            return ReadSkillResult.model_validate(raw_result).model_dump()
+
+        elif tool_name == "analyze_query_result":
+            operation = raw_result.get("operation")
+            columns = raw_result.get("columns")
+            if operation == "profile" and isinstance(columns, dict):
+                columns = {
+                    name: ColumnProfileResult.model_validate(metrics).model_dump() for name, metrics in columns.items()
+                }
+            elif operation == "data_quality" and isinstance(columns, dict):
+                columns = {
+                    name: ColumnQualityResult.model_validate(metrics).model_dump() for name, metrics in columns.items()
+                }
+            normalized = {**raw_result, "columns": columns}
+            return AnalyzeQueryResult.model_validate(normalized).model_dump()
+
+        elif tool_name == "web_search":
+            results = raw_result.get("results", [])
+            normalized = {**raw_result, "count": len(results) if isinstance(results, list) else 0}
+            return WebSearchResult.model_validate(normalized).model_dump()
+
+        elif tool_name == "get_query_history":
+            queries = raw_result.get("queries", [])
+            normalized = {**raw_result, "count": len(queries) if isinstance(queries, list) else 0}
+            return QueryHistoryResult.model_validate(normalized).model_dump()
+
+        elif tool_name == "get_connection_status":
             return ConnectionStatusResult(
                 connected=raw_result.get("connected", False),
                 db_type=raw_result.get("db_type"),
@@ -556,11 +816,11 @@ def structure_tool_result(tool_name: str, raw_result: Dict[str, Any]) -> Dict[st
                 column_count=len(cols),
             ).model_dump()
 
-        elif tool_name == "get_table_row_count":
-            return GetTableRowCountResult(
-                table=raw_result.get("table"),
-                row_count=int(raw_result.get("row_count", 0) or 0),
-                is_estimate=bool(raw_result.get("is_estimate", False)),
+        elif tool_name == "get_table_row_counts":
+            row_counts = raw_result.get("row_counts", [])
+            return GetTableRowCountsResult(
+                table_count=len(row_counts),
+                row_counts=row_counts,
             ).model_dump()
 
         elif tool_name == "get_foreign_keys":
@@ -584,28 +844,32 @@ def structure_tool_result(tool_name: str, raw_result: Dict[str, Any]) -> Dict[st
             structured = UiActionResult(
                 action=tool_name,
                 requiresConfirmation=bool(raw_result.get("requiresConfirmation", False)),
+                approved=raw_result.get("approved"),
             ).model_dump()
             # Preserve the compact legacy shape unless confirmation metadata matters.
             if not structured["requiresConfirmation"]:
                 structured.pop("requiresConfirmation", None)
+            if structured["approved"] is None:
+                structured.pop("approved", None)
             structured.pop("error", None)
             return structured
 
         elif tool_name == "retrieve_memory":
-            # CENH [4]: Structure the retrieve_memory result. The full
-            # memory string is already token-budgeted by the VAMP pipeline
-            # so we pass it through verbatim (no preview truncation).
-            memories = str(raw_result.get("memories", "") or "")
+            model_result = RetrieveMemoryModelResult.model_validate(raw_result)
             return RetrieveMemoryResult(
-                memories=memories,
-                found=bool(raw_result.get("found", bool(memories))),
-                success=bool(raw_result.get("success", True)),
-                error=raw_result.get("error"),
+                query=model_result.query,
+                found=model_result.found,
+                success=model_result.success,
+                error=model_result.error,
             ).model_dump()
 
         else:
-            # Unknown tool - return as-is with success flag
-            return {"success": True, "data": raw_result}
+            public = public_error_for_code("TOOL_RESULT_INVALID")
+            return {
+                "success": False,
+                "error_code": public.code,
+                "error": public.message,
+            }
 
     except Exception as e:
         public = public_error_for_code("TOOL_RESULT_INVALID")
@@ -615,3 +879,16 @@ def structure_tool_result(tool_name: str, raw_result: Dict[str, Any]) -> Dict[st
             "error_code": public.code,
             "error": public.message,
         }
+
+
+def structure_retrieve_memory_model_result(raw_result: Dict[str, Any]) -> Dict[str, Any]:
+    """Validate model-only memory evidence without exposing it to UI structuring."""
+    if "error" in raw_result or "error_code" in raw_result or raw_result.get("success") is False:
+        public = public_error_for_code(raw_result.get("error_code"))
+        return {"success": False, "error_code": public.code, "error": public.message}
+    try:
+        return RetrieveMemoryModelResult.model_validate(raw_result).model_dump()
+    except Exception as exc:
+        public = public_error_for_code("TOOL_RESULT_INVALID")
+        log_safe_exception(logger, "structure_retrieve_memory_model_result", exc, public)
+        return {"success": False, "error_code": public.code, "error": public.message}

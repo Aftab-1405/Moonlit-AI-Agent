@@ -6,9 +6,15 @@
 - **Version:** 2.0.0
 - **Python:** ≥ 3.12
 - **Package name:** `moonlit-backend`
-- **Config class selection:** `APP_ENV` env var → `development` / `staging` / `production` / `testing`
+- **Config class selection:** `APP_ENV` env var (required) → `development` / `staging` / `production` / `testing`
 
-> This README was regenerated from the actual current codebase. No prior README existed.
+This README documents setup and the public operational surface. For architectural boundaries,
+active remediation status, and engineering constraints, use the canonical documents under
+[`back-end/docs/`](docs/).
+
+> Lifecycle durability work is active. Do not treat planned command-idempotency, protected-action,
+> hard-budget, or terminal-finalization guarantees as complete unless
+> [`docs/phases.md`](docs/phases.md) records their exit evidence.
 
 ---
 
@@ -22,6 +28,7 @@
 6. [Testing](#testing)
 7. [Linting & type checking](#linting--type-checking)
 8. [Operational notes](#operational-notes)
+9. [Related documentation](#related-documentation)
 
 ---
 
@@ -34,8 +41,8 @@ back-end/
 ├── composition.py                     # Runtime port configuration (DI wiring)
 ├── config.py                          # Environment-driven Config + Dev/Staging/Prod/Testing subclasses
 ├── dependencies.py                    # FastAPI deps: get_current_user, CSRF, session state, db_config
-├── pyproject.toml                     # Project metadata + ruff/pytest/mypy config
-├── requirements.txt                   # Pinned dependency list
+├── pyproject.toml                     # Runtime/dev dependencies + tool configuration
+├── uv.lock                            # Universal, exact, artifact-hashed dependency lock
 │
 ├── api_contract/                      # Pydantic request/response models + protocols (API surface)
 │   ├── common.py                      # ApiSuccess / ApiError envelopes
@@ -61,13 +68,17 @@ back-end/
 │   └── rate_limiter.py                # Shared slowapi `limiter` instance + proxy-aware key function
 │
 ├── core/                              # Cross-cutting infrastructure
+│   ├── admin_authorization.py         # Fail-closed ADMIN_UID authorization dependency
 │   ├── audit.py                       # Single-line JSON audit log emitter (SOX fields, PII redaction)
 │   ├── errors.py                      # DB error classification + error-message sanitization
+│   ├── http_boundary.py               # Stable public HTTP error/response boundary
 │   ├── logging.py                     # Request-ID contextvar + log filter
 │   └── security.py                    # PII redaction, constant-time compare, SQL identifier validation
 │
 ├── langgraph_orchestration/           # LangGraph ReAct agent + streaming pipeline
+│   ├── checkpoint_savers.py           # Physical checkpoint-generation cloning and verification
 │   ├── checkpointing.py               # LangGraph checkpointer (Redis in prod, in-memory in dev)
+│   ├── context_usage.py               # Context-window usage accounting
 │   ├── conversation_access.py         # Conversation-state access for orchestration
 │   ├── conversation_streamer.py       # Concrete agent streamer impl
 │   ├── historical_context.py          # Historical-context retrieval port
@@ -76,7 +87,7 @@ back-end/
 │   ├── result_analysis.py             # Tool-result post-processing (row-count safety)
 │   ├── stream_budget.py               # Pre-call token budget calculation
 │   ├── stream_context.py              # Initial stream-context loader
-│   ├── stream_conversation.py         # The streaming pipeline (1787 lines — compaction, leases, continuations)
+│   ├── stream_conversation.py         # Streaming pipeline: compaction, leases, continuations, terminal events
 │   ├── stream_events.py               # SSE event translation + tag strippers (context tags, thinking tags)
 │   ├── stream_lifecycle.py            # TaskRunLease — per-stream task-mode + interrupt lifecycle
 │   ├── stream_protocol.py             # sse_encode / sse_error / sse_done
@@ -140,19 +151,18 @@ back-end/
 │   ├── react-flow-diagram/SKILL.md
 │   └── web-research/SKILL.md
 │
-├── tests/                             # pytest suite (asyncio_mode=auto)
+├── tests/                             # 27 pytest modules (unit, contract, and regression coverage)
 │   ├── conftest.py
 │   ├── test_api_contract.py
-│   ├── test_core_audit.py
-│   ├── test_core_errors.py
-│   ├── test_core_logging.py
-│   ├── test_core_security.py
-│   ├── test_database_adapters.py
-│   ├── test_dependencies.py
-│   ├── test_lua_merge_regression.py
-│   ├── test_rate_limiter.py
-│   ├── test_sql_function_policy.py
-│   └── test_stream_events.py
+│   ├── test_checkpoint_generations.py
+│   ├── test_conversation_streaming_terminal_contract.py
+│   ├── test_http_error_boundary.py
+│   ├── test_lease_checkpoint_lifecycle.py
+│   ├── test_model_authorization.py
+│   ├── test_request_boundary.py
+│   ├── test_run_context.py
+│   ├── test_skill_registry.py
+│   └── ...                            # Additional core, database, context, and regression modules
 │
 └── vamp_memory/                       # VAMP long-context vector memory subsystem
     ├── bedrock_embedding_provider.py  # Titan embedding provider
@@ -174,6 +184,7 @@ back-end/
 ### Prerequisites
 
 - Python ≥ 3.12
+- uv 0.12.5
 - A Redis instance (required in staging/production; optional in dev — falls back to in-memory state)
 - A Firebase service account (Admin SDK)
 - AWS Bedrock access (the only supported LLM provider)
@@ -182,12 +193,16 @@ back-end/
 ### Install
 
 ```bash
-python3.12 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+uv sync --locked
 ```
 
-> The project ships a flat source tree, not an installed package — `pip install -r requirements.txt` is the canonical install path. `pyproject.toml` carries only project metadata + tooling config (ruff / pytest / mypy); there is no `[build-system]` and no `[project.dependencies]` block.
+> `pyproject.toml` is the dependency source of truth and the committed `uv.lock` pins the complete
+> cross-platform resolution and distribution hashes. uv is pinned through
+> `tool.uv.required-version`; `--locked` fails instead of silently changing a stale lockfile.
+> The flat-source application intentionally has no `[build-system]`, so uv synchronizes its
+> dependencies without installing the backend itself as a package.
+>
+> `APP_ENV` is required at startup and must be one of `development` | `staging` | `production` | `testing`.
 
 ### Required environment variables before first run
 
@@ -196,7 +211,7 @@ Place these in a `.env` file at the project root — it's auto-loaded by `python
 | Variable | Why required |
 |---|---|
 | `SECRET_KEY` | **Always required** — `config.py` raises `ValueError` at import time if missing or set to the placeholder `"your_secret_key_here"`. Must be ≥ 32 chars in production. |
-| `APP_ENV` | Selects the config class (`development` / `staging` / `production` / `testing`). Defaults to `development`. |
+| `APP_ENV` | Selects the config class (`development` / `staging` / `production` / `testing`). **Required.** Any other value is rejected at startup. |
 | `FIREBASE_TYPE`, `FIREBASE_PROJECT_ID`, `FIREBASE_PRIVATE_KEY_ID`, `FIREBASE_PRIVATE_KEY`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_CLIENT_ID`, `FIREBASE_AUTH_URI`, `FIREBASE_TOKEN_URI` | All 8 required — `FirestoreService.initialize()` in lifespan validates and refuses to start without them. |
 | `FIREBASE_WEB_PROJECT_ID` | Must equal `FIREBASE_PROJECT_ID` — validated at startup by `Config.validate_firebase_project_consistency()`. |
 | `ADMIN_UID` | Firebase UID authorized for context metrics, metrics streaming, and metrics reset. The server starts when absent, but these routes fail closed with HTTP 403. |
@@ -212,7 +227,7 @@ Optional but recommended: `BEDROCK_MODELS` (comma-separated model IDs to prewarm
 ### Dev run (auto-reload, docs enabled)
 
 ```bash
-APP_ENV=development python main.py
+APP_ENV=development uv run --locked python main.py
 ```
 
 When `DEBUG=True` (`APP_ENV=development` or `testing`):
@@ -226,7 +241,7 @@ When `DEBUG=False` (staging/production):
 Equivalent uvicorn CLI:
 
 ```bash
-APP_ENV=development uvicorn main:app --reload --host 0.0.0.0 --port 5000
+APP_ENV=development uv run --locked uvicorn main:app --reload --host 0.0.0.0 --port 5000
 ```
 
 ### Production run (multiple workers)
@@ -234,7 +249,8 @@ APP_ENV=development uvicorn main:app --reload --host 0.0.0.0 --port 5000
 > Multi-worker deployments **require shared Redis** for both `REDIS_URL` (sessions + quota + LangGraph checkpointer) and `RATELIMIT_STORAGE_URL` (slowapi). In-memory storage would fragment quota and rate-limit counters across workers.
 
 ```bash
-APP_ENV=production gunicorn main:app \
+uv sync --locked --no-dev --no-build
+APP_ENV=production uv run --locked --no-dev --no-build gunicorn main:app \
   --workers 4 \
   --worker-class uvicorn.workers.UvicornWorker \
   --bind 0.0.0.0:5000
@@ -317,7 +333,10 @@ APP_ENV=production gunicorn main:app \
 
 ## Environment variables
 
-All values are sourced from `os.getenv(...)` calls in `config.py`. ~140 unique env vars total. Defaults shown are the **base `Config` class** defaults; per-environment subclasses (`DevelopmentConfig`, `StagingConfig`, `ProductionConfig`, `TestingConfig`) override some of them.
+All values are sourced from `os.getenv(...)` calls in `config.py`. Defaults shown are the
+**base `Config` class** defaults;
+per-environment subclasses (`DevelopmentConfig`, `StagingConfig`, `ProductionConfig`,
+`TestingConfig`) override some of them.
 
 ### Application / Environment
 
@@ -339,6 +358,8 @@ All values are sourced from `os.getenv(...)` calls in `config.py`. ~140 unique e
 | Variable | Default | Description |
 |---|---|---|
 | `LOG_LEVEL` | `INFO` (dev/staging), `WARNING` (prod), `DEBUG` (testing) | Root logger level. |
+| `STARTUP_DIAGNOSTICS_ENABLED` | `True` in development; `False` otherwise | Run bounded Redis and Firestore connectivity probes and emit a sanitized startup summary. |
+| `STARTUP_DIAGNOSTICS_TIMEOUT_SECONDS` | `5` | Maximum duration of the live Redis and Firestore startup probes. |
 | `LOG_FILE` | `backend.log` | Path appended to by the `FileHandler` configured in `main.py`. |
 | `LOG_FORMAT` | `%(asctime)s - %(name)s - %(levelname)s - request_id=%(request_id)s - %(message)s` | Python logging format string. Root handlers receive the request-correlation filter after logging is configured. |
 | `THIRD_PARTY_LOG_LEVEL` | `WARNING` | Log level applied to every "noisy" third-party logger. |
@@ -346,6 +367,19 @@ All values are sourced from `os.getenv(...)` calls in `config.py`. ~140 unique e
 | `REQUEST_LOG_EXCLUDED_PATHS` | `/api/v1/user/session/active` | Comma-separated paths whose request/response log lines are skipped. |
 | `SENSITIVE_HEADER_NAMES` | `cookie,authorization,x-csrf-token` | Comma-separated header names redacted in request logs. |
 | `SENSITIVE_BODY_LOG_PATHS` | `/api/v1/pass_user_prompt_to_llm,/api/v1/resume_agent` | Comma-separated paths whose request bodies are redacted in logs. |
+
+Logging safety contract:
+
+- SQL audit events never contain submitted SQL or query previews. Successful events retain only
+  statement type, row count, truncation status, and execution time; denied and failed events use
+  stable reason/error codes.
+- Database exceptions are logged through `core.errors.log_safe_exception`, which records only the
+  operation, exception type, stable error code, and request ID. Raw exception text and tracebacks
+  are excluded.
+- Structured redaction canonicalizes snake_case, kebab-case, camelCase, and PascalCase sensitive
+  keys. Database connection strings, DSNs, passwords, and credential aliases are fully redacted.
+- Deployment must separately enforce restricted log/SIEM access, encryption, rotation, retention,
+  deletion, and monitoring for audit-delivery failures.
 
 ### Security / Cookies / CSRF
 
@@ -359,6 +393,9 @@ All values are sourced from `os.getenv(...)` calls in `config.py`. ~140 unique e
 | `SESSION_EXPIRE_SECONDS` | `86400` (12h staging) | Max age of the session cookie in seconds (capped at 24h by Firebase). |
 | `SESSION_ACTIVITY_GRACE_SECONDS` | `45` | Legacy grace period (kept for backward compat; superseded by `SESSION_IMPLICIT_CLOSE_GRACE_SECONDS`). |
 | `SESSION_IMPLICIT_CLOSE_GRACE_SECONDS` | `300` | Heartbeat silence tolerance before treating the tab as closed (5 min survives browser throttling). |
+| `REDIS_SOCKET_CONNECT_TIMEOUT_SECONDS` | `2` | Redis socket connect timeout in seconds (used by session-state Redis client). |
+| `REDIS_SOCKET_TIMEOUT_SECONDS` | `5` | Redis socket timeout/read deadline in seconds (used by session-state Redis client). |
+| `REDIS_MAX_CONNECTIONS` | `64` | Redis client connection-pool cap for session state (redis asyncio). |
 | `FIREBASE_SESSION_CHECK_REVOKED` | `True` | If true, `verify_session_cookie` is called with `check_revoked=True`. |
 | `SECURITY_HEADER_CONTENT_TYPE_OPTIONS` | `nosniff` | Value of `X-Content-Type-Options` response header. |
 | `SECURITY_HEADER_FRAME_OPTIONS` | `DENY` | Value of `X-Frame-Options` response header. |
@@ -444,6 +481,8 @@ All 8 are required — `Config.get_firebase_credentials()` raises `ValueError: M
 | `AWS_SESSION_TOKEN` | (none) | Optional AWS session token for temporary credentials. |
 | `AWS_DEFAULT_REGION` | (none) | AWS region for Bedrock. |
 | `BEDROCK_MODELS` | `""` | Comma-separated Bedrock model IDs to prewarm at startup. |
+| `KIMI_TOKENIZER_REPOSITORY` | `moonshotai/Kimi-K2-Instruct` | Hugging Face repository used for Kimi token counting. |
+| `KIMI_TOKENIZER_REVISION` | pinned commit | Immutable Hugging Face revision whose custom tokenizer code may execute. Do not point this at a moving branch in production. |
 
 ### LLM Rate Limiting (per-provider, per-user)
 
@@ -610,6 +649,17 @@ must be verified in the deployment environment.
 | `AGENT_LONG_TASK_WALL_CLOCK_SECONDS` | `1200` | Wall-clock ceiling carried by a `long_task` run policy. |
 | `AGENT_AUTO_TASK_MODE` | `true` | If true, the backend auto-detects long/tool tasks from the prompt. |
 
+### Batched Table Row Counts
+
+The agent obtains exact whole-table counts through
+`get_table_row_counts(table_names=[...])`. The argument must contain 1-10 unique, unqualified table
+names from the active database/schema; the former singular
+`get_table_row_count(table_name=...)` contract is intentionally unsupported. The backend validates
+every identifier before opening a database cursor, executes one dialect-aware `UNION ALL`
+statement, and returns ordered `row_counts` entries with `table`, `row_count`, and `is_estimate`
+fields. Requests covering more than ten tables use the minimum number of batches. Use
+`execute_query` only when a filtered count is required.
+
 ### User Settings Defaults
 
 | Variable | Default | Description |
@@ -632,15 +682,20 @@ must be verified in the deployment environment.
 
 ## Dependencies
 
-Categorized from `requirements.txt`. The tokenizer stack is **all required** — the old chars/3 fallback has been removed; the indicator and summarization trigger now both rely on model-native token counts.
+The direct constraints below are maintained in `pyproject.toml`; `uv.lock` records the exact
+runtime and development dependency graph with SHA-256 artifact hashes. The tokenizer stack is
+**all required** — the old chars/3 fallback has been removed; the indicator and summarization
+trigger now both rely on model-native token counts.
 
 ### Core (FastAPI stack)
 
 - `fastapi>=0.109.0,<1.0.0`
 - `uvicorn[standard]>=0.27.0,<1.0.0`
+- `gunicorn>=22.0.0,<24.0.0` — production process manager
 - `python-multipart>=0.0.6` — form-data support
 - `python-dotenv>=1.0.0,<2.0.0` — `.env` loading
 - `pydantic>=2.0.0,<3.0.0`
+- `starlette>=0.37.0,<2.0.0` — directly used ASGI/request contracts
 
 ### Security
 
@@ -649,7 +704,7 @@ Categorized from `requirements.txt`. The tokenizer stack is **all required** —
 
 ### Database drivers (multi-database)
 
-- `mysql-connector-python>=8.1.0,<9.0.0` — MySQL
+- `mysql-connector-python>=9.1.0,<10.0.0` — MySQL
 - `psycopg2-binary>=2.9.0,<3.0.0` — PostgreSQL
 - `pymssql>=2.3.0,<3.0.0` — SQL Server
 - `oracledb>=2.0.0` — Oracle
@@ -664,6 +719,7 @@ Categorized from `requirements.txt`. The tokenizer stack is **all required** —
 ### Redis
 
 - `redis>=5.0.0,<6.0.0`
+- `redisvl>=0.20.0,<1.0.0` — directly used Redis checkpoint query/filter contracts
 
 ### LLM / LangGraph ecosystem
 
@@ -693,12 +749,38 @@ Categorized from `requirements.txt`. The tokenizer stack is **all required** —
 - `cachetools>=5.3.0` — caching utilities
 - `requests>=2.28.0,<3.0.0` — HTTP client used by Firebase/GCP libs
 
+### Dependency updates and integrity
+
+Runtime and development dependencies are separate uv groups. Production synchronization excludes
+the `dev` group and rejects source builds:
+
+```bash
+uv sync --locked --no-dev --no-build
+```
+
+The `dev` group contains pytest, pytest-asyncio, HTTP/rate-limit test clients, Ruff, mypy, and
+pip-audit; none are installed by the production command.
+
+Update dependencies explicitly, review the resulting `pyproject.toml` and `uv.lock` diff, and then
+run the dependency and application validation gates:
+
+```bash
+uv lock --upgrade-package <package>
+uv lock --check
+uv sync --locked
+uv run --locked pip-audit
+uv pip check
+```
+
+Do not run unguarded `uv sync` in CI or production because it is allowed to refresh an outdated
+lockfile. Keep `uv.lock` committed and use the project-pinned uv version.
+
 ---
 
 ## Testing
 
 ```bash
-pytest
+uv run --locked pytest
 ```
 
 Configured via `[tool.pytest.ini_options]` in `pyproject.toml`:
@@ -710,15 +792,22 @@ Configured via `[tool.pytest.ini_options]` in `pyproject.toml`:
   - `slow` — marks tests as slow (deselect with `-m "not slow"`)
   - `integration` — marks tests that require external services (Firestore, Qdrant, Bedrock)
 
-Test suite: 21 `test_*.py` modules under `tests/`, covering:
+Test suite: 29 `test_*.py` modules under `tests/`, covering:
 - API contract schemas (size caps, validation)
+- Authentication, administrator authorization, and authenticated database context
 - Core audit / errors / logging / security
+- Stable HTTP and request-boundary behavior
 - Database adapters (quote_identifier, parse_connection_string, identifier rejection)
 - Dialect-aware SQL function policy and pre-execution database-boundary rejection
 - FastAPI dependencies (CSRF constant-time check, merge-state atomicity)
+- Conversation identity, immutable run policy, model authorization, and terminal stream contracts
+- Checkpoint generations, fenced lease lifecycle, orchestration access, and prompt boundaries
+- Context summary synchronization, skill loading, user-settings task-mode mapping, and safe tool errors
 - Lua merge regression (Upstash `cjson.decode` fix)
 - HTTP rate limiter (trusted-proxy / XFF / X-Real-IP)
 - Stream events (context-tag stripper + think-tag parser)
+- Dependency declaration, lock coverage, and artifact-hash policy
+- Sanitized startup dependency diagnostics and development runtime warnings
 
 ---
 
@@ -728,12 +817,12 @@ Configured in `pyproject.toml`:
 
 - **ruff** — line-length 120, target py312. `E402` (import order) and `E501` (line length) are intentionally relaxed — see in-file comments in `pyproject.toml` for rationale.
   ```bash
-  ruff check .
-  ruff format .
+  uv run --locked ruff check .
+  uv run --locked ruff format .
   ```
 - **mypy** — Python 3.12, `ignore_missing_imports = true`.
   ```bash
-  mypy .
+  uv run --locked mypy .
   ```
 
 ---
@@ -746,4 +835,19 @@ Configured in `pyproject.toml`:
 4. **`DEV_AUTH_BYPASS=True` is dev-only** — when enabled, requests without a session cookie authenticate as a local dev user. FIX [M17] restricts the bypass to ONLY the no-cookie case: a presented-but-invalid cookie returns 401/503, never silently dev-auths.
 5. **`backend.log`** is the default `LOG_FILE` target and will be created at the project root. Consider gitignoring it.
 6. **The `skills/` directory contains 4 `SKILL.md` files** (agent skill prompts) loaded at runtime by `skills/skill_registry.py`. They're runtime data, not Python modules.
-7. **`pyproject.toml` has no `[build-system]`** and no `[project.dependencies]` block — it's purely a config file for ruff/pytest/mypy + project metadata. The canonical install path is `pip install -r requirements.txt`, not `pip install .`.
+7. **Dependency installation is lock-controlled** — `pyproject.toml` declares runtime and dev
+   dependencies, `uv.lock` is committed, and CI/production must use `--locked`. Production also
+   uses `--no-dev --no-build` so audit/test tooling and source-distribution build hooks are excluded.
+
+---
+
+## Related documentation
+
+- [Project requirements](../project_requirements_document.md)
+- [Backend architecture](docs/architecture.md)
+- [Backend design decisions](docs/design.md)
+- [Backend memory and evidence](docs/memory.md)
+- [Security vulnerability assessment learning log](docs/security-va-learning-log.md)
+- [Backend engineering rules](docs/rules.md)
+- [Backend remediation phases](docs/phases.md)
+- [Frontend architecture](../front-end/docs/architecture.md)

@@ -675,10 +675,7 @@ function Sidebar({
     const collapsed = !mobile && !open;
     const { showDirectSettings } = getProfileSettingsMode(!collapsed);
     return (
-      <Box
-        component="footer"
-        sx={buildSidebarFooterSx()}
-      >
+      <Box component="footer" sx={buildSidebarFooterSx()}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           <Tooltip
             title={collapsed ? user?.displayName || 'Profile' : ''}

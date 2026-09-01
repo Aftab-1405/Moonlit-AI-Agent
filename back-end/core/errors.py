@@ -188,10 +188,13 @@ def log_safe_exception(
     operation: str,
     exc: BaseException,
     public_error: PublicError,
+    *,
+    level: int = logging.ERROR,
 ) -> None:
     """Log stable exception metadata with the active request correlation ID."""
     request_id = current_request_id() or "-"
-    logger.error(
+    logger.log(
+        level,
         "%s failed: exception_type=%s error_code=%s request_id=%s",
         operation,
         type(exc).__name__,

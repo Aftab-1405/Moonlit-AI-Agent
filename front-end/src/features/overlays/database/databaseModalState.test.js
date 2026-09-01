@@ -1,9 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {
-  getConnectedActionDisabledSx,
-  getConnectionActionState,
-} from './databaseModalState.js';
+import { getConnectedActionDisabledSx, getConnectionActionState } from './databaseModalState.js';
 
 test('database connection action uses primary styling until connection succeeds', () => {
   assert.deepEqual(getConnectionActionState({ loading: false, connected: false }), {

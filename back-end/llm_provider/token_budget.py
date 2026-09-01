@@ -27,6 +27,7 @@ import logging
 import math
 import os
 from collections import OrderedDict
+from time import perf_counter
 from typing import Sequence, TypedDict
 
 # ENH [LOG]: Suppress transformers "PyTorch was not found" warning and
@@ -54,7 +55,7 @@ _RUNTIME_COUNT_TOKENS_UNSUPPORTED: set[str] = set()
 # ENH [TOK]: Model-native tokenizer registry.
 # Each entry returns a callable encode(text) -> list[int].
 # Tokenizers are loaded lazily (on first use) and cached for the process lifetime.
-# All three tokenizer libraries are REQUIRED dependencies (see requirements.txt):
+# All three tokenizer libraries are REQUIRED dependencies (see pyproject.toml):
 # - tiktoken (GPT-OSS, GPT-4o)
 # - mistral-common (Devstral, Mistral Large)
 # - transformers (Kimi K2/K2.5, tokenizer-only, no PyTorch)
@@ -72,7 +73,7 @@ def _get_model_tokenizer(model_id: str | None):
     This makes the pre-call pressure check match the post-call usage.inputTokens,
     so the indicator and summarization trigger always agree.
 
-    Supported (all required dependencies in requirements.txt):
+    Supported (all required dependencies in pyproject.toml):
     - GPT-OSS 120B/20B, GPT-4o, GPT-4: tiktoken with o200k_base encoding
     - Mistral Devstral, Mistral Large, Mixtral: mistral-common tekken tokenizer
     - Moonshot Kimi K2/K2.5: HuggingFace transformers (no PyTorch needed)
@@ -141,15 +142,26 @@ def _get_model_tokenizer(model_id: str | None):
             import transformers
             from transformers import AutoTokenizer
 
-            hf_tok = AutoTokenizer.from_pretrained("moonshotai/Kimi-K2-Instruct", trust_remote_code=True)
+            load_started_at = perf_counter()
+            hf_tok = AutoTokenizer.from_pretrained(
+                Config.KIMI_TOKENIZER_REPOSITORY,
+                revision=Config.KIMI_TOKENIZER_REVISION,
+                trust_remote_code=True,
+            )
 
             def tokenizer(text):
                 return hf_tok.encode(text)
 
-            logger.debug(
-                "Loaded HuggingFace tokenizer for Kimi model %s (transformers %s)",
+            logger.info(
+                "Startup tokenizer: model=%s repository=%s revision=%s class=%s "
+                "transformers=%s authenticated=%s load_ms=%.1f",
                 model_id,
+                Config.KIMI_TOKENIZER_REPOSITORY,
+                Config.KIMI_TOKENIZER_REVISION,
+                type(hf_tok).__name__,
                 transformers.__version__,
+                bool(os.getenv("HF_TOKEN")),
+                (perf_counter() - load_started_at) * 1000,
             )
         except Exception as e:
             # ENH [TOK-FIX]: Catch ALL exceptions (not just ImportError) because
@@ -323,7 +335,7 @@ def estimate_tokens(text: str, model_id: str | None = None) -> int:
     native tokenizers installed as required dependencies. If no tokenizer
     is available for a model, a clear error is logged ONCE and a conservative
     chars/4 estimate is used (this should never happen in production —
-    all three tokenizer libraries are in requirements.txt).
+    all three tokenizer libraries are in pyproject.toml).
     """
     if not text:
         return 0

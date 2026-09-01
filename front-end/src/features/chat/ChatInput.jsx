@@ -496,9 +496,7 @@ function ChatInput({
   );
   const composerSurfaceSx = useMemo(() => getComposerSurfaceSx(theme), [theme]);
   const composerLayoutSx = useMemo(() => getComposerLayoutSx(theme), [theme]);
-  const inputPlaceholder = isStreaming
-    ? 'Draft your next message'
-    : 'How can I help you today?';
+  const inputPlaceholder = isStreaming ? 'Draft your next message' : 'How can I help you today?';
 
   const selectedProviderOption = useMemo(() => {
     return providerOptions.find((provider) => provider.name === selectedProvider) || null;

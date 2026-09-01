@@ -1,4 +1,6 @@
-# Moonlit Architecture
+# Moonlit Front-End Architecture
+
+Canonical location: `front-end/docs/architecture.md`
 
 ## Current Architecture
 
@@ -12,7 +14,7 @@ flowchart LR
     API --> Store["Firestore conversations/settings"]
     API --> Redis["Redis session, quota, checkpoints"]
     API --> Agent["LangGraph orchestration"]
-    Agent --> LLM["Configured LLM providers"]
+    Agent --> LLM["AWS Bedrock"]
     Agent --> DB["Remote relational database adapters"]
     Agent --> Memory["Qdrant VAMP memory"]
 ```
@@ -101,7 +103,7 @@ replaced during focused UI compliance work.
 
 ```mermaid
 flowchart TD
-    Design["front-end/DESIGN.md"] --> Primitive["theme/tokens/primitives.js"]
+    Design["front-end/docs/design.md"] --> Primitive["theme/tokens/primitives.js"]
     Primitive --> Semantic["theme/tokens/semantic.js"]
     Semantic --> Component["theme/tokens/component.js"]
     Component --> ThemeFactory["theme/createMoonlitTheme.js"]
@@ -110,8 +112,9 @@ flowchart TD
     Shared --> Features["Feature components"]
 ```
 
-The layering is sound, but current code also carries a parallel light semantic mapping and a
-user-selectable mode. That behavior conflicts with the canonical dark-only specification.
+The runtime now resolves every route to the canonical dark theme. Legacy light-theme preferences
+are ignored, the selectable light-mode path has been removed, and the primary MUI `md` breakpoint
+matches the canonical 768px topology transition.
 
 ### Tech Stack
 
@@ -134,13 +137,13 @@ user-selectable mode. That behavior conflicts with the canonical dark-only speci
 
 ## Known Architectural Problems
 
-- Theme selection supports a mode forbidden by the current design contract.
-- The MUI breakpoint map uses `md: 960`, while the canonical primary design transition is 768px.
-- Design spacing is a 4px scale, while the MUI theme uses an 8px spacing function and components
-  often rely on fractional multipliers.
+- The canonical design uses a 4px spacing scale while the MUI theme retains an 8px spacing
+  function, so some components still use fractional multipliers.
 - Several large chat and sidebar files combine many presentation concerns, increasing review risk.
-  They should only be split when a phase requires it and an isolated boundary is clear.
-- Chat visual regression coverage is not currently automated.
+  They should only be split when active work exposes a clear, testable boundary.
+- Focused design audits and browser matrices exist, but screenshot-based visual regression is not
+  automated and several authenticated database/streaming states lack repeatable fixtures.
+- The Perspective artifact vendor chunk remains oversized in production builds.
 - Root `README.md` describes older libraries and capabilities in places; actual code is the source
   of truth for implementation details.
 
@@ -148,11 +151,12 @@ user-selectable mode. That behavior conflicts with the canonical dark-only speci
 
 These are scoped recommendations, not current architecture:
 
-1. Enforce one canonical dark theme and remove the light-mode selection path.
-2. Correct theme values and component overrides before local component fixes.
-3. Route all chat geometry, typography, surfaces, and interaction states through approved tokens.
-4. Align shell breakpoint behavior with the canonical 768px transition without altering desktop
-   business behavior.
-5. Add focused tests for theme mode, chat state rendering, composer interactions, transcript
-   semantics, and responsive topology.
-6. Reintroduce light mode only after a future approved `DESIGN.md` extension defines it.
+1. Preserve the canonical dark-only theme and 768px topology contract with focused tests.
+2. Replace repeated one-off geometry with existing semantic roles only when touching the owning
+   feature.
+3. Add deterministic fixtures for database, streaming, pause, error, and administrator states.
+4. Add screenshot-based visual regression after those fixtures are stable.
+5. Split large presentation modules only when an isolated responsibility can be tested directly.
+6. Reduce the Perspective bundle cost without changing its public artifact boundary.
+7. Reintroduce light mode only after a future approved `front-end/docs/design.md` extension defines
+   it.

@@ -8,12 +8,23 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+_SUPPORTED_APP_ENVS = {"development", "staging", "production", "testing"}
+
+
+def _require_env(name: str) -> str:
+    """Read an environment variable and fail fast when unset or blank."""
+    value = os.getenv(name)
+    if not value or not value.strip():
+        raise ValueError(f"{name} environment variable is required")
+    return value
+
+
 class Config:
     """Base configuration: reads every setting from environment variables with safe defaults."""
 
     # Application Environment
     # Options: development, staging, production
-    APP_ENV = os.getenv("APP_ENV", "development")
+    APP_ENV = _require_env("APP_ENV").strip().lower()
     DEBUG = APP_ENV == "development"
     TESTING = APP_ENV == "testing"
 
@@ -29,6 +40,12 @@ class Config:
     UVICORN_LOG_LEVEL = os.getenv("UVICORN_LOG_LEVEL", "info")
 
     # Logging
+    STARTUP_DIAGNOSTICS_ENABLED = (
+        os.getenv("STARTUP_DIAGNOSTICS_ENABLED", "False").lower() == "true"
+    )
+    STARTUP_DIAGNOSTICS_TIMEOUT_SECONDS = float(
+        os.getenv("STARTUP_DIAGNOSTICS_TIMEOUT_SECONDS", "5")
+    )
     LOG_FILE = os.getenv("LOG_FILE", "backend.log")
     LOG_FORMAT = os.getenv(
         "LOG_FORMAT",
@@ -134,6 +151,16 @@ class Config:
         m.strip() for m in os.getenv("BEDROCK_MODELS", "").split(",") if m.strip()
     ]
 
+    # Kimi token counting executes the model repository's custom tokenizer
+    # code. Keep the default revision immutable so deployments never execute
+    # a moving Hugging Face branch implicitly.
+    KIMI_TOKENIZER_REPOSITORY = os.getenv(
+        "KIMI_TOKENIZER_REPOSITORY", "moonshotai/Kimi-K2-Instruct"
+    ).strip()
+    KIMI_TOKENIZER_REVISION = os.getenv(
+        "KIMI_TOKENIZER_REVISION",
+        "fd1984e2b7a3350dbf7305fe73a4ede25c14de50",
+    ).strip()
 
     # LLM Rate Limiting
     LLM_RATELIMIT_ENABLED = os.getenv("LLM_RATELIMIT_ENABLED", "True").lower() == "true"
@@ -424,6 +451,11 @@ class Config:
         os.getenv("SESSION_IMPLICIT_CLOSE_GRACE_SECONDS", 300)
     )
     REDIS_URL = os.getenv("REDIS_URL")
+    REDIS_SOCKET_CONNECT_TIMEOUT_SECONDS = float(
+        os.getenv("REDIS_SOCKET_CONNECT_TIMEOUT_SECONDS", "2")
+    )
+    REDIS_SOCKET_TIMEOUT_SECONDS = float(os.getenv("REDIS_SOCKET_TIMEOUT_SECONDS", "5"))
+    REDIS_MAX_CONNECTIONS = int(os.getenv("REDIS_MAX_CONNECTIONS", "64"))
     _csrf_exempt_paths_raw = os.getenv(
         "CSRF_EXEMPT_PATHS", "/api/v1/user/session/close"
     )
@@ -563,6 +595,9 @@ class DevelopmentConfig(Config):
     # noise from httpcore/httpx/uvicorn on every request. Set LOG_LEVEL=DEBUG
     # in .env if you need to debug a specific issue.
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+    STARTUP_DIAGNOSTICS_ENABLED = (
+        os.getenv("STARTUP_DIAGNOSTICS_ENABLED", "True").lower() == "true"
+    )
 
     # Development-friendly settings
     SESSION_COOKIE_SECURE = False  # Allow HTTP for localhost
@@ -695,5 +730,10 @@ config = {
 
 def get_config():
     """Return the configuration class selected by ``APP_ENV`` (development/staging/production/testing)."""
-    env = os.getenv("APP_ENV", "development")
-    return config.get(env, config["default"])
+    env = _require_env("APP_ENV").strip().lower()
+    if env not in _SUPPORTED_APP_ENVS:
+        raise ValueError(
+            f"Unsupported APP_ENV='{env}'. Allowed values: {', '.join(sorted(_SUPPORTED_APP_ENVS))}"
+        )
+
+    return config[env]

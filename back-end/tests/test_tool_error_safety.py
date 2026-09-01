@@ -35,8 +35,9 @@ import service.firestore.firestore_service as firestore_service_module
 import service.redis_service as redis_service_module
 import vamp_memory.vamp_memory_service as vamp_service_module
 from api_contract.conversations import RenameConversationRequest
+from core.security import redact, redact_connection_config
 from langgraph_orchestration.stream_lifecycle import ConcurrentTaskRunError
-from langgraph_orchestration.tool_schemas import structure_tool_result
+from langgraph_orchestration.tool_schemas import structure_tool_result, validate_tool_args
 from service.conversations.conversation_compaction_service import (
     ConversationCompactionService,
     _summarize_tool_result,
@@ -73,6 +74,51 @@ def _assert_safe_log_records(records: list[logging.LogRecord]) -> None:
         _assert_secret_absent(record.getMessage())
 
 
+def _audit_payloads(records: list[logging.LogRecord]) -> list[dict[str, Any]]:
+    """Decode audit records captured from the real structured emitter."""
+    return [json.loads(record.getMessage()) for record in records if record.name == "audit"]
+
+
+def test_redact_normalizes_common_sensitive_key_styles() -> None:
+    """Secret keys must be recognized across camel, Pascal, kebab, and snake case."""
+    payload = {
+        "accessToken": "camel-secret",
+        "Refresh-Token": "kebab-secret",
+        "APIKey": "pascal-secret",
+        "service_account_json": "snake-secret",
+        "safe_field": "visible",
+    }
+
+    assert redact(payload) == {
+        "accessToken": "***REDACTED***",
+        "Refresh-Token": "***REDACTED***",
+        "APIKey": "***REDACTED***",
+        "service_account_json": "***REDACTED***",
+        "safe_field": "visible",
+    }
+
+
+def test_connection_config_redacts_dsn_and_connection_string_variants() -> None:
+    """Connection helpers must not preserve credentials embedded in DSN fields."""
+    config = {
+        "user": "alice",
+        "password": "password-secret",
+        "connectionString": "postgresql://alice:dsn-secret@private-db.internal/payroll",
+        "dsn": "private-db.internal:1521/payroll",
+        "host": "db.example.com",
+        "database": "analytics",
+    }
+
+    assert redact_connection_config(config) == {
+        "user": "a***",
+        "password": "***REDACTED***",
+        "connectionString": "***REDACTED***",
+        "dsn": "***REDACTED***",
+        "host": "db.example.com",
+        "database": "analytics",
+    }
+
+
 class _FailingCursor:
     """Complete cursor fake that fails only at the selected database operation."""
 
@@ -104,6 +150,35 @@ class _FailingConnection:
 
     def cursor(self) -> _FailingCursor:
         return _FailingCursor()
+
+
+class _QueryManager:
+    """Context manager fake that keeps the production query workflow real."""
+
+    def __init__(self, cursor: Any) -> None:
+        self.cursor = cursor
+
+    @contextmanager
+    def get_cursor(self, db_config):
+        del db_config
+        yield self.cursor
+
+
+class _SuccessfulQueryCursor:
+    """DB-API cursor fake for a successful read-only query."""
+
+    connection = object()
+    description = [("salary", int)]
+
+    def execute(self, statement, params=None) -> None:
+        del statement, params
+
+    def fetchone(self):
+        return (1,)
+
+    def fetchmany(self, size):
+        del size
+        return [(42,)]
 
 
 class _FailingAdapter:
@@ -214,12 +289,10 @@ async def test_database_failures_are_stable_in_sse_and_model_output(
             max_rows,
             db_config,
         ),
-        "get_schema_overview": lambda validated, user_id, db_config, _max_rows: (
-            AIToolExecutor._get_schema_overview(
-                user_id,
-                target_tables=validated.get("target_tables"),
-                db_config=db_config,
-            )
+        "get_schema_overview": lambda validated, user_id, db_config, _max_rows: AIToolExecutor._get_schema_overview(
+            user_id,
+            target_tables=validated.get("target_tables"),
+            db_config=db_config,
         ),
         "explain_query": lambda validated, user_id, db_config, _max_rows: AIToolExecutor._explain_query(
             user_id,
@@ -367,8 +440,8 @@ async def test_vamp_vector_failure_persists_only_stable_reason(
 def test_structuring_failure_is_a_stable_failure_not_success_with_raw_detail() -> None:
     """A Pydantic conversion failure must not return raw data as successful evidence."""
     result = structure_tool_result(
-        "get_table_row_count",
-        {"table": "example", "row_count": RAW_SECRET},
+        "get_table_row_counts",
+        {"row_counts": [{"table": "example", "row_count": RAW_SECRET}]},
     )
 
     assert result == {
@@ -377,6 +450,132 @@ def test_structuring_failure_is_a_stable_failure_not_success_with_raw_detail() -
         "error": "Tool result could not be structured.",
     }
     _assert_secret_absent(result)
+
+
+def test_table_row_counts_accepts_only_the_plural_bounded_contract() -> None:
+    """The model must provide one unique list rather than singular legacy arguments."""
+    validated = validate_tool_args(
+        "get_table_row_counts",
+        {"table_names": ["orders", "customers"]},
+    )
+    assert validated.model_dump() == {"table_names": ["orders", "customers"]}
+
+    invalid_payloads = [
+        {"table_name": "orders"},
+        {"table_names": []},
+        {"table_names": ["orders", "orders"]},
+        {"table_names": [f"table_{index}" for index in range(11)]},
+    ]
+    for payload in invalid_payloads:
+        with pytest.raises(ValueError):
+            validate_tool_args("get_table_row_counts", payload)
+
+
+def test_table_row_counts_result_preserves_every_structured_count() -> None:
+    """The agent and UI receive ordered exact counts from the single batch result."""
+    result = structure_tool_result(
+        "get_table_row_counts",
+        {
+            "success": True,
+            "row_counts": [
+                {"table": "orders", "row_count": 1250, "is_estimate": False},
+                {"table": "customers", "row_count": 320, "is_estimate": False},
+            ],
+        },
+    )
+
+    assert result == {
+        "success": True,
+        "error": None,
+        "table_count": 2,
+        "row_counts": [
+            {"table": "orders", "row_count": 1250, "is_estimate": False},
+            {"table": "customers", "row_count": 320, "is_estimate": False},
+        ],
+    }
+
+
+def test_plural_row_count_tool_replaces_the_singular_registration() -> None:
+    """Only the new batch tool is exposed to the model."""
+    tool_names = {registered_tool.name for registered_tool in tool_module.ALL_TOOLS}
+
+    assert "get_table_row_counts" in tool_names
+    assert "get_table_row_count" not in tool_names
+
+
+def test_table_row_counts_executor_returns_one_structured_batch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The executor forwards the complete list to the canonical batch operation."""
+    calls = []
+
+    class ContextSync:
+        def get_connection(self, user_id: str) -> dict:
+            assert user_id == "user-1"
+            return {"connected": True, "database": "analytics"}
+
+    def get_counts(
+        db_config: dict,
+        table_names: list[str],
+        database: str,
+        *,
+        timeout_seconds: int,
+    ) -> list[dict]:
+        calls.append((db_config, table_names, database, timeout_seconds))
+        return [
+            {"table": "orders", "row_count": 1250, "is_estimate": False},
+            {"table": "customers", "row_count": 320, "is_estimate": False},
+        ]
+
+    monkeypatch.setattr(
+        "service.database.context_sync.get_default_context_sync",
+        lambda: ContextSync(),
+    )
+    monkeypatch.setattr(database_operations.DatabaseOperations, "get_table_row_counts", get_counts)
+    db_config = {"db_type": "postgresql", "database": "analytics"}
+
+    result = AIToolExecutor._get_table_row_counts(
+        "user-1",
+        db_config,
+        ["orders", "customers"],
+        timeout_seconds=40,
+    )
+
+    assert calls == [(db_config, ["orders", "customers"], "analytics", 40)]
+    assert result == {
+        "success": True,
+        "table_count": 2,
+        "row_counts": [
+            {"table": "orders", "row_count": 1250, "is_estimate": False},
+            {"table": "customers", "row_count": 320, "is_estimate": False},
+        ],
+    }
+
+
+def test_table_row_counts_executor_requires_a_selected_database(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A connected-but-unselected context fails before the database operation."""
+
+    class ContextSync:
+        def get_connection(self, _user_id: str) -> dict:
+            return {"connected": True, "database": None}
+
+    monkeypatch.setattr(
+        "service.database.context_sync.get_default_context_sync",
+        lambda: ContextSync(),
+    )
+    monkeypatch.setattr(
+        database_operations.DatabaseOperations,
+        "get_table_row_counts",
+        lambda *_args: (_ for _ in ()).throw(AssertionError("database operation must not run")),
+    )
+
+    assert AIToolExecutor._get_table_row_counts(
+        "user-1",
+        {"db_type": "postgresql"},
+        ["orders"],
+    ) == {"error": "No database selected"}
 
 
 @pytest.mark.parametrize(
@@ -587,9 +786,7 @@ def test_tool_budget_failure_keeps_count_as_typed_metadata(
         "tool_call_limit": 20,
     }
     assert model_summary == (
-        "<tool_budget_exceeded>\n"
-        "[TOOL_BUDGET_EXCEEDED] Tool call budget exceeded.\n"
-        "</tool_budget_exceeded>"
+        "<tool_budget_exceeded>\n[TOOL_BUDGET_EXCEEDED] Tool call budget exceeded.\n</tool_budget_exceeded>"
     )
 
 
@@ -613,9 +810,7 @@ def test_tool_loop_failure_keeps_count_as_typed_metadata(
         "identical_call_limit": 3,
     }
     assert model_summary == (
-        "<tool_loop_detected>\n"
-        "[TOOL_LOOP_DETECTED] Repeated tool call stopped.\n"
-        "</tool_loop_detected>"
+        "<tool_loop_detected>\n[TOOL_LOOP_DETECTED] Repeated tool call stopped.\n</tool_loop_detected>"
     )
 
 
@@ -649,11 +844,42 @@ async def test_generic_tool_timeout_uses_canonical_outputs_and_safe_log(
         "timeout_seconds": 20,
     }
     assert model_summary == (
-        "<tool_execution_error>\n"
-        "[TOOL_TIMEOUT] Tool execution timed out.\n"
-        "</tool_execution_error>"
+        "<tool_execution_error>\n[TOOL_TIMEOUT] Tool execution timed out.\n</tool_execution_error>"
     )
     _assert_safe_log_records(caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_batched_row_count_timeout_scales_with_table_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A valid multi-table scan keeps a per-table budget plus cleanup grace."""
+    observed_timeouts: list[int] = []
+    events: list[dict] = []
+    monkeypatch.setattr(tool_module, "_try_writer", lambda: events.append)
+
+    async def capture_timeout(awaitable, *, timeout):
+        observed_timeouts.append(timeout)
+        return await awaitable
+
+    monkeypatch.setattr(tool_module.asyncio, "wait_for", capture_timeout)
+
+    await tool_module._execute_tool(
+        "get_table_row_counts",
+        {"table_names": ["orders", "customers", "products"]},
+        _tool_config(),
+        lambda *_args: {
+            "success": True,
+            "row_counts": [
+                {"table": "orders", "row_count": 10, "is_estimate": False},
+                {"table": "customers", "row_count": 20, "is_estimate": False},
+                {"table": "products", "row_count": 30, "is_estimate": False},
+            ],
+        },
+    )
+
+    assert observed_timeouts == [65]
+    assert events[-1]["result"]["success"] is True
 
 
 @pytest.mark.asyncio
@@ -687,9 +913,7 @@ async def test_query_timeout_never_logs_sql_or_adds_it_to_error_text(
         "timeout_seconds": 30,
     }
     assert model_summary == (
-        "<tool_execution_error>\n"
-        "[TOOL_TIMEOUT] Tool execution timed out.\n"
-        "</tool_execution_error>"
+        "<tool_execution_error>\n[TOOL_TIMEOUT] Tool execution timed out.\n</tool_execution_error>"
     )
     _assert_safe_log_records(caplog.records)
     assert query not in " ".join(record.getMessage() for record in caplog.records)
@@ -725,9 +949,7 @@ async def test_web_search_timeout_uses_canonical_outputs_and_safe_log(
     assert events[-1]["result"]["error"] == "Web search timed out."
     assert events[-1]["result"]["timeout_seconds"] == 20
     assert model_summary == (
-        "<tool_execution_error>\n"
-        "[WEB_SEARCH_TIMEOUT] Web search timed out.\n"
-        "</tool_execution_error>"
+        "<tool_execution_error>\n[WEB_SEARCH_TIMEOUT] Web search timed out.\n</tool_execution_error>"
     )
     _assert_safe_log_records(caplog.records)
 
@@ -886,9 +1108,7 @@ def test_database_pool_creation_failure_logs_safely(
         requires_server = True
 
         def create_connection_pool(self, config: dict):
-            raise RuntimeError(
-                f"connect failed host={config['host']} password={config['password']} fd00::1234"
-            )
+            raise RuntimeError(f"connect failed host={config['host']} password={config['password']} fd00::1234")
 
     monkeypatch.setattr(
         connection_manager_module.ConnectionManager,
@@ -963,9 +1183,7 @@ async def test_database_metadata_failure_logs_safely(
     monkeypatch.setattr(database_controller, "run_in_threadpool", failing_thread_boundary)
 
     with caplog.at_level(logging.WARNING, logger=database_controller.logger.name):
-        result = await database_controller._schema_metadata_for_config(
-            {"db_type": "postgresql", "schema": "public"}
-        )
+        result = await database_controller._schema_metadata_for_config({"db_type": "postgresql", "schema": "public"})
 
     assert result == {"schemas": [], "current_schema": "public"}
     _assert_safe_log_records(caplog.records)
@@ -973,27 +1191,55 @@ async def test_database_metadata_failure_logs_safely(
 
 def test_compaction_error_summary_rejects_legacy_raw_fallback() -> None:
     """Persisted legacy error text must not be copied into a future model prompt."""
-    assert _summarize_tool_result(
-        "execute_query",
-        {"error": RAW_SECRET},
-        "error",
-    ) == "ERROR [TOOL_EXECUTION_FAILED] — Tool execution failed."
-    assert _summarize_tool_result(
-        "execute_query",
-        {
-            "error_code": "DB_TIMEOUT",
-            "error": RAW_SECRET,
-        },
-        "error",
-    ) == "ERROR [DB_TIMEOUT] — Database operation timed out."
-    assert _summarize_tool_result(
-        "execute_query",
-        {
-            "error_code": "FUTURE_FORGED_CODE",
-            "error": RAW_SECRET,
-        },
-        "error",
-    ) == "ERROR [TOOL_EXECUTION_FAILED] — Tool execution failed."
+    assert (
+        _summarize_tool_result(
+            "execute_query",
+            {"error": RAW_SECRET},
+            "error",
+        )
+        == "ERROR [TOOL_EXECUTION_FAILED] — Tool execution failed."
+    )
+    assert (
+        _summarize_tool_result(
+            "execute_query",
+            {
+                "error_code": "DB_TIMEOUT",
+                "error": RAW_SECRET,
+            },
+            "error",
+        )
+        == "ERROR [DB_TIMEOUT] — Database operation timed out."
+    )
+    assert (
+        _summarize_tool_result(
+            "execute_query",
+            {
+                "error_code": "FUTURE_FORGED_CODE",
+                "error": RAW_SECRET,
+            },
+            "error",
+        )
+        == "ERROR [TOOL_EXECUTION_FAILED] — Tool execution failed."
+    )
+
+
+def test_compaction_summarizes_batched_table_row_counts() -> None:
+    """Compacted history retains every bounded table count from one tool call."""
+    assert (
+        _summarize_tool_result(
+            "get_table_row_counts",
+            {
+                "success": True,
+                "table_count": 2,
+                "row_counts": [
+                    {"table": "orders", "row_count": 1250, "is_estimate": False},
+                    {"table": "customers", "row_count": 320, "is_estimate": False},
+                ],
+            },
+            "success",
+        )
+        == "2 exact table row count(s): orders=1250, customers=320"
+    )
 
 
 @pytest.mark.asyncio
@@ -1205,6 +1451,119 @@ def test_query_value_error_returns_stable_http_contract(
     _assert_secret_absent(result)
 
 
+def test_successful_query_audit_omits_sql_literals(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Successful SQL audit records retain safe metrics without the submitted SQL."""
+    cursor = _SuccessfulQueryCursor()
+
+    class Adapter:
+        def get_health_check_sql(self) -> str:
+            return "HEALTH CHECK"
+
+        def get_set_timeout_sql(self, timeout_seconds: int):
+            del timeout_seconds
+            return None
+
+        def get_column_names_from_cursor(self, selected_cursor: Any) -> list[str]:
+            assert selected_cursor is cursor
+            return ["salary"]
+
+    monkeypatch.setattr("service.database.adapters.get_adapter", lambda _db_type: Adapter())
+    monkeypatch.setattr(
+        "service.database.connection_manager.get_connection_manager",
+        lambda: _QueryManager(cursor),
+    )
+    query = "SELECT salary FROM private_payroll WHERE employee_id = 'boundary-secret'"
+
+    with caplog.at_level(logging.INFO, logger="audit"):
+        result = database_operations.execute_sql_query(
+            {"db_type": "mysql", "database": "analytics"},
+            query,
+            user_id="user-1",
+        )
+
+    assert result["status"] == "success"
+    payloads = _audit_payloads(caplog.records)
+    assert len(payloads) == 1
+    details = payloads[0]["details"]
+    assert set(details) == {"row_count", "truncated", "execution_time_ms", "statement_type"}
+    assert details["statement_type"] == "SELECT"
+    assert "boundary-secret" not in " ".join(record.getMessage() for record in caplog.records)
+
+
+def test_value_error_audit_omits_sql_literals(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Validation-denied audit records contain a stable reason but no submitted SQL."""
+    cursor = _SuccessfulQueryCursor()
+
+    class Adapter:
+        def get_health_check_sql(self) -> str:
+            return "HEALTH CHECK"
+
+        def get_set_timeout_sql(self, timeout_seconds: int):
+            del timeout_seconds
+            return None
+
+        def get_column_names_from_cursor(self, selected_cursor: Any) -> list[str]:
+            del selected_cursor
+            raise ValueError(RAW_SECRET)
+
+    monkeypatch.setattr("service.database.adapters.get_adapter", lambda _db_type: Adapter())
+    monkeypatch.setattr(
+        "service.database.connection_manager.get_connection_manager",
+        lambda: _QueryManager(cursor),
+    )
+    query = "SELECT 'boundary-secret'"
+
+    with caplog.at_level(logging.INFO, logger="audit"):
+        result = database_operations.execute_sql_query(
+            {"db_type": "mysql", "database": "analytics"},
+            query,
+            user_id="user-1",
+        )
+
+    assert result["status"] == "error"
+    payloads = _audit_payloads(caplog.records)
+    assert len(payloads) == 1
+    assert payloads[0]["details"] == {"reason": "validation_error"}
+    _assert_safe_log_records(caplog.records)
+
+
+def test_driver_failure_audit_omits_sql_literals(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Unexpected driver failures log only stable categories and safe audit metadata."""
+    cursor = _FailingCursor()
+    monkeypatch.setattr("service.database.adapters.get_adapter", lambda _db_type: _FailingAdapter())
+    monkeypatch.setattr(
+        "service.database.connection_manager.get_connection_manager",
+        lambda: _QueryManager(cursor),
+    )
+    query = "SELECT 'boundary-secret'"
+
+    with caplog.at_level(logging.INFO):
+        result = database_operations.execute_sql_query(
+            {"db_type": "mysql", "database": "analytics"},
+            query,
+            user_id="user-1",
+        )
+
+    assert result == {
+        "status": "error",
+        "error_code": "DB_PERMISSION_DENIED",
+        "message": "Database permission denied.",
+    }
+    payloads = _audit_payloads(caplog.records)
+    assert len(payloads) == 1
+    assert payloads[0]["details"] == {"reason": "DB_PERMISSION_DENIED"}
+    _assert_safe_log_records(caplog.records)
+
+
 @pytest.mark.parametrize(
     "connect_call",
     [
@@ -1212,18 +1571,11 @@ def test_query_value_error_returns_stable_http_contract(
         lambda: connection_handlers.connect_postgresql("db.example.com", 5432, "user", "password"),
         lambda: connection_handlers.connect_sqlserver("db.example.com", 1433, "user", "password"),
         lambda: connection_handlers.connect_oracle("db.example.com", 1521, "user", "password", "XE"),
-        lambda: connection_handlers.connect_remote_postgresql(
-            "postgresql://user:password@db.example.com/analytics"
-        ),
-        lambda: connection_handlers.connect_remote_mysql(
-            "mysql://user:password@db.example.com/analytics"
-        ),
-        lambda: connection_handlers.connect_remote_oracle(
-            "user/password@db.example.com:1521/XE"
-        ),
+        lambda: connection_handlers.connect_remote_postgresql("postgresql://user:password@db.example.com/analytics"),
+        lambda: connection_handlers.connect_remote_mysql("mysql://user:password@db.example.com/analytics"),
+        lambda: connection_handlers.connect_remote_oracle("user/password@db.example.com:1521/XE"),
         lambda: connection_handlers.connect_remote_sqlserver(
-            "Driver={ODBC Driver 17 for SQL Server};Server=db.example.com;"
-            "Database=analytics;UID=user;PWD=password"
+            "Driver={ODBC Driver 17 for SQL Server};Server=db.example.com;Database=analytics;UID=user;PWD=password"
         ),
     ],
 )
@@ -1698,9 +2050,7 @@ async def test_concurrent_agent_run_has_stable_sse_error(
             "00000000-0000-4000-8000-000000000001",
             "hello",
             "user-1",
-            run_policy=resolve_run_policy(
-                "hello", "normal", None, "bedrock", "provider.model-v1", False
-            ),
+            run_policy=resolve_run_policy("hello", "normal", None, "bedrock", "provider.model-v1", False),
         )
     ]
 
@@ -1734,9 +2084,7 @@ async def test_agent_stream_failure_logs_safely_and_emits_stable_sse(
                 "00000000-0000-4000-8000-000000000001",
                 "hello",
                 "user-1",
-                run_policy=resolve_run_policy(
-                    "hello", "normal", None, "bedrock", "mock-model", False
-                ),
+                run_policy=resolve_run_policy("hello", "normal", None, "bedrock", "mock-model", False),
             )
         ]
 
@@ -1771,9 +2119,7 @@ async def test_conversation_streaming_service_failure_logs_safely_and_emits_stab
                 "00000000-0000-4000-8000-000000000001",
                 None,
                 "user-1",
-                resolve_run_policy(
-                    None, "normal", None, "bedrock", "mock-model", False
-                ),
+                resolve_run_policy(None, "normal", None, "bedrock", "mock-model", False),
             )
         ]
 

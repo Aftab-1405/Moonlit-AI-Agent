@@ -37,6 +37,7 @@ from contextlib import contextmanager
 from typing import Any, Dict, List, Optional
 
 from config import get_config
+from core.errors import log_safe_exception, public_database_error
 
 Config = get_config()
 from .base_adapter import BaseDatabaseAdapter
@@ -124,7 +125,7 @@ class OracleAdapter(BaseDatabaseAdapter):
                 password = parsed["password"]
                 dsn = parsed["dsn"]
 
-                logger.info(f"Creating Oracle connection pool using connection string for DSN: {dsn}")
+                logger.info("Creating remote Oracle connection pool")
             else:
                 host = config.get("host", Config.DEFAULT_ORACLE_HOST)
                 port = config.get("port", Config.DEFAULT_ORACLE_PORT)
@@ -135,7 +136,7 @@ class OracleAdapter(BaseDatabaseAdapter):
                 # Easy Connect string format: host:port/service_name
                 dsn = f"{host}:{port}/{service_name}"
 
-                logger.info(f"Creating Oracle connection pool for {user}@{host}:{port}/{service_name}")
+                logger.info("Creating Oracle connection pool")
             pool = oracledb.create_pool(
                 user=user,
                 password=password,
@@ -154,7 +155,7 @@ class OracleAdapter(BaseDatabaseAdapter):
             return pool
 
         except Exception as err:
-            logger.error(f"Failed to create Oracle connection pool: {err}")
+            log_safe_exception(logger, "create_oracle_pool", err, public_database_error(err))
             raise
 
     def get_connection_from_pool(self, pool: Any) -> Any:
@@ -170,7 +171,7 @@ class OracleAdapter(BaseDatabaseAdapter):
             logger.debug(f"Acquired Oracle connection from pool (busy={pool.busy}, opened={pool.opened})")
             return connection
         except Exception as err:
-            logger.error(f"Failed to acquire Oracle connection from pool: {err}")
+            log_safe_exception(logger, "acquire_oracle_connection", err, public_database_error(err))
             raise
 
     def close_pool(self, pool: Any) -> bool:
@@ -181,7 +182,7 @@ class OracleAdapter(BaseDatabaseAdapter):
                 logger.info("Oracle connection pool closed successfully")
             return True
         except Exception as err:
-            logger.error(f"Failed to close Oracle pool: {err}")
+            log_safe_exception(logger, "close_oracle_pool", err, public_database_error(err))
             return False
 
     def return_connection_to_pool(self, pool: Any, connection: Any) -> None:
@@ -196,7 +197,13 @@ class OracleAdapter(BaseDatabaseAdapter):
                 pool.release(connection)
                 logger.debug(f"Released Oracle connection to pool (busy={pool.busy})")
         except Exception as err:
-            logger.warning(f"Failed to release Oracle connection to pool: {err}")
+            log_safe_exception(
+                logger,
+                "return_oracle_connection",
+                err,
+                public_database_error(err),
+                level=logging.WARNING,
+            )
 
     @contextmanager
     def get_cursor(self, connection: Any, dictionary: bool = False, buffered: bool = True):
@@ -284,8 +291,14 @@ class OracleAdapter(BaseDatabaseAdapter):
                 cursor.execute("SELECT 1 FROM DUAL")
                 cursor.fetchone()
                 return True
-        except Exception as e:
-            logger.debug(f"Oracle connection validation failed: {e}")
+        except Exception as err:
+            log_safe_exception(
+                logger,
+                "validate_oracle_connection",
+                err,
+                public_database_error(err),
+                level=logging.DEBUG,
+            )
         finally:
             # FIX [M11]: always close the cursor, even on the error path.
             if cursor is not None:
@@ -372,14 +385,16 @@ class OracleAdapter(BaseDatabaseAdapter):
             # oracledb uses milliseconds for call_timeout.
             conn.call_timeout = int(seconds) * 1000
             logger.debug(
-                "Oracle call_timeout set to %dms on connection %r",
+                "Oracle call_timeout set to %dms",
                 int(seconds) * 1000,
-                conn,
             )
-        except Exception as e:
-            logger.debug(
-                "Could not set Oracle call_timeout (older driver or non-oracledb conn?): %s",
-                e,
+        except Exception as err:
+            log_safe_exception(
+                logger,
+                "set_oracle_call_timeout",
+                err,
+                public_database_error(err),
+                level=logging.DEBUG,
             )
 
     def get_column_names_from_cursor(self, cursor: Any) -> List[str]:

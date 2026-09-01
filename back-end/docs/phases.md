@@ -1,6 +1,8 @@
 # Moonlit Backend Agent Workflow Audit
 
-Last updated: 2026-08-25
+Canonical location: `back-end/docs/phases.md`
+
+Last updated: 2026-08-30
 
 ## Remediation program
 
@@ -16,6 +18,13 @@ Last updated: 2026-08-25
 - [ ] Phase 6 — Storage, SOLID boundaries, and reproducible tooling.
 
 Remediation rules: one phase at a time; strict TDD; replace broken internal contracts instead of retaining compatibility bloat; update both audit journals at every checkpoint.
+
+Security-finding remediation checkpoints:
+
+- [x] DEP-001/DEP-002 — reproducible uv lock and fixed MySQL connector line.
+- [x] API-001 — raw ASGI request byte/frame limits and strict external request models.
+- [x] CORE-001 — omit submitted SQL from audit records, normalize structural secret keys, redact
+  DSNs/connection strings, and use safe database-adapter exception diagnostics.
 
 ## Objective
 
@@ -82,6 +91,12 @@ Exit criteria: SOLID findings distinguish pragmatic trade-offs from changes that
 Exit criteria: final report is evidence-backed, prioritized, actionable, and distinguishes verified defects from risks or coverage gaps.
 
 ## Work log
+
+### 2026-08-28 — Reproducible dependency workflow remediated
+
+- Replaced the broad `requirements.txt` production path with `pyproject.toml` runtime/development declarations and a committed universal `uv.lock`; uv is pinned to `0.12.5`. Production instructions require `uv sync --locked --no-dev --no-build`, and dependency upgrades are explicit reviewed lock changes.
+- RED dependency-policy tests failed on missing project dependencies and lockfile; GREEN passed 2/2. Clean production sync/import/compatibility checks passed for 136 packages. A separate clean development/audit environment passed compatibility checks for 159 packages, reported no known vulnerabilities, passed backend Ruff, and passed targeted mypy.
+- Locked-environment pytest reported 614 passed and the same 9 terminal-contract failures reproduced by the prior environment. The unaffected suite passed 612 tests with 3 existing SlowAPI/Python 3.14 warnings. Those pre-existing stream failures were not modified as part of the supply-chain remediation.
 
 ### 2026-08-25 — Request-path incident: skill registry and user-settings contract
 

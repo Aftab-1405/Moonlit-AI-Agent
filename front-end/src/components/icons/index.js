@@ -5,6 +5,7 @@
 // makes future visual changes local to a single mapping.
 
 export { default as TimeIcon } from '@mui/icons-material/AccessTimeRounded';
+export { default as MindmapIcon } from '@mui/icons-material/AccountTreeRounded';
 export { default as AddIcon } from '@mui/icons-material/AddRounded';
 export { default as ScrollDownIcon } from '@mui/icons-material/ArrowDownwardRounded';
 export { default as ArrowForwardIcon } from '@mui/icons-material/ArrowForwardRounded';
@@ -38,7 +39,6 @@ export { default as PrimaryKeyIcon } from '@mui/icons-material/KeyRounded';
 export { default as LinkIcon } from '@mui/icons-material/LinkRounded';
 export { default as LogoutIcon } from '@mui/icons-material/LogoutOutlined';
 export { default as MenuIcon } from '@mui/icons-material/MenuRounded';
-export { default as MindmapIcon } from '@mui/icons-material/AccountTreeRounded';
 export { default as MoreIcon } from '@mui/icons-material/MoreHorizRounded';
 export { default as PauseIcon } from '@mui/icons-material/PauseCircleOutlineRounded';
 export { default as UserIcon } from '@mui/icons-material/PersonRounded';

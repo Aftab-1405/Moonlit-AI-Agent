@@ -50,14 +50,11 @@ import { UI_LAYOUT } from '@/styles/shared';
 import { getSelectedDatabase } from '@/utils/databaseResponse';
 import logger from '@/utils/logger';
 import {
-  getConnectedActionDisabledSx,
-  getConnectionActionState,
-} from './databaseModalState';
-import {
   connectionStringSchema,
   credentialsSchema,
   dbFieldSchemas,
 } from '@/utils/validationSchemas';
+import { getConnectedActionDisabledSx, getConnectionActionState } from './databaseModalState';
 
 const Transition = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="up" ref={ref} {...props} />;

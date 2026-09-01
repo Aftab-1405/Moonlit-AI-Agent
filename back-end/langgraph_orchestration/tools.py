@@ -94,12 +94,12 @@ TOOL_TIMEOUT_SECONDS = {
     # a complex plan can take nearly as long to compute as the query itself
     # (especially on PostgreSQL FORMAT JSON, which traverses the full plan
     # tree). The schema-introspection tools (get_table_details,
-    # get_table_row_count, get_foreign_keys) get 20s — same as
+    # get_table_row_counts, get_foreign_keys) get 20s — same as
     # get_table_indexes. list_views is the lightest (one or two information-
     # schema SELECTs) so it gets 15s.
     "explain_query": 30,
     "get_table_details": 20,
-    "get_table_row_count": 20,
+    "get_table_row_counts": 20,
     "get_foreign_keys": 20,
     "list_views": 15,
     # CENH [4]: retrieve_memory incurs the full VAMP pipeline (Bedrock Titan
@@ -109,6 +109,27 @@ TOOL_TIMEOUT_SECONDS = {
     "retrieve_memory": 10,
 }
 DEFAULT_TOOL_TIMEOUT = 30
+ROW_COUNT_TIMEOUT_CLEANUP_GRACE_SECONDS = 5
+
+
+def _database_timeout_seconds(tool_name: str, validated_args: dict) -> int:
+    """Return the database-side budget for a validated tool invocation."""
+    base_timeout = TOOL_TIMEOUT_SECONDS.get(tool_name, DEFAULT_TOOL_TIMEOUT)
+    if tool_name != "get_table_row_counts":
+        return base_timeout
+
+    table_names = validated_args.get("table_names", [])
+    table_count = len(table_names) if isinstance(table_names, list) else 1
+    return base_timeout * max(1, table_count)
+
+
+def _tool_timeout_seconds(tool_name: str, validated_args: dict) -> int:
+    """Return the outer wall-clock budget, including database cleanup grace."""
+    database_timeout = _database_timeout_seconds(tool_name, validated_args)
+    if tool_name == "get_table_row_counts":
+        return database_timeout + ROW_COUNT_TIMEOUT_CLEANUP_GRACE_SECONDS
+    return database_timeout
+
 
 # FIX [M4]: Maximum number of identical calls to the same non-cacheable tool
 # before the loop detector short-circuits with a `<tool_loop_detected>`
@@ -144,7 +165,7 @@ TOOL_REQUIRED_SKILLS = {
     # should only invoke after loading the database-querying instructions.
     "explain_query": ("database-querying", "react-flow-diagram"),
     "get_table_details": ("database-querying",),
-    "get_table_row_count": ("database-querying", "react-flow-diagram"),
+    "get_table_row_counts": ("database-querying", "react-flow-diagram"),
     "get_foreign_keys": ("database-querying", "react-flow-diagram"),
     "list_views": ("database-querying",),
 }
@@ -169,6 +190,16 @@ def _tool_failure_result(code: str, **metadata) -> dict:
 def _model_error_envelope(tag: str, public: PublicError) -> str:
     """Return model-facing error text containing only one catalog pairing."""
     return f"<{tag}>\n[{public.code}] {public.message}\n</{tag}>"
+
+
+def _emit_structured_tool_end(writer, tool_name: str, args: dict, raw_result: dict) -> dict:
+    """Validate a bespoke tool result before emitting its terminal UI event."""
+    ui_result, _ = ToolExecutor.summarize(tool_name, raw_result)
+    for field in ("timeout_seconds", "tool_call_count", "tool_call_limit", "identical_call_count"):
+        if ui_result.get("success") is False and field in raw_result:
+            ui_result[field] = raw_result[field]
+    writer({"type": "tool_end", "name": tool_name, "args": args, "result": ui_result})
+    return ui_result
 
 
 def _try_writer():
@@ -294,7 +325,7 @@ def _emit_ui_action_tool(
 
     writer({"type": "tool_start", "name": tool_name, "args": validated})
     writer({"type": "ui_action", "action": tool_name, "payload": enriched_payload})
-    writer({"type": "tool_end", "name": tool_name, "args": validated, "result": result})
+    _emit_structured_tool_end(writer, tool_name, validated, result)
     return summary
 
 
@@ -519,7 +550,7 @@ async def _execute_tool(
         # no longer block the SSE stream indefinitely; the LLM receives a
         # <tool_execution_error> telling it the call timed out, so it can
         # retry with a narrower request or report the failure honestly.
-        timeout = TOOL_TIMEOUT_SECONDS.get(tool_name, DEFAULT_TOOL_TIMEOUT)
+        timeout = _tool_timeout_seconds(tool_name, validated)
         try:
             parsed = await asyncio.wait_for(
                 asyncio.to_thread(
@@ -769,17 +800,22 @@ async def get_table_details(
 
 
 @tool
-async def get_table_row_count(
-    table_name: str,
+async def get_table_row_counts(
+    table_names: list[str],
     *,
     config: RunnableConfig,
 ) -> str:
-    """Requires read_skill('database-querying') first. Get the exact row count for a table via a fast dedicated path (does NOT consume the per-conversation query row budget). Prefer this over `SELECT COUNT(*) FROM table` via execute_query whenever you only need a count."""
+    """Requires read_skill('database-querying') first. Get exact row counts for 1-10 unique, unqualified table names in one database statement (does NOT consume the per-conversation query row budget). Batch up to 10 names per call; when more are required, use the minimum number of batches rather than one call per table."""
     return await _execute_tool(
-        "get_table_row_count",
-        {"table_name": table_name},
+        "get_table_row_counts",
+        {"table_names": table_names},
         config,
-        lambda v, uid, db_cfg, mx: DBTools._get_table_row_count(uid, db_cfg, v["table_name"]),
+        lambda v, uid, db_cfg, mx: DBTools._get_table_row_counts(
+            uid,
+            db_cfg,
+            v["table_names"],
+            timeout_seconds=_database_timeout_seconds("get_table_row_counts", v),
+        ),
     )
 
 
@@ -830,23 +866,28 @@ def read_skill(skill_name: str, *, config: RunnableConfig) -> str:
     # LLM does not waste a round-trip calling read_skill for an already-loaded
     # skill, and does not call read_skill('database-querying') when it is
     # already auto-loaded by the stream_conversation config bootstrap.
+    try:
+        args = ToolExecutor.validate_and_parse_args("read_skill", {"skill_name": skill_name})
+    except ValueError as exc:
+        public = public_error_for_code("TOOL_ARGUMENT_INVALID")
+        log_safe_exception(logger, "validate_read_skill_arguments", exc, public)
+        return _model_error_envelope("tool_execution_error", public)
     writer = _try_writer()
-    args = {"skill_name": skill_name}
     writer({"type": "tool_start", "name": "read_skill", "args": args})
 
     from skills.skill_registry import get_skill_registry
 
     registry = get_skill_registry()
-    skill = registry.get_skill(skill_name)
+    skill = registry.get_skill(args["skill_name"])
 
     if skill is None:
         result = {
             "success": False,
-            "error": f"Unknown skill: {skill_name}",
+            "error": f"Unknown skill: {args['skill_name']}",
             "available_skills": registry.all_skill_names,
         }
-        writer({"type": "tool_end", "name": "read_skill", "args": args, "result": result})
-        return f"Unknown skill: {skill_name}. Available skills: " + ", ".join(registry.all_skill_names)
+        _emit_structured_tool_end(writer, "read_skill", args, result)
+        return f"Unknown skill: {args['skill_name']}. Available skills: " + ", ".join(registry.all_skill_names)
 
     cfg = _cfg(config)
     activated = cfg.setdefault("activated_skills", [])
@@ -856,7 +897,7 @@ def read_skill(skill_name: str, *, config: RunnableConfig) -> str:
             "skill_name": skill.name,
             "already_loaded": True,
         }
-        writer({"type": "tool_end", "name": "read_skill", "args": args, "result": result})
+        _emit_structured_tool_end(writer, "read_skill", args, result)
         return (
             f'<skill_already_loaded name="{skill.name}">The instructions are already '
             "available in this turn. Continue with the related action; do not read "
@@ -871,7 +912,7 @@ def read_skill(skill_name: str, *, config: RunnableConfig) -> str:
         "skill_name": skill.name,
         "description": skill.description,
     }
-    writer({"type": "tool_end", "name": "read_skill", "args": args, "result": result})
+    _emit_structured_tool_end(writer, "read_skill", args, result)
     return skill.build_agent_context()
 
 
@@ -896,6 +937,13 @@ async def web_search(query: str, *, config: RunnableConfig) -> str:
     missing_skill = _required_skill_message("web_search", config)
     if missing_skill:
         return missing_skill
+    try:
+        validated = ToolExecutor.validate_and_parse_args("web_search", {"query": query})
+    except ValueError as exc:
+        public = public_error_for_code("TOOL_ARGUMENT_INVALID")
+        log_safe_exception(logger, "validate_web_search_arguments", exc, public)
+        return _model_error_envelope("tool_execution_error", public)
+    query = validated["query"]
 
     # WENH [3]: Route through the shared `_check_tool_budget_and_loop`
     # helper so a confused LLM cannot spam web_search indefinitely.
@@ -998,24 +1046,17 @@ async def web_search(query: str, *, config: RunnableConfig) -> str:
             "results": [],
         }
 
-    writer(
-        {
-            "type": "tool_end",
-            "name": "web_search",
-            "args": {"query": query},
-            "result": parsed,
-        }
-    )
+    ui_result = _emit_structured_tool_end(writer, "web_search", {"query": query}, parsed)
 
-    if not parsed["success"]:
-        public = public_error_for_code(parsed.get("error_code"))
+    if not ui_result["success"]:
+        public = public_error_for_code(ui_result.get("error_code"))
         return _model_error_envelope("tool_execution_error", public)
 
-    if not parsed["results"]:
+    if not ui_result["results"]:
         return f"No results found for: {query}"
 
     lines = [f"Web search results for '{query}':\n"]
-    for i, r in enumerate(parsed["results"], 1):
+    for i, r in enumerate(ui_result["results"], 1):
         title = r["title"] or "Untitled"
         url = r["url"]
         snippet = r["content"][:400].strip() if r["content"] else ""
@@ -1156,7 +1197,7 @@ def navigate_new_chat(
         summary = "The user confirmed starting a new conversation. Tell them you are starting it for them."
     else:
         summary = "The user declined starting a new conversation. Tell them you will continue in the current chat."
-    writer({"type": "tool_end", "name": tool_name, "args": validated, "result": result})
+    _emit_structured_tool_end(writer, tool_name, validated, result)
     return summary
 
 
@@ -1170,7 +1211,12 @@ def get_query_history(*, config: RunnableConfig) -> str:
     if missing_skill:
         return missing_skill
 
-    tool_args = {}
+    try:
+        tool_args = ToolExecutor.validate_and_parse_args(tool_name, {})
+    except ValueError as exc:
+        public = public_error_for_code("TOOL_ARGUMENT_INVALID")
+        log_safe_exception(logger, f"validate_{tool_name}_arguments", exc, public)
+        return _model_error_envelope("tool_execution_error", public)
     # WENH [3]: Route through the shared `_check_tool_budget_and_loop`
     # helper so a confused LLM cannot spam get_query_history indefinitely.
     # get_query_history has a bespoke pipeline (direct DBTools call + custom
@@ -1198,35 +1244,27 @@ def get_query_history(*, config: RunnableConfig) -> str:
             "error_code": public.code,
             "error": public.message,
         }
-        writer(
-            {
-                "type": "tool_end",
-                "name": tool_name,
-                "args": tool_args,
-                "result": result,
-            }
-        )
+        _emit_structured_tool_end(writer, tool_name, tool_args, result)
         return _model_error_envelope("tool_execution_error", public)
 
     if not queries:
-        writer(
-            {
-                "type": "tool_end",
-                "name": tool_name,
-                "args": tool_args,
-                "result": {"count": 0},
-            }
+        _emit_structured_tool_end(
+            writer,
+            tool_name,
+            tool_args,
+            {"success": True, "count": 0, "queries": []},
         )
         return "No recent queries found in long-term memory."
 
-    writer(
-        {
-            "type": "tool_end",
-            "name": tool_name,
-            "args": tool_args,
-            "result": {"count": len(queries)},
-        }
+    ui_result = _emit_structured_tool_end(
+        writer,
+        tool_name,
+        tool_args,
+        {"success": True, "count": len(queries), "queries": queries},
     )
+    if not ui_result["success"]:
+        public = public_error_for_code(ui_result.get("error_code"))
+        return _model_error_envelope("tool_execution_error", public)
     return json.dumps(queries, indent=2)
 
 
@@ -1280,6 +1318,7 @@ async def retrieve_memory(query: str, *, config: RunnableConfig) -> str:
                 "success": False,
                 "error_code": "MEMORY_CONTEXT_UNAVAILABLE",
                 "error": "No active conversation; cannot retrieve memory.",
+                "query": validated["query"],
                 "memories": "",
                 "found": False,
             }
@@ -1299,6 +1338,7 @@ async def retrieve_memory(query: str, *, config: RunnableConfig) -> str:
                 "success": False,
                 "error_code": public.code,
                 "error": public.message,
+                "query": validated["query"],
                 "memories": "",
                 "found": False,
             }
@@ -1309,12 +1349,23 @@ async def retrieve_memory(query: str, *, config: RunnableConfig) -> str:
                 "success": False,
                 "error_code": public.code,
                 "error": public.message,
+                "query": validated["query"],
                 "memories": "",
                 "found": False,
             }
         if not memories:
-            return {"success": True, "memories": "", "found": False}
-        return {"success": True, "memories": memories, "found": True}
+            return {
+                "success": True,
+                "query": validated["query"],
+                "memories": "",
+                "found": False,
+            }
+        return {
+            "success": True,
+            "query": validated["query"],
+            "memories": memories,
+            "found": True,
+        }
 
     return await _execute_tool(
         tool_name,
@@ -1337,7 +1388,7 @@ ALL_TOOLS = [
     # we keep them grouped with the other DB tools for readability.
     explain_query,
     get_table_details,
-    get_table_row_count,
+    get_table_row_counts,
     get_foreign_keys,
     list_views,
     web_search,

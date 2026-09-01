@@ -2,7 +2,7 @@
 
 ## Authority
 
-- `front-end/DESIGN.md` is the immutable source of truth for this audit.
+- `front-end/docs/design.md` is the immutable source of truth for this audit.
 - Do not modify `DESIGN.md` during this project.
 - Do not violate or extend it without explicit user approval.
 - If the specification is ambiguous, technically harmful, or insufficient, stop and explain the

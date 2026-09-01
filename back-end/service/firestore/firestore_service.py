@@ -67,7 +67,10 @@ def _initialize_firebase():
             cred = credentials.Certificate(firebase_credentials)
             firebase_admin.initialize_app(cred)
             logger.info("Firebase Admin SDK initialized successfully")
-            logger.info(f"Connected to Firebase project: {firebase_credentials['project_id']}")
+            logger.info(
+                "Firebase SDK configured for project %s (network not yet verified)",
+                firebase_credentials["project_id"],
+            )
 
         except Exception as e:
             logger.error(f"Failed to initialize Firebase Admin SDK: {e}")

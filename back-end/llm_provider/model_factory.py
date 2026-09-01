@@ -22,7 +22,7 @@ first user request doesn't pay the boto3 init cost.
 import logging
 from enum import Enum
 from functools import lru_cache
-from typing import Optional
+from typing import Optional, TypedDict
 
 from langchain_core.language_models.chat_models import BaseChatModel
 
@@ -45,6 +45,13 @@ class ModelSelectionError(ValueError):
     def __init__(self, reason: ModelSelectionReason) -> None:
         self.reason = reason
         super().__init__("Model selection rejected.")
+
+
+class ModelPrewarmResult(TypedDict):
+    """Counts from best-effort provider client construction."""
+
+    attempted: int
+    initialized: int
 
 
 def get_default_model(provider: str) -> str:
@@ -244,7 +251,7 @@ def get_provider_api_key(provider: str) -> str | None:
     return None
 
 
-def prewarm_chat_models() -> None:
+def prewarm_chat_models() -> ModelPrewarmResult:
     """Construct reusable provider clients/models before accepting traffic.
 
     Called from the FastAPI lifespan so the first user request doesn't pay
@@ -254,14 +261,22 @@ def prewarm_chat_models() -> None:
     prewarmed instances don't bake in static AWS credentials — when
     ``AWS_ACCESS_KEY_ID`` is unset the underlying boto3 clients resolve
     credentials from the default chain on each call.
+
+    Returns:
+        Counts of attempted and successfully initialized model clients.
     """
+    attempted = 0
+    initialized = 0
     for provider in get_supported_providers():
         for model in get_provider_models(provider):
+            attempted += 1
             try:
                 get_chat_model(provider, model=model)
+                initialized += 1
             except Exception as exc:
                 public = public_tool_error(
                     "PROVIDER_INITIALIZATION_FAILED",
                     "Model provider initialization failed.",
                 )
                 log_safe_exception(logger, "prewarm_chat_model", exc, public)
+    return {"attempted": attempted, "initialized": initialized}

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import * as sidebarStyles from './sidebarStyles.js';
 import { getPopoverSectionLabelSx } from '../../../styles/shared.js';
+import * as sidebarStyles from './sidebarStyles.js';
 
 const theme = {
   typography: {
