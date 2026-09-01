@@ -17,6 +17,7 @@ import logging
 
 import pytest
 
+import core.audit as audit_module
 from core.audit import audit_log
 from core.logging import bind_request_id, clear_request_id
 
@@ -172,6 +173,25 @@ class TestAuditLog:
         )
         # Record should have been emitted (with str() fallback).
         assert audit_buffer.getvalue().strip()
+
+    def test_never_raises_when_event_and_telemetry_sinks_both_fail(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Keep the user operation available even if both logging boundaries are unavailable."""
+
+        def fail(*_args, **_kwargs) -> None:
+            raise OSError("private-logging-failure")
+
+        monkeypatch.setattr(audit_module._audit_logger, "info", fail)
+        monkeypatch.setattr(audit_module._delivery_logger, "warning", fail)
+
+        audit_log(
+            actor="user:u-123",
+            action="settings.update",
+            resource="user:settings",
+            outcome="success",
+        )
 
     def test_event_id_is_unique(self, audit_buffer: io.StringIO) -> None:
         """Verify event_id values are unique across consecutive audit_log calls."""

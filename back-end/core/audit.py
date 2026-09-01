@@ -14,8 +14,8 @@ Design
   ``details`` payload before serialization.
 - **Idempotent**: callers may pass an ``idempotency_key`` so duplicate
   audit records (e.g. on retry) can be de-duplicated downstream.
-- **Async-safe**: a :class:`logging.Logger` is used under the hood; no
-  global mutable state.
+- **Concurrency-safe telemetry**: the process-local delivery-failure counter
+  is protected by a lock; event delivery uses :mod:`logging` handlers.
 
 Usage
 -----
@@ -70,11 +70,16 @@ def _record_delivery_failure(handler_name: str) -> None:
     with _delivery_failure_lock:
         _delivery_failures += 1
         failure_count = _delivery_failures
-    _delivery_logger.warning(
-        "Audit sink write failed: handler=%s failure_count=%d",
-        handler_name,
-        failure_count,
-    )
+    try:
+        _delivery_logger.warning(
+            "Audit sink write failed: handler=%s failure_count=%d",
+            handler_name,
+            failure_count,
+        )
+    except Exception:
+        # A secondary observability outage must not escape the original
+        # best-effort security-audit boundary.
+        pass
 
 
 class _AuditRotatingFileHandler(RotatingFileHandler):
