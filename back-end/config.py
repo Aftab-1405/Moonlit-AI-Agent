@@ -47,6 +47,9 @@ class Config:
         os.getenv("STARTUP_DIAGNOSTICS_TIMEOUT_SECONDS", "5")
     )
     LOG_FILE = os.getenv("LOG_FILE", "backend.log")
+    AUDIT_LOG_FILE = os.getenv("AUDIT_LOG_FILE", "audit.log")
+    AUDIT_LOG_MAX_BYTES = int(os.getenv("AUDIT_LOG_MAX_BYTES", "10485760"))
+    AUDIT_LOG_BACKUP_COUNT = int(os.getenv("AUDIT_LOG_BACKUP_COUNT", "10"))
     LOG_FORMAT = os.getenv(
         "LOG_FORMAT",
         "%(asctime)s - %(name)s - %(levelname)s - request_id=%(request_id)s - %(message)s",
