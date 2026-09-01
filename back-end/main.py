@@ -20,6 +20,8 @@ from config import ProductionConfig, get_config
 # @limiter.limit decorators. Previously the limiter was created here but
 # no routes had decorators — the limiter existed but never enforced.
 from controller.rate_limiter import limiter
+from core.audit import configure_audit_logging
+from core.audit_middleware import PrivilegedActionAuditMiddleware
 from core.http_boundary import RequestBodyLimitMiddleware, ResponseSecurityMiddleware
 from core.logging import install_request_id_filter
 from core.startup_diagnostics import (
@@ -46,6 +48,11 @@ logging.basicConfig(
 )
 install_request_id_filter()
 logger = logging.getLogger(__name__)
+configure_audit_logging(
+    AppConfig.AUDIT_LOG_FILE,
+    max_bytes=AppConfig.AUDIT_LOG_MAX_BYTES,
+    backup_count=AppConfig.AUDIT_LOG_BACKUP_COUNT,
+)
 logging.getLogger().setLevel(getattr(logging, AppConfig.LOG_LEVEL, logging.INFO))
 third_party_log_level = getattr(logging, AppConfig.THIRD_PARTY_LOG_LEVEL, logging.WARNING)
 for noisy_logger in AppConfig.NOISY_LOGGER_NAMES:
@@ -406,6 +413,8 @@ def create_app() -> FastAPI:
         RequestBodyLimitMiddleware,
         max_body_bytes=AppConfig.REQUEST_BODY_MAX_BYTES,
     )
+
+    app.add_middleware(PrivilegedActionAuditMiddleware)
 
     app.add_middleware(
         ResponseSecurityMiddleware,
