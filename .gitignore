@@ -146,6 +146,13 @@ commands.txt
 /back-end/config/
 agent/
 /back-end/tests/*
+!/back-end/tests/conftest.py
+!/back-end/tests/test_account_activity.py
+!/back-end/tests/test_account_deletion.py
+!/back-end/tests/test_background_account_activity.py
+!/back-end/tests/test_checkpoint_account_erasure.py
+!/back-end/tests/test_checkpoint_write_activity.py
+!/back-end/tests/test_user_dashboard.py
 !/back-end/tests/test_admin_authorization.py
 !/back-end/tests/test_context_summary_sync.py
 !/back-end/tests/test_dependency_management.py

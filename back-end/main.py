@@ -20,6 +20,7 @@ from config import ProductionConfig, get_config
 # @limiter.limit decorators. Previously the limiter was created here but
 # no routes had decorators — the limiter existed but never enforced.
 from controller.rate_limiter import limiter
+from core.account_activity import AccountActivityMiddleware
 from core.audit import configure_audit_logging
 from core.audit_middleware import PrivilegedActionAuditMiddleware
 from core.http_boundary import RequestBodyLimitMiddleware, ResponseSecurityMiddleware
@@ -415,6 +416,7 @@ def create_app() -> FastAPI:
     )
 
     app.add_middleware(PrivilegedActionAuditMiddleware)
+    app.add_middleware(AccountActivityMiddleware)
 
     app.add_middleware(
         ResponseSecurityMiddleware,

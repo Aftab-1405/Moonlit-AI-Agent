@@ -71,7 +71,12 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
             connection_string = config.get("connection_string")
 
             if connection_string:
-                # Use connection string directly - supports SSL, remote DBs
+                # A database selection must override the original DSN database.
+                # Preserve its validated addresses and TLS options.
+                from psycopg2.extensions import make_dsn
+
+                if config.get("database"):
+                    connection_string = make_dsn(connection_string, dbname=config["database"])
                 connection_pool = pool.ThreadedConnectionPool(
                     minconn=Config.DEFAULT_DB_POOL_MIN_CONNECTIONS,
                     maxconn=min(

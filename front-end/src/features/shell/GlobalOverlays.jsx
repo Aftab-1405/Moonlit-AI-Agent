@@ -9,11 +9,9 @@
 //   - ConfirmDialog                         run-query confirmation
 //   - ConfirmDialog                         delete-conversation confirmation
 
-import { Box } from '@mui/material';
-import { AnimatePresence } from 'framer-motion';
 import { lazy, memo, Suspense } from 'react';
 import { ConfirmDialog } from '@/components';
-import Notification from '@/components/ui/toast';
+import ToastStack from '@/components/common/ToastStack';
 import SchemaMindmapDialog from '@/features/overlays/mindmap';
 
 const DatabaseModal = lazy(() => import('@/features/overlays/database/DatabaseModal'));
@@ -66,41 +64,6 @@ const ModalLayer = memo(
     prev.dbModalInitialType === next.dbModalInitialType &&
     prev.settingsInitialSection === next.settingsInitialSection,
 );
-
-const ToastStack = memo(function ToastStack({ notifications, removeToast, isNarrowLayout }) {
-  return (
-    <Box
-      sx={{
-        position: 'fixed',
-        bottom: { xs: 16, sm: 24 },
-        right: isNarrowLayout ? 'auto' : 24,
-        left: isNarrowLayout ? '50%' : 'auto',
-        transform: isNarrowLayout ? 'translateX(-50%)' : 'none',
-        zIndex: (th) => th.zIndex.snackbar,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 1.25,
-        pointerEvents: 'none',
-        width: { xs: 'calc(100% - 32px)', sm: 'auto' },
-        maxWidth: 380,
-      }}
-    >
-      <AnimatePresence>
-        {notifications.map((notification) => (
-          <Notification
-            key={notification.id}
-            type={notification.type}
-            title={notification.title}
-            message={notification.message}
-            showIcon={notification.showIcon}
-            duration={notification.duration}
-            onClose={() => removeToast(notification.id)}
-          />
-        ))}
-      </AnimatePresence>
-    </Box>
-  );
-});
 
 const GlobalOverlays = memo(function GlobalOverlays({
   // Modals

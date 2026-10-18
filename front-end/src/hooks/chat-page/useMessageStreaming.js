@@ -12,6 +12,12 @@ import { resumeAgent, sendMessage } from '@/api';
 import { queryClient, queryKeys } from '@/api/queryClient';
 import { toBackendTaskMode } from '@/config/userSettings';
 import {
+  CHAT_LOAD_STATUS,
+  CHAT_STREAM_STATUS,
+  completeChatSessionStream,
+} from '@/hooks/chat-page/chatSessionModel';
+import { createChatStreamRegistry } from '@/hooks/chat-page/chatStreamRegistry';
+import {
   createAssistantMessage,
   createMessageId,
   createUserMessage,
@@ -104,43 +110,100 @@ function mergeBaseTimelineWithText(baseText = '', baseTimeline = []) {
 }
 
 export function useMessageStreaming({
-  currentConversationId,
-  setCurrentConversationId,
-  setMessages,
-  setConversations,
+  activeSessionKey,
+  getSession,
+  updateSession,
+  updateSessionMessages,
+  isSessionActive,
   navigate,
   fetchConversations,
-  registerStreamingConversation,
+  bindStreamingConversation,
   settings,
   dispatchUiAction = () => {},
   onAgentInterrupt = () => {},
   onAgentStepLimitReached = () => {},
   onTaskModeResolved = () => {},
-  getMessages = () => [],
 }) {
-  const abortControllerRef = useRef(null);
+  const streamRegistryRef = useRef(null);
+  const mountedRef = useRef(false);
+  if (!streamRegistryRef.current) {
+    streamRegistryRef.current = createChatStreamRegistry();
+  }
 
-  useEffect(
-    () => () => {
-      abortControllerRef.current?.abort();
+  const markSessionStopped = useCallback(
+    (sessionKey, stream) => {
+      updateSessionMessages(sessionKey, (previous) => {
+        const existingAssistant = previous.find(
+          (message) => message.id === stream.assistantMessageId,
+        );
+        if (!existingAssistant) return previous;
+        return upsertAssistantMessage(
+          previous,
+          stream.assistantMessageId,
+          {
+            text: existingAssistant.text || '',
+            steps: existingAssistant.steps || [],
+            timeline: existingAssistant.timeline || [],
+          },
+          MESSAGE_STATUS.STOPPED,
+        );
+      });
+      updateSession(sessionKey, (current) => ({
+        ...current,
+        streamStatus: CHAT_STREAM_STATUS.STOPPED,
+      }));
     },
-    [],
+    [updateSession, updateSessionMessages],
   );
 
-  const streamAssistantResponse = useCallback(
-    async ({ response, assistantMessageId, promptForNewConversation, baseMessageData = null }) => {
-      const newConversationId = response.headers.get('X-Conversation-Id');
-      if (newConversationId && !currentConversationId) {
-        registerStreamingConversation?.(newConversationId);
-        setCurrentConversationId(newConversationId);
-        navigate(`/chat/${newConversationId}`, { replace: true });
+  const stopAllStreams = useCallback(
+    () => streamRegistryRef.current.stopAll(markSessionStopped),
+    [markSessionStopped],
+  );
 
+  const hasActiveStreams = useCallback(() => streamRegistryRef.current.size > 0, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      stopAllStreams();
+    };
+  }, [stopAllStreams]);
+
+  const streamAssistantResponse = useCallback(
+    async ({
+      response,
+      sessionKey,
+      generation,
+      conversationId,
+      assistantMessageId,
+      promptForNewConversation,
+      baseMessageData = null,
+    }) => {
+      const newConversationId = response.headers.get('X-Conversation-Id');
+      const ownerConversationId = newConversationId || conversationId;
+      const ownsStream = () => streamRegistryRef.current.get(sessionKey)?.generation === generation;
+      const setOwnerMessages = (updater) => {
+        if (ownsStream()) updateSessionMessages(sessionKey, updater);
+      };
+
+      if (newConversationId && !conversationId && ownsStream()) {
         const tempTitle = buildConversationTitle(promptForNewConversation);
-        setConversations((prev) => [
-          { id: newConversationId, title: tempTitle, created_at: new Date().toISOString() },
-          ...prev,
-        ]);
+        bindStreamingConversation(sessionKey, newConversationId, tempTitle);
+        if (isSessionActive(sessionKey)) {
+          navigate(`/chat/${newConversationId}`, {
+            replace: true,
+            state: { chatSessionKey: sessionKey },
+          });
+        }
       }
+
+      if (!ownsStream()) return;
+      updateSession(sessionKey, (session) => ({
+        ...session,
+        streamStatus: CHAT_STREAM_STATUS.STREAMING,
+      }));
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -157,6 +220,7 @@ export function useMessageStreaming({
       let interruptedWithoutAssistantContent = false;
       // True when the agent hit its step budget and the task was paused.
       let hasStepLimitReached = false;
+      let hasStreamError = false;
       let lastUsageMetrics = null;
 
       const buildMessageData = (isDone = false) => {
@@ -183,7 +247,7 @@ export function useMessageStreaming({
 
         const status = pendingStatus;
         pendingStatus = null;
-        setMessages((prev) =>
+        setOwnerMessages((prev) =>
           upsertAssistantMessage(prev, assistantMessageId, buildMessageData(), status),
         );
         lastUpdateTime = performance.now();
@@ -314,14 +378,20 @@ export function useMessageStreaming({
           case 'agent_interrupt':
             hasAgentInterrupt = true;
             interruptedWithoutAssistantContent = true;
-            onAgentInterrupt(event, assistantMessageId);
+            onAgentInterrupt(event, assistantMessageId, {
+              sessionKey,
+              conversationId: ownerConversationId,
+            });
             scheduleStreamUpdate(MESSAGE_STATUS.WAITING);
             break;
 
           case 'agent_step_limit_reached':
             // The agent hit its step budget. Surface a "Continue" control.
             hasStepLimitReached = true;
-            onAgentStepLimitReached(event, assistantMessageId);
+            onAgentStepLimitReached(event, assistantMessageId, {
+              sessionKey,
+              conversationId: ownerConversationId,
+            });
             scheduleStreamUpdate(MESSAGE_STATUS.PAUSED);
             break;
 
@@ -330,10 +400,14 @@ export function useMessageStreaming({
             // (which may have been auto-elevated from normal → tool_task /
             // long_task based on the prompt). Forward to the controller so
             // it can display a badge in the chat input.
-            onTaskModeResolved(event, assistantMessageId);
+            onTaskModeResolved(event, assistantMessageId, {
+              sessionKey,
+              conversationId: ownerConversationId,
+            });
             break;
 
           case 'error':
+            hasStreamError = true;
             contentParts.push(`\n\n**Error**: ${event.message}`);
             scheduleStreamUpdate(MESSAGE_STATUS.ERROR);
             break;
@@ -346,12 +420,18 @@ export function useMessageStreaming({
             // so the indicator stays in sync when restored from history.
             lastUsageMetrics = { ...event };
             delete lastUsageMetrics.type;
-            dispatchUiAction({ action: 'usage_metrics', payload: event });
+            dispatchUiAction(
+              { action: 'usage_metrics', payload: event },
+              { sessionKey, conversationId: ownerConversationId },
+            );
             scheduleStreamUpdate(MESSAGE_STATUS.STREAMING);
             break;
 
           case 'ui_action':
-            dispatchUiAction(event);
+            dispatchUiAction(event, {
+              sessionKey,
+              conversationId: ownerConversationId,
+            });
             break;
 
           default:
@@ -377,11 +457,11 @@ export function useMessageStreaming({
         eventTimeline.length === 0
       ) {
         // Pure interrupt with no assistant content: remove the placeholder.
-        setMessages((prev) => prev.filter((message) => message.id !== assistantMessageId));
+        setOwnerMessages((prev) => prev.filter((message) => message.id !== assistantMessageId));
       } else if (hasAgentInterrupt) {
         // Interrupt with some content: keep the message as WAITING so the
         // approval / continue controls remain visible.
-        setMessages((prev) =>
+        setOwnerMessages((prev) =>
           upsertAssistantMessage(
             prev,
             assistantMessageId,
@@ -390,40 +470,67 @@ export function useMessageStreaming({
           ),
         );
       } else {
-        setMessages((prev) =>
+        setOwnerMessages((prev) =>
           upsertAssistantMessage(
             prev,
             assistantMessageId,
             buildMessageData(true),
-            hasStepLimitReached ? MESSAGE_STATUS.PAUSED : MESSAGE_STATUS.DONE,
+            hasStreamError
+              ? MESSAGE_STATUS.ERROR
+              : hasStepLimitReached
+                ? MESSAGE_STATUS.PAUSED
+                : MESSAGE_STATUS.DONE,
           ),
         );
       }
+      if (ownsStream()) {
+        const outcome = hasAgentInterrupt
+          ? CHAT_STREAM_STATUS.WAITING
+          : hasStepLimitReached
+            ? CHAT_STREAM_STATUS.PAUSED
+            : hasStreamError
+              ? CHAT_STREAM_STATUS.ERROR
+              : CHAT_STREAM_STATUS.DONE;
+        updateSession(sessionKey, (session) =>
+          completeChatSessionStream(session, {
+            outcome,
+            isActive: isSessionActive(sessionKey),
+          }),
+        );
+      }
       fetchConversations(undefined, { showLoading: false, force: true });
+      return !hasStreamError;
     },
     [
-      currentConversationId,
+      bindStreamingConversation,
       dispatchUiAction,
       fetchConversations,
+      isSessionActive,
       navigate,
       onAgentInterrupt,
       onAgentStepLimitReached,
       onTaskModeResolved,
-      registerStreamingConversation,
-      setConversations,
-      setCurrentConversationId,
-      setMessages,
+      updateSession,
+      updateSessionMessages,
     ],
   );
 
   const handleSendMessage = useCallback(
     async (message, overrides = null) => {
       const prompt = message.trim();
-      if (!prompt) return;
+      const sessionKey = overrides?.sessionKey || activeSessionKey;
+      const session = getSession(sessionKey);
+      if (!prompt || !session) return false;
+      if (session.conversationId && session.loadStatus !== CHAT_LOAD_STATUS.READY) return false;
 
+      const stream = streamRegistryRef.current.start(sessionKey);
+      if (!stream) return false;
+
+      const conversationId = session.conversationId;
       const assistantMessageId = createMessageId('assistant');
-      setMessages((prev) => [
-        ...prev,
+      stream.assistantMessageId = assistantMessageId;
+      updateSessionMessages(sessionKey, (previous) => [
+        ...previous,
         createUserMessage(prompt),
         createAssistantMessage({
           id: assistantMessageId,
@@ -432,74 +539,60 @@ export function useMessageStreaming({
           status: MESSAGE_STATUS.WAITING,
         }),
       ]);
+      updateSession(sessionKey, (current) => ({
+        ...current,
+        streamStatus: CHAT_STREAM_STATUS.STARTING,
+        unreadActivity: null,
+        pendingInteraction: null,
+      }));
 
       const provider = overrides?.provider ?? settings.llmProvider ?? null;
       const model = overrides?.model ?? settings.llmModel ?? null;
-
       const llmOptions = queryClient.getQueryData(queryKeys.llmOptions) || {};
       const supportsReasoning = model
         ? (llmOptions.capabilities?.[model]?.supports_reasoning ?? false)
         : false;
       const enableReasoning = (settings.enableReasoning ?? true) && supportsReasoning;
-      const reasoningEffort = settings.reasoningEffort ?? 'medium';
-      const responseStyle = settings.responseStyle ?? 'balanced';
-      const maxRows = settings.maxRows ?? 1000;
-
-      abortControllerRef.current?.abort();
-      abortControllerRef.current = new AbortController();
 
       try {
-        // ENH [AUTO-TASK-MODE]: 'auto' → 'normal' on the wire; the backend
-        // classifier then upgrades to tool_task / long_task if the prompt
-        // matches. Explicit non-auto choices are passed through unchanged.
         const userTaskMode = overrides?.taskMode ?? settings.taskMode ?? 'auto';
-        const taskMode = toBackendTaskMode(userTaskMode);
         const response = await sendMessage(
           {
             prompt,
-            conversationId: currentConversationId,
+            conversationId,
             enableReasoning,
-            reasoningEffort,
-            responseStyle,
-            maxRows,
+            reasoningEffort: settings.reasoningEffort ?? 'medium',
+            responseStyle: settings.responseStyle ?? 'balanced',
+            maxRows: settings.maxRows ?? 1000,
             provider,
             model,
-            taskMode,
+            taskMode: toBackendTaskMode(userTaskMode),
           },
-          abortControllerRef.current.signal,
+          stream.controller.signal,
         );
 
-        await streamAssistantResponse({
+        return await streamAssistantResponse({
           response,
+          sessionKey,
+          generation: stream.generation,
+          conversationId,
           assistantMessageId,
           promptForNewConversation: prompt,
         });
       } catch (error) {
-        if (error.name === 'AbortError') {
-          setMessages((prev) => {
-            const existingAssistant = prev.find((msg) => msg.id === assistantMessageId);
-            return upsertAssistantMessage(
-              prev,
-              assistantMessageId,
-              {
-                text: existingAssistant?.text || '',
-                steps: existingAssistant?.steps || [],
-                timeline: existingAssistant?.timeline || [],
-              },
-              MESSAGE_STATUS.STOPPED,
-            );
-          });
-          return;
-        }
+        const ownsStream =
+          streamRegistryRef.current.get(sessionKey)?.generation === stream.generation;
+        if (!ownsStream || error.name === 'AbortError') return false;
+
         logger.error('Message streaming error:', error);
         const errorMessage = getErrorMessage(error);
-        setMessages((prev) => {
-          const existingAssistant = prev.find((msg) => msg.id === assistantMessageId);
+        updateSessionMessages(sessionKey, (previous) => {
+          const existingAssistant = previous.find((item) => item.id === assistantMessageId);
           const currentText = existingAssistant?.text
             ? `${existingAssistant.text}\n\n${errorMessage}`
             : errorMessage;
           return upsertAssistantMessage(
-            prev,
+            previous,
             assistantMessageId,
             {
               text: currentText,
@@ -509,20 +602,48 @@ export function useMessageStreaming({
             MESSAGE_STATUS.ERROR,
           );
         });
+        updateSession(sessionKey, (current) =>
+          completeChatSessionStream(current, {
+            outcome: CHAT_STREAM_STATUS.ERROR,
+            isActive: isSessionActive(sessionKey),
+          }),
+        );
+        return false;
       } finally {
-        abortControllerRef.current = null;
+        streamRegistryRef.current.finish(sessionKey, stream.generation);
       }
     },
-    [currentConversationId, settings, setMessages, streamAssistantResponse],
+    [
+      activeSessionKey,
+      getSession,
+      isSessionActive,
+      settings,
+      streamAssistantResponse,
+      updateSession,
+      updateSessionMessages,
+    ],
   );
 
   const handleResumeAgent = useCallback(
     async (resumePayload, overrides = null) => {
-      if (!currentConversationId || !resumePayload) return;
+      const sessionKey = overrides?.sessionKey || activeSessionKey;
+      if (!resumePayload) return false;
+      const previousStream = streamRegistryRef.current.get(sessionKey);
+      if (previousStream) {
+        // Approval controls can appear before the previous response finishes saving.
+        if (previousStream.resumeQueued) return false;
+        previousStream.resumeQueued = true;
+        if (!(await previousStream.finished) || !mountedRef.current) return false;
+      }
+      const session = getSession(sessionKey);
+      if (!session?.conversationId) return false;
 
+      const stream = streamRegistryRef.current.start(sessionKey);
+      if (!stream) return false;
       const assistantMessageId = overrides?.assistantMessageId || createMessageId('assistant');
+      stream.assistantMessageId = assistantMessageId;
       const existingMessage = overrides?.assistantMessageId
-        ? getMessages().find((message) => message.id === overrides.assistantMessageId)
+        ? session.messages.find((message) => message.id === overrides.assistantMessageId)
         : null;
       const baseMessageData = existingMessage
         ? {
@@ -532,16 +653,16 @@ export function useMessageStreaming({
           }
         : null;
 
-      setMessages((prev) => {
+      updateSessionMessages(sessionKey, (previous) => {
         if (existingMessage) {
-          return prev.map((message) =>
+          return previous.map((message) =>
             message.id === assistantMessageId
               ? { ...message, status: MESSAGE_STATUS.WAITING }
               : message,
           );
         }
         return [
-          ...prev,
+          ...previous,
           createAssistantMessage({
             id: assistantMessageId,
             textOverride: '',
@@ -550,55 +671,57 @@ export function useMessageStreaming({
           }),
         ];
       });
+      updateSession(sessionKey, (current) => ({
+        ...current,
+        streamStatus: CHAT_STREAM_STATUS.STARTING,
+        unreadActivity: null,
+        pendingInteraction: null,
+      }));
 
       const provider = overrides?.provider ?? settings.llmProvider ?? null;
       const model = overrides?.model ?? settings.llmModel ?? null;
-
       const llmOptions = queryClient.getQueryData(queryKeys.llmOptions) || {};
       const supportsReasoning = model
         ? (llmOptions.capabilities?.[model]?.supports_reasoning ?? false)
         : false;
-      const enableReasoning = (settings.enableReasoning ?? true) && supportsReasoning;
-      const reasoningEffort = settings.reasoningEffort ?? 'medium';
-      const responseStyle = settings.responseStyle ?? 'balanced';
-      const maxRows = settings.maxRows ?? 1000;
-
-      abortControllerRef.current?.abort();
-      abortControllerRef.current = new AbortController();
 
       try {
-        // ENH [AUTO-TASK-MODE]: Same conversion as sendMessage — 'auto'
-        // becomes 'normal' on the wire; explicit choices pass through.
         const userTaskMode = overrides?.taskMode ?? settings.taskMode ?? 'auto';
-        const taskMode = toBackendTaskMode(userTaskMode);
         const response = await resumeAgent(
           {
-            conversationId: currentConversationId,
+            conversationId: session.conversationId,
             resume: resumePayload,
-            enableReasoning,
-            reasoningEffort,
-            responseStyle,
-            maxRows,
+            enableReasoning: (settings.enableReasoning ?? true) && supportsReasoning,
+            reasoningEffort: settings.reasoningEffort ?? 'medium',
+            responseStyle: settings.responseStyle ?? 'balanced',
+            maxRows: settings.maxRows ?? 1000,
             provider,
             model,
-            taskMode,
+            taskMode: toBackendTaskMode(userTaskMode),
           },
-          abortControllerRef.current.signal,
+          stream.controller.signal,
         );
 
         await streamAssistantResponse({
           response,
+          sessionKey,
+          generation: stream.generation,
+          conversationId: session.conversationId,
           assistantMessageId,
           promptForNewConversation: '',
           baseMessageData,
         });
+        return true;
       } catch (error) {
-        if (error.name === 'AbortError') return;
+        const ownsStream =
+          streamRegistryRef.current.get(sessionKey)?.generation === stream.generation;
+        if (!ownsStream || error.name === 'AbortError') return false;
+
         logger.error('Agent resume streaming error:', error);
         const errorMessage = getErrorMessage(error);
-        setMessages((prev) =>
+        updateSessionMessages(sessionKey, (previous) =>
           upsertAssistantMessage(
-            prev,
+            previous,
             assistantMessageId,
             {
               text: errorMessage,
@@ -608,18 +731,43 @@ export function useMessageStreaming({
             MESSAGE_STATUS.ERROR,
           ),
         );
+        updateSession(sessionKey, (current) =>
+          completeChatSessionStream(current, {
+            outcome: CHAT_STREAM_STATUS.ERROR,
+            isActive: isSessionActive(sessionKey),
+          }),
+        );
+        return false;
       } finally {
-        abortControllerRef.current = null;
+        streamRegistryRef.current.finish(sessionKey, stream.generation);
       }
     },
-    [currentConversationId, getMessages, settings, setMessages, streamAssistantResponse],
+    [
+      activeSessionKey,
+      getSession,
+      isSessionActive,
+      settings,
+      streamAssistantResponse,
+      updateSession,
+      updateSessionMessages,
+    ],
   );
 
-  const handleStopStreaming = useCallback(() => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-  }, []);
+  const stopSession = useCallback(
+    (sessionKey) => {
+      const stream = streamRegistryRef.current.get(sessionKey);
+      if (!stream) return false;
+
+      markSessionStopped(sessionKey, stream);
+      return streamRegistryRef.current.stop(sessionKey);
+    },
+    [markSessionStopped],
+  );
+
+  const handleStopStreaming = useCallback(
+    () => stopSession(activeSessionKey),
+    [activeSessionKey, stopSession],
+  );
 
   /**
    * Continue a task that was paused due to the agent step limit.
@@ -628,20 +776,18 @@ export function useMessageStreaming({
    */
   const handleContinueTask = useCallback(
     async (stepLimitEvent, assistantMessageId = null, overrides = null) => {
-      if (!currentConversationId) return;
-
       const continuePayload = {
         continue_task: true,
         message: 'Continue the task from where you left off.',
       };
 
-      await handleResumeAgent(continuePayload, {
+      return handleResumeAgent(continuePayload, {
         ...overrides,
         assistantMessageId,
         taskMode: stepLimitEvent?.task_mode || 'long_task',
       });
     },
-    [currentConversationId, handleResumeAgent],
+    [handleResumeAgent],
   );
 
   return {
@@ -649,5 +795,8 @@ export function useMessageStreaming({
     handleResumeAgent,
     handleStopStreaming,
     handleContinueTask,
+    stopSession,
+    stopAllStreams,
+    hasActiveStreams,
   };
 }

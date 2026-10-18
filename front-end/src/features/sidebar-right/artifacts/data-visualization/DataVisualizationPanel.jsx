@@ -13,6 +13,7 @@ import {
   WarningIcon,
 } from '@/components/icons';
 import { ArtifactEmptyState, ArtifactShell } from '@/features/sidebar-right/artifact-loader';
+import { useAuth } from '@/contexts/AuthContext';
 import PerspectiveDashboard from '@/features/sidebar-right/artifacts/data-visualization/PerspectiveDashboard';
 import { createAnalysisStorageKey } from '@/features/sidebar-right/artifacts/data-visualization/perspectiveAnalysis';
 import { getSecondaryActionButtonSx } from '@/styles/shared';
@@ -31,12 +32,12 @@ function DataVisualizationPanel({
   onExitFullscreen,
   onToggleFullscreen,
   sourceQuery,
-  sourceType,
   currentDatabase,
   workspaceContainerRef,
   onNotify,
 }) {
   const theme = useTheme();
+  const { user } = useAuth();
   const dashboardRef = useRef(null);
   const [viewerReady, setViewerReady] = useState(false);
   const [selection, setSelection] = useState(null);
@@ -54,11 +55,12 @@ function DataVisualizationPanel({
   const storageKey = useMemo(
     () =>
       createAnalysisStorageKey({
+        userId: user?.uid,
         sourceQuery,
         columns,
         database: currentDatabase,
       }),
-    [columns, currentDatabase, sourceQuery],
+    [columns, currentDatabase, sourceQuery, user?.uid],
   );
   const isTruncated = Boolean(data?.truncated);
   const displayedRowCount = data?.row_count ?? rows.length;
@@ -102,12 +104,29 @@ function DataVisualizationPanel({
 
   if (!rows.length) {
     return (
-      <ArtifactEmptyState
-        role="status"
-        ariaLive="polite"
-        icon={<AnalyticsIcon sx={{ fontSize: 48 }} />}
-        title="No data available for analysis"
-      />
+      <ArtifactShell
+        title="Query results"
+        chrome={chrome}
+        onClose={onClose}
+        onRequestClose={onRequestClose}
+        isFullscreen={isFullscreen}
+        onEnterFullscreen={onEnterFullscreen}
+        onExitFullscreen={onExitFullscreen}
+        onToggleFullscreen={onToggleFullscreen}
+        actions={
+          sourceQuery && requestOpenArtifact
+            ? [{ key: 'editor', label: 'View SQL', icon: <CodeEditorIcon />, onClick: openEditor }]
+            : []
+        }
+      >
+        <ArtifactEmptyState
+          role="status"
+          ariaLive="polite"
+          icon={<AnalyticsIcon sx={{ fontSize: 48 }} />}
+          title="No rows returned"
+          message="The query completed without returning data."
+        />
+      </ArtifactShell>
     );
   }
 
@@ -134,10 +153,10 @@ function DataVisualizationPanel({
         workspaceContainerRef={workspaceContainerRef}
         bodySx={{ p: 2, display: 'flex', flexDirection: 'column' }}
         actions={[
-          sourceQuery && sourceType === 'sql-editor' && requestOpenArtifact
+          sourceQuery && requestOpenArtifact
             ? {
                 key: 'editor',
-                label: 'Back to editor',
+                label: 'View SQL',
                 icon: <CodeEditorIcon sx={{ width: 18, height: 18 }} />,
                 onClick: openEditor,
               }

@@ -91,12 +91,11 @@ class TestRequestId:
 
     def test_install_filter_enriches_propagated_child_records_exactly_once(self) -> None:
         """Catch child-logger records bypassing a filter attached only to root."""
-        from config import get_config
         from core.logging import install_request_id_filter
 
         output = StringIO()
         handler = logging.StreamHandler(output)
-        handler.setFormatter(logging.Formatter(get_config().LOG_FORMAT))
+        handler.setFormatter(logging.Formatter("request_id=%(request_id)s - %(message)s"))
         root_logger = logging.getLogger()
         child_logger = logging.getLogger("tests.request_id.child")
         root_logger.addHandler(handler)
@@ -108,9 +107,7 @@ class TestRequestId:
             bind_request_id("req-child-log")
             child_logger.info("correlated message")
 
-            request_id_filters = [
-                item for item in handler.filters if item.__class__.__name__ == "_RequestIdFilter"
-            ]
+            request_id_filters = [item for item in handler.filters if item.__class__.__name__ == "_RequestIdFilter"]
             assert len(request_id_filters) == 1
             assert "request_id=req-child-log" in output.getvalue()
             assert "correlated message" in output.getvalue()

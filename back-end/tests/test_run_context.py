@@ -363,6 +363,7 @@ async def test_pre_command_mode_write_persists_only_the_resolved_policy(monkeypa
         async def stream(self, *args, **kwargs):
             del args
             forwarded_policies.append(kwargs["run_policy"])
+            yield 'data: {"type":"agent_interrupt"}\n\n'
             yield 'data: {"type":"done"}\n\n'
 
     monkeypatch.setattr(conversation_streaming_service, "run_in_threadpool", immediate_thread_call)
@@ -381,6 +382,6 @@ async def test_pre_command_mode_write_persists_only_the_resolved_policy(monkeypa
         )
     ]
 
-    assert events == ['data: {"type":"done"}\n\n']
+    assert [json.loads(event[6:])["type"] for event in events] == ["agent_interrupt", "done"]
     assert conversation["task_mode"] == "long_task"
     assert forwarded_policies == [policy]

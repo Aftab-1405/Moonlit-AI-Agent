@@ -32,12 +32,12 @@ future loosening of the regex.
 """
 
 import logging
-import threading
 import time
 from typing import Dict, List, Optional, Tuple
 
 from config import get_config
 from core.errors import log_safe_exception, public_database_error, public_tool_error
+from service.database.query_guards import set_query_schema, set_query_timeout
 from service.database.security import DatabaseSecurity
 
 Config = get_config()
@@ -76,10 +76,6 @@ class DatabaseOperationError(Exception):
 
 class DatabaseOperations:
     """Database operations class - accepts db_config explicitly."""
-
-    # Cache for database and table information
-    _info_cache = {}
-    _cache_lock = threading.Lock()
 
     @staticmethod
     def get_databases(db_config: dict) -> Dict:
@@ -276,17 +272,7 @@ class DatabaseOperations:
             manager = get_connection_manager()
             with manager.get_cursor(db_config) as cursor:
                 if timeout_seconds is not None and adapter is not None:
-                    set_session_timeout = getattr(adapter, "set_session_timeout", None)
-                    timeout_sql = adapter.get_set_timeout_sql(timeout_seconds)
-                    if callable(set_session_timeout):
-                        connection = getattr(cursor, "connection", None)
-                        if connection is None:
-                            raise RuntimeError("Database driver timeout could not be applied")
-                        set_session_timeout(connection, timeout_seconds)
-                    elif timeout_sql:
-                        cursor.execute(timeout_sql)
-                    else:
-                        raise RuntimeError("Database statement timeout is not supported")
+                    set_query_timeout(adapter, cursor, getattr(cursor, "connection", None), timeout_seconds)
                 cursor.execute(query)
                 rows = cursor.fetchall()
 
@@ -313,16 +299,6 @@ class DatabaseOperations:
             public = public_database_error(err)
             log_safe_exception(logger, "get_table_row_counts", err, public)
             raise DatabaseOperationError("Failed to retrieve row counts")
-
-    @staticmethod
-    def clear_cache():
-        """Clear all cached data."""
-        with DatabaseOperations._cache_lock:
-            DatabaseOperations._info_cache.clear()
-        try:
-            DatabaseSecurity.clear_cache()
-        except Exception:
-            pass
 
 
 def fetch_database_info(db_config: dict, db_name: str) -> Tuple[Optional[str], Optional[str]]:
@@ -491,50 +467,8 @@ def execute_sql_query(
 
             actual_timeout = timeout_seconds if timeout_seconds else Config.QUERY_TIMEOUT_SECONDS
 
-            # FIX [EC3]: Oracle has no SET TIMEOUT SQL statement — its
-            # timeout is enforced via the oracledb driver's per-connection
-            # ``call_timeout`` attribute. Detect the method via getattr and
-            # apply it directly to the connection exposed by the DB-API
-            # cursor (``cursor.connection`` is part of PEP 249). Other
-            # adapters (MySQL/PostgreSQL/SQL Server) use the SQL-string
-            # path below and do not define ``set_session_timeout``, so
-            # this branch is a no-op for them.
-            set_session_timeout_fn = getattr(adapter, "set_session_timeout", None)
-            if callable(set_session_timeout_fn):
-                try:
-                    underlying_conn = getattr(cursor, "connection", None)
-                    if underlying_conn is not None:
-                        set_session_timeout_fn(underlying_conn, actual_timeout)
-                except Exception as timeout_err:
-                    timeout_public = public_database_error(timeout_err)
-                    log_safe_exception(
-                        logger,
-                        "set_database_session_timeout",
-                        timeout_err,
-                        timeout_public,
-                    )
-
-            timeout_sql = adapter.get_set_timeout_sql(actual_timeout)
-            if timeout_sql:
-                try:
-                    cursor.execute(timeout_sql)
-                except Exception as timeout_err:
-                    # FIX [H7]: do NOT silently swallow the timeout-set
-                    # failure. If we cannot set the statement timeout (privilege
-                    # error, syntax unsupported by DB version), the user query
-                    # would run with NO timeout — exactly the scenario the
-                    # timeout was meant to prevent. Abort with RuntimeError
-                    # so the user sees an explicit error instead of a DoS.
-                    timeout_public = public_database_error(timeout_err)
-                    log_safe_exception(
-                        logger,
-                        "set_database_statement_timeout",
-                        timeout_err,
-                        timeout_public,
-                    )
-                    raise RuntimeError(
-                        "Statement timeout could not be set on this connection; query refused for safety."
-                    )
+            set_query_timeout(adapter, cursor, getattr(cursor, "connection", None), actual_timeout)
+            set_query_schema(cursor, db_config, db_type)
 
             cursor.execute(sql_query)
 

@@ -151,6 +151,7 @@ async def _stream_with_heartbeats(source, *, interval_seconds: float = 15.0):
             if kind == "item":
                 yield value
             elif kind == "error":
+                logger.warning("SSE source failed exception_type=%s", type(value).__name__)
                 raise value
             else:
                 break

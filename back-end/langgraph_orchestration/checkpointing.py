@@ -8,10 +8,10 @@ Development defaults to InMemorySaver.
 import asyncio
 import logging
 import time
-from collections.abc import AsyncIterator, Callable, Iterator, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator, Sequence
 from contextlib import AbstractAsyncContextManager
 from copy import deepcopy
-from typing import Any, Optional
+from typing import Any, Optional, TypeVar
 
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import (
@@ -28,6 +28,7 @@ from api_contract.orchestration_protocols import (
 )
 from api_contract.run_context import CheckpointGeneration, RunControl
 from config import get_config
+from core.account_activity import current_account_user_id, run_account_work
 from langgraph_orchestration.checkpoint_savers import (
     FullCopyAsyncRedisSaver,
     FullCopyInMemorySaver,
@@ -39,6 +40,14 @@ logger = logging.getLogger(__name__)
 
 _checkpointer: Optional[BaseCheckpointSaver] = None
 _redis_saver: AbstractAsyncContextManager[FullCopyAsyncRedisSaver] | None = None
+_MutationResult = TypeVar("_MutationResult")
+
+
+async def _await_account_mutation(operation: Callable[[], Awaitable[_MutationResult]]) -> _MutationResult:
+    user_id = current_account_user_id.get()
+    if user_id is None:
+        return await operation()
+    return await run_account_work(user_id, operation)
 
 
 class GenerationCheckpointer(BaseCheckpointSaver):
@@ -132,11 +141,13 @@ class GenerationCheckpointer(BaseCheckpointSaver):
         new_versions: ChannelVersions,
     ) -> RunnableConfig:
         self._ensure_access_allowed()
-        result = await self._saver.aput(
-            self._physical_config(config),
-            checkpoint,
-            metadata,
-            new_versions,
+        result = await _await_account_mutation(
+            lambda: self._saver.aput(
+                self._physical_config(config),
+                checkpoint,
+                metadata,
+                new_versions,
+            )
         )
         logical_result = self._logical_config(result)
         if logical_result is None:  # pragma: no cover - saver contract excludes None
@@ -151,11 +162,13 @@ class GenerationCheckpointer(BaseCheckpointSaver):
         task_path: str = "",
     ) -> None:
         self._ensure_access_allowed()
-        await self._saver.aput_writes(
-            self._physical_config(config),
-            writes,
-            task_id,
-            task_path,
+        await _await_account_mutation(
+            lambda: self._saver.aput_writes(
+                self._physical_config(config),
+                writes,
+                task_id,
+                task_path,
+            )
         )
 
     async def adelete_thread(self, thread_id: str) -> None:
@@ -294,9 +307,11 @@ async def _clone_generation(
     target: CheckpointGeneration,
 ) -> None:
     try:
-        await saver.acopy_thread(
-            source.physical_thread_id,
-            target.physical_thread_id,
+        await _await_account_mutation(
+            lambda: saver.acopy_thread(
+                source.physical_thread_id,
+                target.physical_thread_id,
+            )
         )
     except NotImplementedError as exc:
         raise RuntimeError(
@@ -332,6 +347,8 @@ async def _generation_snapshot(
 
 
 async def _await_sync_call(func, /, *args):
+    if current_account_user_id.get() is not None:
+        return await _await_account_mutation(lambda: asyncio.to_thread(func, *args))
     worker = asyncio.create_task(asyncio.to_thread(func, *args))
     try:
         return await asyncio.shield(worker)

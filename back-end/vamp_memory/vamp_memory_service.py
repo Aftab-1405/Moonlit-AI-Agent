@@ -48,6 +48,7 @@ import threading
 from typing import Callable
 
 from config import get_config
+from core.account_activity import AccountBusyError, run_account_work
 from core.errors import log_safe_exception, public_tool_error
 from vamp_memory.bedrock_embedding_provider import (
     DEFAULT_EMBEDDING_MODEL,
@@ -217,6 +218,21 @@ class VampMemoryService:
         task.add_done_callback(self._background_tasks.discard)
 
     async def _index_with_failure_record(self, block: dict) -> bool:
+        """Keep background indexing and its retry writes inside account admission."""
+        user_id = block.get("user_id")
+        if not isinstance(user_id, str) or not user_id.strip():
+            logger.warning("Skipping memory indexing for a block without an account owner")
+            return False
+        try:
+            return await run_account_work(
+                user_id,
+                lambda: self._index_and_record_failure(block),
+            )
+        except AccountBusyError:
+            # An erasure barrier also forbids writing retry metadata.
+            return False
+
+    async def _index_and_record_failure(self, block: dict) -> bool:
         """Index a block; on failure record retry state atomically.
 
         Returns ``True`` on success, ``False`` on failure. Serves the role of
@@ -298,19 +314,22 @@ class VampMemoryService:
                 if "text" in bullet and "char_length" not in bullet:
                     bullet["char_length"] = len(str(bullet["text"]))
 
-        block = await self._call_maybe_async(
-            self.summary_repo.create_block,
-            conversation_id,
+        block = await run_account_work(
             user_id,
-            text=text,
-            start_message_idx=start_message_idx,
-            end_message_idx=end_message_idx,
-            embedding_model=self.embedding_model,
-            memory_bullets=memory_bullets,
-            covers_from_turn=covers_from_turn,
-            covers_to_turn=covers_to_turn,
-            covers_message_ids=covers_message_ids,
-            created_from_unsummarized_tail=created_from_unsummarized_tail,
+            lambda: self._call_maybe_async(
+                self.summary_repo.create_block,
+                conversation_id,
+                user_id,
+                text=text,
+                start_message_idx=start_message_idx,
+                end_message_idx=end_message_idx,
+                embedding_model=self.embedding_model,
+                memory_bullets=memory_bullets,
+                covers_from_turn=covers_from_turn,
+                covers_to_turn=covers_to_turn,
+                covers_message_ids=covers_message_ids,
+                created_from_unsummarized_tail=created_from_unsummarized_tail,
+            ),
         )
         # FIX [M28]: Skip scheduling a duplicate index if the block already
         # existed (re-summarization of the same message range, or a retry

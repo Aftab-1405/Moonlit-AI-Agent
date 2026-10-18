@@ -37,6 +37,7 @@ from pydantic import Field
 
 from api_contract.common import ExternalRequestModel
 from config import get_config
+from core.account_activity import track_account_request
 from core.errors import PublicError, log_safe_exception
 from dependencies import (
     clear_session_state,
@@ -122,6 +123,7 @@ async def set_authenticated_user_session(request: Request, response: Response, d
             data.idToken,
             check_revoked=Config.FIREBASE_SESSION_CHECK_REVOKED,
         )
+        await track_account_request(request, decoded_token['uid'], allow_pending=True)
         expires_in = timedelta(seconds=Config.SESSION_EXPIRE_SECONDS)
         session_cookie = await run_in_threadpool(
             auth.create_session_cookie,
@@ -153,8 +155,11 @@ async def set_authenticated_user_session(request: Request, response: Response, d
         }
         request.state.user = user_data
 
-        if existing_state:
-            await replace_session_data_for_cookie(session_cookie, existing_state)
+        await replace_session_data_for_cookie(
+            session_cookie,
+            existing_state,
+            user_id=decoded_token["uid"],
+        )
 
         logger.info("Firebase session established")
         return {"status": "success", "user": user_data}

@@ -208,8 +208,7 @@ class _FailingAdapter:
         return "HEALTH CHECK"
 
     def get_set_timeout_sql(self, timeout_seconds: int):
-        del timeout_seconds
-        return None
+        return f"SET SESSION MAX_EXECUTION_TIME={timeout_seconds * 1000}"
 
     def get_all_tables_for_cache(self, database: str, *, schema: str):
         del database, schema
@@ -442,6 +441,7 @@ async def test_vamp_vector_failure_persists_only_stable_reason(
     with caplog.at_level(logging.WARNING, logger=vamp_service_module.logger.name):
         result = await service._index_with_failure_record(
             {
+                "user_id": "user-1",
                 "conversation_id": "conversation-1",
                 "summary_id": "summary-1",
                 "schema_version": 2,
@@ -1443,8 +1443,7 @@ def test_query_value_error_returns_stable_http_contract(
             return "HEALTH CHECK"
 
         def get_set_timeout_sql(self, timeout_seconds: int):
-            del timeout_seconds
-            return None
+            return f"SET SESSION MAX_EXECUTION_TIME={timeout_seconds * 1000}"
 
         def get_column_names_from_cursor(self, cursor: Cursor):
             del cursor
@@ -1525,8 +1524,7 @@ def test_lower_sql_operation_does_not_emit_http_security_event(
             return "HEALTH CHECK"
 
         def get_set_timeout_sql(self, timeout_seconds: int):
-            del timeout_seconds
-            return None
+            return f"SET SESSION MAX_EXECUTION_TIME={timeout_seconds * 1000}"
 
         def get_column_names_from_cursor(self, selected_cursor: Any) -> list[str]:
             assert selected_cursor is cursor
@@ -1560,8 +1558,7 @@ def test_value_error_stays_safe_without_lower_audit_event(
             return "HEALTH CHECK"
 
         def get_set_timeout_sql(self, timeout_seconds: int):
-            del timeout_seconds
-            return None
+            return f"SET SESSION MAX_EXECUTION_TIME={timeout_seconds * 1000}"
 
         def get_column_names_from_cursor(self, selected_cursor: Any) -> list[str]:
             del selected_cursor
@@ -1674,7 +1671,8 @@ def test_agent_sql_emits_one_sanitized_terminal_event(
 
     payloads = _audit_payloads(records)
     assert len(payloads) == 1
-    assert payloads[0]["actor"] == "user:user-1"
+    assert payloads[0]["actor"].startswith("user:pseudo_")
+    assert "user-1" not in payloads[0]["actor"]
     assert payloads[0]["action"] == "agent.sql.execute"
     assert payloads[0]["resource"] == "db:agent-query"
     assert payloads[0]["outcome"] == expected_outcome

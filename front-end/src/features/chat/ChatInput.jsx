@@ -1,3 +1,4 @@
+import { getModelDisplayName } from '@/config/llmSelection';
 /**
  * ChatInput — the message composer at the bottom of the chat workspace.
  *
@@ -5,14 +6,14 @@
  *   ┌────────────────────────────────────────────┐
  *   │  multiline text field                       │
  *   ├────────────────────────────────────────────┤
- *   │  [Context] [SQL]                [Model] [→] │
+ *   │  [SQL]                          [Model] [→] │
  *   └────────────────────────────────────────────┘
  *
  * Features:
  *   - Enter sends; Shift+Enter inserts newline.
  *   - Toolbar buttons open AppPopover menus for database/schema/model selection.
  *   - Context-usage ring on the model button when `usageMetrics` is provided.
- *   - Streaming state: send button becomes stop; input is disabled.
+ *   - Streaming state: send button becomes stop; the next draft remains editable.
  *   - Mobile: controls preserve 44px touch targets and remain horizontally
  *     scrollable when space is constrained.
  *
@@ -25,30 +26,16 @@ import {
   Button,
   IconButton,
   LinearProgress,
-  Skeleton,
   TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  AppPopover,
-  AppPopoverEmptyState,
-  AppPopoverItem,
-  AppPopoverList,
-  AppPopoverSectionLabel,
-} from '@/components';
-import {
-  AddIcon,
-  CheckIcon,
-  CodeEditorIcon,
-  DatabaseIcon,
-  ExpandMoreIcon,
-  SchemaIcon,
-  SendIcon,
-  StopIcon,
-} from '@/components/icons';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import { CodeEditorIcon, ExpandMoreIcon, SendIcon, StopIcon } from '@/components/icons';
+import { createChatDraftStore } from '@/features/chat/chatDraftStore';
+import { CHAT_MOTION } from '@/features/chat/chatMotion';
 import { getContextUsage } from '@/features/chat/contextUsage';
 import SlashCommandMenu from '@/features/chat/SlashCommandMenu';
 import { extractSlashQuery } from '@/features/chat/slashCommandUtils';
@@ -60,8 +47,12 @@ import {
   getResponsivePillIconButtonSx,
 } from '@/features/styles/interfaceChrome';
 import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
-import { getInteractionColors, getPopoverDividerSx, UI_LAYOUT, UI_POPOVER } from '@/styles/shared';
-import logger from '@/utils/logger';
+import { getInteractionColors, UI_LAYOUT } from '@/styles/shared';
+import ComposerContextBar from '@/features/chat/ComposerContextBar';
+import ComposerModelPicker from '@/features/chat/ComposerModelPicker';
+import { REASONING_EFFORT_OPTIONS } from '@/config/userSettings';
+
+const MotionSpan = motion.span;
 
 const ContextProgressRing = ({ value, theme }) => {
   if (value == null || value < 70) return null;
@@ -118,67 +109,6 @@ const ContextProgressRing = ({ value, theme }) => {
     </Box>
   );
 };
-
-const ModelSelectorLabel = memo(function ModelSelectorLabel({ label }) {
-  const viewportRef = useRef(null);
-  const textRef = useRef(null);
-  const [overflowWidth, setOverflowWidth] = useState(0);
-
-  useEffect(() => {
-    const viewport = viewportRef.current;
-    const text = textRef.current;
-    if (!viewport || !text) return undefined;
-
-    const measureOverflow = () => {
-      const nextOverflow = Math.max(0, Math.ceil(text.scrollWidth - viewport.clientWidth));
-      setOverflowWidth((currentOverflow) =>
-        currentOverflow === nextOverflow ? currentOverflow : nextOverflow,
-      );
-    };
-
-    measureOverflow();
-
-    if (typeof ResizeObserver === 'undefined') return undefined;
-    const resizeObserver = new ResizeObserver(measureOverflow);
-    resizeObserver.observe(viewport);
-    resizeObserver.observe(text);
-    return () => resizeObserver.disconnect();
-  }, []);
-
-  const travelDuration = Math.min(5000, Math.max(1200, overflowWidth * 25));
-
-  return (
-    <Box
-      ref={viewportRef}
-      component="span"
-      className="model-selector-label"
-      sx={{
-        minWidth: 0,
-        flex: 1,
-        overflow: 'hidden',
-        whiteSpace: 'nowrap',
-        textAlign: 'left',
-        '--model-label-overflow': `${overflowWidth}px`,
-        '--model-label-duration': `${travelDuration}ms`,
-      }}
-    >
-      <Box
-        ref={textRef}
-        component="span"
-        className="model-selector-label-text"
-        sx={{
-          display: 'inline-block',
-          minWidth: 'max-content',
-          whiteSpace: 'nowrap',
-          transform: 'translateX(0)',
-          transition: 'transform 180ms ease-out',
-        }}
-      >
-        {label}
-      </Box>
-    </Box>
-  );
-});
 
 const ContextUsageBar = ({ label, value, color }) => (
   <Box>
@@ -241,12 +171,14 @@ const ContextUsageTooltip = ({ contextUsage, selectedModel }) => (
       display="block"
       sx={{ color: 'text.secondary', mt: 1, fontSize: '10px', lineHeight: 1.25 }}
     >
-      Background context manages these budgets to prevent memory crashes.
+      Context usage is managed automatically as the conversation grows.
     </Typography>
   </Box>
 );
 
 function ChatInput({
+  sessionKey = 'default',
+  placement = 'active',
   onSend,
   onStop,
   isStreaming = false,
@@ -263,6 +195,11 @@ function ChatInput({
   selectedModel = '',
   providerOptions = [],
   llmOptionsLoading = false,
+  llmOptionsError = false,
+  onRetryLlmOptions,
+  supportsReasoning = false,
+  reasoningEffort = 'medium',
+  onReasoningEffortChange,
   onSelectLlm,
   usageMetrics = null,
   // ENH [AUTO-TASK-MODE]: User's task-mode preference ('auto' | 'normal' |
@@ -273,28 +210,30 @@ function ChatInput({
   effectiveTaskMode = null,
   onToggleSqlEditor = null,
   sqlEditorOpen = false,
+  onOpenDatabase,
+  onOpenContext,
   children,
 }) {
-  const [message, setMessage] = useState('');
+  const [draftStore] = useState(createChatDraftStore);
+  const sendAttempts = useRef(new Map());
+  const [, setDraftRevision] = useState(0);
+  const message = draftStore.get(sessionKey);
+  const updateMessage = useCallback(
+    (updater) => {
+      const previous = draftStore.get(sessionKey);
+      const next = typeof updater === 'function' ? updater(previous) : updater;
+      draftStore.set(sessionKey, next);
+      setDraftRevision((revision) => revision + 1);
+    },
+    [draftStore, sessionKey],
+  );
   const theme = useTheme();
-  const [contextAnchor, setContextAnchor] = useState(null);
+  const prefersReducedMotion = useReducedMotion();
   const [llmAnchor, setLlmAnchor] = useState(null);
   // ENH [SLASH-COMMAND]: Ref to the composer wrapper so the slash command
   // menu can anchor to it. The menu only opens when the message starts
   // with "/" — zero chrome at rest.
   const [composerElement, setComposerElement] = useState(null);
-
-  const isPostgreSQL = useMemo(() => dbType?.toLowerCase() === 'postgresql', [dbType]);
-
-  const connectionMetadataReady = useMemo(
-    () => Boolean(isConnected && currentDatabase && dbType),
-    [isConnected, currentDatabase, dbType],
-  );
-  const showSchemaSelector = useMemo(
-    () => connectionMetadataReady && isPostgreSQL && Boolean(currentSchema),
-    [connectionMetadataReady, isPostgreSQL, currentSchema],
-  );
-  const showDatabaseSelector = useMemo(() => connectionMetadataReady, [connectionMetadataReady]);
 
   const hasText = useMemo(() => message.trim().length > 0, [message]);
 
@@ -365,20 +304,6 @@ function ChatInput({
           '& .MuiButton-startIcon': {
             color: 'text.primary',
           },
-          '& .model-selector-label-text': {
-            transform: 'translateX(calc(-1 * var(--model-label-overflow)))',
-            transition: 'transform var(--model-label-duration) linear 300ms',
-          },
-        },
-      },
-      '&.Mui-focusVisible .model-selector-label-text': {
-        transform: 'translateX(calc(-1 * var(--model-label-overflow)))',
-        transition: 'transform var(--model-label-duration) linear 300ms',
-      },
-      '@media (prefers-reduced-motion: reduce)': {
-        '&:hover .model-selector-label-text, &.Mui-focusVisible .model-selector-label-text': {
-          transform: 'none',
-          transition: 'none',
         },
       },
       // Visible focus ring for keyboard navigation — consistent with the rest of the app.
@@ -400,7 +325,7 @@ function ChatInput({
     () => ({
       '& .MuiInputBase-root': {
         p: 0,
-        minHeight: { xs: 48, md: 50 },
+        minHeight: 38,
         alignItems: 'flex-start',
       },
       '& .MuiInputBase-input': {
@@ -421,7 +346,7 @@ function ChatInput({
       alignItems: 'center',
       gap: 0.5,
       minWidth: 0,
-      flex: 1,
+      flexShrink: 0,
       overflowX: 'auto',
       overflowY: 'hidden',
       scrollbarWidth: 'none',
@@ -496,48 +421,18 @@ function ChatInput({
   );
   const composerSurfaceSx = useMemo(() => getComposerSurfaceSx(theme), [theme]);
   const composerLayoutSx = useMemo(() => getComposerLayoutSx(theme), [theme]);
-  const inputPlaceholder = isStreaming ? 'Draft your next message' : 'How can I help you today?';
+  const inputPlaceholder = isStreaming ? 'Draft your next message' : 'Work with Moonlit';
 
   const selectedProviderOption = useMemo(() => {
     return providerOptions.find((provider) => provider.name === selectedProvider) || null;
   }, [providerOptions, selectedProvider]);
   const activeProviderLabel = selectedProviderOption?.label || selectedProvider || '';
-  const llmSections = useMemo(() => {
-    return providerOptions
-      .filter((provider) => Array.isArray(provider.models) && provider.models.length > 0)
-      .map((provider) => ({
-        name: provider.name,
-        label: provider.label || provider.name,
-        models: provider.models,
-      }));
-  }, [providerOptions]);
-  const hasLlmOptions = llmSections.length > 0;
+  const effortLabel = supportsReasoning
+    ? REASONING_EFFORT_OPTIONS.find((option) => option.value === reasoningEffort)?.label
+    : null;
   const contextUsage = useMemo(() => getContextUsage(usageMetrics), [usageMetrics]);
 
-  const handleCloseContextMenu = useCallback(() => setContextAnchor(null), []);
   const handleCloseLlmPopover = useCallback(() => setLlmAnchor(null), []);
-
-  const handleSchemaChange = useCallback(
-    async (schema) => {
-      setContextAnchor(null);
-      if (schema === currentSchema) return;
-
-      const result = await onSchemaChange?.(schema);
-      if (result && !result.success) {
-        logger.error('Failed to select schema:', result.error);
-      }
-    },
-    [currentSchema, onSchemaChange],
-  );
-
-  const handleDatabaseChange = useCallback(
-    (dbName) => {
-      setContextAnchor(null);
-      if (dbName === currentDatabase) return;
-      onDatabaseSwitch?.(dbName);
-    },
-    [currentDatabase, onDatabaseSwitch],
-  );
 
   // ENH [SLASH-COMMAND]: Detect slash commands typed at the start of the
   // message. When the message starts with "/" and has no whitespace yet,
@@ -562,35 +457,56 @@ function ChatInput({
       // typing their actual prompt. If the command was the picker
       // ("/mode" with value=null), we still clear the slash so the menu
       // closes and the user can type their prompt.
-      setMessage((prev) => {
+      updateMessage((prev) => {
         // Remove the first token (the slash command) and any single
         // trailing space, preserving the rest of the message.
         const remainder = prev.split(/\s+(.*)/s, 2)[1] || '';
         return remainder;
       });
     },
-    [onTaskModeChange],
+    [onTaskModeChange, updateMessage],
   );
 
   const handleSlashCommandClose = useCallback(() => {
     // Closing the menu without selecting: clear the slash so it doesn't
     // reopen on the next keystroke. The user can retype "/" to reopen.
-    setMessage((prev) => {
+    updateMessage((prev) => {
       if (!prev.startsWith('/')) return prev;
       const remainder = prev.split(/\s+(.*)/s, 2)[1] || '';
       return remainder;
     });
-  }, []);
+  }, [updateMessage]);
 
   const handleSubmit = useCallback(
     (e) => {
       e?.preventDefault();
-      if (message.trim() && !disabled && !isStreaming) {
-        onSend(message.trim());
-        setMessage('');
+      if (!message.trim() || disabled || isStreaming) return;
+      const attempt = Symbol();
+      sendAttempts.current.set(sessionKey, attempt);
+      draftStore.clear(sessionKey);
+      setDraftRevision((revision) => revision + 1);
+      const restoreDraft = () => {
+        if (sendAttempts.current.get(sessionKey) === attempt && !draftStore.get(sessionKey)) {
+          draftStore.set(sessionKey, message);
+          setDraftRevision((revision) => revision + 1);
+        }
+      };
+      const finish = () => {
+        if (sendAttempts.current.get(sessionKey) === attempt)
+          sendAttempts.current.delete(sessionKey);
+      };
+      try {
+        Promise.resolve(onSend(message.trim()))
+          .then((accepted) => {
+            if (accepted === false) restoreDraft();
+          }, restoreDraft)
+          .finally(finish);
+      } catch {
+        restoreDraft();
+        finish();
       }
     },
-    [message, disabled, isStreaming, onSend],
+    [message, disabled, isStreaming, onSend, draftStore, sessionKey],
   );
 
   // ENH [SLASH-COMMAND]: When the slash command menu is open, Enter and
@@ -601,6 +517,7 @@ function ChatInput({
   // the same way in the menu's listener.
   const handleKeyDown = useCallback(
     (e) => {
+      if (e.nativeEvent.isComposing || e.keyCode === 229) return;
       if (isSlashMenuOpen) {
         // The slash menu's capture-phase listener will handle
         // Enter/Tab/Arrow/Escape. For any other key, fall through so
@@ -623,64 +540,19 @@ function ChatInput({
     [handleSubmit, isSlashMenuOpen],
   );
 
-  const handleInputChange = useCallback((e) => {
-    setMessage(e.target.value);
-  }, []);
+  const handleInputChange = useCallback(
+    (e) => {
+      updateMessage(e.target.value);
+    },
+    [updateMessage],
+  );
 
-  const handleOpenContextMenu = useCallback((e) => setContextAnchor(e.currentTarget), []);
   const handleOpenLlmPopover = useCallback((e) => setLlmAnchor(e.currentTarget), []);
 
   const handleStopClick = useCallback(() => {
+    sendAttempts.current.delete(sessionKey);
     onStop?.();
-  }, [onStop]);
-
-  const handleLlmSelection = useCallback(
-    (providerName, modelName) => {
-      onSelectLlm?.(providerName, modelName);
-      setLlmAnchor(null);
-    },
-    [onSelectLlm],
-  );
-
-  const handleMenuItemKeyDown = useCallback((event, onSelect) => {
-    const items = Array.from(
-      event.currentTarget
-        .closest('[role="menu"]')
-        ?.querySelectorAll('[role="menuitemradio"]:not([aria-disabled="true"])') || [],
-    );
-    const currentIndex = items.indexOf(event.currentTarget);
-    const focusItem = (index) => {
-      items[index]?.focus();
-    };
-
-    switch (event.key) {
-      case 'Enter':
-      case ' ':
-        event.preventDefault();
-        onSelect();
-        break;
-      case 'ArrowDown':
-      case 'ArrowRight':
-        event.preventDefault();
-        focusItem((currentIndex + 1) % items.length);
-        break;
-      case 'ArrowUp':
-      case 'ArrowLeft':
-        event.preventDefault();
-        focusItem((currentIndex - 1 + items.length) % items.length);
-        break;
-      case 'Home':
-        event.preventDefault();
-        focusItem(0);
-        break;
-      case 'End':
-        event.preventDefault();
-        focusItem(items.length - 1);
-        break;
-      default:
-        break;
-    }
-  }, []);
+  }, [onStop, sessionKey]);
 
   return (
     <Box
@@ -692,157 +564,37 @@ function ChatInput({
         zIndex: 2,
       }}
     >
-      <AppPopover
-        anchorEl={contextAnchor}
-        open={Boolean(contextAnchor)}
-        onClose={handleCloseContextMenu}
-        anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
-        transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-        width={260}
-        paperSx={{ mt: -1 }}
-      >
-        <AppPopoverList role="menu" aria-label="Chat context" maxHeight={360}>
-          {showDatabaseSelector ? (
-            <>
-              <AppPopoverSectionLabel>Database</AppPopoverSectionLabel>
-              {availableDatabases.map((db) => {
-                const isActive = db === currentDatabase;
-                return (
-                  <AppPopoverItem
-                    role="menuitemradio"
-                    ariaChecked={isActive}
-                    key={db}
-                    onClick={() => handleDatabaseChange(db)}
-                    onKeyDown={(event) =>
-                      handleMenuItemKeyDown(event, () => handleDatabaseChange(db))
-                    }
-                    selected={isActive}
-                    icon={<DatabaseIcon />}
-                    label={db}
-                    reserveTrailing
-                    trailing={isActive ? <CheckIcon /> : null}
-                  />
-                );
-              })}
-
-              {showSchemaSelector && (
-                <>
-                  <Box aria-hidden sx={getPopoverDividerSx(theme, { my: 0.5 })} />
-                  <AppPopoverSectionLabel sx={{ pt: 0.25 }}>
-                    PostgreSQL schema
-                  </AppPopoverSectionLabel>
-                  {availableSchemas.map((schema) => {
-                    const isActive = schema === currentSchema;
-                    return (
-                      <AppPopoverItem
-                        role="menuitemradio"
-                        ariaChecked={isActive}
-                        key={schema}
-                        onClick={() => handleSchemaChange(schema)}
-                        onKeyDown={(event) =>
-                          handleMenuItemKeyDown(event, () => handleSchemaChange(schema))
-                        }
-                        selected={isActive}
-                        icon={<SchemaIcon />}
-                        label={schema}
-                        reserveTrailing
-                        trailing={isActive ? <CheckIcon /> : null}
-                      />
-                    );
-                  })}
-                </>
-              )}
-            </>
-          ) : (
-            <AppPopoverEmptyState
-              title="No database connected"
-              description="Connect a database from the sidebar to add schema context."
-            />
-          )}
-        </AppPopoverList>
-      </AppPopover>
-      <AppPopover
-        anchorEl={llmAnchor}
-        open={Boolean(llmAnchor)}
-        onClose={handleCloseLlmPopover}
-        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-        transformOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-        width={288}
-        paperSx={{ mt: -1 }}
-      >
-        {/* Model list */}
-        <AppPopoverList role="menu" aria-label="Select model" maxHeight={280}>
-          {llmOptionsLoading ? (
-            // Match the real row geometry: model label first, compact status
-            // slot second. This prevents layout movement when options arrive.
-            <Box sx={{ display: 'grid', gap: 0.25 }}>
-              {[0, 1, 2].map((i) => (
-                <Box
-                  key={i}
-                  sx={{
-                    display: 'grid',
-                    gridTemplateColumns: 'minmax(0, 1fr) 16px',
-                    alignItems: 'center',
-                    gap: 1,
-                    minHeight: UI_POPOVER.rowMinHeight,
-                    px: 1,
-                    py: UI_POPOVER.rowPaddingY,
-                  }}
-                >
-                  <Skeleton
-                    variant="rounded"
-                    animation="wave"
-                    sx={{
-                      width: `${78 - i * 12}%`,
-                      height: 11,
-                      borderRadius: 999,
-                    }}
-                  />
-                  <Skeleton variant="circular" width={14} height={14} animation="wave" />
-                </Box>
-              ))}
-            </Box>
-          ) : hasLlmOptions ? (
-            llmSections.map((section, sectionIndex) => (
-              <Box key={section.name}>
-                {sectionIndex > 0 && <Box aria-hidden sx={getPopoverDividerSx(theme)} />}
-                <AppPopoverSectionLabel sx={{ pt: sectionIndex > 0 ? 0.25 : 0.5 }}>
-                  {section.label}
-                </AppPopoverSectionLabel>
-                {section.models.map((model) => {
-                  const isActive = section.name === selectedProvider && model === selectedModel;
-                  return (
-                    <AppPopoverItem
-                      role="menuitemradio"
-                      ariaChecked={isActive}
-                      key={`${section.name}-${model}`}
-                      onClick={() => handleLlmSelection(section.name, model)}
-                      onKeyDown={(event) =>
-                        handleMenuItemKeyDown(event, () => handleLlmSelection(section.name, model))
-                      }
-                      selected={isActive}
-                      label={model}
-                      reserveTrailing
-                      trailing={isActive ? <CheckIcon /> : null}
-                    />
-                  );
-                })}
-              </Box>
-            ))
-          ) : (
-            <AppPopoverEmptyState
-              title="No models available"
-              description="Model options could not be loaded."
-            />
-          )}
-        </AppPopoverList>
-      </AppPopover>
+      {llmAnchor && (
+        <ComposerModelPicker
+          anchorEl={llmAnchor}
+          placement={placement}
+          onClose={handleCloseLlmPopover}
+          providerOptions={providerOptions}
+          selectedProvider={selectedProvider}
+          selectedModel={selectedModel}
+          loading={llmOptionsLoading}
+          error={llmOptionsError}
+          onRetry={onRetryLlmOptions}
+          onSelect={onSelectLlm}
+          supportsReasoning={supportsReasoning}
+          reasoningEffort={reasoningEffort}
+          onReasoningEffortChange={onReasoningEffortChange}
+          isStreaming={isStreaming}
+          effectiveTaskMode={effectiveTaskMode}
+          usageContent={
+            contextUsage ? (
+              <ContextUsageTooltip contextUsage={contextUsage} selectedModel={selectedModel} />
+            ) : null
+          }
+        />
+      )}
 
       <Box
         ref={setComposerElement}
         sx={{
           maxWidth: COMPOSER_MAX_WIDTH,
           ...composerLayoutSx.surface,
+          ...(placement === 'welcome' && { minHeight: { xs: 126, md: 126 } }),
           mx: 'auto',
           position: 'relative',
           ...composerSurfaceSx,
@@ -895,24 +647,6 @@ function ChatInput({
             }}
           >
             <Box sx={toolbarScrollSx}>
-              <Tooltip title="Database and schema context">
-                <Button
-                  variant="text"
-                  size="small"
-                  startIcon={<AddIcon />}
-                  onClick={handleOpenContextMenu}
-                  aria-expanded={Boolean(contextAnchor)}
-                  aria-label="Open chat context menu"
-                  sx={{
-                    ...toolbarActionButtonStyles,
-                    maxWidth: 116,
-                    px: { xs: 1, md: 1.5 },
-                  }}
-                >
-                  Context
-                </Button>
-              </Tooltip>
-
               <Tooltip
                 title={
                   sqlEditorOpen
@@ -939,22 +673,6 @@ function ChatInput({
                   SQL
                 </Button>
               </Tooltip>
-
-              {effectiveTaskMode && (
-                <Typography
-                  aria-label={`Effective task mode: ${effectiveTaskMode.label}`}
-                  sx={{
-                    display: { xs: 'none', md: 'block' },
-                    px: 0.5,
-                    color: 'text.disabled',
-                    fontSize: '0.7rem',
-                    fontWeight: 400,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {effectiveTaskMode.label}
-                </Typography>
-              )}
             </Box>
 
             <Box
@@ -962,7 +680,9 @@ function ChatInput({
                 display: 'flex',
                 alignItems: 'center',
                 gap: 0.5,
-                flexShrink: 0,
+                minWidth: 0,
+                maxWidth: 'calc(100% - 64px)',
+                flexShrink: 1,
               }}
             >
               <Tooltip
@@ -973,20 +693,20 @@ function ChatInput({
                       selectedModel={selectedModel}
                     />
                   ) : activeProviderLabel ? (
-                    `${selectedModel || 'Select model'} - ${activeProviderLabel}`
+                    `${selectedModel || 'Select model'} - ${activeProviderLabel}${effortLabel ? ` · ${effortLabel} reasoning` : ''}`
                   ) : (
                     'Select model'
                   )
                 }
               >
-                <span>
+                <Box component="span" sx={{ minWidth: 0, display: 'flex', flexShrink: 1 }}>
                   <Button
                     variant="text"
                     size="small"
                     onClick={handleOpenLlmPopover}
-                    disabled={!hasLlmOptions && !llmOptionsLoading}
                     aria-expanded={Boolean(llmAnchor)}
-                    aria-label="Select model"
+                    aria-label={`Select model: ${selectedModel || 'Choose model'}${effortLabel ? `, ${effortLabel} reasoning` : ''}`}
+                    aria-haspopup="dialog"
                     startIcon={
                       contextUsage ? (
                         <ContextProgressRing value={contextUsage.activePercent} theme={theme} />
@@ -1004,16 +724,32 @@ function ChatInput({
                     }
                     sx={{
                       ...toolbarActionButtonStyles,
-                      width: { xs: 116, md: 156 },
-                      flexShrink: 0,
+                      minWidth: 0,
+                      maxWidth: '100%',
+                      flexShrink: 1,
+                      bgcolor:
+                        placement === 'welcome' || llmAnchor ? 'action.selected' : 'transparent',
                     }}
                   >
-                    <ModelSelectorLabel
-                      key={selectedModel || (llmOptionsLoading ? 'loading' : 'choose-model')}
-                      label={selectedModel || (llmOptionsLoading ? 'Loading' : 'Choose model')}
-                    />
+                    <Box
+                      component="span"
+                      sx={{
+                        minWidth: 0,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {getModelDisplayName(selectedModel) ||
+                        (llmOptionsLoading ? 'Loading' : 'Choose model')}
+                    </Box>
+                    {effortLabel && (
+                      <Box component="span" sx={{ flexShrink: 0 }}>
+                        · {effortLabel}
+                      </Box>
+                    )}
                   </Button>
-                </span>
+                </Box>
               </Tooltip>
 
               <Tooltip
@@ -1029,11 +765,41 @@ function ChatInput({
                     aria-label={isStreaming ? 'Stop generating response' : 'Send message'}
                     sx={sendActionSx}
                   >
-                    {isStreaming ? (
-                      <StopIcon sx={{ fontSize: 14 }} />
-                    ) : (
-                      <SendIcon sx={{ fontSize: 14, ml: '1px' }} />
-                    )}
+                    <Box
+                      component="span"
+                      aria-hidden
+                      sx={{ position: 'relative', display: 'block', width: 20, height: 20 }}
+                    >
+                      <AnimatePresence initial={false}>
+                        <MotionSpan
+                          key={isStreaming ? 'stop' : 'send'}
+                          data-control-icon={isStreaming ? 'stop' : 'send'}
+                          initial={prefersReducedMotion ? false : { opacity: 0, scale: 0.82 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={
+                            prefersReducedMotion
+                              ? { opacity: 1, scale: 1 }
+                              : { opacity: 0, scale: 0.82 }
+                          }
+                          transition={{
+                            duration: prefersReducedMotion ? 0 : CHAT_MOTION.controlDuration,
+                            ease: CHAT_MOTION.ease,
+                          }}
+                          style={{
+                            position: 'absolute',
+                            inset: 0,
+                            display: 'grid',
+                            placeItems: 'center',
+                          }}
+                        >
+                          {isStreaming ? (
+                            <StopIcon sx={{ fontSize: 20 }} />
+                          ) : (
+                            <SendIcon sx={{ fontSize: 20 }} />
+                          )}
+                        </MotionSpan>
+                      </AnimatePresence>
+                    </Box>
                   </IconButton>
                 </span>
               </Tooltip>
@@ -1061,12 +827,31 @@ function ChatInput({
           onClose={handleSlashCommandClose}
         />
       )}
+      <ComposerContextBar
+        key={sessionKey}
+        {...{
+          isConnected,
+          isStreaming,
+          disabled,
+          currentDatabase,
+          dbType,
+          currentSchema,
+          availableDatabases,
+          availableSchemas,
+          onDatabaseSwitch,
+          onSchemaChange,
+          onOpenDatabase,
+          onOpenContext,
+        }}
+      />
       {children}
     </Box>
   );
 }
 
 function arePropsEqual(prevProps, nextProps) {
+  if (prevProps.sessionKey !== nextProps.sessionKey) return false;
+  if (prevProps.placement !== nextProps.placement) return false;
   if (prevProps.isStreaming !== nextProps.isStreaming) return false;
   if (prevProps.disabled !== nextProps.disabled) return false;
   if (prevProps.isConnected !== nextProps.isConnected) return false;
@@ -1074,6 +859,11 @@ function arePropsEqual(prevProps, nextProps) {
   if (prevProps.currentDatabase !== nextProps.currentDatabase) return false;
   if (prevProps.selectedProvider !== nextProps.selectedProvider) return false;
   if (prevProps.selectedModel !== nextProps.selectedModel) return false;
+  if (prevProps.supportsReasoning !== nextProps.supportsReasoning) return false;
+  if (prevProps.reasoningEffort !== nextProps.reasoningEffort) return false;
+  if (prevProps.onReasoningEffortChange !== nextProps.onReasoningEffortChange) return false;
+  if (prevProps.llmOptionsError !== nextProps.llmOptionsError) return false;
+  if (prevProps.onRetryLlmOptions !== nextProps.onRetryLlmOptions) return false;
   if (prevProps.llmOptionsLoading !== nextProps.llmOptionsLoading) return false;
   if (prevProps.providerOptions !== nextProps.providerOptions) return false;
   if (prevProps.onSend !== nextProps.onSend) return false;
@@ -1082,6 +872,9 @@ function arePropsEqual(prevProps, nextProps) {
   if (prevProps.onSelectLlm !== nextProps.onSelectLlm) return false;
   if (prevProps.onSchemaChange !== nextProps.onSchemaChange) return false;
   if (prevProps.currentSchema !== nextProps.currentSchema) return false;
+  if (prevProps.availableSchemas !== nextProps.availableSchemas) return false;
+  if (prevProps.onOpenDatabase !== nextProps.onOpenDatabase) return false;
+  if (prevProps.onOpenContext !== nextProps.onOpenContext) return false;
   if (prevProps.usageMetrics !== nextProps.usageMetrics) return false;
   // ENH [AUTO-TASK-MODE]: Re-render when the task-mode setting or the
   // backend-reported effective mode changes.

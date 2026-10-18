@@ -13,6 +13,7 @@ import {
 import { useTheme } from '@mui/material/styles';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { CheckIcon, CloseIcon, DeleteIcon, MoreIcon, RenameIcon } from '@/components/icons';
+import { getConversationActivityPresentation } from '@/features/sidebar-left/conversationActivityModel';
 import {
   buildConversationRowSx,
   buildConversationSelectSx,
@@ -36,10 +37,8 @@ import { getConversationDisplayTitle } from '@/utils/conversationTitles';
  * Sidebar primitive components — the building blocks rendered inside the
  * sidebar (left). Exported components:
  *
- *   - `SidebarNavItem`        — single row in the nav list (New chat, Search, Database, etc.)
+ *   - `SidebarNavItem`        — single row in the nav list (Search, History, Database, etc.)
  *   - `ConversationItem`      — single row in the Recents list, with rename/delete menu
- *   - `HistoryPopoverItem`    — same as ConversationItem but rendered inside a popover
- *                               (used when sidebar is collapsed and user opens "History")
  *   - `HistoryListSkeleton`   — loading placeholder for the conversation list
  *
  * All rows share the same geometry (height, icon column width, padding) via
@@ -80,7 +79,8 @@ const ConversationTitle = memo(function ConversationTitle({ title, theme }) {
       component="span"
       className="conversation-title"
       sx={{
-        width: '100%',
+        width: 'auto',
+        flex: 1,
         height: '100%',
         minWidth: 0,
         display: 'flex',
@@ -112,6 +112,74 @@ const ConversationTitle = memo(function ConversationTitle({ title, theme }) {
         {title}
       </Typography>
     </Box>
+  );
+});
+
+const ConversationActivity = memo(function ConversationActivity({ presentation }) {
+  if (!presentation) return null;
+
+  return (
+    <Tooltip title={presentation.label}>
+      <Box
+        component="span"
+        aria-hidden="true"
+        data-conversation-activity={presentation.kind}
+        sx={{
+          width: 18,
+          height: 18,
+          ml: 0.5,
+          flexShrink: 0,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color:
+            presentation.kind === 'error'
+              ? 'error.main'
+              : presentation.kind === 'attention'
+                ? 'warning.main'
+                : 'text.secondary',
+        }}
+      >
+        {presentation.kind === 'generating' ? (
+          <CircularProgress size={12} thickness={5} color="inherit" />
+        ) : presentation.kind === 'done' ? (
+          <CheckIcon sx={{ fontSize: 14 }} />
+        ) : presentation.kind === 'error' ? (
+          <CloseIcon sx={{ fontSize: 14 }} />
+        ) : (
+          <Box
+            component="span"
+            sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: 'currentColor' }}
+          />
+        )}
+      </Box>
+    </Tooltip>
+  );
+});
+
+const ConversationActivityStatus = memo(function ConversationActivityStatus({
+  presentation,
+  title,
+}) {
+  if (!presentation) return null;
+
+  return (
+    <Box
+      component="span"
+      role="status"
+      aria-label={`${presentation.label} for ${title}`}
+      sx={{
+        position: 'absolute',
+        width: 1,
+        height: 1,
+        p: 0,
+        m: -1,
+        overflow: 'hidden',
+        clip: 'rect(0 0 0 0)',
+        whiteSpace: 'nowrap',
+        border: 0,
+      }}
+    />
   );
 });
 
@@ -288,6 +356,7 @@ function getConversationOptionsButtonSx(theme, menuOpen) {
 // ─── ConversationItem ─────────────────────────────────────────────────────────
 export const ConversationItem = memo(function ConversationItem({
   conv,
+  activity,
   isActive,
   onSelect,
   onDelete,
@@ -307,6 +376,7 @@ export const ConversationItem = memo(function ConversationItem({
   const title = conv.title || 'New Conversation';
   const displayTitle = getConversationDisplayTitle(title);
   const isRenaming = inlineRename?.conversationId === conv.id;
+  const activityPresentation = getConversationActivityPresentation(activity, { isActive });
 
   const handleClick = useCallback(() => onSelect(conv.id), [onSelect, conv.id]);
   const handleMenuOpen = useCallback((e) => {
@@ -355,7 +425,9 @@ export const ConversationItem = memo(function ConversationItem({
               sx={buildConversationSelectSx(theme)}
             >
               <ConversationTitle key={displayTitle} title={displayTitle} theme={theme} />
+              <ConversationActivity presentation={activityPresentation} />
             </Box>
+            <ConversationActivityStatus presentation={activityPresentation} title={title} />
             <Tooltip title="Conversation options" arrow>
               <IconButton
                 className="conversation-options"
@@ -416,10 +488,15 @@ export const ConversationItem = memo(function ConversationItem({
 });
 
 export const SidebarNavItem = memo(function SidebarNavItem({
+  buttonRef,
   label,
+  ariaLabel = label,
   tooltip,
   icon,
   onClick,
+  onPointerEnter,
+  onPointerLeave,
+  expanded,
   isCollapsed,
   isActive = false,
   showStatus = false,
@@ -442,11 +519,15 @@ export const SidebarNavItem = memo(function SidebarNavItem({
     >
       <Box component="span" sx={{ display: 'block', width: isCollapsed ? '36px' : '100%' }}>
         <Box
+          ref={buttonRef}
           component="button"
           type="button"
           onClick={disabled ? undefined : onClick}
+          onPointerEnter={onPointerEnter}
+          onPointerLeave={onPointerLeave}
+          aria-expanded={expanded}
           disabled={disabled}
-          aria-label={label}
+          aria-label={ariaLabel}
           data-ui-target={uiTarget}
           sx={{
             ...buildNavRowSx(theme, { isActive, disabled, collapsed: isCollapsed }),
@@ -493,144 +574,6 @@ export const SidebarNavItem = memo(function SidebarNavItem({
         </Box>
       </Box>
     </Tooltip>
-  );
-});
-
-// ─── HistoryPopoverItem ───────────────────────────────────────────────────────
-export const HistoryPopoverItem = memo(function HistoryPopoverItem({
-  conv,
-  isActive,
-  onSelect,
-  onDelete,
-  inlineRename,
-  renameSurface,
-  onRenameStart,
-  onRenameChange,
-  onRenameCancel,
-  onRenameCommit,
-  onClosePopover,
-  autoFocus = false,
-  selectionRef,
-  theme,
-}) {
-  const [menuAnchor, setMenuAnchor] = useState(null);
-  const menuOpen = Boolean(menuAnchor);
-  const optionsButtonSx = getConversationOptionsButtonSx(theme, menuOpen);
-  const renameMenuItemSx = getPopoverMenuItemSx(theme);
-  const deleteMenuItemSx = getPopoverMenuItemSx(theme, { tone: 'error' });
-  const title = conv.title || 'New Conversation';
-  const displayTitle = getConversationDisplayTitle(title);
-  const isRenaming = inlineRename?.conversationId === conv.id;
-
-  const handleClick = useCallback(() => {
-    onClosePopover();
-    onSelect(conv.id);
-  }, [onClosePopover, onSelect, conv.id]);
-
-  const handleDelete = useCallback(
-    (e) => {
-      e.stopPropagation();
-      setMenuAnchor(null);
-      onDelete(conv.id);
-    },
-    [onDelete, conv.id],
-  );
-  const handleMenuOpen = useCallback((e) => {
-    e.stopPropagation();
-    setMenuAnchor(e.currentTarget);
-  }, []);
-  const handleMenuClose = useCallback((e) => {
-    e?.stopPropagation?.();
-    setMenuAnchor(null);
-  }, []);
-  const handleRename = useCallback(
-    (e) => {
-      e.stopPropagation();
-      setMenuAnchor(null);
-      onRenameStart?.(renameSurface, conv.id, title);
-    },
-    [conv.id, onRenameStart, renameSurface, title],
-  );
-
-  return (
-    <Box component="li" sx={{ listStyle: 'none' }}>
-      <Box sx={buildConversationRowSx(theme, { isActive, menuOpen, isRenaming })}>
-        {isRenaming ? (
-          <InlineConversationTitle
-            title={inlineRename.title}
-            saving={inlineRename.saving}
-            onChange={onRenameChange}
-            onCommit={onRenameCommit}
-            onCancel={onRenameCancel}
-            theme={theme}
-          />
-        ) : (
-          <>
-            <Box
-              component="button"
-              type="button"
-              className="conversation-select"
-              ref={selectionRef}
-              autoFocus={autoFocus}
-              onClick={handleClick}
-              aria-current={isActive ? 'page' : undefined}
-              aria-label={`Open ${title}`}
-              sx={buildConversationSelectSx(theme)}
-            >
-              <ConversationTitle key={displayTitle} title={displayTitle} theme={theme} />
-            </Box>
-            <Tooltip title="Conversation options">
-              <IconButton
-                className="conversation-options"
-                size="small"
-                disableRipple
-                onClick={handleMenuOpen}
-                aria-label={`Options for ${title}`}
-                aria-haspopup="menu"
-                aria-expanded={menuOpen}
-                sx={optionsButtonSx}
-              >
-                <MoreIcon sx={{ fontSize: 16 }} />
-              </IconButton>
-            </Tooltip>
-          </>
-        )}
-      </Box>
-      <Menu
-        anchorEl={menuAnchor}
-        open={menuOpen}
-        disableRestoreFocus={isRenaming}
-        onClose={handleMenuClose}
-        onClick={(e) => e.stopPropagation()}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-        slotProps={{
-          paper: {
-            sx: getPopoverPaperSx(theme, {
-              minWidth: 160,
-              mt: 0.75,
-              p: 0,
-            }),
-          },
-          list: { sx: getPopoverMenuListSx() },
-        }}
-      >
-        {onRenameStart && (
-          <MenuItem onClick={handleRename} sx={renameMenuItemSx}>
-            <ListItemIcon>
-              <RenameIcon />
-            </ListItemIcon>
-            Rename
-          </MenuItem>
-        )}
-        <MenuItem onClick={handleDelete} sx={deleteMenuItemSx}>
-          <ListItemIcon>
-            <DeleteIcon />
-          </ListItemIcon>
-          Delete
-        </MenuItem>
-      </Menu>
-    </Box>
   );
 });
 

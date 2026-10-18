@@ -143,14 +143,12 @@ function WelcomeSuggestions({
       inert={interactionLocked ? true : undefined}
       aria-busy={interactionLocked || undefined}
       sx={{
-        position: 'absolute',
-        top: '100%',
-        left: 0,
-        right: 0,
+        position: 'relative',
         zIndex: 3,
         maxWidth: COMPOSER_MAX_WIDTH,
         mx: 'auto',
-        mt: 1,
+        mt: 2,
+        mb: 2,
         pointerEvents: interactionLocked ? 'none' : 'auto',
       }}
     >
@@ -166,9 +164,8 @@ function WelcomeSuggestions({
             transition={stageTransition}
             sx={{
               display: 'flex',
-              justifyContent: 'center',
-              flexWrap: 'wrap',
-              gap: 1,
+              flexDirection: 'column',
+              gap: 0.5,
               p: 0,
               m: 0,
               listStyle: 'none',
@@ -187,7 +184,16 @@ function WelcomeSuggestions({
                   disabled={isWelcomeCategoryDisabled(category, availability)}
                   onClick={() => openCategory(category.id)}
                   startIcon={<CategoryIcon icon={category.icon} />}
-                  sx={(theme) => getWelcomeCategorySx(theme)}
+                  sx={(theme) => ({
+                    ...getWelcomeCategorySx(theme),
+                    width: '100%',
+                    height: 44,
+                    justifyContent: 'flex-start',
+                    bgcolor: 'transparent',
+                    px: 2.5,
+                    gap: 1.5,
+                    fontSize: '15px',
+                  })}
                 >
                   {category.label}
                 </Button>

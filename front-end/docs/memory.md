@@ -4,14 +4,56 @@ Canonical location: `front-end/docs/memory.md`
 
 ## Current Focus
 
-Current phase: Phase 6 — Cross-application responsive and final audit
-Current task: Await user direction after completing the final audit
-Current component: Cross-route frontend, focused backend authorization boundary, and audit records
-Current file(s): Final browser matrix is complete; one Markdown SSR selector warning was corrected
-Status: Phase 6 browser validation, focused correction, automated regression, self-review, and
-documentation reconciliation are complete with explicit fixture limitations
+Current phase: Work-inspired chat interface planning
+Current task: Composer and conversation inspection and optimization proposal
+Current component: Composer, model/reasoning picker, transcript and outputs
+Status: Proposal written; no product implementation in this investigation. Previously completed workspace improvements remain intact.
+
+## Latest Investigation
+
+Date: 2026-10-18
+Task: Inspect the annotated ChatGPT Work composer and chat interface with REA
+Summary: REA authenticated target discovery, passive DOM/accessibility inspection and screenshot
+capture succeeded. REA scenario execution failed through MCP and the public CLI; live model,
+tools, response and artifact menu observations were obtained separately through the signed-in
+internal browser. The evidence record distinguishes sources and excludes unrelated sidebar data.
+Compared these observations to current frontend and backend contracts. Proposed a combined
+model/reasoning picker, compact aligned composer, IME Enter guard and targeted conversation polish.
+Backend reasoning is Low/Medium/High; current Settings token-count labels are unsupported by the
+provider implementation. Preserve the approved 20px composer exception, visible database context,
+existing outputs and SQL/result session state. Exclude unsupported voice/upload/share/branch tools.
+Deliverables: `docs/superpowers/plans/2026-10-18-chat-interface-optimization.md` and
+`docs/research/2026-10-18-chatgpt-work-evidence.json`.
+Validation: Documentation and source-contract review only; no new Moonlit test execution or product
+code changes. No model changes or chat submissions in the inspected Work conversation.
 
 ## Recently Completed
+
+Date: 2026-10-18
+Task: Adapt inspected ChatGPT Work interactions to Moonlit
+Summary: Added searchable database/schema controls and a Context settings shortcut below the
+existing composer. Added conversation-scoped Outputs/Sources menus in the conversation header
+and artifact host, plus an inline Explore query results action. Completed SQL, diagrams and
+saved execution references are derived from history; manual outputs retain their connection
+snapshot. Unknown historical databases remain explicitly unknown. Saved executions load through
+the existing API with visible loading, retry and empty states. View SQL retains result rows and
+stable execution links across fullscreen/split navigation. SQL tabs and manual outputs live in
+the existing chat-session cache and survive Dashboard navigation, including draft-to-persisted
+conversation identity. Account logout clears that cache. No dependencies or backend changes.
+Validation: 29 Node test files and 67 component tests passed. Final targeted result/message tests,
+ESLint and production build also passed. REA synthetic browser checks at 390, 768 and 1440px
+covered context search, output selection, inline-to-viewer navigation, Perspective rendering,
+fullscreen→SQL→split navigation, mobile retry recovery, and draft restoration across sessions.
+The successful browser scenarios reported no page errors. Temporary fixture files/server removed.
+Independent review findings were fixed, including retry placement, duplicate/cross-execution SQL
+identities, and workspace restoration from Dashboard links. No automatic commit.
+Limitations: Browser checks used synthetic API/auth data; no live database query or authenticated
+backend end-to-end run was performed. Manual output/editor state survives route changes within
+the app session, not a browser reload. The existing Perspective bundle-size warning remains.
+Knip reports two pre-existing unused exports: timelineShared.slideIn and chatMessages.isMessageActive;
+verified against the staged baseline and left outside this task. Historical audit scripts mentioned
+below are absent from this checkout; available tests, ESLint and Knip were run.
+
 
 Date: 2026-08-19
 Task: Phase 6 live cross-application browser matrix
@@ -375,8 +417,85 @@ to reintroduce it later does not authorize a deviation now.
 - What canonical light palette and component behavior should a future `DESIGN.md` extension define?
 - What authenticated local fixture should be used for repeatable browser checks?
 
+
+## Sidebar interactions and workspace fitting — 2026-10-18
+
+The latest user-directed pass supersedes the earlier decision to retain floating sidebar menus.
+REA-captured sidebar JavaScript establishes desktop hover delays (100ms open, 300ms switch,
+100ms leave). Moonlit now switches History, Search, Databases and account actions in one shared
+panel. Collapsed hover previews do not resize the page; interaction pins the panel before opening
+conversation action menus. Focused inputs, keyboard account navigation, close/Escape focus and
+mobile list scrolling are covered. New chat now appears beside the active conversation title.
+The reference also has New chat within expanded Home; its global search and profile remain
+modal/popover exceptions. Moonlit's inline versions intentionally satisfy the user's request.
+
+Artifact expansion now reallocates the shell's remaining width beside navigation, preserving the
+same renderer and editor state. Split widths are bounded; narrow screens retain the viewport
+viewer. Browser checks cover expanded/collapsed navigation, a 900px desktop boundary, a 390px
+mobile viewport, a 23-entry mobile history and Escape restoration. These use actual production
+components with fictional data, not live database operations.
+
+Validation: 29 Node test files and 92 component tests pass; lint and production build pass.
+The focused suite passes after final touch-target adjustments. Review findings were fixed and
+re-reviewed. Existing Perspective size warning and two baseline Knip findings remain. Evidence:
+`docs/research/2026-10-18-sidebar-interactions-evidence.json`. Temporary fixtures were removed;
+no dependency, backend, staging or commit changes were made by this pass.
+
 ## Next Recommended Task
+
+Sidebar follow-up (2026-10-18): REA and browser inspection now inform a persistent black 52px
+navigation rail plus an inset rounded 284px history panel (344px total expanded). Existing docked
+expansion and saved preference remain. Mobile uses the matching dark rounded drawer; its footer
+now correctly exposes Settings even when desktop was collapsed. Closing history restores rail
+focus. Existing database/search/history/profile/rename/delete callbacks are preserved. Verified
+with 29 Node test files, 85 component tests and actual-component browser fixtures. See
+`docs/research/2026-10-18-sidebar-evidence.json`; no live backend mutation was tested.
+
+Latest correction (2026-10-18): the user rejected the earlier conservative visual adaptation.
+Current chat UI follows the supplied Work screenshots more closely: 26px composer corners,
+static 24px welcome heading, attached context strip, stacked scrolling suggestions, compact
+model settings with a three-step supported effort slider and a separate searchable model list,
+24px user bubbles, and a toggleable desktop Outputs/Sources card. The card reserves space using
+actual container width, and disappears while the workspace viewer is open. Recorded output
+provenance remains the source of its database/schema labels. This supersedes earlier visual
+decisions in the historical plan; see its leading correction section for REA evidence and limits.
+
+Fresh verification: 29 Node test files and 84 component tests pass; ESLint, production build and
+diff whitespace checks pass. Knip still reports only the two pre-existing unused exports; the
+Perspective bundle-size warning remains. Browser checks used actual chat components with
+fictional data, including short-window scrolling and expanded-sidebar spacing. Temporary fixture
+files were removed, viewport reset, and user-staged changes preserved. Live database execution
+was not tested. No commit was created.
+
+The approved Work-inspired composer optimization is implemented (2026-10-18). See
+`docs/superpowers/plans/2026-10-18-chat-interface-optimization.md` for the evidence,
+decisions and verification limits. The composer now combines searchable models and supported
+Low/Medium/High effort, aligns with the transcript, keeps Send visible with long model names,
+guards IME Enter, and restores failed sends without replacing newer drafts. Settings shares the
+same effective effort semantics. Terminal SSE failures now propagate to draft restoration;
+paused/approval-wait responses retain successful acceptance semantics. The streaming caption
+says “Last resolved task mode.” No new dependencies or backend changes were needed.
+
+Validation: 29 Node test files and 83 component tests pass; lint/build pass. Browser composer
+checks cover 390/767/768/1440 CSS widths, search/focus, long input, welcome/session transitions,
+failure restoration and Stop. Existing output/SQL/fullscreen behavior retains regression coverage;
+this pass did not validate a live database viewer, physical mobile keyboard or 200% zoom.
+Perspective bundle size and the two existing Knip unused exports remain unchanged. The user's
+staged baseline is preserved; implementation changes are left unstaged for review.
 
 Apply the user's requested Auth page visual redesign while preserving the completed Phase 4
 operation, validation, focus, guard, and responsive contracts. Start Phase 5 landing-page
 verification after that user-directed design work unless priorities change.
+
+### 2026-10-18 icon-control source audit (live verification pending)
+- REA public stylesheet evidence and limitations: `docs/research/2026-10-18-icon-controls.json`. The reference separates control geometry from glyph size and guards hover by device capability.
+- Standardized MUI icon-button defaults to 20px (18px small), removed implicit text sizing from custom IconBase, normalized 19px navigation/header glyphs to 20px, enlarged composer send/stop container and glyphs from 14px to 20px.
+- Artifact actions now reuse shared hover/press/focus styling, use aligned tooltip wrappers, expose `aria-pressed` only for explicit toggles, and retain disabled behavior. Sidebar navigation hover is pointer-gated with pressed feedback.
+- Verification: 29 node test files pass; 95 component tests across 24 files pass with two workers; lint, build and diff whitespace checks pass. An initial parallel build/test run hit one sidebar test timeout; rerun without build contention passed. Existing Perspective chunk-size warning remains.
+- User authorized continuing source audit while browser unavailable. Actual linked conversation `/chat/5709975d-0035-490c-a573-cf75edd774e4` remains unverified for visual sizes, hover clipping, actual artifact integration, and responsive control spacing. Active icon-audit goal remains incomplete.
+
+#### Icon audit follow-up
+- Browser inventory still reports no browsers/apps. Live verification remains blocked; no new browser or authentication state was assumed.
+- Fixed utility hover inheritance after the disabled-safe selector changed, including its settings consumer. Added regression coverage for retained hover feedback and wide touch-display targets.
+- Responsive chat icon buttons retain a 44px minimum touch target even at desktop breakpoints. Enabled copy actions use secondary text color rather than disabled text color.
+- Focused verification: 11 component tests across message/sidebar suites, both relevant Node test files, lint, and diff checks pass. Remaining completion evidence: real linked conversation rendered icon geometry, hover/focus clipping, menus and fullscreen artifact integration in browser.

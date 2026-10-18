@@ -1,26 +1,16 @@
-// ChatColumn — the center column of the application shell.
-//
-// Renders the chat workspace: welcome screen, message list, scroll container,
-// composer, and the guided confirmation prompt (agent interrupts / step-limit
-// banner). Receives all state as props — owns no business logic of its own.
-//
-// Layout note: the column's outer surface (background.default) is painted by
-// AppShell. This component is transparent and inherits that surface. Only the
-// guided confirmation prompt paints its own panel surface (it's an overlay,
-// not part of the column body).
-
-import { Box, Fade, IconButton, Tooltip } from '@mui/material';
-import { memo } from 'react';
-import { MenuIcon, ScrollDownIcon } from '@/components/icons';
+import { Box, Fade, IconButton, Tooltip, useMediaQuery } from '@mui/material';
+import { memo, useState } from 'react';
+import { ScrollDownIcon, TableIcon } from '@/components/icons';
 import { ChatInput, MessageList, WelcomeScreen } from '@/features/chat';
 import ChatHeader from '@/features/chat/ChatHeader';
+import ConversationOutputs from '@/features/chat/ConversationOutputs';
 import GuidedConfirmationPrompt from '@/features/chat/GuidedConfirmationPrompt';
+import { WelcomeSuggestionsPanel } from '@/features/chat/WelcomeScreen';
 import {
-  getChatConversationPanelSx,
-  getMobileEdgeControlSx,
+  getChatStageLayoutSx,
   getResponsivePillIconButtonSx,
 } from '@/features/styles/interfaceChrome';
-import { getInteractiveIconButtonSx, getScrollbarStyles, UI_LAYOUT } from '@/styles/shared';
+import { getScrollbarStyles, UI_LAYOUT } from '@/styles/shared';
 
 const ChatColumn = memo(function ChatColumn({
   showWelcomeState,
@@ -31,6 +21,9 @@ const ChatColumn = memo(function ChatColumn({
   isPinnedToBottom,
   scrollToBottom,
   messages,
+  conversationOutputs = [],
+  selectedArtifact,
+  workspaceCanvasOpen = false,
   isConversationLoading,
   conversationLoadState,
   handleRunQuery,
@@ -41,12 +34,23 @@ const ChatColumn = memo(function ChatColumn({
   currentConversationId,
   conversationTitle,
   onRenameConversation,
+  onNewChat,
   isNarrowLayout,
   onOpenSidebar,
   onOpenDatabase,
   openSidebarButtonRef,
   theme,
 }) {
+  const wide = useMediaQuery('(min-width:1200px)');
+  const [summaryHidden, setSummaryHidden] = useState(false);
+  const canPinSummary = wide && showConversationPanel && !workspaceCanvasOpen;
+  const showSummary = canPinSummary && !summaryHidden;
+  const placement = showWelcomeState ? 'welcome' : 'active';
+  const stageLayout = getChatStageLayoutSx(placement);
+  const isComposerDisabled =
+    chatInputSharedProps.disabled ||
+    (Boolean(currentConversationId) && conversationLoadState !== 'ready');
+
   return (
     <Box
       sx={{
@@ -56,141 +60,186 @@ const ChatColumn = memo(function ChatColumn({
         minHeight: 0,
         display: 'flex',
         flexDirection: 'column',
-        contain: 'layout paint style',
+        contain: 'paint style',
+        containerType: 'inline-size',
       }}
     >
-      {isNarrowLayout && showWelcomeState && (
-        <Tooltip title="Open sidebar">
-          <IconButton
-            ref={openSidebarButtonRef}
-            onClick={onOpenSidebar}
-            aria-label="Open sidebar"
+      <ChatHeader
+        sessionKey={chatInputSharedProps.sessionKey}
+        conversationId={currentConversationId}
+        title={conversationTitle}
+        onRenameConversation={onRenameConversation}
+        onNewChat={!showWelcomeState ? onNewChat : undefined}
+        isNarrowLayout={isNarrowLayout}
+        onOpenSidebar={onOpenSidebar}
+        openSidebarButtonRef={openSidebarButtonRef}
+        theme={theme}
+        actions={
+          canPinSummary ? (
+            <Tooltip title={showSummary ? 'Hide outputs and sources' : 'Show outputs and sources'}>
+              <IconButton
+                aria-label={showSummary ? 'Hide outputs and sources' : 'Show outputs and sources'}
+                aria-pressed={showSummary}
+                onClick={() => setSummaryHidden((value) => !value)}
+                sx={{
+                  ml: 'auto',
+                  borderRadius: '10px',
+                  bgcolor: showSummary ? 'action.hover' : 'transparent',
+                }}
+              >
+                <TableIcon />
+              </IconButton>
+            </Tooltip>
+          ) : showConversationPanel ? (
+            <ConversationOutputs
+              key={chatInputSharedProps.sessionKey}
+              outputs={conversationOutputs}
+              selectedArtifact={selectedArtifact}
+              onSelect={handleOpenCanvasArtifact}
+            />
+          ) : null
+        }
+      />
+      {showSummary && (
+        <Box sx={{ position: 'absolute', top: 58, right: 8, width: 300, zIndex: 3 }}>
+          <ConversationOutputs
+            variant="summary"
+            outputs={conversationOutputs}
+            selectedArtifact={selectedArtifact}
+            onSelect={handleOpenCanvasArtifact}
+          />
+        </Box>
+      )}
+      <Box
+        data-chat-placement={placement}
+        sx={{
+          flex: 1,
+          minHeight: 0,
+          minWidth: 0,
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1fr)',
+          mr: showSummary ? '316px' : 0,
+          '@container (min-width: 1440px)': { mr: 0 },
+          gridTemplateRows: stageLayout.gridTemplateRows,
+          transition: stageLayout.transition,
+          '@media (prefers-reduced-motion: reduce)': stageLayout.reducedMotion,
+          overflow: 'hidden',
+        }}
+      >
+        <Box
+          sx={{
+            ...stageLayout.transcript,
+            gridColumn: 1,
+            minWidth: 0,
+            minHeight: 0,
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+        >
+          <WelcomeScreen visible={showWelcomeState} user={user} />
+
+          <Box
+            ref={setScrollContainerRef}
+            aria-hidden={!showConversationPanel || undefined}
             sx={{
-              ...getInteractiveIconButtonSx(theme, {
-                size: UI_LAYOUT.touchTarget,
-                radius: theme.shape.radius.pill,
-              }),
               position: 'absolute',
-              top: 'max(env(safe-area-inset-top), 8px)',
-              left: 12,
-              ...getMobileEdgeControlSx('left', 1.5),
-              zIndex: 6,
-              bgcolor: 'transparent',
-              '&:hover': { bgcolor: 'action.hover' },
+              inset: 0,
+              visibility: showConversationPanel ? 'visible' : 'hidden',
+              pointerEvents: showConversationPanel ? 'auto' : 'none',
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              px: { xs: 1.25, sm: 2 },
+              pt: { xs: 1, sm: 2 },
+              pb: { xs: 1, sm: 2 },
+              ...getScrollbarStyles(theme),
             }}
           >
-            <MenuIcon sx={{ fontSize: 20 }} />
-          </IconButton>
-        </Tooltip>
-      )}
-
-      {currentConversationId && conversationTitle && (
-        <ChatHeader
-          key={currentConversationId}
-          conversationId={currentConversationId}
-          title={conversationTitle}
-          onRenameConversation={onRenameConversation}
-          isNarrowLayout={isNarrowLayout}
-          onOpenSidebar={onOpenSidebar}
-          openSidebarButtonRef={openSidebarButtonRef}
-          theme={theme}
-        />
-      )}
-
-      <Box sx={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex' }}>
-        <WelcomeScreen
-          visible={showWelcomeState}
-          user={user}
-          chatInputProps={chatInputSharedProps}
-          onOpenDatabase={onOpenDatabase}
-        />
-
-        <Fade in={showConversationPanel} timeout={300} unmountOnExit>
-          <Box sx={getChatConversationPanelSx()}>
-            <Box
-              ref={setScrollContainerRef}
-              sx={{
-                flex: 1,
-                minHeight: 0,
-                overflowY: 'auto',
-                overflowX: 'hidden',
-                px: { xs: 0, sm: 1 },
-                pt: { xs: 1, sm: 2 },
-                pb: { xs: 1, sm: 2 },
-                ...getScrollbarStyles(theme),
-              }}
-            >
-              <MessageList
-                messages={messages}
-                isLoadingConversation={isConversationLoading}
-                loadError={conversationLoadState === 'error'}
-                conversationId={currentConversationId}
-                onRunQuery={handleRunQuery}
-                onOpenCanvasArtifact={handleOpenCanvasArtifact}
-              />
-            </Box>
-
-            <Box
-              sx={{
-                flexShrink: 0,
-                position: 'relative', // Anchor for the absolutely-positioned banner
-                zIndex: 2,
-                px: { xs: 0, sm: 1 },
-                pt: { xs: 1, sm: 1.5 },
-                pb: 'max(env(safe-area-inset-bottom), 8px)',
-              }}
-            >
-              <Fade in={!isPinnedToBottom}>
-                <Box
-                  sx={{
-                    position: 'absolute',
-                    left: 0,
-                    right: 0,
-                    bottom: 'calc(100% + 12px)',
-                    zIndex: 5,
-                    display: 'flex',
-                    justifyContent: 'center',
-                    pointerEvents: isPinnedToBottom ? 'none' : 'auto',
-                  }}
-                >
-                  <Tooltip title="Jump to latest">
-                    <IconButton
-                      onClick={scrollToBottom}
-                      aria-label="Jump to latest message"
-                      sx={{
-                        ...getResponsivePillIconButtonSx(theme, {
-                          desktopSize: 40,
-                          mobileSize: UI_LAYOUT.touchTarget,
-                        }),
-                        bgcolor: 'background.paper',
-                        color: 'text.secondary',
-                        border: '1px solid',
-                        borderColor: 'border.subtle',
-                        boxShadow: 'none',
-                        '&:hover': { bgcolor: 'background.paper', color: 'text.primary' },
-                      }}
-                    >
-                      <ScrollDownIcon sx={{ fontSize: 18 }} />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
-              </Fade>
-              <GuidedConfirmationPrompt
-                open={guidedConfirmDialog.open}
-                title={guidedConfirmDialog.title}
-                message={guidedConfirmDialog.message}
-                confirmText={guidedConfirmDialog.confirmText}
-                cancelText={guidedConfirmDialog.cancelText}
-                onCancel={handleGuidedCancel}
-                onConfirm={handleGuidedConfirm}
-                theme={theme}
-              />
-              <Box sx={{ position: 'relative', zIndex: 4 }}>
-                <ChatInput {...chatInputSharedProps} messageCount={messages.length} />
-              </Box>
-            </Box>
+            <MessageList
+              sessionKey={chatInputSharedProps.sessionKey}
+              messages={messages}
+              isLoadingConversation={isConversationLoading}
+              loadError={conversationLoadState === 'error'}
+              conversationId={currentConversationId}
+              onRunQuery={handleRunQuery}
+              onOpenCanvasArtifact={handleOpenCanvasArtifact}
+            />
           </Box>
-        </Fade>
+        </Box>
+
+        <Box
+          sx={{
+            gridColumn: 1,
+            gridRow: stageLayout.composer.gridRow,
+            position: 'relative',
+            zIndex: 4,
+            minWidth: 0,
+          }}
+        >
+          <Box sx={{ position: 'relative', px: { xs: 1.25, sm: 2 }, pt: { xs: 1, sm: 1.5 } }}>
+            <Fade in={!isPinnedToBottom && showConversationPanel}>
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  bottom: 'calc(100% + 12px)',
+                  zIndex: 5,
+                  display: 'flex',
+                  justifyContent: 'center',
+                  pointerEvents: isPinnedToBottom ? 'none' : 'auto',
+                }}
+              >
+                <Tooltip title="Jump to latest">
+                  <IconButton
+                    onClick={scrollToBottom}
+                    aria-label="Jump to latest message"
+                    sx={{
+                      ...getResponsivePillIconButtonSx(theme, {
+                        desktopSize: 40,
+                        mobileSize: UI_LAYOUT.touchTarget,
+                      }),
+                      bgcolor: 'background.paper',
+                      color: 'text.secondary',
+                      border: '1px solid',
+                      borderColor: 'border.subtle',
+                      boxShadow: 'none',
+                      '&:hover': { bgcolor: 'background.paper', color: 'text.primary' },
+                    }}
+                  >
+                    <ScrollDownIcon sx={{ fontSize: 18 }} />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+            </Fade>
+
+            <GuidedConfirmationPrompt
+              open={guidedConfirmDialog.open}
+              title={guidedConfirmDialog.title}
+              message={guidedConfirmDialog.message}
+              confirmText={guidedConfirmDialog.confirmText}
+              cancelText={guidedConfirmDialog.cancelText}
+              onCancel={handleGuidedCancel}
+              onConfirm={handleGuidedConfirm}
+              theme={theme}
+            />
+
+            <ChatInput
+              {...chatInputSharedProps}
+              disabled={isComposerDisabled}
+              placement={placement}
+              messageCount={messages.length}
+            />
+          </Box>
+        </Box>
+
+        <Box sx={{ gridColumn: 1, gridRow: 3, minHeight: 0, overflowY: 'auto', px: 2 }}>
+          <WelcomeSuggestionsPanel
+            key={chatInputSharedProps.isConnected ? 'connected' : 'disconnected'}
+            visible={showWelcomeState}
+            chatInputProps={chatInputSharedProps}
+            onOpenDatabase={onOpenDatabase}
+          />
+        </Box>
       </Box>
     </Box>
   );

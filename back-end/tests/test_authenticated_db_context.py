@@ -381,7 +381,8 @@ async def test_verified_cookie_receives_cached_database_metadata(
     assert session_boundary.state[session_boundary.key]["session_active_at"] >= state_before_active
     assert session_boundary.state[session_boundary.key]["db_config_last_used_at"] > 100.0
     assert database.calls
-    assert all(config == DB_CONFIG for _, config in database.calls)
+    assert all(config == {**DB_CONFIG, "_pool_owner": "metadata-owner"} for _, config in database.calls)
+    assert "_pool_owner" not in response.text
 
 
 @pytest.mark.asyncio
@@ -420,5 +421,5 @@ async def test_fastapi_reuses_verified_identity_for_route_and_database_context(
         "message": "Database disconnected successfully",
     }
     assert verification_calls == [SESSION_COOKIE]
-    assert database.calls == [("disconnect", DB_CONFIG)]
+    assert database.calls == [("disconnect", {**DB_CONFIG, "_pool_owner": "metadata-owner"})]
     assert session_boundary.state[session_boundary.key]["db_config"] is None

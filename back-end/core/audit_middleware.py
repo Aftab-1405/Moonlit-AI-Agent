@@ -64,6 +64,7 @@ PRIVILEGED_ACTION_POLICIES = (
     ),
     _policy("POST", r"^/api/v1/user/settings$", "settings.update", "user:settings"),
     _policy("POST", r"^/api/v1/user/session/close$", "session.close", "user:session"),
+    _policy("DELETE", r"^/api/v1/user/account$", "account.delete", "user:account"),
     _policy("POST", r"^/api/v1/context/metrics/reset$", "context.metrics.reset", "context:metrics"),
 )
 

@@ -58,7 +58,7 @@ def parse_mysql_connection_string(connection_string: str) -> Dict:
         "port": parsed.port or Config.DEFAULT_MYSQL_PORT,
         "user": unquote(parsed.username) if parsed.username else "",
         "password": unquote(parsed.password) if parsed.password else "",
-        "database": parsed.path.strip("/") if parsed.path else None,
+        "database": unquote(parsed.path.strip("/")) if parsed.path else None,
         "ssl_enabled": ssl_enabled,
         "ssl_params": ssl_params,
     }

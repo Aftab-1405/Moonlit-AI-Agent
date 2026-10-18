@@ -1,9 +1,12 @@
 import { Box, Typography, useTheme } from '@mui/material';
 import { alpha, keyframes } from '@mui/material/styles';
-import { memo, useMemo } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
+import { createContext, memo, useContext, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { CodeViewer } from '@/components';
+import { CHAT_MOTION, getChatMotionVariants } from '@/features/chat/chatMotion';
+import { getMarkdownBlockPhase } from '@/features/chat/markdownBlockMotion';
 import {
   getMarkdownBoundarySx,
   markFirstMarkdownElement,
@@ -28,6 +31,9 @@ import { TRANSITIONS } from '@/theme/themeEffects';
 const CANVAS_LANGUAGES = new Set(['diagram-flow']);
 const REMARK_PLUGINS = [remarkGfm];
 const REHYPE_PLUGINS = [markFirstMarkdownElement];
+const MotionBox = motion.create(Box);
+const MotionImage = motion.img;
+const MarkdownRenderContext = createContext(null);
 
 const streamingCaret = keyframes`
   0%, 45% { opacity: 0.72; }
@@ -58,10 +64,170 @@ const InlineCode = memo(function InlineCode({ children, theme }) {
   );
 });
 
+const AnimatedMarkdownImage = memo(function AnimatedMarkdownImage({
+  animateBlocks,
+  onError,
+  onLoad,
+  ...imageProps
+}) {
+  const prefersReducedMotion = useReducedMotion();
+  const [loaded, setLoaded] = useState(!animateBlocks);
+  const revealImage = (event, callback) => {
+    setLoaded(true);
+    callback?.(event);
+  };
+
+  return (
+    <MotionImage
+      {...imageProps}
+      data-image-motion={!animateBlocks ? 'static' : loaded ? 'revealed' : 'loading'}
+      initial={animateBlocks && !prefersReducedMotion ? { opacity: 0 } : false}
+      animate={{ opacity: !animateBlocks || prefersReducedMotion || loaded ? 1 : 0 }}
+      transition={{
+        duration: animateBlocks && !prefersReducedMotion ? CHAT_MOTION.structured.duration : 0,
+        ease: CHAT_MOTION.ease,
+      }}
+      onLoad={(event) => revealImage(event, onLoad)}
+      onError={(event) => revealImage(event, onError)}
+    />
+  );
+});
+
+const StructuredBlockMotion = memo(function StructuredBlockMotion({
+  type,
+  node,
+  source,
+  isStreaming,
+  animateBlocks,
+  children,
+  ...boxProps
+}) {
+  const prefersReducedMotion = useReducedMotion();
+  const structuredMotion = useMemo(
+    () => getChatMotionVariants(prefersReducedMotion).structured,
+    [prefersReducedMotion],
+  );
+  const phase = getMarkdownBlockPhase({
+    type,
+    source,
+    startOffset: node?.position?.start?.offset ?? 0,
+    endOffset: node?.position?.end?.offset ?? String(source || '').length,
+    isStreaming,
+  });
+  const streamingState = prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0.94, y: 2 };
+  const initial = !animateBlocks
+    ? false
+    : phase === 'stable'
+      ? structuredMotion.initial
+      : streamingState;
+  const animate =
+    animateBlocks && phase === 'streaming' ? streamingState : structuredMotion.animate;
+
+  return (
+    <MotionBox
+      {...boxProps}
+      data-block-phase={phase}
+      data-structured-motion={animateBlocks ? 'live' : 'static'}
+      initial={initial}
+      animate={animate}
+    >
+      {children}
+    </MotionBox>
+  );
+});
+
+function MarkdownCode({ node, className, children, ...props }) {
+  const renderState = useContext(MarkdownRenderContext);
+  const match = /language-([A-Za-z0-9_-]+)/.exec(className || '');
+  const language = match ? match[1].toLowerCase() : '';
+
+  if (CANVAS_LANGUAGES.has(language)) return null;
+
+  const isBlock = match || String(children).includes('\n');
+  if (isBlock) {
+    return (
+      <StructuredBlockMotion
+        type="code"
+        node={node}
+        source={renderState.content}
+        isStreaming={renderState.isStreaming}
+        animateBlocks={renderState.animateBlocks}
+      >
+        <CodeViewer
+          value={Array.isArray(children) ? children.join('') : String(children || '')}
+          language={language}
+          onRunQuery={renderState.onRunQuery}
+          isStreaming={renderState.isStreaming}
+        />
+      </StructuredBlockMotion>
+    );
+  }
+
+  return (
+    <InlineCode theme={renderState.theme} {...props}>
+      {children}
+    </InlineCode>
+  );
+}
+
+function MarkdownPre({ children, className }) {
+  return <Box className={className}>{children}</Box>;
+}
+
+function MarkdownImage({ node: _node, ...props }) {
+  const renderState = useContext(MarkdownRenderContext);
+  return (
+    <AnimatedMarkdownImage key={props.src} animateBlocks={renderState.animateBlocks} {...props} />
+  );
+}
+
+function MarkdownTable({ node, children, className }) {
+  const renderState = useContext(MarkdownRenderContext);
+  return (
+    <StructuredBlockMotion
+      type="table"
+      node={node}
+      source={renderState.content}
+      isStreaming={renderState.isStreaming}
+      animateBlocks={renderState.animateBlocks}
+      className={className}
+      sx={{
+        overflowX: 'auto',
+        my: renderState.isCompact ? 1 : 2,
+        borderRadius: '8px',
+        border: '1px solid',
+        borderColor: renderState.theme.palette.border.subtle,
+        backgroundColor: renderState.theme.palette.background.paper,
+        scrollbarWidth: 'thin',
+        scrollbarColor: `${alpha(renderState.theme.palette.text.primary, 0.2)} transparent`,
+      }}
+    >
+      <Box
+        component="table"
+        sx={{
+          minWidth: 'max-content',
+          width: '100%',
+          borderCollapse: 'collapse',
+        }}
+      >
+        {children}
+      </Box>
+    </StructuredBlockMotion>
+  );
+}
+
+const MARKDOWN_COMPONENTS = {
+  code: MarkdownCode,
+  pre: MarkdownPre,
+  img: MarkdownImage,
+  table: MarkdownTable,
+};
+
 const MarkdownRenderer = memo(function MarkdownRenderer({
   content,
   onRunQuery,
   isStreaming = false,
+  animateBlocks = false,
   variant = 'response',
 }) {
   const theme = useTheme();
@@ -100,64 +266,16 @@ const MarkdownRenderer = memo(function MarkdownRenderer({
     }
     return text;
   }, [content]);
-
-  const components = useMemo(
+  const renderContext = useMemo(
     () => ({
-      code({ className, children, ...props }) {
-        const match = /language-([A-Za-z0-9_-]+)/.exec(className || '');
-        const language = match ? match[1].toLowerCase() : '';
-
-        // Canvas languages (e.g. diagram-flow) are rendered as artifact cards
-        // by MessageList — never as code blocks here.
-        if (CANVAS_LANGUAGES.has(language)) return null;
-
-        const isBlock = match || String(children).includes('\n');
-
-        if (isBlock) {
-          return (
-            <CodeViewer
-              value={Array.isArray(children) ? children.join('') : String(children || '')}
-              language={language}
-              onRunQuery={onRunQuery}
-              isStreaming={isStreaming}
-            />
-          );
-        }
-        return (
-          <InlineCode theme={theme} {...props}>
-            {children}
-          </InlineCode>
-        );
-      },
-      pre: ({ children, className }) => <Box className={className}>{children}</Box>,
-      table: ({ children, className }) => (
-        <Box
-          className={className}
-          sx={{
-            overflowX: 'auto',
-            my: isCompact ? 1 : 2,
-            borderRadius: '8px',
-            border: '1px solid',
-            borderColor: theme.palette.border.subtle,
-            backgroundColor: theme.palette.background.paper,
-            scrollbarWidth: 'thin',
-            scrollbarColor: `${alpha(theme.palette.text.primary, 0.2)} transparent`,
-          }}
-        >
-          <Box
-            component="table"
-            sx={{
-              minWidth: 'max-content',
-              width: '100%',
-              borderCollapse: 'collapse',
-            }}
-          >
-            {children}
-          </Box>
-        </Box>
-      ),
+      animateBlocks,
+      content: processedContent,
+      isCompact,
+      isStreaming,
+      onRunQuery,
+      theme,
     }),
-    [isCompact, onRunQuery, isStreaming, theme],
+    [animateBlocks, isCompact, isStreaming, onRunQuery, processedContent, theme],
   );
 
   const containerSx = useMemo(
@@ -356,13 +474,15 @@ const MarkdownRenderer = memo(function MarkdownRenderer({
       aria-busy={isStreaming || undefined}
       sx={containerSx}
     >
-      <ReactMarkdown
-        remarkPlugins={REMARK_PLUGINS}
-        rehypePlugins={REHYPE_PLUGINS}
-        components={components}
-      >
-        {processedContent || ''}
-      </ReactMarkdown>
+      <MarkdownRenderContext.Provider value={renderContext}>
+        <ReactMarkdown
+          remarkPlugins={REMARK_PLUGINS}
+          rehypePlugins={REHYPE_PLUGINS}
+          components={MARKDOWN_COMPONENTS}
+        >
+          {processedContent || ''}
+        </ReactMarkdown>
+      </MarkdownRenderContext.Provider>
     </Box>
   );
 });

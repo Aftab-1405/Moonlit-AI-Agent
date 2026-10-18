@@ -375,27 +375,9 @@ class OracleAdapter(BaseDatabaseAdapter):
                 upper bound on round-trip time).
 
         Raises:
-            Nothing: a failure to set the timeout is logged at debug
-                level and swallowed, mirroring the SQL-string timeout
-                path's tolerance in other adapters. The asyncio
-                ``wait_for`` cancel in the caller remains the second
-                line of defense.
+            The driver's exception if the timeout cannot be installed.
         """
-        try:
-            # oracledb uses milliseconds for call_timeout.
-            conn.call_timeout = int(seconds) * 1000
-            logger.debug(
-                "Oracle call_timeout set to %dms",
-                int(seconds) * 1000,
-            )
-        except Exception as err:
-            log_safe_exception(
-                logger,
-                "set_oracle_call_timeout",
-                err,
-                public_database_error(err),
-                level=logging.DEBUG,
-            )
+        conn.call_timeout = int(seconds) * 1000
 
     def get_column_names_from_cursor(self, cursor: Any) -> List[str]:
         """Extract column names from Oracle cursor."""

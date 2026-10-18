@@ -63,28 +63,27 @@ class DatabaseService:
 
         db_type = db_config.get("db_type", "postgresql")
 
-        # FIX [H8]: Previously, `re.sub(r"(/[^/?]+)(\?|$)", f"/{new_db_name}\\2",
-        # connection_string)` interpolated user-controlled `new_db_name` into a
-        # regex replacement string. In `re.sub` replacements, backslash escapes
-        # (e.g. ``\1``, ``\g<name>``) and ``&`` are interpreted, so a database
-        # name like ``\1`` would inject captured-group content, and a name
-        # containing ``?`` or ``&`` could corrupt the connection string and
-        # inject connection parameters. Using a lambda replacement disables
-        # all escape/sequence interpretation — the user's name is inserted
-        # verbatim as the new path segment.
-        new_connection_string = re.sub(
-            r"(/[^/?]+)(\?|$)",
-            lambda m: f"/{new_db_name}{m.group(2)}",
-            connection_string,
-        )
         new_config = {
-            "db_type": db_type,
-            "connection_string": new_connection_string,
+            **db_config,
             "database": new_db_name,
             "is_remote": True,
         }
+        if user_id:
+            new_config["_pool_owner"] = user_id
 
         try:
+            if db_type == "postgresql":
+                from psycopg2.extensions import make_dsn
+
+                new_config["connection_string"] = make_dsn(connection_string, dbname=new_db_name)
+            else:
+                from urllib.parse import quote
+
+                new_config["connection_string"] = re.sub(
+                    r"(/[^/?]+)(\?|$)",
+                    lambda m: f"/{quote(new_db_name, safe='') if db_type == 'mysql' else new_db_name}{m.group(2)}",
+                    connection_string,
+                )
             manager = get_connection_manager()
             adapter = get_adapter(db_type)
 
@@ -325,13 +324,10 @@ class DatabaseService:
             Dict with status and message
         """
         from service.database.connection_manager import get_connection_manager
-        from service.database.operations import DatabaseOperations
 
         try:
             manager = get_connection_manager()
             closed = manager.close_pool(db_config) if db_config else False
-
-            DatabaseOperations.clear_cache()
 
             # Clear Firestore context
             if user_id:

@@ -19,6 +19,25 @@ from unittest.mock import MagicMock
 import pytest
 
 
+def test_session_cookie_verification_always_checks_revocation(monkeypatch) -> None:
+    """Deleted, disabled, and revoked identities cannot reuse signed cookies."""
+    import dependencies
+
+    verification_calls = []
+
+    def verify_session_cookie(session_cookie: str, *, check_revoked: bool) -> dict:
+        verification_calls.append((session_cookie, check_revoked))
+        return {"uid": "user-1", "email": "user@example.com"}
+
+    monkeypatch.setattr(dependencies.Config, "FIREBASE_SESSION_CHECK_REVOKED", False)
+    monkeypatch.setattr(dependencies.auth, "verify_session_cookie", verify_session_cookie)
+
+    user = dependencies.verify_session_cookie_value("signed-session")
+
+    assert user["uid"] == "user-1"
+    assert verification_calls == [("signed-session", True)]
+
+
 class TestCsrfConstantTime:
     """Tests for the CSRF token verifier."""
 
@@ -283,6 +302,154 @@ def test_replace_session_data_removes_stale_fields(monkeypatch) -> None:
 
     assert json.loads(fake.store[key]) == {"db_config": None, "session_active_at": 456.0}
     assert fake.expiries[key] == 80
+
+
+def test_user_session_state_can_be_collected_before_matching_sessions_are_removed(monkeypatch) -> None:
+    import dependencies
+    from service import redis_service
+
+    monkeypatch.setattr(redis_service, "_redis_client", None)
+    dependencies._memory_state.clear()
+    dependencies._memory_state.update(
+        {
+            "session_state:user-1-a": ({"_user_id": "user-1", "db_config": {"database": "a"}}, 9999999999),
+            "session_state:user-1-b": ({"_user_id": "user-1", "db_config": {"database": "b"}}, 9999999999),
+            "session_state:user-2": ({"_user_id": "user-2", "db_config": {"database": "private"}}, 9999999999),
+        }
+    )
+
+    collected = asyncio.run(dependencies.get_all_user_session_state("user-1"))
+
+    assert {item["db_config"]["database"] for item in collected} == {"a", "b"}
+    assert set(dependencies._memory_state) == {
+        "session_state:user-1-a",
+        "session_state:user-1-b",
+        "session_state:user-2",
+    }
+
+    removed = asyncio.run(dependencies.clear_all_user_session_state("user-1"))
+
+    assert {item["db_config"]["database"] for item in removed} == {"a", "b"}
+    assert list(dependencies._memory_state) == ["session_state:user-2"]
+
+
+def test_authenticated_session_update_backfills_legacy_ownership(monkeypatch) -> None:
+    """Active legacy state becomes discoverable without an additional state write."""
+    import dependencies
+    from service import redis_service
+
+    monkeypatch.setattr(redis_service, "_redis_client", None)
+    dependencies._memory_state.clear()
+    session_cookie = "legacy-session-cookie"
+    key = dependencies.state_key_from_session_cookie(session_cookie)
+    dependencies._memory_state[key] = (
+        {
+            "db_config": {"database": "analytics"},
+            "db_config_last_closed_at": None,
+            "db_config_last_used_at": 100.0,
+            "session_active_at": 100.0,
+        },
+        9999999999,
+    )
+    monkeypatch.setattr(dependencies.time, "time", lambda: 200.0)
+    request = MagicMock()
+    request.cookies = {dependencies.Config.SESSION_COOKIE_NAME: session_cookie}
+    request.state = MagicMock(spec=["user"])
+    request.state.user = {"uid": "user-1"}
+
+    db_config = asyncio.run(dependencies._get_cached_db_config(request))
+
+    assert db_config == {"database": "analytics"}
+    stored_data, _expires_at = dependencies._memory_state[key]
+    assert stored_data["_user_id"] == "user-1"
+
+
+@pytest.mark.asyncio
+async def test_account_deletion_retains_state_when_database_disconnect_fails(monkeypatch) -> None:
+    """A retryable pool-close failure must stop irreversible account erasure."""
+    from datetime import datetime, timezone
+
+    from fastapi import HTTPException
+
+    from controller import user_dashboard_controller
+    from service.dashboard.account_deletion import AccountDeletionService
+    from service.database.database_service import DatabaseService
+
+    async def call_direct(function, *args, **kwargs):
+        return function(*args, **kwargs)
+
+    async def get_session_data(_request):
+        return None
+
+    session_states = [{"_user_id": "user-1", "db_config": {"database": "analytics"}}]
+
+    async def get_all_session_state(_user_id):
+        return session_states
+
+    cleared = []
+
+    async def clear_all_session_state(user_id):
+        cleared.append(user_id)
+        return session_states
+
+    deleted = []
+
+    async def delete_user(user_id):
+        deleted.append(user_id)
+        return {"deleted_conversations": 2}
+
+    quota_cleared = []
+
+    class Quota:
+        async def delete_user_usage(self, user_id):
+            quota_cleared.append(user_id)
+
+    now = datetime.now(timezone.utc).timestamp()
+    monkeypatch.setattr(user_dashboard_controller, "run_in_threadpool", call_direct)
+    monkeypatch.setattr(user_dashboard_controller, "verify_csrf_token", lambda _request: None)
+    monkeypatch.setattr(
+        user_dashboard_controller.auth,
+        "verify_session_cookie",
+        lambda *_args, **_kwargs: {"uid": "user-1", "auth_time": now},
+    )
+    monkeypatch.setattr(user_dashboard_controller, "get_session_data", get_session_data)
+    monkeypatch.setattr(
+        user_dashboard_controller,
+        "get_all_user_session_state",
+        get_all_session_state,
+    )
+    monkeypatch.setattr(
+        user_dashboard_controller,
+        "clear_all_user_session_state",
+        clear_all_session_state,
+    )
+    monkeypatch.setattr(
+        DatabaseService,
+        "disconnect",
+        staticmethod(
+            lambda _config, _user_id: {"status": "error", "message": "close failed"}
+        ),
+    )
+    monkeypatch.setattr(AccountDeletionService, "delete_user", staticmethod(delete_user))
+
+    request = MagicMock()
+    request.cookies = {user_dashboard_controller.Config.SESSION_COOKIE_NAME: "fresh-session"}
+    request.app.state.user_quota = Quota()
+
+    with pytest.raises(HTTPException) as exc_info:
+        await user_dashboard_controller.delete_user_account(
+            request,
+            MagicMock(),
+            {"uid": "user-1"},
+        )
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail == (
+        "Could not close all database connections. Please retry account deletion."
+    )
+    assert cleared == []
+    assert quota_cleared == []
+    assert deleted == []
 
 
 def test_private_cached_db_reader_preserves_session_lifecycle(monkeypatch) -> None:

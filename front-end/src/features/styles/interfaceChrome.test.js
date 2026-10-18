@@ -4,24 +4,21 @@ import * as interfaceChrome from './interfaceChrome.js';
 
 const { getWelcomeHeroSx } = interfaceChrome;
 
-test('conversation panel shrinks to the mobile viewport instead of clipping its children', () => {
-  assert.equal(typeof interfaceChrome.getChatConversationPanelSx, 'function');
+test('chat stage changes placement without animating the composer grid tracks', () => {
+  assert.equal(typeof interfaceChrome.getChatStageLayoutSx, 'function');
 
-  const sx = interfaceChrome.getChatConversationPanelSx();
+  const welcome = interfaceChrome.getChatStageLayoutSx('welcome');
+  const active = interfaceChrome.getChatStageLayoutSx('active');
 
-  assert.equal(sx.width, '100%');
-  assert.equal(sx.maxWidth, '100%');
-  assert.equal(sx.minWidth, 0);
-});
-
-test('mobile welcome layout centers the greeting above a bottom composer without suggestions', () => {
-  const sx = interfaceChrome.getWelcomeLayoutSx();
-
-  assert.deepEqual(sx.outer.alignItems, { xs: 'stretch', sm: 'safe center' });
-  assert.deepEqual(sx.content.height, { xs: '100%', sm: 'auto' });
-  assert.deepEqual(sx.hero.flex, { xs: 1, sm: '0 0 auto' });
-  assert.equal(sx.composer.flexShrink, 0);
-  assert.deepEqual(sx.suggestions.display, { xs: 'none', sm: 'block' });
+  assert.equal(welcome.gridTemplateRows, 'minmax(0, 1fr) auto minmax(0, 1fr)');
+  assert.equal(active.gridTemplateRows, 'minmax(0, 1fr) auto minmax(0, 0fr)');
+  assert.equal(welcome.transition, 'none');
+  assert.equal(active.transition, welcome.transition);
+  assert.deepEqual(welcome.reducedMotion, { transition: 'none' });
+  assert.equal(welcome.composer.gridRow, 2);
+  assert.equal(active.composer.gridRow, 2);
+  assert.equal(welcome.transcript.pointerEvents, 'none');
+  assert.equal(active.transcript.pointerEvents, 'auto');
 });
 
 test('mobile edge controls cancel their container gutter without changing wider layouts', () => {
@@ -35,41 +32,12 @@ test('mobile edge controls cancel their container gutter without changing wider 
   });
 });
 
-test('welcome greeting stays on one line without overflowing its available width', () => {
-  const sx = getWelcomeHeroSx({
-    typography: {
-      uiDisplaySm: {
-        fontSize: { xs: '1.75rem', md: '2rem' },
-        lineHeight: 1.125,
-      },
-    },
-  });
-
-  assert.equal(sx.whiteSpace, 'nowrap');
-  assert.equal(sx.overflow, 'hidden');
-  assert.equal(sx.textOverflow, 'ellipsis');
-  assert.match(sx.fontSize.xs, /^clamp\(/);
-});
-
-test('welcome greeting uses a measured shimmer and becomes static for reduced motion', () => {
-  const sx = getWelcomeHeroSx(
-    {
-      typography: { uiDisplaySm: {} },
-      palette: {
-        mode: 'dark',
-        text: { primary: '#f5f5f5', secondary: '#a3a3a3' },
-      },
-    },
-    'welcome-shimmer',
-  );
-
-  assert.equal(sx.animation, 'welcome-shimmer 3.2s linear infinite');
-  assert.match(sx.backgroundImage, /^linear-gradient\(/);
-  assert.match(sx.backgroundImage, /#a3a3a3/);
-  assert.equal(sx.backgroundClip, 'text');
-  assert.equal(sx.WebkitTextFillColor, 'transparent');
-  assert.equal(sx['@media (prefers-reduced-motion: reduce)'].animation, 'none');
-  assert.equal(sx['@media (prefers-reduced-motion: reduce)'].WebkitTextFillColor, 'currentColor');
+test('welcome greeting uses restrained, static type', () => {
+  const sx = getWelcomeHeroSx({ typography: { uiDisplaySm: {} } });
+  assert.equal(sx.fontSize.md, '1.5rem');
+  assert.equal(sx.fontWeight, 400);
+  assert.equal(sx.animation, undefined);
+  assert.equal(sx.backgroundImage, undefined);
 });
 
 test('mindmap viewer dedicates the viewport to a compact header and expanding canvas', () => {

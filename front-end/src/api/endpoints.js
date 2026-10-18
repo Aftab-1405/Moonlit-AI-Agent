@@ -53,4 +53,8 @@ export const USER = {
   SETTINGS: '/api/v1/user/settings',
   SESSION_CLOSE: '/api/v1/user/session/close',
   SESSION_ACTIVE: '/api/v1/user/session/active',
+  DASHBOARD_OVERVIEW: '/api/v1/user/dashboard/overview',
+  DASHBOARD_USAGE: '/api/v1/user/dashboard/usage',
+  QUOTA_STATUS: '/api/v1/quota/status',
+  ACCOUNT: '/api/v1/user/account',
 };

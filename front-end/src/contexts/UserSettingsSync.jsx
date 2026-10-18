@@ -15,12 +15,12 @@ import logger from '@/utils/logger';
 const PERSIST_DEBOUNCE_MS = 700;
 
 export function UserSettingsSync() {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, user } = useAuth();
   const { settings, updateSettings } = useSettings();
   const hydratedRef = useRef(false);
   const skipPersistRef = useRef(true);
   const settingsQuery = useQuery({
-    queryKey: queryKeys.userSettings,
+    queryKey: queryKeys.userSettings(user?.uid),
     queryFn: getUserSettings,
     enabled: isAuthenticated && !loading,
     staleTime: 5 * 60 * 1000,
@@ -28,6 +28,11 @@ export function UserSettingsSync() {
   const { mutate: saveSettings } = useMutation({
     mutationFn: saveUserSettings,
   });
+
+  useEffect(() => {
+    hydratedRef.current = false;
+    skipPersistRef.current = true;
+  }, [user?.uid]);
 
   useEffect(() => {
     if (!isAuthenticated || loading) {

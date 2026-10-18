@@ -28,7 +28,9 @@ import {
   VisibilityOnIcon,
 } from '@/components/icons';
 import { DB_TYPES } from '@/config/databases';
+import { useAuth } from '@/contexts/AuthContext';
 import { useSettings } from '@/contexts/SettingsContext';
+import { getAccountStorageKey } from '@/features/dashboard/accountModel';
 import {
   getPreferenceBackdropSx,
   getPreferenceBodySx,
@@ -267,11 +269,15 @@ function DatabaseModal({
 }) {
   const headingRef = useRef(null);
   const theme = useTheme();
+  const { user } = useAuth();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const { settings } = useSettings();
   const defaultDbType = settings.defaultDbType || 'postgresql';
   const rememberConnection = settings.rememberConnection ?? false;
-  const [savedConnection, setSavedConnection] = useLocalStorage('moonlit-saved-connection', null);
+  const savedConnectionKey = user?.uid
+    ? getAccountStorageKey(user.uid, 'saved-connection')
+    : 'moonlit-saved-connection';
+  const [savedConnection, setSavedConnection] = useLocalStorage(savedConnectionKey, null);
   const [dbType, setDbType] = useState(defaultDbType);
   const [connectionMode, setConnectionMode] = useState('credentials');
   const [connectionString, setConnectionString] = useState('');

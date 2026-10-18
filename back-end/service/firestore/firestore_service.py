@@ -1,9 +1,8 @@
 """Firestore service for application storage.
 
 This module owns the Firebase Admin SDK lifecycle and exposes the
-module-level convenience functions used throughout the backend for
-persisting conversation data, fetching conversations, and storing
-large query-result payloads.
+query-result storage functions. Conversation records are owned by
+ConversationRepository.
 
 Chunked storage atomicity
 -------------------------
@@ -21,7 +20,6 @@ that previously caused ``get_execution_result`` to raise an unrecoverable
 
 import json
 import logging
-from datetime import datetime, timezone
 from functools import lru_cache
 
 import firebase_admin
@@ -87,64 +85,6 @@ def get_firestore_db():
     """
     _initialize_firebase()
     return firestore.client()
-
-
-def store_conversation(conversation_id, sender, message, user_id, tools=None):
-    """Store conversation message in Firestore."""
-    try:
-        db = get_firestore_db()
-        conversation_ref = db.collection("conversations").document(conversation_id)
-
-        if not conversation_ref.get().exists:
-            conversation_ref.set(
-                {
-                    "user_id": user_id,
-                    "timestamp": datetime.now(timezone.utc),
-                    "messages": [],
-                }
-            )
-
-        content = str(message or "").strip()
-
-        message_data = {
-            "sender": sender,
-            "content": content,
-            "timestamp": datetime.now(timezone.utc),
-        }
-
-        if tools:
-            message_data["tools"] = tools
-
-        conversation_ref.update({"messages": firestore.ArrayUnion([message_data])})
-        logger.debug(f"Conversation {conversation_id} updated successfully")
-    except Exception as e:
-        logger.error(f"Error storing conversation: {e}")
-        raise
-
-
-def get_conversations(user_id):
-    """Get all conversations for a user."""
-    try:
-        db = get_firestore_db()
-        from google.cloud.firestore_v1 import FieldFilter
-
-        conversations = db.collection("conversations").where(filter=FieldFilter("user_id", "==", user_id)).get()
-        conversation_list = []
-        for conv in conversations:
-            conv_data = conv.to_dict()
-            if conv_data.get("messages"):
-                conversation_list.append(
-                    {
-                        "id": conv.id,
-                        "timestamp": conv_data["timestamp"],
-                        "title": conv_data["messages"][0]["content"][: Config.CONVERSATION_TITLE_MAX_LENGTH],
-                    }
-                )
-        conversation_list.sort(key=lambda x: x["timestamp"], reverse=True)
-        return conversation_list
-    except Exception as e:
-        logger.error(f"Error retrieving conversations: {e}")
-        raise
 
 
 def store_execution_result(conversation_id: str, execution_id: str, data: dict) -> None:
@@ -267,41 +207,8 @@ def get_execution_result(conversation_id: str, execution_id: str) -> dict:
         raise
 
 
-def get_conversation(conversation_id):
-    """Get specific conversation by ID."""
-    try:
-        db = get_firestore_db()
-        conversation = db.collection("conversations").document(conversation_id).get()
-        if conversation.exists:
-            return conversation.to_dict()
-        return None
-    except Exception as e:
-        logger.error(f"Error retrieving conversation {conversation_id}: {e}")
-        raise
-
-
-def delete_conversation(conversation_id, user_id):
-    """Delete a conversation by ID and ensure user owns it."""
-    try:
-        db = get_firestore_db()
-        conversation_ref = db.collection("conversations").document(conversation_id)
-        conversation = conversation_ref.get()
-
-        if conversation.exists:
-            conv_data = conversation.to_dict()
-            if conv_data["user_id"] == user_id:
-                conversation_ref.delete()
-                logger.info(f"Conversation {conversation_id} deleted successfully")
-                return True
-            raise PermissionError("User does not own this conversation")
-        raise ValueError("Conversation not found")
-    except Exception as e:
-        logger.error(f"Error deleting conversation {conversation_id}: {e}")
-        raise
-
-
 class FirestoreService:
-    """Backward-compatible class facade over module-level Firestore functions."""
+    """Firebase lifecycle and shared client access."""
 
     @classmethod
     def initialize(cls):
@@ -312,23 +219,3 @@ class FirestoreService:
     def get_db(cls):
         """Return the singleton Firestore client, initializing on first use."""
         return get_firestore_db()
-
-    @staticmethod
-    def store_conversation(conversation_id, sender, message, user_id, tools=None):
-        """Delegate to :func:`store_conversation` (appends a message to a conversation)."""
-        return store_conversation(conversation_id, sender, message, user_id, tools)
-
-    @staticmethod
-    def get_conversations(user_id):
-        """Delegate to :func:`get_conversations` (lists conversations for a user)."""
-        return get_conversations(user_id)
-
-    @staticmethod
-    def get_conversation(conversation_id):
-        """Delegate to :func:`get_conversation` (fetch a single conversation by id)."""
-        return get_conversation(conversation_id)
-
-    @staticmethod
-    def delete_conversation(conversation_id, user_id):
-        """Delegate to :func:`delete_conversation` (delete after owner verification)."""
-        return delete_conversation(conversation_id, user_id)

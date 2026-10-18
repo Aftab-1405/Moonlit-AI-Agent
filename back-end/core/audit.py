@@ -35,6 +35,8 @@ emit an audit record must not break the request path.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import logging
 import os
@@ -167,6 +169,28 @@ def _new_event_id() -> str:
     return f"evt_{secrets.token_urlsafe(12)}"
 
 
+def pseudonymize_audit_actor(actor: str, *, key: str | None = None) -> str:
+    """Replace authenticated user IDs with a stable, non-reversible audit subject."""
+    if not isinstance(actor, str) or not actor.startswith("user:"):
+        return actor
+    subject = actor.removeprefix("user:")
+    if subject in {"", "anonymous", "unknown"}:
+        return actor
+
+    secret = (
+        key
+        or os.getenv("AUDIT_ACTOR_PSEUDONYM_KEY")
+        or os.getenv("SECRET_KEY")
+        or "moonlit-development-audit-subject"
+    )
+    digest = hmac.new(
+        secret.encode("utf-8"),
+        f"moonlit-audit-actor:{subject}".encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()[:32]
+    return f"user:pseudo_{digest}"
+
+
 def audit_log(
     *,
     actor: str,
@@ -203,7 +227,7 @@ def audit_log(
         payload = {
             "event_id": _new_event_id(),
             "ts": time.time(),
-            "actor": actor,
+            "actor": pseudonymize_audit_actor(actor),
             "action": action,
             "resource": resource,
             "outcome": outcome,
@@ -227,4 +251,5 @@ __all__ = [
     "audit_log",
     "audit_sink_configured",
     "configure_audit_logging",
+    "pseudonymize_audit_actor",
 ]

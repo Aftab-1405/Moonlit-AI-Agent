@@ -138,6 +138,7 @@ const SlashCommandMenu = memo(function SlashCommandMenu({
   useEffect(() => {
     if (!anchorEl) return;
     const handleKey = (e) => {
+      if (e.isComposing || e.keyCode === 229) return;
       // Only intercept when focus is inside the composer or the menu.
       const target = e.target;
       const isInsideComposer = anchorEl?.contains?.(target);

@@ -36,8 +36,9 @@ on identical ``execute_query`` calls.
 
 Timeout enforcement (FIX [H2])
 ------------------------------
-Each tool's executor function runs inside ``asyncio.wait_for(
-asyncio.to_thread(executor_fn, ...), timeout=...)``. The per-tool budget
+Each tool's executor function runs in a worker thread protected by an account
+admission token and a per-tool ``asyncio.wait_for`` timeout. The token remains
+held until the thread finishes, including after a timeout. The per-tool budget
 is looked up in ``TOOL_TIMEOUT_SECONDS``; the default is
 ``DEFAULT_TOOL_TIMEOUT``. Timeouts surface to the LLM as a
 ``<tool_execution_error>`` so it can either retry with a narrower request
@@ -54,6 +55,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from langgraph.types import interrupt
 
+from core.account_activity import run_account_work
 from core.errors import PublicError, log_safe_exception, public_error_for_code
 from langgraph_orchestration.tool_executor import ToolExecutor
 from service.database.ai_tool_executor import AIToolExecutor as DBTools
@@ -553,12 +555,15 @@ async def _execute_tool(
         timeout = _tool_timeout_seconds(tool_name, validated)
         try:
             parsed = await asyncio.wait_for(
-                asyncio.to_thread(
-                    executor_fn,
-                    validated,
+                run_account_work(
                     cfg.get("user_id", ""),
-                    cfg.get("db_config"),
-                    execution_max_rows,
+                    lambda: asyncio.to_thread(
+                        executor_fn,
+                        validated,
+                        cfg.get("user_id", ""),
+                        cfg.get("db_config"),
+                        execution_max_rows,
+                    ),
                 ),
                 timeout=timeout,
             )
@@ -612,8 +617,10 @@ async def _execute_tool(
 
         if conversation_id:
             try:
-                # Save just the result rows and columns, not the whole payload if we don't want, but whole payload is fine.
-                store_execution_result(conversation_id, execution_id, parsed)
+                await run_account_work(
+                    cfg.get("user_id"),
+                    lambda: asyncio.to_thread(store_execution_result, conversation_id, execution_id, parsed),
+                )
             except Exception as e:
                 public = public_error_for_code("TOOL_RESULT_PERSISTENCE_FAILED")
                 log_safe_exception(logger, "store_execution_result", e, public)

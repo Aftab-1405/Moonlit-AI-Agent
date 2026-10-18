@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
@@ -11,6 +12,7 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import WRITES_IDX_MAP, BaseCheckpointSaver, CheckpointTuple
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.redis.aio import AsyncRedisSaver
+from langgraph.checkpoint.redis.key_registry import WRITE_KEYS_ZSET_PREFIX
 from langgraph.checkpoint.redis.util import (
     from_storage_safe_id,
     from_storage_safe_str,
@@ -55,6 +57,19 @@ class _RedisThreadManifest:
 
 class FullCopyInMemorySaver(InMemorySaver):
     """In-memory saver with an exact, isolated full-thread copy implementation."""
+
+    async def adelete_user_threads(self, user_id: str) -> None:
+        """Erase all account-owned generations, including orphan blobs and writes."""
+        prefix = f"{user_id}:"
+        for thread_id in list(self.storage):
+            if thread_id.startswith(prefix):
+                del self.storage[thread_id]
+        for key in list(self.blobs):
+            if key[0].startswith(prefix):
+                del self.blobs[key]
+        for key in list(self.writes):
+            if key[0].startswith(prefix):
+                del self.writes[key]
 
     async def acopy_thread(self, source_thread_id: str, target_thread_id: str) -> None:
         if source_thread_id == target_thread_id:
@@ -127,6 +142,39 @@ class FullCopyAsyncRedisSaver(AsyncRedisSaver):
     """Redis saver that copies through indexed reads and normal saver writes."""
 
     _COPY_PAGE_SIZE = 1_000
+    _DELETE_BATCH_SIZE = 1_000
+
+    async def adelete_user_threads(self, user_id: str) -> None:
+        """Erase account-owned keys without relying on live conversation metadata.
+
+        Channel blobs are inline in Redis checkpoints. Scan the other key families
+        too so orphan writes, latest pointers, and write registries are erased.
+        The caller must prevent account writes while deletion is in progress.
+        """
+        for key_family in (
+            self._checkpoint_prefix,
+            f"{self._checkpoint_prefix}_latest",
+            self._checkpoint_write_prefix,
+            WRITE_KEYS_ZSET_PREFIX,
+        ):
+            prefix = f"{key_family}:{user_id}:"
+            pattern = re.sub(r"([\\*?\[\]])", r"\\\1", prefix) + "*"
+            batch: list[str | bytes] = []
+            async for key in self._redis.scan_iter(match=pattern, count=self._DELETE_BATCH_SIZE):
+                batch.append(key)
+                if len(batch) >= self._DELETE_BATCH_SIZE:
+                    await self._adelete_account_keys(batch)
+                    batch.clear()
+            if batch:
+                await self._adelete_account_keys(batch)
+
+    async def _adelete_account_keys(self, keys: Sequence[str | bytes]) -> None:
+        if self.cluster_mode:
+            # Thread namespaces can map to different Redis cluster slots.
+            for key in keys:
+                await self._redis.delete(key)
+        else:
+            await self._redis.delete(*keys)
 
     async def acopy_thread(self, source_thread_id: str, target_thread_id: str) -> None:
         if source_thread_id == target_thread_id:

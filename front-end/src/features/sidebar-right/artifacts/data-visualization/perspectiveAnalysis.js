@@ -10,9 +10,10 @@ function hashText(value) {
   return (hash >>> 0).toString(36);
 }
 
-export function createAnalysisStorageKey({ sourceQuery = '', columns = [], database = '' }) {
+export function createAnalysisStorageKey({ userId = '', sourceQuery = '', columns = [], database = '' }) {
   const identity = JSON.stringify({ sourceQuery, columns, database });
-  return `${STORAGE_PREFIX}${hashText(identity)}`;
+  const accountPrefix = userId ? `moonlit:${userId}:perspective:v4:` : STORAGE_PREFIX;
+  return `${accountPrefix}${hashText(identity)}`;
 }
 
 export function loadAnalysisConfig(storageKey) {

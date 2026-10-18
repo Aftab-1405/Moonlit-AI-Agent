@@ -286,7 +286,7 @@ async def check_and_perform_compaction(agent, config, conversation_id, chat_mode
                 persisted = False
                 if task_run_id and task_run_fence is not None:
                     try:
-                        persisted = await asyncio.to_thread(
+                        persisted = await run_in_threadpool(
                             get_conversation_task_state_store().update_task_checkpoint_summary,
                             conversation_id,
                             updated_summary,
@@ -1126,9 +1126,7 @@ async def stream_conversation(
                         _log_stream_exception("compact_after_agent_step_limit", comp_err)
                 compaction_done = True
                 if run_lease is None:
-                    raise RuntimeError(
-                        "Agent step-limit continuation requires a durable task lease."
-                    )
+                    raise RuntimeError("Agent step-limit continuation requires a durable task lease.")
                 await run_lease.pause()
                 yield sse_encode(
                     {
@@ -1181,6 +1179,7 @@ async def stream_conversation(
 
     except asyncio.CancelledError:
         interruption_reason = "cancelled"
+        logger.warning("Agent stream aborted for conversation %s reason=cancelled", conversation_id)
         raise
 
     except Exception as e:

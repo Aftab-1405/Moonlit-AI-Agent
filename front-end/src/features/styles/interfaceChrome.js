@@ -13,13 +13,16 @@
  * @module features/styles/interfaceChrome
  */
 
-export const COMPOSER_MAX_WIDTH = 672;
+import { TOUCH_DEVICE_QUERY } from '../../styles/mediaQueries.js';
+import { UI_LAYOUT } from '../../styles/shared.js';
+
+export const COMPOSER_MAX_WIDTH = UI_LAYOUT.chatInputMaxWidth;
 
 /** Radius scale used by interface chrome. */
 export const INTERFACE_RADIUS = Object.freeze({
   row: '8px',
   control: '8px',
-  composer: '20px',
+  composer: '26px',
   suggestionPanel: '16px',
   panel: '8px',
   popover: '8px',
@@ -42,6 +45,7 @@ export function getResponsivePillIconButtonSx(theme, { desktopSize, mobileSize =
     minWidth: { xs: mobileSize, md: desktopSize },
     minHeight: { xs: mobileSize, md: desktopSize },
     borderRadius: theme.shape.radius.pill,
+    [TOUCH_DEVICE_QUERY]: { minWidth: UI_LAYOUT.touchTarget, minHeight: UI_LAYOUT.touchTarget },
   };
 }
 
@@ -58,26 +62,33 @@ export function getMobileEdgeControlSx(edge, gutter) {
 export function getComposerLayoutSx(theme) {
   return {
     form: {
-      px: { xs: 0.5, md: 1 },
+      px: 0,
       pb: { xs: `max(${theme.spacing(1)}, env(safe-area-inset-bottom))`, md: 1 },
     },
-    surface: { minHeight: { xs: 132, md: 124 } },
-    content: { px: { xs: 1.5, md: 2 }, py: 1.5, gap: 1.5 },
+    surface: { minHeight: { xs: 116, md: 108 } },
+    content: { px: { xs: 1.5, md: 2 }, py: 1.5, gap: 1 },
     toolbar: { gap: 1 },
   };
 }
 
-/** In-flow conversation panel that must shrink with the chat viewport. */
-export function getChatConversationPanelSx() {
+/**
+ * Stable three-row stage used by both the welcome and active chat states.
+ * Structural track changes intentionally snap so streaming updates cannot
+ * displace the composer while its containing grid is mid-transition.
+ */
+export function getChatStageLayoutSx(placement) {
+  const isWelcome = placement === 'welcome';
   return {
-    display: 'flex',
-    flexDirection: 'column',
-    flex: 1,
-    width: '100%',
-    maxWidth: '100%',
-    minWidth: 0,
-    minHeight: 0,
-    position: 'relative',
+    gridTemplateRows: isWelcome
+      ? 'minmax(0, 1fr) auto minmax(0, 1fr)'
+      : 'minmax(0, 1fr) auto minmax(0, 0fr)',
+    transition: 'none',
+    reducedMotion: { transition: 'none' },
+    composer: { gridRow: 2 },
+    transcript: {
+      gridRow: 1,
+      pointerEvents: isWelcome ? 'none' : 'auto',
+    },
   };
 }
 
@@ -279,15 +290,18 @@ export function getAppSunkenSurfaceSx(theme) {
 export function getShellWorkspaceSx(theme) {
   return {
     backgroundColor: theme.palette.background.default,
+    border: `1px solid ${theme.palette.border.subtle}`,
+    borderRadius: { xs: 0, md: '20px' },
     backgroundImage: 'none',
   };
 }
 
-/** Sidebar chrome — a quiet tonal shift, without a dividing rule. */
-export function getSidebarChromeSx(theme) {
+/** Layout-only sidebar wrapper; rounded surfaces paint above the shell backdrop. */
+export function getSidebarChromeSx(_theme) {
   return {
-    borderRight: '1px solid',
-    borderColor: theme.palette.border.separator,
+    backgroundColor: 'transparent',
+    backgroundImage: 'none',
+    borderRight: 'none',
     boxShadow: 'none',
   };
 }
@@ -302,18 +316,18 @@ export function getComposerSurfaceSx(theme) {
     borderRadius: INTERFACE_RADIUS.composer,
     border: `1px solid ${theme.palette.border.idle}`,
     overflow: 'hidden',
-    backgroundColor: theme.palette.background.input,
+    backgroundColor: theme.palette.background.composer,
     backgroundImage: 'none',
     boxShadow: 'none',
     transition: 'border-color 140ms ease, background-color 140ms ease',
   };
 }
 
-/** Artifact panel chrome — a sibling surface without a permanent seam. */
+/** Artifact card uses the same enclosed surface as the chat workspace. */
 export function getArtifactPanelChromeSx(theme) {
   return {
-    borderLeft: getHairlineBorder(theme),
-    ...getAppPanelSurfaceSx(theme),
+    ...getShellWorkspaceSx(theme),
+    borderRadius: '20px',
   };
 }
 
@@ -358,39 +372,14 @@ export function getPreferenceSectionSurfaceSx(theme) {
 }
 
 /** Welcome hero typography — the large headline on the empty chat state. */
-export function getWelcomeHeroSx(theme, shimmerName = null) {
-  let shimmerSx = {};
-  if (shimmerName) {
-    const { mode, text } = theme.palette;
-    const baseColor = mode === 'dark' ? text.secondary : text.primary;
-    const highlightColor = mode === 'dark' ? text.primary : text.secondary;
-    shimmerSx = {
-      color: 'transparent',
-      backgroundImage: `linear-gradient(110deg, ${baseColor} 35%, ${highlightColor} 50%, ${baseColor} 65%)`,
-      backgroundSize: '250% 100%',
-      backgroundPosition: '150% 50%',
-      backgroundClip: 'text',
-      WebkitBackgroundClip: 'text',
-      WebkitTextFillColor: 'transparent',
-      animation: `${shimmerName} 3.2s linear infinite`,
-      '@media (prefers-reduced-motion: reduce)': {
-        color: 'text.primary',
-        backgroundImage: 'none',
-        animation: 'none',
-        WebkitTextFillColor: 'currentColor',
-      },
-    };
-  }
-
+export function getWelcomeHeroSx(theme) {
   return {
     ...theme.typography.uiDisplaySm,
     width: '100%',
     maxWidth: COMPOSER_MAX_WIDTH,
-    fontSize: { xs: 'clamp(1rem, 4.75vw, 1.75rem)', md: '2rem' },
+    fontSize: { xs: '1.35rem', md: '1.5rem' },
+    fontWeight: 400,
+    lineHeight: 1.4,
     color: 'text.primary',
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    ...shimmerSx,
   };
 }

@@ -1,0 +1,37 @@
+{
+  "date": "2026-10-18",
+  "scope": "ChatGPT Work sidebar appearance and Moonlit adaptation",
+  "reference": "https://chatgpt.com/c/6ad43b32-40ec-83e8-8e33-fa90bd935572",
+  "rea": {
+    "discovery": "ev_c2ac3ffeb7df7a35c22a2f7753cf93d2fd2dba91cb74529f8b846bbd09d13e0a",
+    "passive_inspection": "ev_c41b7d16caba71e2559e103754af74927f2ac3e62cba583cba55fc90e1bbcc6d",
+    "reference_screenshot": "ev_ceb9846835bc83257facf98528313df821fee5d3671eb3ebc2e577568f0fc509",
+    "moonlit_screenshot": "ev_7ff86c4764f2dbbe15b8b7ec07481851fc8cced15177634d9994d3c69649e85b"
+  },
+  "additional_browser_observations": {
+    "method": "Internal browser DOM geometry and visible interaction; not a REA scenario trace",
+    "rail_width_css_px": 52,
+    "rail_button_size_css_px": 36,
+    "rail_button_radius_css_px": 10,
+    "rail_button_vertical_gap_css_px": 16,
+    "expanded_panel_width_css_px": 284,
+    "expanded_panel_left_css_px": 56,
+    "profile": "Anchored to bottom of persistent icon rail",
+    "expanded_behavior": "Home opens adjacent rounded panel with search, new chat and scrollable grouped history; the observed panel overlays the canvas"
+  },
+  "moonlit_decisions": [
+    "Persistent black 52px rail with existing Moonlit actions and profile",
+    "Rounded 284px history panel, 4px outer insets; total expanded width344px",
+    "Retain Moonlit's docked expansion and persisted preference instead of introducing hover peeking",
+    "Keep existing search, database, mindmap, history, rename/delete and settings callbacks",
+    "Round mobile drawer, retain 44px touch controls, and use mobile footer independently of desktop collapse state",
+    "Return keyboard focus to the persistent toggle when closing history"
+  ],
+  "verification": {
+    "node_test_files": 29,
+    "component_tests": 85,
+    "component_test_files": 21,
+    "browser": ["expanded and collapsed desktop", "conversation selection", "filtered search", "database menu", "collapsed profile menu with Settings", "429px mobile drawer with scrolling and 44px Settings target"],
+    "limitations": ["Local screenshot and browser checks use real production UI components with fictional data", "No live database execution or backend mutation was tested", "Reference inspection is scoped to this account/build"]
+  }
+}

@@ -658,3 +658,168 @@ All completed phases are stable, documentation is current, and remaining limitat
 COMPLETE WITH FIXTURE LIMITATIONS — the live responsive matrix, sole reproducible final-pass warning
 correction, automated regression suite, final changed-file review, and audit documentation are
 complete. Only the explicit live-fixture and Perspective bundle-size limitations above remain.
+
+
+## Work-inspired workspace follow-up — 2026-10-18
+
+Implemented the REA-informed context and output-navigation changes using the existing design
+system and artifact renderers. The composer remains mounted while context moves into a searchable
+utility bar. Conversation and artifact headers share an Outputs/Sources picker. Inline results,
+saved execution references, SQL and Perspective views retain their association; fullscreen uses
+the existing host. Session-scoped workspace state survives Dashboard round-trips.
+
+Validation: 29 Node test files, 67 component tests, targeted result/message tests, ESLint and
+production build passed. REA browser scenarios exercised 390px mobile, the 768px transition and
+1440px desktop with synthetic data. Failure/retry, empty results, session switching, late responses,
+new-chat binding and stable result-to-SQL identity have regression coverage. Temporary fixture
+files and server were removed. User-staged changes were preserved; no commit was created.
+
+Known limitations: no live authenticated database execution was tested; manual workspace state is
+in-memory for the app session. The existing Perspective chunk-size warning and two pre-existing
+Knip unused-export findings remain. No dedicated audit scripts exist in the current checkout.
+
+Status: complete with the stated fixture and existing-warning limitations.
+
+## Work-inspired sidebar follow-up — 2026-10-18
+
+REA inspected the signed-in reference sidebar and captured screenshots. Internal-browser
+interaction confirmed the persistent 52px rail, 36px rounded controls, 16px gaps, and adjacent
+284px history panel. Moonlit now carries those proportions and surfaces into its existing
+navigation: black rail, rounded inset history, bottom profile, quieter rows, and matching mobile
+drawer. Docked expansion and the saved sidebar preference are retained. Existing callbacks and
+activity/rename/delete behavior are reused. Closing history restores focus to the rail toggle.
+
+Validation: 29 Node test files and 85 component tests pass, as do ESLint, production build and
+diff whitespace checks. The existing Perspective bundle-size warning remains. Browser checks cover desktop
+collapse/expand, selection, filtered search, database menu, profile/Settings access, and a 429px
+mobile drawer with scrollable history and 44px Settings target. Checks use actual Sidebar,
+AppShell and ChatColumn with fictional data; no live backend mutation was tested. A fresh review
+reported no actionable issues. Temporary fixture files and tabs were removed; viewport reset.
+Evidence and adaptation decisions: `docs/research/2026-10-18-sidebar-evidence.json`.
+
+## Screenshot-directed visual correction — 2026-10-18
+
+The user's rejection of the conservative styling supersedes the prior visual choices. Implemented
+a rounded dark workspace, smaller static welcome heading, 26px composer surface, attached context
+strip, stacked suggestions, compact two-stage model settings/list, supported effort slider,
+rounded user bubbles, and a toggleable desktop Outputs/Sources summary. Existing database,
+SQL, streaming and draft behavior remains covered. Review findings on expanded-sidebar overlap,
+short-window clipping and stale model search feedback were corrected and verified.
+
+Validation: 29 Node test files and 84 component tests pass with two workers; lint/build and diff
+checks pass. Knip retains two baseline unused exports, and the Perspective size warning remains.
+REA captured the authenticated reference and local component screenshots; its scenario provider
+still fails, so browser interaction checks used the internal browser. Local screenshots use
+fictional data and a simplified fixture sidebar; live database execution was not tested. Fixtures
+were removed and viewport restored. User-staged changes were preserved; no commit was made.
+
+Status: complete with the stated verification limits. The plan's leading correction section
+records current visual decisions and supersedes its earlier visual recommendations.
+
+## Work-inspired composer follow-up — 2026-10-18 (earlier implementation)
+
+Implemented the approved incremental composer plan: one searchable provider-grouped model
+picker with capability-aware effort controls, shared Settings semantics, compact 768px-aligned
+composition, responsive label truncation, IME-safe Enter, and session-aware failed-draft recovery.
+Existing SQL, output and activity structures are preserved. The task-mode caption explicitly
+describes the last resolved mode rather than the new request's setting.
+
+Fresh review identified terminal SSE failures incorrectly returning success; a failing regression
+now passes after propagating the stream outcome. Pauses, approval waits and Stop remain covered.
+The mode-caption correction also has regression coverage. Final validation: 29 Node test files,
+83 component tests, ESLint and production build pass. The full test suite was rerun independently
+after concurrent checks caused timeouts; no test timeout setting was relaxed.
+
+Browser checks verified composer layouts at 390, 767, 768 and 1440 CSS px, approximately 118px
+mobile / 110px desktop empty surfaces, 44px mobile main controls, keyboard picker focus,
+long-label/input behavior and draft preservation. Temporary fixtures were removed and viewport
+settings restored. Live database/viewer execution, physical mobile keyboards and 200% zoom
+remain untested in this pass. Existing Perspective size and Knip findings remain. See the plan's
+implementation record for exact scope and decisions. User-staged changes are preserved and no
+commit was made.
+
+Status: complete with the stated verification limitations.
+
+
+## Sidebar interactions and workspace fitting — 2026-10-18
+
+The latest user-directed pass supersedes the earlier decision to retain floating sidebar menus.
+REA-captured sidebar JavaScript establishes desktop hover delays (100ms open, 300ms switch,
+100ms leave). Moonlit now switches History, Search, Databases and account actions in one shared
+panel. Collapsed hover previews do not resize the page; interaction pins the panel before opening
+conversation action menus. Focused inputs, keyboard account navigation, close/Escape focus and
+mobile list scrolling are covered. New chat now appears beside the active conversation title.
+The reference also has New chat within expanded Home; its global search and profile remain
+modal/popover exceptions. Moonlit's inline versions intentionally satisfy the user's request.
+
+Artifact expansion now reallocates the shell's remaining width beside navigation, preserving the
+same renderer and editor state. Split widths are bounded; narrow screens retain the viewport
+viewer. Browser checks cover expanded/collapsed navigation, a 900px desktop boundary, a 390px
+mobile viewport, a 23-entry mobile history and Escape restoration. These use actual production
+components with fictional data, not live database operations.
+
+Validation: 29 Node test files and 92 component tests pass; lint and production build pass.
+The focused suite passes after final touch-target adjustments. Review findings were fixed and
+re-reviewed. Existing Perspective size warning and two baseline Knip findings remain. Evidence:
+`docs/research/2026-10-18-sidebar-interactions-evidence.json`. Temporary fixtures were removed;
+no dependency, backend, staging or commit changes were made by this pass.
+
+## Live application verification and rounded containers — 2026-10-18
+
+Started the existing local backend on loopback port 5000. The configured `LOG_FORMAT=json`
+prevented Python logging startup, so this process uses a standard formatter environment override;
+no backend configuration or source files were changed. Startup Redis, Firestore and Qdrant checks
+passed, and the browser restored its existing authenticated session.
+
+Verified the actual saved conversation and diagram through the real app: history, search filtering,
+conversation menu Escape/focus return, profile/settings modal layering, artifact expansion beside
+navigation, sidebar collapse, restoration to split view and mobile artifact close. The collapsed
+rail now has a 4px outer inset, 16px corners and a subtle border while retaining its 52px layout
+slot. Artifact surfaces have a 4px inset and 20px corners, including the loading/rendered surface.
+
+The live narrow-screen accessibility tree exposed covered chat controls behind the artifact.
+AppShell now makes that chat inert and aria-hidden while preserving its mounted draft state.
+A regression failed before the fix and passes afterward; the real browser tree now excludes the
+covered chat and restores it when the artifact closes. The focused shell/sidebar/canvas suite
+passes alongside the diagram regression (14 tests across five focused files). The user confirmed
+live hover/preview/menu behavior, supplementing component coverage of hover timers and
+preview-to-menu pinning. No fixture was used for this live pass.
+
+Closing/reopening the actual saved diagram also exposed an initial-fit race: a resize could cancel
+the reveal frame after initialization was already marked complete, leaving the graph at opacity 0.
+Initialization now completes in the reveal frame itself, allowing interrupted fits to retry.
+A deterministic regression reproduced the invisible graph before the fix and passes afterward;
+the live saved diagram now renders after reopening and expand/Escape restoration.
+ESLint and the production build pass; the existing Perspective bundle-size warning remains.
+
+## Background paint seams — 2026-10-18
+
+Live computed styles confirmed the sharp seam reported around rounded cards: Moonlit's sidebar
+column painted black while its shell painted `rgb(10,10,10)`. The signed-in ChatGPT Work reference
+uses a black layout backdrop, transparent intermediate sidebar/workspace wrappers and a
+`rgb(14,14,14)` main surface clipped with `inset(0px round 16px)` in the observed desktop build.
+REA's CDP endpoint was unavailable; these measurements came from the internal browser's DOM.
+
+AppShell now owns one black backdrop; the sidebar wrapper is transparent and no longer receives
+the redundant panel fill. Existing card colors and rounded overflow clipping are preserved.
+Live computed-style inspection confirms black beneath the cards and transparent wrappers.
+ESLint, eight focused sidebar/shell tests and diff whitespace checks pass.
+
+## Neutral dark-theme surfaces — 2026-10-18
+
+REA captured ChatGPT's published stylesheet and its neutral dark gray ramp. The signed-in internal
+browser supplied Work's active inline overrides. Evidence and source distinctions are recorded in
+`docs/research/2026-10-18-dark-theme-tokens.json`. No verification challenge was bypassed.
+
+Moonlit now uses neutral grayscale primitives and semantic shell (#000), workspace (#0e0e0e),
+card (#212121), inset (#181818), and raised control (#303030) surfaces. Primary/secondary text
+is #ededed/#cdcdcd; border/interaction overlays use neutral white. Sidebar (docked and hover),
+composer, context strip, output card and model picker consume these shared tokens. Editor chrome
+is neutral too; status, chart, provider and syntax accents remain intentional colors. Menu/popover
+papers now use 16px corners and horizontal clipping while retaining vertical scrolling.
+
+Verified actual saved data in the browser: expanded sidebar/menu colors and clipping, model picker,
+fullscreen artifact edges and Escape restoration. The hover panel shares the verified sidebar
+renderer; its pointer-only live check was not repeated in this pass. Full validation: 29 Node test
+files and 94 component tests; 15 targeted tests also pass after final menu changes. Lint/build pass,
+with the existing Perspective size warning. Light theme is explicitly deferred.

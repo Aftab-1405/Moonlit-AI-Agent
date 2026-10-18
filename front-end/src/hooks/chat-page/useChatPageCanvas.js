@@ -17,9 +17,14 @@
 
 import { useCallback, useEffect, useMemo } from 'react';
 import { useWorkspaceCanvas } from '@/hooks/chat-page/useWorkspaceCanvas';
+import { collectConversationOutputs } from '@/features/chat/conversationOutputs';
 
 export function useChatPageCanvas({
   sidebarWidth,
+  sessionKey,
+  conversationId,
+  currentDatabase,
+  currentSchema,
   isDbConnected,
   isCurrentlyStreaming,
   messages,
@@ -27,6 +32,14 @@ export function useChatPageCanvas({
   setDbModalOpen,
   showSnackbar,
 }) {
+  const source = useMemo(
+    () => (isDbConnected ? { database: currentDatabase, schema: currentSchema } : null),
+    [currentDatabase, currentSchema, isDbConnected],
+  );
+  const historyOutputs = useMemo(
+    () => collectConversationOutputs(messages, conversationId),
+    [messages, conversationId],
+  );
   const {
     workspaceCanvasOpen,
     workspaceCanvasArtifact: canvasArtifact,
@@ -37,7 +50,13 @@ export function useChatPageCanvas({
     handleOpenSqlEditor: openSqlEditorCanvas,
     handleCloseWorkspaceCanvas,
     handleCanvasResize,
-  } = useWorkspaceCanvas({ sidebarWidth });
+    workspaceOutputs,
+  } = useWorkspaceCanvas({ sidebarWidth, sessionKey, source, historyOutputs });
+  const conversationOutputs = useMemo(() => {
+    const records = new Map(historyOutputs.map((output) => [output.id, output]));
+    workspaceOutputs.forEach((output) => records.set(output.id, output));
+    return [...records.values()];
+  }, [historyOutputs, workspaceOutputs]);
 
   // ── Detect agent streaming into the SQL editor ───────────────────────────
   // When the agent calls `write_sql_editor_query`, the tool step is in
@@ -107,6 +126,7 @@ export function useChatPageCanvas({
   }, [isSqlEditorStreaming, canvasArtifact, isDbConnected, openSqlEditorCanvas]);
 
   return {
+    conversationOutputs,
     workspaceCanvasOpen,
     workspaceCanvasArtifact,
     workspaceCanvasWidth,

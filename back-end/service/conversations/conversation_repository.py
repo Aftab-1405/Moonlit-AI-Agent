@@ -12,6 +12,7 @@ Each conversation document has the shape::
     {
         "user_id":   "<owner uid>",
         "timestamp": Datetime,
+        "updated_at": Datetime,
         "title":     "<preview title>",
         "preview":   "<short preview>",
         "messages":  [ { sender, content, timestamp, ... }, ... ],
@@ -267,7 +268,7 @@ class ConversationRepository:
             conversations = (
                 db.collection(ConversationRepository.COLLECTION_NAME)
                 .where(filter=FieldFilter("user_id", "==", user_id))
-                .select(["timestamp", "title"])
+                .select(["timestamp", "updated_at", "title"])
                 .get(retry=retry, timeout=timeout)
             )
 
@@ -279,12 +280,13 @@ class ConversationRepository:
                     {
                         "id": conv.id,
                         "timestamp": conv_data.get("timestamp"),
+                        "updated_at": conv_data.get("updated_at") or conv_data.get("timestamp"),
                         "title": title,
                     }
                 )
 
             conversation_list.sort(
-                key=lambda x: x["timestamp"] if x["timestamp"] else datetime.min,
+                key=lambda x: x["updated_at"] if x["updated_at"] else datetime.min.replace(tzinfo=timezone.utc),
                 reverse=True,
             )
             return conversation_list
@@ -328,7 +330,7 @@ class ConversationRepository:
                 raise PermissionError("User does not own this conversation")
 
             sanitized_title = title.strip()
-            conversation_ref.update({"title": sanitized_title})
+            conversation_ref.update({"title": sanitized_title, "updated_at": datetime.now(timezone.utc)})
             logger.info(f"Conversation {conversation_id} renamed successfully")
             return sanitized_title
         except (ValueError, PermissionError):
@@ -425,11 +427,13 @@ class ConversationRepository:
                 from config import get_config
 
                 title = content_str[: get_config().CONVERSATION_TITLE_MAX_LENGTH]
+                created_at = datetime.now(timezone.utc)
                 txn.set(
                     ref,
                     {
                         "user_id": user_id,
-                        "timestamp": datetime.now(timezone.utc),
+                        "timestamp": created_at,
+                        "updated_at": created_at,
                         "messages": [],
                         "title": title,
                         "preview": preview,
@@ -481,7 +485,13 @@ class ConversationRepository:
                     if tool_trace_summary is not None:
                         last_message["tool_trace_summary"] = tool_trace_summary
 
-                    txn.update(ref, {"messages": messages_list})
+                    txn.update(
+                        ref,
+                        {
+                            "messages": messages_list,
+                            "updated_at": datetime.now(timezone.utc),
+                        },
+                    )
                     return
 
             content = (message or "").strip()
@@ -515,7 +525,13 @@ class ConversationRepository:
             if tool_trace_summary is not None:
                 message_data["tool_trace_summary"] = tool_trace_summary
 
-            txn.update(ref, {"messages": firestore.ArrayUnion([message_data])})
+            txn.update(
+                ref,
+                {
+                    "messages": firestore.ArrayUnion([message_data]),
+                    "updated_at": datetime.now(timezone.utc),
+                },
+            )
 
         try:
             transaction = db.transaction()
@@ -548,16 +564,20 @@ class ConversationRepository:
             raise
 
     @staticmethod
-    def delete(conversation_id: str, user_id: str) -> bool:
+    def delete(
+        conversation_id: str,
+        user_id: str,
+        *,
+        strict_subcollection_cleanup: bool = True,
+    ) -> bool:
         """
         Delete a conversation and its subcollections (summary blocks, execution results).
 
-        Verifies user ownership before deleting. Best-effort cleans up the
+        Verifies user ownership before deleting. Cleans up the
         ``summary_blocks`` and ``execution_results`` subcollections (including
         their ``payload_chunks`` / ``chunks`` grandchild docs) before removing
-        the conversation document itself. Subcollection cleanup failures are
-        logged but do NOT abort the conversation delete — orphaned chunk docs
-        are reclaimed by a periodic janitor job.
+        the conversation document itself. By default, cleanup failures retain
+        the parent document so deletion can be retried without orphaning data.
 
         Args:
             conversation_id: The conversation ID
@@ -600,6 +620,8 @@ class ConversationRepository:
                     "Summary block cleanup failed.",
                 )
                 log_safe_exception(logger, "cleanup_summary_blocks", blocks_err, public)
+                if strict_subcollection_cleanup:
+                    raise
             try:
                 execution_results_ref = conversation_ref.collection("execution_results")
                 for execution_doc in execution_results_ref.get():
@@ -621,6 +643,8 @@ class ConversationRepository:
                     execution_err,
                     public,
                 )
+                if strict_subcollection_cleanup:
+                    raise
             conversation_ref.delete()
             logger.info(f"Conversation {conversation_id} deleted successfully")
             return True
@@ -674,6 +698,26 @@ class ConversationRepository:
                 db_err,
                 persist_public,
             )
+
+    @staticmethod
+    def get_memory_cleanup_retries_for_user(user_id: str) -> list[dict]:
+        """Include pending and exhausted retries, even after conversation deletion."""
+        from google.cloud.firestore_v1 import FieldFilter
+
+        from service.firestore.firestore_service import FirestoreService
+
+        db = FirestoreService.get_db()
+        snapshots = (
+            db.collection("qdrant_conversation_cleanup").where(filter=FieldFilter("user_id", "==", user_id)).get()
+        )
+        return [{**snapshot.to_dict(), "id": snapshot.id} for snapshot in snapshots]
+
+    @staticmethod
+    def delete_memory_cleanup_retry(retry_id: str) -> None:
+        """Retire a retry only after its external memory has been erased."""
+        from service.firestore.firestore_service import FirestoreService
+
+        FirestoreService.get_db().collection("qdrant_conversation_cleanup").document(retry_id).delete()
 
     @staticmethod
     def retry_qdrant_cleanups(memory_cleaner) -> int:

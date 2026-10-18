@@ -5,7 +5,6 @@ function IconBase({ children, ...props }) {
   return (
     <SvgIcon
       viewBox="0 0 24 24"
-      fontSize="inherit"
       stroke="currentColor"
       strokeWidth={1.75}
       strokeLinecap="round"

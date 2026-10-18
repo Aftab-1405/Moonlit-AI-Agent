@@ -22,12 +22,12 @@ query is executed.
 """
 
 import logging
-import re
 from contextlib import contextmanager
 from typing import Dict, List, Optional
 
 from core.audit import audit_log
 from core.errors import log_safe_exception, public_database_error, public_tool_error
+from service.database.query_guards import set_query_schema, set_query_timeout
 
 logger = logging.getLogger(__name__)
 
@@ -538,67 +538,8 @@ class AIToolExecutor:
                             pass
                         raise ConnectionError("Connection lost, please reconnect") from health_err
 
-                    # FIX [EC3]: Oracle has no SET TIMEOUT SQL statement —
-                    # its timeout is enforced via the oracledb driver's
-                    # per-connection ``call_timeout`` attribute. Detect
-                    # the method via getattr and apply it directly to the
-                    # connection before issuing the query. Other adapters
-                    # (MySQL/PostgreSQL/SQL Server) use the SQL-string
-                    # path below and do not define ``set_session_timeout``
-                    # so this branch is a no-op for them.
-                    set_session_timeout_fn = getattr(adapter, "set_session_timeout", None)
-                    if callable(set_session_timeout_fn):
-                        try:
-                            set_session_timeout_fn(conn, 30)
-                        except Exception as timeout_err:
-                            timeout_public = public_database_error(timeout_err)
-                            log_safe_exception(
-                                logger,
-                                "set_database_session_timeout",
-                                timeout_err,
-                                timeout_public,
-                            )
-
-                    # FIX [H6]: set a per-statement timeout BEFORE executing
-                    # the LLM-issued query. Without this a cross-join DoS
-                    # would hang a pool connection until the pool was
-                    # exhausted. Mirrors operations.execute_sql_query.
-                    timeout_sql = adapter.get_set_timeout_sql(timeout_seconds=30)
-                    if timeout_sql:
-                        try:
-                            cursor.execute(timeout_sql)
-                        except Exception as timeout_err:
-                            # Best-effort: some adapters (e.g. Oracle, SQL
-                            # Server) return None and skip this entirely; if
-                            # the SET itself fails we still proceed because
-                            # the user-facing path also tolerates this.
-                            timeout_public = public_database_error(timeout_err)
-                            log_safe_exception(
-                                logger,
-                                "set_database_statement_timeout",
-                                timeout_err,
-                                timeout_public,
-                            )
-                    if db_type == "postgresql":
-                        schema = connection.get("schema", "public")
-                        # Validate schema name to prevent SQL injection
-                        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", schema):
-                            raise ValueError(f"Invalid schema name: {schema}")
-                        # FIX [M15]: use psycopg2.sql.Identifier to safely
-                        # interpolate the schema name into SET search_path,
-                        # rather than f-string interpolation. Even though the
-                        # regex above rejects non-identifier characters, the
-                        # Identifier-based approach is defense-in-depth and
-                        # also handles edge cases (reserved words, mixed case).
-                        try:
-                            from psycopg2 import sql as _pg_sql
-
-                            cursor.execute(_pg_sql.SQL("SET search_path TO {}").format(_pg_sql.Identifier(schema)))
-                        except ImportError:
-                            # psycopg2 not available — fall back to the
-                            # regex-validated interpolation. The regex above
-                            # ensures the schema is a safe identifier.
-                            cursor.execute(f"SET search_path TO {schema}")
+                    set_query_timeout(adapter, cursor, conn, 30)
+                    set_query_schema(cursor, db_config, db_type)
                     cursor.execute(query)
                     rows = cursor.fetchmany(actual_max_rows + 1)
 

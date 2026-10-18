@@ -49,6 +49,7 @@ APPROVED_ROUTE_CASES = [
     ),
     ("POST", "/api/v1/user/settings", "settings.update", "user:settings"),
     ("POST", "/api/v1/user/session/close", "session.close", "user:session"),
+    ("DELETE", "/api/v1/user/account", "account.delete", "user:account"),
     ("POST", "/api/v1/context/metrics/reset", "context.metrics.reset", "context:metrics"),
 ]
 
@@ -170,7 +171,8 @@ async def test_selected_route_emits_one_correlated_sanitized_event(
 
     payloads = audit_payloads(audit_buffer)
     assert len(payloads) == 1
-    assert payloads[0]["actor"] == "user:user-1"
+    assert payloads[0]["actor"].startswith("user:pseudo_")
+    assert "user-1" not in payloads[0]["actor"]
     assert payloads[0]["action"] == "settings.update"
     assert payloads[0]["resource"] == "user:settings"
     assert payloads[0]["outcome"] == expected_outcome

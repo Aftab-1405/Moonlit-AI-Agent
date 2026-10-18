@@ -12,14 +12,11 @@ This module provides:
 2. **Read-only query analysis** via ``sqlglot``: parses the SQL, rejects
    multi-statement input, allows only ``SELECT`` / ``WITH`` roots, and
    blocks any DDL/DML node anywhere in the parse tree.
-3. **Safe query templates** for the few places the codebase still builds
-   SQL from validated identifiers.
 
 All public methods are static and cached where the input space is small.
 """
 
 import logging
-import re
 from functools import lru_cache
 from types import MappingProxyType
 from typing import Mapping
@@ -72,9 +69,7 @@ _SAFE_ANONYMOUS_FUNCTIONS: Mapping[str, frozenset[str]] = MappingProxyType(
     }
 )
 
-_GENERIC_SAFE_ANONYMOUS_FUNCTIONS = frozenset().union(
-    *_SAFE_ANONYMOUS_FUNCTIONS.values()
-)
+_GENERIC_SAFE_ANONYMOUS_FUNCTIONS = frozenset().union(*_SAFE_ANONYMOUS_FUNCTIONS.values())
 
 _SQLSERVER_STATE_CHANGING_LOCK_HINTS = frozenset(
     {
@@ -89,27 +84,13 @@ _SQLSERVER_STATE_CHANGING_LOCK_HINTS = frozenset(
         "xlock",
     }
 )
-_SEQUENCE_ADVANCEMENT_WARNING = (
-    "Sequence advancement is prohibited by read-only policy"
-)
+_SEQUENCE_ADVANCEMENT_WARNING = "Sequence advancement is prohibited by read-only policy"
 _SESSION_ASSIGNMENT_WARNING = "Session assignment is prohibited by read-only policy"
-_STATE_CHANGING_LOCK_WARNING = (
-    "State-changing table lock hint is prohibited by read-only policy"
-)
+_STATE_CHANGING_LOCK_WARNING = "State-changing table lock hint is prohibited by read-only policy"
 
 
 class DatabaseSecurity:
     """Database security utilities — read-only query validation and identifier rules."""
-
-    # FIX [AUDIT-2-B]: the previous patterns allowed hyphens, leading
-    # digits, and pure-numeric names — all of which are SQL-injection
-    # vectors when interpolated into dynamic SQL. The new patterns match
-    # only safe SQL identifiers and an optional single ``schema.table``
-    # qualifier. ``core.security.is_valid_identifier`` is the single
-    # source of truth so the rule is consistent across the codebase.
-    _TABLE_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$")
-    _DATABASE_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$")
-    _COLUMN_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$")
 
     @staticmethod
     @lru_cache(maxsize=256)
@@ -206,9 +187,7 @@ class DatabaseSecurity:
         else:
             parser_dialect = _SQLGLOT_DIALECTS.get(dialect)
             if parser_dialect is None:
-                analysis["warnings"].append(
-                    "Database dialect is not supported by SQL security policy"
-                )
+                analysis["warnings"].append("Database dialect is not supported by SQL security policy")
                 return analysis
             safe_anonymous_functions = _SAFE_ANONYMOUS_FUNCTIONS[dialect]
 
@@ -217,11 +196,7 @@ class DatabaseSecurity:
             from sqlglot import expressions as exp
             from sqlglot.optimizer.scope import traverse_scope
 
-            statements = [
-                item
-                for item in sqlglot.parse(query, read=parser_dialect)
-                if item is not None
-            ]
+            statements = [item for item in sqlglot.parse(query, read=parser_dialect) if item is not None]
             if len(statements) != 1:
                 analysis["warnings"].append("Exactly one SQL statement is required")
                 return analysis
@@ -262,13 +237,12 @@ class DatabaseSecurity:
                 analysis["warnings"].append("Blocked operation detected: " + ", ".join(sorted(set(blocked_nodes))))
                 return analysis
 
-            if dialect == "sqlserver" and any(
-                statement.find_all(exp.NextValueFor)
-            ):
+            if dialect == "sqlserver" and any(statement.find_all(exp.NextValueFor)):
                 analysis["warnings"].append(_SEQUENCE_ADVANCEMENT_WARNING)
                 return analysis
 
             if dialect == "oracle":
+
                 def normalized_oracle_identifier(identifier) -> str:
                     name = str(identifier.this)
                     if identifier.args.get("quoted", False):
@@ -281,14 +255,9 @@ class DatabaseSecurity:
                         alias_owner = source.parent
 
                     alias = alias_owner.args.get("alias")
-                    if (
-                        isinstance(alias, exp.TableAlias)
-                        and isinstance(alias.this, exp.Identifier)
-                    ):
+                    if isinstance(alias, exp.TableAlias) and isinstance(alias.this, exp.Identifier):
                         return alias.this
-                    if isinstance(source, exp.Table) and isinstance(
-                        source.this, exp.Identifier
-                    ):
+                    if isinstance(source, exp.Table) and isinstance(source.this, exp.Identifier):
                         return source.this
                     return None
 
@@ -298,11 +267,7 @@ class DatabaseSecurity:
                     while current is not None:
                         for source, _ in current.selected_sources.values():
                             identifier = relation_identifier(source)
-                            if (
-                                identifier is not None
-                                and normalized_oracle_identifier(identifier)
-                                == normalized
-                            ):
+                            if identifier is not None and normalized_oracle_identifier(identifier) == normalized:
                                 return True
                         if not current.can_be_correlated:
                             break
@@ -331,32 +296,21 @@ class DatabaseSecurity:
 
             if dialect == "sqlserver":
                 for hint in statement.find_all(exp.WithTableHint):
-                    hint_names = {
-                        str(node.this).strip().casefold()
-                        for node in hint.find_all(exp.Var)
-                    }
+                    hint_names = {str(node.this).strip().casefold() for node in hint.find_all(exp.Var)}
                     if hint_names & _SQLSERVER_STATE_CHANGING_LOCK_HINTS:
                         analysis["warnings"].append(_STATE_CHANGING_LOCK_WARNING)
                         return analysis
 
             for node in statement.find_all(exp.Func):
-                function_name = (
-                    node.name if isinstance(node, exp.Anonymous) else node.sql_name()
-                )
+                function_name = node.name if isinstance(node, exp.Anonymous) else node.sql_name()
                 normalized_name = str(function_name).strip().casefold()
                 prohibited_reason = _PROHIBITED_FUNCTION_REASONS.get(normalized_name)
                 if prohibited_reason is not None:
-                    analysis["warnings"].append(
-                        f"Function {normalized_name} is prohibited: {prohibited_reason}"
-                    )
+                    analysis["warnings"].append(f"Function {normalized_name} is prohibited: {prohibited_reason}")
                     return analysis
-                if (
-                    isinstance(node, exp.Anonymous)
-                    and normalized_name not in safe_anonymous_functions
-                ):
+                if isinstance(node, exp.Anonymous) and normalized_name not in safe_anonymous_functions:
                     analysis["warnings"].append(
-                        f"Function {normalized_name} is not allowed: "
-                        "unapproved anonymous function"
+                        f"Function {normalized_name} is not allowed: unapproved anonymous function"
                     )
                     return analysis
 
@@ -374,29 +328,6 @@ class DatabaseSecurity:
         return analysis
 
     @staticmethod
-    @lru_cache(maxsize=64)
-    def get_safe_query_template(query_type: str, table_name: str) -> str:
-        """Generate a cached safe query template.
-
-        Args:
-            query_type: ``"SELECT"`` or ``"COUNT"``.
-            table_name: Validated table name.
-
-        Returns:
-            SQL template string with ``{columns}`` / ``{conditions}``
-            placeholders. Empty string for unknown query types.
-        """
-        validated_table = DatabaseSecurity.validate_table_name(table_name)
-
-        # Only SELECT templates are provided
-        templates = {
-            "SELECT": f"SELECT {{columns}} FROM `{validated_table}` {{conditions}}",
-            "COUNT": f"SELECT COUNT(*) FROM `{validated_table}` {{conditions}}",
-        }
-
-        return templates.get(query_type, "")
-
-    @staticmethod
     def clear_cache():
         """Clear all validation caches.
 
@@ -406,4 +337,3 @@ class DatabaseSecurity:
         DatabaseSecurity.validate_table_name.cache_clear()
         DatabaseSecurity.validate_database_name.cache_clear()
         DatabaseSecurity.validate_column_name.cache_clear()
-        DatabaseSecurity.get_safe_query_template.cache_clear()

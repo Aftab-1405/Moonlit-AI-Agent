@@ -407,7 +407,9 @@ function UserDBContextManagerForAI() {
                             color: 'text.disabled',
                             [HOVER_CAPABLE_QUERY]: {
                               '&:hover': {
-                                ...utilityIconButtonSx[HOVER_CAPABLE_QUERY]?.['&:hover'],
+                                ...utilityIconButtonSx[HOVER_CAPABLE_QUERY]?.[
+                                  '&:hover:not(:disabled):not(.Mui-disabled)'
+                                ],
                                 color: 'error.main',
                               },
                             },

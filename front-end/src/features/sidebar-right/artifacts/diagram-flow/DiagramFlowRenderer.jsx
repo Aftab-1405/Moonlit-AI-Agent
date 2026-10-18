@@ -780,8 +780,11 @@ function DiagramFlowRenderer({
         } catch {
           flowInstanceRef.current?.setViewport?.(initialViewport, { duration: 0 });
         }
-        hasInitialFitRef.current = true;
         revealFrame = requestAnimationFrame(() => {
+          // A resize may cancel this frame. Only finish initialization once
+          // the graph is revealed, so an interrupted fit can retry.
+          hasInitialFitRef.current = true;
+          setHasRenderedOnce(true);
           setViewportReadySignature(viewportSignature);
         });
       });

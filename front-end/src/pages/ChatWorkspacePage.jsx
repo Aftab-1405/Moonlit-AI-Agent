@@ -1,8 +1,8 @@
-// MainInterface — logged-in application shell root.
+// ChatWorkspacePage — logged-in application shell root.
 //
 // Acts as the orchestrator for the three-column chat experience. Owns no
 // feature-specific business logic — that lives in `useChatPageController` and
-// the feature modules. MainInterface's job is to:
+// the feature modules. ChatWorkspacePage's job is to:
 //
 //   1. Wire the controller.
 //   2. Pass feature content into AppShell as slots.
@@ -18,7 +18,6 @@ import { ResizeHandle } from '@/components';
 import ChatColumn from '@/features/chat/ChatColumn';
 import AppShell from '@/features/shell/AppShell';
 import GlobalOverlays from '@/features/shell/GlobalOverlays';
-import UserProfileMenu from '@/features/shell/UserProfileMenu';
 import ArtifactLoader from '@/features/sidebar-right/index';
 import { useChatPageController } from '@/hooks/chat-page/useChatPageController';
 
@@ -33,15 +32,13 @@ import { useChatPageController } from '@/hooks/chat-page/useChatPageController';
 //   - Bug #2/#4: State propagation issues during navigation
 const Sidebar = lazy(() => import('@/features/sidebar-left'));
 
-function MainInterface() {
+function ChatWorkspacePage() {
   const mobileSidebarTriggerRef = useRef(null);
   const {
     theme,
     isNarrowLayout,
-    anchorEl,
     user,
-    handleMenuClose,
-    handleOpenSettings,
+    handleOpenDashboard,
     handleLogout,
     commonSidebarProps,
     handleSidebarNewChat,
@@ -49,7 +46,6 @@ function MainInterface() {
     handleSidebarOpenDbModal,
     sidebarOpen,
     handleSidebarToggle,
-    handleSidebarMenuOpen,
     handleSidebarOpenSettings,
     mobileOpen,
     handleMobileDrawerOpen,
@@ -71,6 +67,8 @@ function MainInterface() {
     chatInputSharedProps,
     workspaceCanvasOpen,
     workspaceCanvasArtifact,
+    conversationOutputs,
+    onNotify,
     workspaceCanvasWidth,
     workspaceCanvasMinWidth,
     workspaceCanvasMaxWidth,
@@ -104,6 +102,11 @@ function MainInterface() {
   } = useChatPageController({ mobileSidebarTriggerRef });
 
   const [isResizingCanvas, setIsResizingCanvas] = useState(false);
+  const [fullscreenSession, setFullscreenSession] = useState(null);
+  const canvasFullscreen =
+    workspaceCanvasOpen && fullscreenSession === chatInputSharedProps.sessionKey;
+  const handleFullscreenChange = (value) =>
+    setFullscreenSession(value ? chatInputSharedProps.sessionKey : null);
 
   const chatSlot = (
     <ChatColumn
@@ -115,6 +118,9 @@ function MainInterface() {
       isPinnedToBottom={isPinnedToBottom}
       scrollToBottom={scrollToBottom}
       messages={messages}
+      conversationOutputs={conversationOutputs}
+      selectedArtifact={workspaceCanvasArtifact}
+      workspaceCanvasOpen={workspaceCanvasOpen}
       isConversationLoading={isConversationLoading}
       conversationLoadState={conversationLoadState}
       handleRunQuery={handleRunQuery}
@@ -125,6 +131,7 @@ function MainInterface() {
       currentConversationId={currentConversationId}
       conversationTitle={activeConversationTitle}
       onRenameConversation={handleConversationHeaderRename}
+      onNewChat={handleSidebarNewChat}
       isNarrowLayout={isNarrowLayout}
       onOpenSidebar={handleMobileDrawerOpen}
       onOpenDatabase={handleSidebarOpenDbModal}
@@ -147,8 +154,9 @@ function MainInterface() {
         minWidth: 0,
       }}
     >
-      {!isNarrowLayout && (
+      {!isNarrowLayout && !canvasFullscreen && (
         <ResizeHandle
+          key="workspace-resize-handle"
           onResize={handleCanvasResize}
           onResizeStart={() => setIsResizingCanvas(true)}
           onResizeEnd={() => setIsResizingCanvas(false)}
@@ -159,6 +167,7 @@ function MainInterface() {
         />
       )}
       <Box
+        key="workspace-content"
         sx={{
           flex: 1,
           minWidth: 0,
@@ -169,15 +178,19 @@ function MainInterface() {
         }}
       >
         <ArtifactLoader
+          key={chatInputSharedProps.sessionKey}
           artifact={workspaceCanvasArtifact}
+          outputs={conversationOutputs}
           onOpenArtifact={handleOpenCanvasArtifact}
           onClose={handleCloseWorkspaceCanvas}
           isDbConnected={isDbConnected}
           currentDatabase={currentDatabase}
           isOpen={workspaceCanvasOpen}
+          fullscreen={canvasFullscreen}
+          onFullscreenChange={handleFullscreenChange}
           panelWidth={workspaceCanvasWidth}
           isResizing={isResizingCanvas}
-          onNotify={undefined}
+          onNotify={onNotify}
         />
       </Box>
     </Box>
@@ -193,36 +206,25 @@ function MainInterface() {
 
   return (
     <Box id="app-shell" sx={{ width: '100%', height: '100%', minHeight: 0, minWidth: 0 }}>
-      <UserProfileMenu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={handleMenuClose}
-        onOpenSettings={handleOpenSettings}
-        onLogout={handleLogout}
-        user={user}
-        sidebarExpanded={isNarrowLayout || sidebarOpen}
-        theme={theme}
-      />
-
       <AppShell
         isNarrowLayout={isNarrowLayout}
         sidebarOpen={sidebarOpen}
         canvasOpen={workspaceCanvasOpen}
         canvasWidth={workspaceCanvasWidth}
+        canvasFullscreen={canvasFullscreen}
         isResizingCanvas={isResizingCanvas}
         sidebarSlot={
           <Suspense fallback={null}>
             <Sidebar
               {...commonSidebarProps}
-              onNewChat={handleSidebarNewChat}
               onSelectConversation={handleSidebarSelectConversation}
               onOpenDbModal={handleSidebarOpenDbModal}
               onOpenMindmap={handleOpenMindmap}
               open={sidebarOpen}
               onToggleOpen={handleSidebarToggle}
-              onProfileOpen={handleSidebarMenuOpen}
               onOpenSettings={handleSidebarOpenSettings}
-              profileMenuOpen={Boolean(anchorEl)}
+              onOpenDashboard={handleOpenDashboard}
+              onLogout={handleLogout}
               mobileOpen={mobileOpen}
               onMobileClose={handleMobileDrawerClose}
               onMobileExited={handleMobileDrawerExited}
@@ -263,4 +265,4 @@ function MainInterface() {
   );
 }
 
-export default memo(MainInterface);
+export default memo(ChatWorkspacePage);

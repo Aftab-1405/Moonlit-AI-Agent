@@ -1,29 +1,8 @@
-"""
-SQL Server Database Adapter
+"""SQL Server operations using pymssql.
 
-Implements database operations for SQL Server using pymssql.
-Supports local SQL Server instances and cloud providers (Azure SQL, AWS RDS, Google Cloud SQL, Somee.com).
-
-Pooling note (FIX [L9])
------------------------
-pymssql has no first-class pool object, so this adapter's "pool" is the
-config dict itself: each ``get_connection_from_pool`` call opens a fresh
-TCP connection. ``return_connection_to_pool`` closes the connection.
-Previously ``close_pool`` was a no-op, so a disconnect left every
-in-flight connection open until GC. We now track open connections in a
-set on the pool dict and ``close_pool`` closes them all before returning.
-
-Query timeout (FIX [EC3])
--------------------------
-SQL Server does not have a single ``SET QUERY_TIMEOUT`` statement. We
-enforce a server-side lock-wait timeout via ``SET LOCK_TIMEOUT <ms>``
-(see ``get_set_timeout_sql``), executed before each user query. The
-asyncio ``wait_for`` cancel in the caller is the second line of defense
-for CPU-bound queries that pass the lock-wait phase. Without the
-``SET LOCK_TIMEOUT`` call, cancelling the Python coroutine left the
-underlying DB thread alive and held the pool connection until SQL Server
-itself finished — see ``operations.execute_sql_query`` and
-``ai_tool_executor._execute_query_with_db_config`` for the call sites.
+Each borrow opens a connection; the pool tracks live connections in a private
+config copy so disconnect can close them. Driver query/login timeouts bound
+network operations, and SET LOCK_TIMEOUT bounds server-side lock waits.
 """
 
 import logging
@@ -82,6 +61,8 @@ class SQLServerAdapter(BaseDatabaseAdapter):
         try:
             import re
 
+            # Pool bookkeeping must never enter the JSON session config.
+            config = dict(config)
             connection_string = config.get("connection_string")
 
             if connection_string:

@@ -18,7 +18,7 @@ import logging
 import pytest
 
 import core.audit as audit_module
-from core.audit import audit_log
+from core.audit import audit_log, pseudonymize_audit_actor
 from core.logging import bind_request_id, clear_request_id
 
 
@@ -70,7 +70,8 @@ class TestAuditLog:
             outcome="success",
         )
         record = _last_audit_record(audit_buffer)
-        assert record["actor"] == "user:u-123"
+        assert record["actor"] == pseudonymize_audit_actor("user:u-123")
+        assert "u-123" not in record["actor"]
         assert record["action"] == "sql.execute"
         assert record["resource"] == "db:customers/query"
         assert record["outcome"] == "success"

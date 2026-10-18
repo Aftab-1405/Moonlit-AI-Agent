@@ -1,81 +1,54 @@
-// useChatPageStreaming — wraps `useMessageStreaming` and owns the
-// agent-interrupt / step-limit / task-mode handlers + usage-metrics state.
-//
-// Responsibilities:
-//   - Hold the resumeAgent / continueTask / stepLimitEvent refs so the
-//     interrupt handlers can defer to the streaming hook's resume API.
-//   - Hold effectiveTaskMode state (badge for the composer) and reset it
-//     when the conversation changes.
-//   - Hold usageMetrics state and sync it from message history when not
-//     streaming.
-//   - Wire all of the above into `useMessageStreaming` and return the
-//     streaming actions (send, stop, resume, continue) plus the dialog/refs
-//     needed by the caller.
-//
-// This is the most tightly-coupled slice — the streaming hook + interrupt
-// handlers + step-limit handlers all reference each other, so they stay
-// together. The guided-confirm state is passed in via `setGuidedConfirmDialog`
-// so the streaming handlers can open the banner without owning dialog state.
-//
-// Note on the dispatchUiAction / handleOpenSqlEditor cycle:
-// The UI action dispatcher and the canvas hook both depend on each other
-// transitively through this hook. To break the cycle, the controller passes
-// `dispatchUiAction` and `handleOpenSqlEditor` as refs (`dispatchUiActionRef`,
-// `handleOpenSqlEditorRef`) that are kept up-to-date by the controller. We
-// read from these refs inside our handlers so the closures always see the
-// latest values without needing to be re-created.
-
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
+import {
+  isChatSessionStreaming,
+  queueChatSessionInteraction,
+} from '@/hooks/chat-page/chatSessionModel';
 import { useMessageStreaming } from '@/hooks/chat-page/useMessageStreaming';
-import { isMessageActive } from '@/utils/chatMessages';
 
 export function useChatPageStreaming({
-  // Conversation state
-  messages,
-  setMessages,
-  currentConversationId,
-  setCurrentConversationId,
-  setConversations,
+  activeSession,
+  activeSessionKey,
+  getSession,
+  updateSession,
+  updateSessionMessages,
+  isSessionActive,
   navigate,
   fetchConversations,
-  registerStreamingConversation,
-  routeConversationId,
-  // Settings
+  bindStreamingConversation,
   settings,
   selectedProvider,
   selectedModel,
-  // Refs that break the controller-internal cycle (canvas ↔ streaming ↔
-  // dispatcher). The controller updates these refs on every render so the
-  // closures below always read the latest values.
   dispatchUiActionRef,
   handleOpenSqlEditorRef,
-  // UI coordination
   setGuidedConfirmDialog,
   showSnackbar,
   handleSidebarNewChat,
 }) {
-  const [usageMetrics, setUsageMetrics] = useState(null);
-  const [effectiveTaskMode, setEffectiveTaskMode] = useState(null);
-
   const resumeAgentRef = useRef(null);
   const continueTaskRef = useRef(null);
-  const stepLimitEventRef = useRef(null);
-  const messagesRef = useRef(messages);
+  const presentedInteractionRef = useRef(null);
 
-  // ── Derived: are we currently streaming? ─────────────────────────────────
-  const isCurrentlyStreaming = useMemo(() => {
-    if (messages.length === 0) return false;
-    const lastMessage = messages[messages.length - 1];
-    return lastMessage?.role === 'assistant' && isMessageActive(lastMessage);
-  }, [messages]);
+  const clearPendingInteraction = useCallback(
+    (interaction) => {
+      const key = interaction.context.sessionKey;
+      if (getSession(key)?.pendingInteraction !== interaction) return false;
+      if (presentedInteractionRef.current === interaction) presentedInteractionRef.current = null;
+      updateSession(key, (session) => ({
+        ...session,
+        pendingInteraction: null,
+        unreadActivity: null,
+      }));
+      return true;
+    },
+    [getSession, updateSession],
+  );
 
-  // ── Step-limit handler ───────────────────────────────────────────────────
-  const handleAgentStepLimitReached = useCallback(
-    (event, assistantMessageId = null) => {
-      stepLimitEventRef.current = event;
+  const presentStepLimit = useCallback(
+    (interaction) => {
+      const { event, assistantMessageId, context } = interaction;
       const stepsUsed = event?.steps_used ?? '?';
       const taskMode = event?.task_mode || 'normal';
-
+      presentedInteractionRef.current = interaction;
       setGuidedConfirmDialog({
         open: true,
         title: '⏸ Task Paused',
@@ -83,13 +56,11 @@ export function useChatPageStreaming({
         stepsUsed,
         confirmText: 'Continue Task',
         cancelText: 'Stop',
-        onCancel: () => {
-          stepLimitEventRef.current = null;
-        },
+        onCancel: () => clearPendingInteraction(interaction),
         onConfirm: () => {
-          const storedEvent = stepLimitEventRef.current;
-          stepLimitEventRef.current = null;
-          continueTaskRef.current?.(storedEvent, assistantMessageId, {
+          if (!clearPendingInteraction(interaction)) return false;
+          return continueTaskRef.current?.(event, assistantMessageId, {
+            sessionKey: context.sessionKey,
             provider: selectedProvider || null,
             model: selectedModel || null,
             taskMode,
@@ -97,47 +68,64 @@ export function useChatPageStreaming({
         },
       });
     },
-    [selectedModel, selectedProvider, setGuidedConfirmDialog],
+    [clearPendingInteraction, selectedModel, selectedProvider, setGuidedConfirmDialog],
   );
 
-  // ── Task-mode-resolved handler ───────────────────────────────────────────
-  // Called when the backend emits a `task_mode` SSE event at the start of
-  // each turn. Stores the EFFECTIVE mode (which may have been auto-elevated)
-  // so the ChatInput can display a badge ("Long Task · 200 steps") while the
-  // agent is running.
-  const handleTaskModeResolved = useCallback((event) => {
-    setEffectiveTaskMode({
-      task_mode: event?.task_mode || 'normal',
-      label: event?.label || event?.task_mode || 'Standard',
-      recursion_limit: event?.recursion_limit ?? null,
-      source: event?.source || 'user',
-    });
-  }, []);
+  const handleAgentStepLimitReached = useCallback(
+    (event, assistantMessageId = null, context) => {
+      updateSession(context.sessionKey, (session) =>
+        queueChatSessionInteraction(
+          session,
+          { type: 'step_limit', event, assistantMessageId, context },
+          isSessionActive(context.sessionKey),
+        ),
+      );
+    },
+    [isSessionActive, updateSession],
+  );
 
-  // ── Agent-interrupt handler ──────────────────────────────────────────────
-  // Reads `handleOpenSqlEditor` from the ref so the closure stays stable
-  // without needing `handleOpenSqlEditor` in its dependency array.
-  const handleAgentInterrupt = useCallback(
-    (event, assistantMessageId = null) => {
+  const handleTaskModeResolved = useCallback(
+    (event, _assistantMessageId, context) => {
+      updateSession(context.sessionKey, (session) => ({
+        ...session,
+        effectiveTaskMode: {
+          task_mode: event?.task_mode || 'normal',
+          label: event?.label || event?.task_mode || 'Standard',
+          recursion_limit: event?.recursion_limit ?? null,
+          source: event?.source || 'user',
+        },
+      }));
+    },
+    [updateSession],
+  );
+
+  const presentAgentInterrupt = useCallback(
+    (interaction) => {
+      const { event, assistantMessageId, context } = interaction;
       const payload = event?.payload || {};
       const action = payload.action || payload.sourceTool;
       const resumeWith = (approved) => {
-        const resumePayload = {
-          approved,
-          action,
-          interrupt_id: event?.id || null,
-        };
-        resumeAgentRef.current?.(resumePayload, {
-          provider: selectedProvider || null,
-          model: selectedModel || null,
-          assistantMessageId,
-        });
+        if (!clearPendingInteraction(interaction)) return false;
+        return resumeAgentRef.current?.(
+          {
+            approved,
+            action,
+            interrupt_id: event?.id || null,
+          },
+          {
+            sessionKey: context.sessionKey,
+            provider: selectedProvider || null,
+            model: selectedModel || null,
+            assistantMessageId,
+          },
+        );
       };
 
       if (action === 'execute_query' && payload.query) {
         handleOpenSqlEditorRef.current?.(payload.query);
       }
 
+      presentedInteractionRef.current = interaction;
       setGuidedConfirmDialog({
         open: true,
         title: payload.title || 'Confirm action',
@@ -148,124 +136,149 @@ export function useChatPageStreaming({
         onConfirm: () => resumeWith(true),
       });
     },
-    [handleOpenSqlEditorRef, selectedModel, selectedProvider, setGuidedConfirmDialog],
+    [
+      clearPendingInteraction,
+      handleOpenSqlEditorRef,
+      selectedModel,
+      selectedProvider,
+      setGuidedConfirmDialog,
+    ],
   );
 
-  // ── Stable dispatchUiAction wrapper ──────────────────────────────────────
-  // `useMessageStreaming` captures `dispatchUiAction` into its `handleSendMessage`
-  // closure. If we passed the controller's `dispatchUiAction` directly, the
-  // closure would be re-created on every controller render — fine in itself,
-  // but it would also need to be in this hook's deps. Instead we wrap it in
-  // a stable callback that reads from the ref.
+  const handleAgentInterrupt = useCallback(
+    (event, assistantMessageId = null, context) => {
+      updateSession(context.sessionKey, (session) =>
+        queueChatSessionInteraction(
+          session,
+          { type: 'agent_interrupt', event, assistantMessageId, context },
+          isSessionActive(context.sessionKey),
+        ),
+      );
+    },
+    [isSessionActive, updateSession],
+  );
+
   const dispatchUiActionStable = useCallback(
-    (event) => {
+    (event, context) => {
+      if (event?.action === 'usage_metrics') {
+        updateSession(context.sessionKey, (session) => ({
+          ...session,
+          usageMetrics: event.payload || null,
+        }));
+        return;
+      }
+
+      if (!isSessionActive(context.sessionKey)) {
+        updateSession(context.sessionKey, (session) =>
+          queueChatSessionInteraction(session, { type: 'ui_action', event, context }, false),
+        );
+        return;
+      }
       dispatchUiActionRef.current?.(event);
     },
-    [dispatchUiActionRef],
+    [dispatchUiActionRef, isSessionActive, updateSession],
   );
 
-  // ── Wire streaming hook ──────────────────────────────────────────────────
-  const { handleSendMessage, handleResumeAgent, handleStopStreaming, handleContinueTask } =
-    useMessageStreaming({
-      currentConversationId,
-      setCurrentConversationId,
-      setMessages,
-      setConversations,
-      navigate,
-      fetchConversations,
-      registerStreamingConversation,
-      settings,
-      dispatchUiAction: dispatchUiActionStable,
-      onAgentInterrupt: handleAgentInterrupt,
-      onAgentStepLimitReached: handleAgentStepLimitReached,
-      onTaskModeResolved: handleTaskModeResolved,
-      getMessages: () => messagesRef.current,
-    });
+  const {
+    handleSendMessage,
+    handleResumeAgent,
+    handleStopStreaming,
+    handleContinueTask,
+    stopSession,
+    stopAllStreams,
+    hasActiveStreams,
+  } = useMessageStreaming({
+    activeSessionKey,
+    getSession,
+    updateSession,
+    updateSessionMessages,
+    isSessionActive,
+    navigate,
+    fetchConversations,
+    bindStreamingConversation,
+    settings,
+    dispatchUiAction: dispatchUiActionStable,
+    onAgentInterrupt: handleAgentInterrupt,
+    onAgentStepLimitReached: handleAgentStepLimitReached,
+    onTaskModeResolved: handleTaskModeResolved,
+  });
 
-  // Keep refs in sync with the latest streaming actions so the interrupt
-  // handlers (which fire later, asynchronously) always call the freshest
-  // version.
   useEffect(() => {
     resumeAgentRef.current = handleResumeAgent;
     continueTaskRef.current = handleContinueTask;
-  }, [handleResumeAgent, handleContinueTask]);
+  }, [handleContinueTask, handleResumeAgent]);
 
-  // Clear the effective-mode badge when the user switches conversations so
-  // a stale "Long Task" badge from the previous conversation doesn't bleed
-  // into the new one. `currentConversationId` is intentionally the trigger
-  // (a "reset on change" side-effect), not a value the effect derives from.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: reset on conversation change
   useEffect(() => {
-    // Intentional reset of conversation-scoped UI state.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setEffectiveTaskMode(null);
-  }, [currentConversationId]);
+    const presented = presentedInteractionRef.current;
+    if (!presented || presented.context.sessionKey === activeSessionKey) return;
 
-  // Restore usageMetrics from message history when NOT streaming.
-  //
-  // FIX [CTX-SYNC]: Previously this effect ran on EVERY `messages` change
-  // (every token batch during streaming) and used `setTimeout(() => ..., 0)`
-  // to defer `setUsageMetrics`. Those deferred updates could fire AFTER the
-  // live SSE `usage_metrics` event handler's synchronous `setUsageMetrics`,
-  // clobbering the live value with `null` or stale data from a previous turn.
-  //
-  // Fix: (1) Skip entirely while streaming — the live SSE path is the sole
-  // source of truth during active streaming. (2) Remove the `setTimeout`
-  // wrappers — React batches synchronous state updates, so the deferral
-  // was unnecessary AND was the root cause of the clobbering race.
-  // (3) Add `isCurrentlyStreaming` to the dependency array.
+    // The session already owns the approval; never restore one that was cleared.
+    if (getSession(presented.context.sessionKey)?.pendingInteraction === presented) {
+      updateSession(presented.context.sessionKey, (session) => ({
+        ...session,
+        unreadActivity: 'attention',
+      }));
+    }
+    presentedInteractionRef.current = null;
+    setGuidedConfirmDialog((current) => ({
+      ...current,
+      open: false,
+      onCancel: null,
+      onConfirm: null,
+    }));
+  }, [activeSessionKey, getSession, setGuidedConfirmDialog, updateSession]);
+
   useEffect(() => {
-    messagesRef.current = messages;
+    const pending = activeSession?.pendingInteraction;
+    if (!pending || pending === presentedInteractionRef.current) return;
 
-    if (isCurrentlyStreaming) return;
-
-    let nextUsage = null;
-    let foundUsage = false;
-
-    if (messages && messages.length > 0) {
-      for (let i = messages.length - 1; i >= 0; i--) {
-        const isAssistant = messages[i].role === 'assistant' || messages[i].sender === 'ai';
-        if (isAssistant && messages[i].usage) {
-          nextUsage = messages[i].usage;
-          foundUsage = true;
-          break;
-        }
-      }
+    if (pending.type === 'agent_interrupt') {
+      presentAgentInterrupt(pending);
+    } else if (pending.type === 'step_limit') {
+      presentStepLimit(pending);
+    } else if (pending.type === 'ui_action') {
+      updateSession(activeSessionKey, (session) => ({
+        ...session,
+        pendingInteraction: null,
+        unreadActivity: null,
+      }));
+      dispatchUiActionRef.current?.(pending.event);
     }
-
-    const isLastUser =
-      messages &&
-      messages.length === 1 &&
-      (messages[0].role === 'user' || messages[0].sender === 'user');
-
-    if (foundUsage) {
-      // Restore the persisted value after conversation hydration completes.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setUsageMetrics(nextUsage);
-    } else if (!isLastUser || !messages || messages.length === 0) {
-      // Clear metrics when the selected transcript contains no usage record.
-      setUsageMetrics(null);
-    }
-  }, [messages, isCurrentlyStreaming]);
+  }, [
+    activeSession?.pendingInteraction,
+    activeSessionKey,
+    dispatchUiActionRef,
+    presentAgentInterrupt,
+    presentStepLimit,
+    updateSession,
+  ]);
 
   const handleSendMessageWithModel = useCallback(
-    (message) => {
-      return handleSendMessage(message, {
+    (message) =>
+      handleSendMessage(message, {
         provider: selectedProvider || null,
         model: selectedModel || null,
-      });
+      }),
+    [handleSendMessage, selectedModel, selectedProvider],
+  );
+
+  const setUsageMetrics = useCallback(
+    (usageMetrics) => {
+      updateSession(activeSessionKey, (session) => ({ ...session, usageMetrics }));
     },
-    [handleSendMessage, selectedProvider, selectedModel],
+    [activeSessionKey, updateSession],
   );
 
   return {
-    isCurrentlyStreaming,
+    isCurrentlyStreaming: isChatSessionStreaming(activeSession),
     handleSendMessage: handleSendMessageWithModel,
     handleStopStreaming,
-    effectiveTaskMode,
-    usageMetrics,
+    stopSession,
+    stopAllStreams,
+    hasActiveStreams,
+    effectiveTaskMode: activeSession?.effectiveTaskMode || null,
+    usageMetrics: activeSession?.usageMetrics || null,
     setUsageMetrics,
-    // Helper for the UI action dispatcher to fire `navigate_new_chat`.
     onNavigateNewChatGuided: useCallback(
       (payload) => {
         setGuidedConfirmDialog({
@@ -280,20 +293,17 @@ export function useChatPageStreaming({
       },
       [setGuidedConfirmDialog, showSnackbar],
     ),
-    // Helper for `complete_navigate_new_chat` — defers a sidebar new-chat
-    // action by `delayMs` so the agent has time to settle.
     onCompleteNavigateNewChat: useCallback(
       (payload) => {
-        window.setTimeout(() => {
-          handleSidebarNewChat();
-        }, Number(payload?.delayMs) || 900);
+        window.setTimeout(() => handleSidebarNewChat(), Number(payload?.delayMs) || 900);
       },
       [handleSidebarNewChat],
     ),
-    // Helper for the UI action dispatcher to receive `usage_metrics` events.
-    onUsageMetricsEvent: useCallback((payload) => {
-      if (payload) setUsageMetrics(payload);
-    }, []),
-    routeConversationId,
+    onUsageMetricsEvent: useCallback(
+      (payload) => {
+        if (payload) setUsageMetrics(payload);
+      },
+      [setUsageMetrics],
+    ),
   };
 }

@@ -2,9 +2,7 @@
 //
 // Responsibilities:
 //   - Look up the correct renderer for `artifact.type` in `artifactRegistry`.
-//   - Manage per-artifact fullscreen state (user can pop a single artifact
-//     to fullscreen — this is internal to the artifact panel, distinct from
-//     the column-level open/close which is owned by AppShell).
+//   - Coordinate full-view controls and focus with the shell.
 //   - Catch renderer errors via `ArtifactErrorBoundary` so one broken
 //     artifact doesn't take down the whole panel.
 //
@@ -17,22 +15,11 @@
 // AppShell's responsibility. ArtifactLoader fills its slot (100% × 100%) and
 // paints no surface of its own (the column already did).
 //
-// Fullscreen behavior: a SINGLE ArtifactRenderer instance is rendered as a
-// child of one container Box. When `effectiveFullscreen` flips, only the CSS
-// on that container changes — `position: fixed` + inset 0 — so it breaks out
-// of the artifact column and covers the entire viewport. React never sees a
-// tree change, so the renderer fiber is preserved across the transition and
-// all internal state (SQL editor tabs, scroll position, CodeMirror cursor,
-// Perspective viewer config) survives.
-//
-// Previous bug: two separate ArtifactRenderer instances were mounted (one
-// in-flow, one in an absolute overlay). The overlay only covered the
-// artifact column — so the artifact didn't actually get bigger — AND the
-// duplicate instance lost all internal state on every toggle.
+// Full view is coordinated with AppShell. One in-flow renderer stays mounted
+// while the shell reallocates the space beside navigation.
 
 import { Box, Skeleton } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   Component,
   lazy,
@@ -45,11 +32,9 @@ import {
   useState,
 } from 'react';
 import { ErrorIcon } from '@/components/icons';
+import ConversationOutputs from '@/features/chat/ConversationOutputs';
 import { ArtifactEmptyState } from '@/features/sidebar-right/artifact-loader/ArtifactLayout';
 import { getAppSunkenSurfaceSx } from '@/features/styles/interfaceChrome';
-import { UI_Z_INDEX } from '@/styles/shared';
-
-const MotionDiv = motion.div;
 
 // ─── Lazy-loaded renderers ───────────────────────────────────────────────────
 const DataVisualizationPanel = lazy(
@@ -57,6 +42,9 @@ const DataVisualizationPanel = lazy(
 );
 const DiagramFlowRenderer = lazy(() => import('@/features/sidebar-right/artifacts/diagram-flow'));
 const SqlWorkspace = lazy(() => import('@/features/sidebar-right/artifacts/sql-workspace'));
+const QueryResultArtifact = lazy(
+  () => import('@/features/sidebar-right/artifacts/QueryResultArtifact'),
+);
 
 /**
  * Suspense fallback shown while a renderer chunk downloads. Mimics the
@@ -122,10 +110,19 @@ const dataVisualizationRenderer = {
     sourceQuery: artifact.props?.sourceQuery,
     sourceType: artifact.props?.sourceType,
     ...common,
+    currentDatabase: artifact.source?.database || null,
   }),
 };
 
 const artifactRegistry = {
+  'query-result': {
+    loader: QueryResultArtifact,
+    getProps: ({ artifact, common }) => ({
+      ...artifact.props,
+      ...common,
+      currentDatabase: artifact.source?.database || null,
+    }),
+  },
   'sql-editor': {
     loader: SqlWorkspace,
     getProps: ({ artifact, common }) => ({
@@ -260,11 +257,13 @@ function ArtifactRenderer({
 
 function ArtifactLoader({
   artifact,
+  outputs = [],
   onOpenArtifact,
   onClose,
   isOpen = true,
   _panelWidth: _deprecatedPanelWidth,
-  _fullscreen: _deprecatedFullscreen,
+  fullscreen,
+  onFullscreenChange,
   isDbConnected = false,
   currentDatabase = null,
   _isResizing: _deprecatedIsResizing,
@@ -272,11 +271,18 @@ function ArtifactLoader({
   onNotify,
 }) {
   const theme = useTheme();
-  const reduceMotion = useReducedMotion();
   const fullscreenRootRef = useRef(null);
   const fullscreenReturnFocusRef = useRef(null);
   const wasFullscreenRef = useRef(false);
-  const [isArtifactFullscreen, setIsArtifactFullscreen] = useState(false);
+  const [internalFullscreen, setInternalFullscreen] = useState(false);
+  const isArtifactFullscreen = fullscreen ?? internalFullscreen;
+  const setIsArtifactFullscreen = useCallback(
+    (value) => {
+      setInternalFullscreen(value);
+      onFullscreenChange?.(value);
+    },
+    [onFullscreenChange],
+  );
   const artifactSignature = useMemo(() => getArtifactSignature(artifact), [artifact]);
   const effectiveFullscreen = Boolean(isArtifactFullscreen && artifact && isOpen);
 
@@ -293,11 +299,11 @@ function ArtifactLoader({
   const handleEnterFullscreen = useCallback(() => {
     captureFullscreenReturnFocus();
     setIsArtifactFullscreen(true);
-  }, [captureFullscreenReturnFocus]);
+  }, [captureFullscreenReturnFocus, setIsArtifactFullscreen]);
 
   const handleExitFullscreen = useCallback(() => {
     setIsArtifactFullscreen(false);
-  }, []);
+  }, [setIsArtifactFullscreen]);
 
   const handleToggleFullscreen = useCallback(() => {
     if (effectiveFullscreen) {
@@ -307,7 +313,7 @@ function ArtifactLoader({
 
     captureFullscreenReturnFocus();
     setIsArtifactFullscreen(true);
-  }, [captureFullscreenReturnFocus, effectiveFullscreen]);
+  }, [captureFullscreenReturnFocus, effectiveFullscreen, setIsArtifactFullscreen]);
 
   const handleFullscreenKeyDown = useCallback(
     (event) => {
@@ -323,17 +329,27 @@ function ArtifactLoader({
   const handleRequestClose = useCallback(() => {
     setIsArtifactFullscreen(false);
     onClose?.();
-  }, [onClose]);
+  }, [onClose, setIsArtifactFullscreen]);
 
   const handleRequestOpenArtifact = useCallback(
     (nextArtifact, options = {}) => {
-      onOpenArtifact?.(nextArtifact);
+      onOpenArtifact?.(
+        nextArtifact.type === 'sql-editor' && nextArtifact.props?.initialResults
+          ? { ...nextArtifact, id: `${artifact.id}:sql`, source: artifact?.source ?? null }
+          : nextArtifact,
+      );
       if (options.preserveFullscreen || isArtifactFullscreen) {
         if (!isArtifactFullscreen) captureFullscreenReturnFocus();
         setIsArtifactFullscreen(true);
       }
     },
-    [captureFullscreenReturnFocus, isArtifactFullscreen, onOpenArtifact],
+    [
+      artifact,
+      captureFullscreenReturnFocus,
+      isArtifactFullscreen,
+      onOpenArtifact,
+      setIsArtifactFullscreen,
+    ],
   );
 
   useEffect(() => {
@@ -362,17 +378,8 @@ function ArtifactLoader({
   // width to 0 (so the layout still transitions smoothly).
   if (!isOpen) return null;
 
-  // Single renderer instance, always rendered as a child of the SAME
-  // container element. When `effectiveFullscreen` flips, only the CSS on the
-  // container changes (position: fixed → fills viewport). React never
-  // unmounts the renderer, so internal state (SQL editor tabs, scroll
-  // position, CodeMirror cursor, Perspective viewer config, etc.) is
-  // preserved across the maximize/unmaximize transition.
-  //
-  // Previous bug: two separate ArtifactRenderer instances were mounted (one
-  // in-flow, one in an overlay) and the overlay only covered the artifact
-  // column — so the artifact didn't actually get bigger AND state was lost
-  // on every toggle.
+  // The shell expands this same in-flow renderer to fill the space beside navigation.
+  // Keeping its parent stable preserves editor tabs, cursor and viewer configuration.
   return (
     <Box
       ref={fullscreenRootRef}
@@ -381,29 +388,10 @@ function ArtifactLoader({
       tabIndex={-1}
       onKeyDown={handleFullscreenKeyDown}
       sx={{
-        // When NOT fullscreen: fill the artifact column (in-flow).
-        // When fullscreen: break out of the column via `position: fixed` and
-        // cover the entire viewport. This is a pure CSS transition — React
-        // doesn't see it, so the renderer instance is preserved.
-        ...(effectiveFullscreen
-          ? {
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              zIndex: UI_Z_INDEX.artifactFullscreen,
-              // Smooth fade-in when entering fullscreen. The transition is
-              // one-shot (no exit animation) because we can't animate a
-              // position change from fixed → in-flow cleanly. The opacity
-              // transition is handled by Framer Motion below.
-            }
-          : {
-              position: 'relative',
-              flex: 1,
-              minWidth: 0,
-              minHeight: 0,
-            }),
+        position: 'relative',
+        flex: 1,
+        minWidth: 0,
+        minHeight: 0,
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
@@ -413,26 +401,11 @@ function ArtifactLoader({
         ...(effectiveFullscreen ? getAppSunkenSurfaceSx(theme) : {}),
       }}
     >
-      <AnimatePresence>
-        {effectiveFullscreen && (
-          <MotionDiv
-            key="fullscreen-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: reduceMotion ? 0 : 0.18, ease: 'easeOut' }}
-            style={{
-              position: 'absolute',
-              inset: 0,
-              pointerEvents: 'none',
-              // Subtle backdrop tint to visually separate the fullscreen
-              // artifact from the workspace beneath it.
-              backgroundColor: theme.palette.overlay.fullscreen,
-            }}
-          />
-        )}
-      </AnimatePresence>
-
+      <ConversationOutputs
+        outputs={outputs}
+        selectedArtifact={artifact}
+        onSelect={onOpenArtifact}
+      />
       <Box
         key={artifactSignature}
         sx={{

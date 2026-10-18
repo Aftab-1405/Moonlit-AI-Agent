@@ -18,7 +18,6 @@ import {
 import {
   getFlatStepControlSx,
   getTimelineNodeTopSx,
-  slideIn,
   TIMELINE_LINE_X,
 } from '@/features/chat/ai-response-steps/timelineShared';
 import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
@@ -119,7 +118,6 @@ export const ThinkingStep = memo(function ThinkingStep({
   content = '',
   isComplete,
   isCurrent = false,
-  animDelay = 0,
 }) {
   const [showMore, setShowMore] = useState(false);
   const theme = useTheme();
@@ -146,8 +144,6 @@ export const ThinkingStep = memo(function ThinkingStep({
   return (
     <Box
       sx={{
-        animation: `${slideIn} 0.22s ease-out ${animDelay}ms both`,
-        '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
         position: 'relative',
         pl: TIMELINE_CONTENT_PL,
         py: TIMELINE_ITEM_PY,
@@ -240,7 +236,7 @@ function humanizeSkillName(name) {
 }
 
 /** Renders an activated skill as a completed timeline event. */
-export const SkillStep = memo(function SkillStep({ skills = [], animDelay = 0 }) {
+export const SkillStep = memo(function SkillStep({ skills = [] }) {
   const theme = useTheme();
 
   const SKILL_LABELS = {
@@ -272,8 +268,6 @@ export const SkillStep = memo(function SkillStep({ skills = [], animDelay = 0 })
   return (
     <Box
       sx={{
-        animation: `${slideIn} 0.22s ease-out ${animDelay}ms both`,
-        '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
         position: 'relative',
         pl: TIMELINE_CONTENT_PL,
         py: TIMELINE_ITEM_PY,
@@ -324,7 +318,6 @@ export const ToolStep = memo(function ToolStep({
   isError,
   isRunning,
   isCompactMobile = false,
-  animDelay = 0,
 }) {
   const [expanded, setExpanded] = useState(false);
   const detailsId = useId();
@@ -370,8 +363,6 @@ export const ToolStep = memo(function ToolStep({
   return (
     <Box
       sx={{
-        animation: `${slideIn} 0.22s ease-out ${animDelay}ms both`,
-        '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
         position: 'relative',
         pl: TIMELINE_CONTENT_PL,
         py: TIMELINE_ITEM_PY,
@@ -489,8 +480,6 @@ export const DoneIndicator = memo(function DoneIndicator() {
         pl: TIMELINE_CONTENT_PL,
         py: TIMELINE_ITEM_PY,
         minHeight: { xs: 40, sm: 42 },
-        animation: `${slideIn} 0.22s ease-out both`,
-        '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
       }}
     >
       <CheckIcon sx={doneNodeSx} />
