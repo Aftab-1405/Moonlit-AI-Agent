@@ -1,10 +1,22 @@
 """Environment-driven application configuration for MOONLIT."""
 
-import os
 import logging
+import os
+
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+_SUPPORTED_APP_ENVS = {"development", "staging", "production", "testing"}
+
+
+def _require_env(name: str) -> str:
+    """Read an environment variable and fail fast when unset or blank."""
+    value = os.getenv(name)
+    if not value or not value.strip():
+        raise ValueError(f"{name} environment variable is required")
+    return value
 
 
 class Config:
@@ -12,7 +24,7 @@ class Config:
 
     # Application Environment
     # Options: development, staging, production
-    APP_ENV = os.getenv("APP_ENV", "development")
+    APP_ENV = _require_env("APP_ENV").strip().lower()
     DEBUG = APP_ENV == "development"
     TESTING = APP_ENV == "testing"
 
@@ -28,9 +40,19 @@ class Config:
     UVICORN_LOG_LEVEL = os.getenv("UVICORN_LOG_LEVEL", "info")
 
     # Logging
+    STARTUP_DIAGNOSTICS_ENABLED = (
+        os.getenv("STARTUP_DIAGNOSTICS_ENABLED", "False").lower() == "true"
+    )
+    STARTUP_DIAGNOSTICS_TIMEOUT_SECONDS = float(
+        os.getenv("STARTUP_DIAGNOSTICS_TIMEOUT_SECONDS", "5")
+    )
     LOG_FILE = os.getenv("LOG_FILE", "backend.log")
+    AUDIT_LOG_FILE = os.getenv("AUDIT_LOG_FILE", "audit.log")
+    AUDIT_LOG_MAX_BYTES = int(os.getenv("AUDIT_LOG_MAX_BYTES", "10485760"))
+    AUDIT_LOG_BACKUP_COUNT = int(os.getenv("AUDIT_LOG_BACKUP_COUNT", "10"))
     LOG_FORMAT = os.getenv(
-        "LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        "LOG_FORMAT",
+        "%(asctime)s - %(name)s - %(levelname)s - request_id=%(request_id)s - %(message)s",
     )
     THIRD_PARTY_LOG_LEVEL = os.getenv("THIRD_PARTY_LOG_LEVEL", "WARNING").upper()
     _noisy_logger_names_raw = os.getenv(
@@ -132,6 +154,16 @@ class Config:
         m.strip() for m in os.getenv("BEDROCK_MODELS", "").split(",") if m.strip()
     ]
 
+    # Kimi token counting executes the model repository's custom tokenizer
+    # code. Keep the default revision immutable so deployments never execute
+    # a moving Hugging Face branch implicitly.
+    KIMI_TOKENIZER_REPOSITORY = os.getenv(
+        "KIMI_TOKENIZER_REPOSITORY", "moonshotai/Kimi-K2-Instruct"
+    ).strip()
+    KIMI_TOKENIZER_REVISION = os.getenv(
+        "KIMI_TOKENIZER_REVISION",
+        "fd1984e2b7a3350dbf7305fe73a4ede25c14de50",
+    ).strip()
 
     # LLM Rate Limiting
     LLM_RATELIMIT_ENABLED = os.getenv("LLM_RATELIMIT_ENABLED", "True").lower() == "true"
@@ -283,6 +315,14 @@ class Config:
     RATELIMIT_ENABLED = os.getenv("RATELIMIT_ENABLED", "True").lower() == "true"
     RATELIMIT_STORAGE_URL = os.getenv("RATELIMIT_STORAGE_URL", "memory://")
     RATELIMIT_DEFAULT = os.getenv("RATELIMIT_DEFAULT", "200 per day, 50 per hour")
+    _trusted_proxy_cidrs_raw = os.getenv(
+        "TRUSTED_PROXY_CIDRS", "127.0.0.1/32,::1/128"
+    )
+    TRUSTED_PROXY_CIDRS = tuple(
+        cidr.strip()
+        for cidr in _trusted_proxy_cidrs_raw.split(",")
+        if cidr.strip()
+    )
 
     # SQL Query Security Configuration
     MAX_QUERY_RESULTS = int(os.getenv("MAX_QUERY_RESULTS", 10000))  # Max rows to return
@@ -363,14 +403,21 @@ class Config:
     AGENT_DEFAULT_STEPS = int(os.getenv("AGENT_DEFAULT_STEPS", 50))
     AGENT_TOOL_TASK_STEPS = int(os.getenv("AGENT_TOOL_TASK_STEPS", 100))
     AGENT_LONG_TASK_STEPS = int(os.getenv("AGENT_LONG_TASK_STEPS", 200))
-    AGENT_TOTAL_STEP_BUDGET = int(os.getenv("AGENT_TOTAL_STEP_BUDGET", 500))
     # Persist and compact long workflows in bounded graph segments. Reaching a
     # segment boundary is an internal checkpoint, not a user-visible failure.
     AGENT_STEP_SEGMENT_STEPS = int(os.getenv("AGENT_STEP_SEGMENT_STEPS", 50))
-    # ENH [AUTO-TASK-MODE]: When True (default), the backend auto-detects
-    # long / tool tasks from the user's prompt and elevates the task_mode
-    # so the agent gets a 100- or 200-step budget instead of the default
-    # 50-step ceiling. Set to "false" to require explicit user selection.
+    AGENT_TOOL_CALLS_PER_RUN = int(os.getenv("AGENT_TOOL_CALLS_PER_RUN", 20))
+    AGENT_NORMAL_WALL_CLOCK_SECONDS = int(
+        os.getenv("AGENT_NORMAL_WALL_CLOCK_SECONDS", 180)
+    )
+    AGENT_TOOL_TASK_WALL_CLOCK_SECONDS = int(
+        os.getenv("AGENT_TOOL_TASK_WALL_CLOCK_SECONDS", 600)
+    )
+    AGENT_LONG_TASK_WALL_CLOCK_SECONDS = int(
+        os.getenv("AGENT_LONG_TASK_WALL_CLOCK_SECONDS", 1200)
+    )
+    # When True (default), the pure run-policy resolver may elevate normal
+    # prompts to tool_task or long_task before any run mutation occurs.
     AGENT_AUTO_TASK_MODE = os.getenv("AGENT_AUTO_TASK_MODE", "true").lower() == "true"
 
     # Session/Cookie Configuration (base defaults)
@@ -407,6 +454,11 @@ class Config:
         os.getenv("SESSION_IMPLICIT_CLOSE_GRACE_SECONDS", 300)
     )
     REDIS_URL = os.getenv("REDIS_URL")
+    REDIS_SOCKET_CONNECT_TIMEOUT_SECONDS = float(
+        os.getenv("REDIS_SOCKET_CONNECT_TIMEOUT_SECONDS", "2")
+    )
+    REDIS_SOCKET_TIMEOUT_SECONDS = float(os.getenv("REDIS_SOCKET_TIMEOUT_SECONDS", "5"))
+    REDIS_MAX_CONNECTIONS = int(os.getenv("REDIS_MAX_CONNECTIONS", "64"))
     _csrf_exempt_paths_raw = os.getenv(
         "CSRF_EXEMPT_PATHS", "/api/v1/user/session/close"
     )
@@ -470,6 +522,8 @@ class Config:
     }
 
     # API request validation limits
+    REQUEST_BODY_MAX_BYTES = int(os.getenv("REQUEST_BODY_MAX_BYTES", 262_144))
+    FIREBASE_ID_TOKEN_MAX_LENGTH = int(os.getenv("FIREBASE_ID_TOKEN_MAX_LENGTH", 8_192))
     CHAT_PROMPT_MAX_LENGTH = int(os.getenv("CHAT_PROMPT_MAX_LENGTH", 50000))
     CONVERSATION_ID_MAX_LENGTH = int(os.getenv("CONVERSATION_ID_MAX_LENGTH", 100))
     LLM_PROVIDER_MAX_LENGTH = int(os.getenv("LLM_PROVIDER_MAX_LENGTH", 50))
@@ -544,6 +598,9 @@ class DevelopmentConfig(Config):
     # noise from httpcore/httpx/uvicorn on every request. Set LOG_LEVEL=DEBUG
     # in .env if you need to debug a specific issue.
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+    STARTUP_DIAGNOSTICS_ENABLED = (
+        os.getenv("STARTUP_DIAGNOSTICS_ENABLED", "True").lower() == "true"
+    )
 
     # Development-friendly settings
     SESSION_COOKIE_SECURE = False  # Allow HTTP for localhost
@@ -659,6 +716,7 @@ class TestingConfig(Config):
 
     # Disable rate limiting in tests
     RATELIMIT_ENABLED = False
+    TRUSTED_PROXY_CIDRS = ("127.0.0.1/32", "::1/128")
     LLM_RATELIMIT_ENABLED = False
     USER_QUOTA_ENABLED = False
 
@@ -675,5 +733,10 @@ config = {
 
 def get_config():
     """Return the configuration class selected by ``APP_ENV`` (development/staging/production/testing)."""
-    env = os.getenv("APP_ENV", "development")
-    return config.get(env, config["default"])
+    env = _require_env("APP_ENV").strip().lower()
+    if env not in _SUPPORTED_APP_ENVS:
+        raise ValueError(
+            f"Unsupported APP_ENV='{env}'. Allowed values: {', '.join(sorted(_SUPPORTED_APP_ENVS))}"
+        )
+
+    return config[env]

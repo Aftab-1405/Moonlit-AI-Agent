@@ -1,8 +1,17 @@
 import { Box, ButtonBase, Collapse, Link, Typography, useTheme } from '@mui/material';
 import { useId, useState } from 'react';
 import { ExpandMoreIcon } from '@/components/icons';
+import { AGENT_TOOL_ACTIONS } from '@/config/toolActions';
 import { MarkdownRenderer } from '@/features/chat';
-import { getDetailedResult } from '@/features/chat/ai-response-steps/stepUtils';
+import {
+  getColumnDisplayMeta,
+  getDetailedResult,
+  getGenericResultView,
+  getQueryHistoryItems,
+  getTableRowCountItems,
+  getTimelineResult,
+  getWebSearchItems,
+} from '@/features/chat/ai-response-steps/stepUtils';
 import { getFlatStepControlSx } from '@/features/chat/ai-response-steps/timelineShared';
 import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
 import { getInteractionColors } from '@/styles/shared';
@@ -67,16 +76,6 @@ const toArray = (value) => (Array.isArray(value) ? value : []);
 const getColumnName = (column) => {
   if (typeof column === 'string') return column;
   return column?.name || column?.column_name || String(column || '');
-};
-
-const getColumnMeta = (column) => {
-  if (!column || typeof column === 'string') return [];
-  return [
-    column.type,
-    column.is_primary_key ? 'PK' : null,
-    column.nullable === false ? 'NOT NULL' : null,
-    column.default ? `DEFAULT ${column.default}` : null,
-  ].filter(Boolean);
 };
 
 const normalizeTableKey = (value = '') =>
@@ -168,11 +167,11 @@ const EmptyResult = ({ children = 'No details returned.' }) => {
   return <Typography sx={type.body}>{children}</Typography>;
 };
 
-const ColumnChip = ({ column }) => {
+const ColumnChip = ({ column, metadataLimit = 2 }) => {
   const theme = useTheme();
   const type = getStepTypeScale(theme);
   const name = getColumnName(column);
-  const meta = getColumnMeta(column);
+  const meta = getColumnDisplayMeta(column);
 
   return (
     <Box
@@ -180,6 +179,7 @@ const ColumnChip = ({ column }) => {
         display: 'inline-flex',
         alignItems: 'center',
         gap: 0.45,
+        flexWrap: 'wrap',
         minWidth: 0,
         maxWidth: '100%',
         px: 0.8,
@@ -199,8 +199,11 @@ const ColumnChip = ({ column }) => {
       >
         {name}
       </Typography>
-      {meta.slice(0, 2).map((item) => (
-        <Typography key={item} sx={{ ...type.mutedMono, lineHeight: 1, flexShrink: 0 }}>
+      {meta.slice(0, metadataLimit).map((item, index) => (
+        <Typography
+          key={`${item}-${index}`}
+          sx={{ ...type.mutedMono, lineHeight: 1, flexShrink: 0 }}
+        >
           {item}
         </Typography>
       ))}
@@ -208,7 +211,7 @@ const ColumnChip = ({ column }) => {
   );
 };
 
-const ColumnList = ({ columns, limit }) => {
+const ColumnList = ({ columns, limit, metadataLimit }) => {
   const list = toArray(columns);
   const visibleColumns = typeof limit === 'number' ? list.slice(0, limit) : list;
   const hiddenCount = list.length - visibleColumns.length;
@@ -217,7 +220,11 @@ const ColumnList = ({ columns, limit }) => {
   return (
     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.4, minWidth: 0 }}>
       {visibleColumns.map((column, index) => (
-        <ColumnChip key={`${getColumnName(column)}-${index}`} column={column} />
+        <ColumnChip
+          key={`${getColumnName(column)}-${index}`}
+          column={column}
+          metadataLimit={metadataLimit}
+        />
       ))}
       {hiddenCount > 0 && <MetaPill>+{hiddenCount} more</MetaPill>}
     </Box>
@@ -378,9 +385,9 @@ const SchemaResultDetails = ({ result }) => {
   );
 };
 
-// ─── Table columns result ─────────────────────────────────────────────────────
+// ─── Table details result ─────────────────────────────────────────────────────
 
-const TableColumnsResultDetails = ({ result, args }) => (
+const TableDetailsResultDetails = ({ result, args }) => (
   <Box>
     <ToolMetaGrid
       items={[
@@ -390,9 +397,61 @@ const TableColumnsResultDetails = ({ result, args }) => (
       ]}
     />
     <DetailLabel>Columns</DetailLabel>
-    <ColumnList columns={result.columns} />
+    <ColumnList columns={result.columns} metadataLimit={6} />
+    {toArray(result.constraints).length > 0 && (
+      <Box sx={{ mt: 1.2 }}>
+        <DetailLabel>Constraints</DetailLabel>
+        <Typography
+          component="pre"
+          sx={{ m: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontFamily: 'monospace' }}
+        >
+          {JSON.stringify(result.constraints, null, 2)}
+        </Typography>
+      </Box>
+    )}
   </Box>
 );
+
+// ─── Table row counts result ─────────────────────────────────────────────────
+
+const TableRowCountsResultDetails = ({ result }) => {
+  const theme = useTheme();
+  const type = getStepTypeScale(theme);
+  const rows = getTableRowCountItems(result);
+
+  return (
+    <Box>
+      <ToolMetaGrid items={[{ label: 'Tables', value: rows.length }]} />
+      <DetailLabel>Exact row counts</DetailLabel>
+      {rows.length === 0 ? (
+        <EmptyResult>No table row counts returned.</EmptyResult>
+      ) : (
+        <Box component="dl" sx={{ display: 'grid', gap: 0, m: 0 }}>
+          {rows.map(({ table, rowCount, isEstimate }) => (
+            <Box
+              key={table}
+              sx={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'baseline',
+                gap: 1.5,
+                px: 0.5,
+                py: 0.5,
+              }}
+            >
+              <Typography component="dt" sx={{ ...type.primaryMono, overflowWrap: 'anywhere' }}>
+                {table}
+              </Typography>
+              <Typography component="dd" sx={{ ...type.metaValue, m: 0, flexShrink: 0 }}>
+                {rowCount.toLocaleString()} rows{isEstimate ? ' (estimated)' : ''}
+              </Typography>
+            </Box>
+          ))}
+        </Box>
+      )}
+    </Box>
+  );
+};
 
 // ─── Foreign keys result ──────────────────────────────────────────────────────
 
@@ -450,7 +509,7 @@ const WebSearchResultDetails = ({ result, args }) => {
   const theme = useTheme();
   const interaction = getInteractionColors(theme);
   const type = getStepTypeScale(theme);
-  const rows = toArray(result.results);
+  const rows = getWebSearchItems(result);
   const query = result.query || args?.query;
 
   return (
@@ -584,21 +643,104 @@ const WebSearchResultDetails = ({ result, args }) => {
   );
 };
 
-// ─── Generic result ───────────────────────────────────────────────────────────
+// ─── Query history result ─────────────────────────────────────────────────────
 
-const GenericResultDetails = ({ stepName, result, isError }) => {
+const QueryHistoryResultDetails = ({ result }) => {
   const theme = useTheme();
   const type = getStepTypeScale(theme);
+  const queries = getQueryHistoryItems(result);
+
   return (
-    <Typography
-      sx={{
-        ...type.body,
-        color: isError ? theme.palette.error.main : type.body.color,
-        lineHeight: 1.6,
-      }}
-    >
-      {getDetailedResult(stepName, result)}
-    </Typography>
+    <Box>
+      <ToolMetaGrid items={[{ label: 'Queries', value: result.count ?? queries.length }]} />
+      <DetailLabel>Recent queries</DetailLabel>
+      {queries.length === 0 ? (
+        <EmptyResult>No recent queries returned.</EmptyResult>
+      ) : (
+        <Box component="ol" sx={{ display: 'grid', gap: 1.2, m: 0, pl: 2.5 }}>
+          {queries.map((query, index) => (
+            <Box component="li" key={`${query.executedAt}-${index}`} sx={{ minWidth: 0, pl: 0.4 }}>
+              <ToolMetaGrid
+                items={[
+                  { label: 'Database', value: query.database },
+                  { label: 'Status', value: query.status },
+                  { label: 'Rows', value: query.rowCount },
+                  { label: 'Executed', value: query.executedAt },
+                ]}
+              />
+              <Typography
+                component="pre"
+                sx={{
+                  ...type.secondaryMono,
+                  m: 0,
+                  whiteSpace: 'pre-wrap',
+                  overflowWrap: 'anywhere',
+                }}
+              >
+                {query.query}
+              </Typography>
+            </Box>
+          ))}
+        </Box>
+      )}
+    </Box>
+  );
+};
+
+// ─── Generic result ───────────────────────────────────────────────────────────
+
+const DETAIL_LABELS = {
+  skill: 'Skill metadata',
+  connection: 'Connection details',
+  databases: 'Available databases',
+  query: 'Execution metadata',
+  analysis: 'Analysis result',
+  indexes: 'Indexes',
+  explain: 'Query plan',
+  views: 'Database views',
+  ui_action: 'Action details',
+  memory: 'Memory lookup',
+};
+
+const GenericResultDetails = ({ stepName, result, isError, detailLabel }) => {
+  const theme = useTheme();
+  const type = getStepTypeScale(theme);
+  const visibleResult = getTimelineResult(stepName, result);
+  const view = getGenericResultView(visibleResult);
+  const summary = getDetailedResult(stepName, result);
+
+  if (isError || view.error) {
+    return (
+      <Typography sx={{ ...type.body, color: theme.palette.error.main, lineHeight: 1.6 }}>
+        {summary}
+      </Typography>
+    );
+  }
+
+  return (
+    <Box>
+      <Typography sx={{ ...type.body, mb: view.metadata.length || view.structuredText ? 1 : 0 }}>
+        {summary}
+      </Typography>
+      <ToolMetaGrid items={view.metadata} />
+      {view.structuredText && (
+        <Box>
+          <DetailLabel>{detailLabel || 'Structured result'}</DetailLabel>
+          <Typography
+            component="pre"
+            sx={{
+              ...type.secondaryMono,
+              m: 0,
+              maxWidth: '100%',
+              whiteSpace: 'pre-wrap',
+              overflowWrap: 'anywhere',
+            }}
+          >
+            {view.structuredText}
+          </Typography>
+        </Box>
+      )}
+    </Box>
   );
 };
 
@@ -608,15 +750,38 @@ export function ToolResultDetails({ stepName, result, args, isError }) {
   if (isError)
     return <GenericResultDetails stepName={stepName} result={result} isError={isError} />;
 
-  switch (stepName) {
-    case 'get_schema_overview':
+  const presentation = AGENT_TOOL_ACTIONS[stepName]?.presentation;
+  switch (presentation) {
+    case 'schema':
       return <SchemaResultDetails result={result} />;
-    case 'get_table_columns':
-      return <TableColumnsResultDetails result={result} args={args} />;
-    case 'get_foreign_keys':
+    case 'table_details':
+      return <TableDetailsResultDetails result={result} args={args} />;
+    case 'row_counts':
+      return <TableRowCountsResultDetails result={result} />;
+    case 'foreign_keys':
       return <ForeignKeysResultDetails result={result} args={args} />;
     case 'web_search':
       return <WebSearchResultDetails result={result} args={args} />;
+    case 'query_history':
+      return <QueryHistoryResultDetails result={result} />;
+    case 'skill':
+    case 'connection':
+    case 'databases':
+    case 'query':
+    case 'analysis':
+    case 'indexes':
+    case 'explain':
+    case 'views':
+    case 'ui_action':
+    case 'memory':
+      return (
+        <GenericResultDetails
+          stepName={stepName}
+          result={result}
+          isError={isError}
+          detailLabel={DETAIL_LABELS[presentation]}
+        />
+      );
     default:
       return <GenericResultDetails stepName={stepName} result={result} isError={isError} />;
   }

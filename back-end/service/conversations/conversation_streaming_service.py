@@ -8,9 +8,7 @@ request. It:
 
 1. Loads the existing conversation (or seed-creates it) and verifies
    ownership.
-2. Persists the user prompt as the first message of a new turn (lazy —
-   deferred until the first non-empty agent event so we don't write a
-   turn that immediately fails).
+2. Persists the user prompt before orchestration touches task/checkpoint state.
 3. Streams SSE events from the LangGraph agent
    (:func:`agent_streamer.stream`) line-by-line. As events arrive we
    classify them (token / tool_start / tool_end / thinking / done /
@@ -20,9 +18,9 @@ request. It:
    ``GeneratorExit``), the accumulated timeline is persisted to
    Firestore as the assistant message (FIX [L6] ensures
    ``GeneratorExit`` propagates so the cleanup actually runs).
-5. If the stream produced no content and no tools, ``has_fatal_error``
-   is set and NO assistant message is persisted (the user's prompt
-   remains as the last message and the UI shows the error event).
+5. Empty responses are not persisted. Valid control outcomes may pause a
+   run without assistant content; otherwise the UI receives an error.
+6. Emits exactly one terminal ``done`` after inner cleanup and persistence.
 
 SSE event handling
 ------------------
@@ -43,9 +41,13 @@ import asyncio
 import json
 import logging
 import uuid
+from contextlib import aclosing
 from typing import AsyncGenerator, Optional
 
 from fastapi.concurrency import run_in_threadpool
+
+from api_contract.run_context import ResolvedRunPolicy
+from core.errors import log_safe_exception, public_tool_error
 
 logger = logging.getLogger(__name__)
 
@@ -71,13 +73,14 @@ def _parse_sse_event(sse_line: str) -> Optional[dict]:
     to ``{"type": "done"}`` for ergonomic handling.
     """
     line = sse_line.strip()
-    if not line.startswith("data: "):
+    if not line.startswith("data:"):
         return None
-    payload = line[6:].strip()
+    payload = line[5:].strip()
     if not payload or payload == "[DONE]":
         return {"type": "done"}
     try:
-        return json.loads(payload)
+        event = json.loads(payload)
+        return event if isinstance(event, dict) else None
     except (json.JSONDecodeError, ValueError):
         return None
 
@@ -85,6 +88,13 @@ def _parse_sse_event(sse_line: str) -> Optional[dict]:
 def _make_sse_error(message: str) -> str:
     """Build a single SSE error event string."""
     return f"data: {json.dumps({'type': 'error', 'message': message})}\n\n"
+
+
+def _has_assistant_output(timeline: list[dict]) -> bool:
+    """Preparation and reasoning alone do not constitute an assistant response."""
+    return any(
+        item["type"] == "tool" or (item["type"] == "text" and bool(item["content"].strip())) for item in timeline
+    )
 
 
 def _classify_error(raw: str) -> str:
@@ -105,16 +115,14 @@ class ConversationStreamingService:
         conversation_id: str,
         prompt: str | None,
         user_id: str,
+        run_policy: ResolvedRunPolicy,
         db_config: dict = None,
         enable_reasoning: bool = True,
         reasoning_effort: str = "medium",
         response_style: str = "balanced",
         max_rows: int = None,
         api_key: str = None,
-        provider: str | None = None,
-        model: str | None = None,
         resume: dict | None = None,
-        task_mode: str = "normal",
     ) -> AsyncGenerator[str, None]:
         """Consume SSE events from the LangGraph agent, persist them, and pass them through to the client.
 
@@ -127,6 +135,10 @@ class ConversationStreamingService:
         from service.conversations.conversation_repository import (
             ConversationRepository,
         )
+        from service.dashboard.usage_analytics import (
+            UsageAnalyticsService,
+            accumulate_token_usage,
+        )
 
         prompt_stored = False
         response_stored = False
@@ -138,7 +150,12 @@ class ConversationStreamingService:
         # has_fatal_error: True only when an unrecoverable error occurred BEFORE
         # any content was produced (e.g. PermissionError, startup failure).
         has_fatal_error = False
+        has_control_outcome = False
+        has_error_event = False
+        persistence_error = None
         last_usage_metrics = None
+        usage_totals = accumulate_token_usage(None, {})
+        usage_event_id = f"ai:{uuid.uuid4()}"
 
         try:
             conv_data = await run_in_threadpool(ConversationRepository.get, conversation_id)
@@ -189,205 +206,208 @@ class ConversationStreamingService:
             # orchestration touches task/checkpoint state.
             await store_prompt_once()
             if prompt_stored or conv_data:
-                task_mode_stored = (
-                    (conv_data.get("task_mode", "normal") if conv_data else None) or task_mode or "normal"
-                )
-                if resume is not None and task_mode == "normal" and task_mode_stored != "normal":
-                    task_mode = task_mode_stored
                 try:
                     from service.firestore.firestore_service import FirestoreService
 
                     db = FirestoreService.get_db()
                     await run_in_threadpool(
                         db.collection("conversations").document(conversation_id).update,
-                        {"task_mode": task_mode},
+                        {"task_mode": run_policy.task_mode},
                     )
                 except Exception as e:
-                    logger.warning("Failed to save task_mode in Firestore: %s", e)
+                    public = public_tool_error(
+                        "CONVERSATION_TASK_MODE_SAVE_FAILED",
+                        "Conversation task mode could not be saved.",
+                    )
+                    log_safe_exception(logger, "save_conversation_task_mode", e, public)
             agent_streamer = get_default_agent_streamer()
-            async for sse_line in agent_streamer.stream(
-                conversation_id,
-                prompt,
-                user_id,
-                db_config=db_config,
-                response_style=response_style,
-                max_rows=max_rows,
-                api_key=api_key,
-                provider=provider or "bedrock",
-                model=model,
-                enable_reasoning=enable_reasoning,
-                reasoning_effort=reasoning_effort,
-                resume=resume,
-                task_mode=task_mode,
-            ):
-                event = _parse_sse_event(sse_line)
-                if event is None:
-                    yield sse_line
-                    continue
+            async with aclosing(
+                agent_streamer.stream(
+                    conversation_id,
+                    prompt,
+                    user_id,
+                    db_config=db_config,
+                    response_style=response_style,
+                    max_rows=max_rows,
+                    api_key=api_key,
+                    enable_reasoning=enable_reasoning,
+                    reasoning_effort=reasoning_effort,
+                    resume=resume,
+                    run_policy=run_policy,
+                )
+            ) as source:
+                async for sse_line in source:
+                    event = _parse_sse_event(sse_line)
+                    if event is None:
+                        yield sse_line
+                        continue
 
-                event_type = event.get("type")
+                    event_type = event.get("type")
+                    if event_type == "done":
+                        # The outer stream owns completion, after inner cleanup and storage.
+                        continue
+                    if event_type in ("agent_interrupt", "agent_step_limit_reached"):
+                        has_control_outcome = True
 
-                # Core user prompt storage trigger
-                if (
-                    prompt
-                    and not prompt_stored
-                    and event_type
-                    in (
-                        "token",
-                        "tool_start",
-                        "thinking_token",
-                        "agent_interrupt",
-                        "workflow_status",
-                        "skills_activated",
-                    )
-                ):
-                    await store_prompt_once()
+                    # Core user prompt storage trigger
+                    if (
+                        prompt
+                        and not prompt_stored
+                        and event_type
+                        in (
+                            "token",
+                            "tool_start",
+                            "thinking_token",
+                            "agent_interrupt",
+                            "workflow_status",
+                            "skills_activated",
+                        )
+                    ):
+                        await store_prompt_once()
 
-                if event_type == "token":
-                    await store_prompt_once()
-                    chunk = event.get("content", "")
-                    if chunk:
-                        if ordered_timeline and ordered_timeline[-1]["type"] == "text":
-                            ordered_timeline[-1]["content"] += chunk
-                        else:
-                            ordered_timeline.append({"type": "text", "content": chunk})
+                    if event_type == "token":
+                        await store_prompt_once()
+                        chunk = event.get("content", "")
+                        if chunk:
+                            if ordered_timeline and ordered_timeline[-1]["type"] == "text":
+                                ordered_timeline[-1]["content"] += chunk
+                            else:
+                                ordered_timeline.append({"type": "text", "content": chunk})
 
-                elif event_type == "tool_start":
-                    await store_prompt_once()
-                    for item in ordered_timeline:
-                        if item["type"] == "thinking":
-                            item["is_complete"] = True
-                    ordered_timeline.append(
-                        {
-                            "type": "tool",
-                            "name": event.get("name", ""),
-                            "status": "running",
-                            "args": json.dumps(event.get("args", {}), default=str),
-                            "result": "null",
-                        }
-                    )
+                    elif event_type == "tool_start":
+                        await store_prompt_once()
+                        for item in ordered_timeline:
+                            if item["type"] == "thinking":
+                                item["is_complete"] = True
+                        ordered_timeline.append(
+                            {
+                                "type": "tool",
+                                "name": event.get("name", ""),
+                                "status": "running",
+                                "args": json.dumps(event.get("args", {}), default=str),
+                                "result": "null",
+                            }
+                        )
 
-                elif event_type == "tool_end":
-                    name = event.get("name", "")
-                    for item in reversed(ordered_timeline):
-                        if item["type"] == "tool" and item["name"] == name and item["status"] == "running":
-                            item["status"] = "done"
-                            item["args"] = json.dumps(event.get("args", {}), default=str)
-                            res_val = event.get("result") or {}
-                            if name == "execute_query" and isinstance(res_val, dict):
-                                # Strip large query rows and preview arrays
-                                res_val = dict(res_val)
-                                res_val.pop("data", None)
-                                res_val.pop("preview", None)
-                            item["result"] = json.dumps(res_val, default=str)
-                            break
+                    elif event_type == "tool_end":
+                        name = event.get("name", "")
+                        for item in reversed(ordered_timeline):
+                            if item["type"] == "tool" and item["name"] == name and item["status"] == "running":
+                                item["status"] = "done"
+                                item["args"] = json.dumps(event.get("args", {}), default=str)
+                                res_val = event.get("result") or {}
+                                if name == "execute_query" and isinstance(res_val, dict):
+                                    # Strip large query rows and preview arrays
+                                    res_val = dict(res_val)
+                                    res_val.pop("data", None)
+                                    res_val.pop("preview", None)
+                                item["result"] = json.dumps(res_val, default=str)
+                                break
 
-                elif event_type == "thinking_token":
-                    await store_prompt_once()
-                    chunk = event.get("content", "")
-                    if chunk:
-                        if ordered_timeline and ordered_timeline[-1]["type"] == "thinking":
-                            ordered_timeline[-1]["content"] += chunk
+                    elif event_type == "thinking_token":
+                        await store_prompt_once()
+                        chunk = event.get("content", "")
+                        if chunk:
+                            if ordered_timeline and ordered_timeline[-1]["type"] == "thinking":
+                                ordered_timeline[-1]["content"] += chunk
+                            else:
+                                ordered_timeline.append(
+                                    {
+                                        "type": "thinking",
+                                        "content": chunk,
+                                        "is_complete": False,
+                                    }
+                                )
+
+                    elif event_type == "workflow_status":
+                        await store_prompt_once()
+                        stage = event.get("stage", "status")
+                        status_val = event.get("status")
+                        content = event.get("content", "Preparing context...")
+                        step_id = f"workflow-{stage}"
+
+                        existing_item = None
+                        for item in ordered_timeline:
+                            if item.get("type") == "thinking" and item.get("id") == step_id:
+                                existing_item = item
+                                break
+
+                        if existing_item:
+                            existing_item["content"] = content
+                            existing_item["is_complete"] = status_val == "done"
                         else:
                             ordered_timeline.append(
                                 {
                                     "type": "thinking",
-                                    "content": chunk,
-                                    "is_complete": False,
+                                    "id": step_id,
+                                    "content": content,
+                                    "is_complete": (status_val == "done"),
                                 }
                             )
 
-                elif event_type == "workflow_status":
-                    await store_prompt_once()
-                    stage = event.get("stage", "status")
-                    status_val = event.get("status")
-                    content = event.get("content", "Preparing context...")
-                    step_id = f"workflow-{stage}"
+                    elif event_type == "skills_activated":
+                        await store_prompt_once()
+                        skills = event.get("skills", [])
+                        if skills:
+                            existing_item = None
+                            for item in ordered_timeline:
+                                if item.get("type") == "skill":
+                                    existing_item = item
+                                    break
+                            if existing_item:
+                                existing_skills = existing_item.get("skills", [])
+                                existing_item["skills"] = list(dict.fromkeys([*existing_skills, *skills]))
+                            else:
+                                ordered_timeline.append(
+                                    {
+                                        "type": "skill",
+                                        "skills": skills,
+                                        "id": f"skill-{len(ordered_timeline)}",
+                                    }
+                                )
 
-                    existing_item = None
-                    for item in ordered_timeline:
-                        if item.get("type") == "thinking" and item.get("id") == step_id:
-                            existing_item = item
-                            break
-
-                    if existing_item:
-                        existing_item["content"] = content
-                        existing_item["is_complete"] = status_val == "done"
-                    else:
-                        ordered_timeline.append(
-                            {
-                                "type": "thinking",
-                                "id": step_id,
-                                "content": content,
-                                "is_complete": (status_val == "done"),
-                            }
+                    elif event_type == "error":
+                        has_error_event = True
+                        logger.warning(
+                            "Agent emitted error event for conversation %s",
+                            conversation_id,
                         )
-
-                elif event_type == "skills_activated":
-                    await store_prompt_once()
-                    skills = event.get("skills", [])
-                    if skills:
-                        existing_item = None
-                        for item in ordered_timeline:
-                            if item.get("type") == "skill":
-                                existing_item = item
-                                break
-                        if existing_item:
-                            existing_skills = existing_item.get("skills", [])
-                            existing_item["skills"] = list(dict.fromkeys([*existing_skills, *skills]))
-                        else:
+                        error_message = event.get("message") or event.get("content")
+                        if error_message:
                             ordered_timeline.append(
                                 {
-                                    "type": "skill",
-                                    "skills": skills,
-                                    "id": f"skill-{len(ordered_timeline)}",
+                                    "type": "text",
+                                    "content": f"Error: {error_message}",
                                 }
                             )
 
-                elif event_type == "error":
-                    logger.warning(
-                        "Agent emitted error event for conversation %s",
-                        conversation_id,
-                    )
-                    error_message = event.get("message") or event.get("content")
-                    if error_message:
-                        ordered_timeline.append(
-                            {
-                                "type": "text",
-                                "content": f"Error: {error_message}",
-                            }
-                        )
+                    elif event_type == "usage_metrics":
+                        # ENH [CTX-SINGLE-SOURCE]: Spread all fields from the
+                        # event instead of listing them explicitly. This ensures
+                        # new fields like activePercent and modelPercent are
+                        # automatically stored on the message's usage in Firestore
+                        # and restored when the conversation is loaded later.
+                        last_usage_metrics = {k: v for k, v in event.items() if k != "type"}
+                        usage_totals = accumulate_token_usage(usage_totals, event)
 
-                elif event_type == "usage_metrics":
-                    # ENH [CTX-SINGLE-SOURCE]: Spread all fields from the
-                    # event instead of listing them explicitly. This ensures
-                    # new fields like activePercent and modelPercent are
-                    # automatically stored on the message's usage in Firestore
-                    # and restored when the conversation is loaded later.
-                    last_usage_metrics = {k: v for k, v in event.items() if k != "type"}
+                    elif event_type == "agent_interrupt" and prompt and not prompt_stored:
+                        await store_prompt_once()
 
-                elif event_type == "agent_interrupt" and prompt and not prompt_stored:
-                    await store_prompt_once()
+                    yield sse_line
 
-                yield sse_line
+            if not _has_assistant_output(ordered_timeline) and not has_control_outcome and not has_error_event:
+                has_fatal_error = True
+                yield _make_sse_error("AI service returned no response. Please try again.")
 
         except asyncio.CancelledError:
             was_aborted = True
-            logger.info("Stream cancelled for conversation %s", conversation_id)
+            logger.warning("Stream aborted for conversation %s reason=cancelled", conversation_id)
             raise
 
         except GeneratorExit:
-            # FIX [L6]: GeneratorExit MUST be re-raised. The original code
-            # set was_aborted=True and fell through to the finally block,
-            # which awaited run_in_threadpool(...). That await blocked the
-            # StreamingResponse's aclose() for several seconds while the
-            # partial-response store ran — long enough for uvicorn to log
-            # "RuntimeError: Unexpected ASGI message" and for the client to
-            # time out. Re-raising lets the generator unwind promptly; the
-            # finally block still runs (Python guarantees it), but the
-            # generator's aclose() doesn't block on it.
+            # Preserve partial output during cleanup without yielding terminal frames.
             was_aborted = True
-            logger.info(f"Stream aborted for conversation {conversation_id}")
+            logger.warning("Stream aborted for conversation %s reason=generator_exit", conversation_id)
             raise
 
         except PermissionError:
@@ -395,15 +415,21 @@ class ConversationStreamingService:
             yield _make_sse_error("You don't have permission to access this conversation.")
 
         except Exception as err:
-            if not ordered_timeline and not prompt_stored:
+            if not _has_assistant_output(ordered_timeline):
                 has_fatal_error = True
-            logger.error(f"Streaming error: {err}", exc_info=True)
-            yield _make_sse_error(_classify_error(str(err)))
+            public = public_tool_error(
+                "CONVERSATION_STREAM_FAILED",
+                _classify_error(str(err)),
+            )
+            log_safe_exception(logger, "stream_conversation_response", err, public)
+            yield _make_sse_error(public.message)
 
         finally:
-            should_store_response = (
-                (prompt_stored or resume is not None) and not response_stored and not has_fatal_error
-            )
+            should_record_usage = (prompt_stored or resume is not None) and not has_fatal_error
+            # An interrupted run retains its partial timeline with an interruption
+            # marker; a completed run requires actual text or tool activity.
+            has_persistable_output = _has_assistant_output(ordered_timeline) or (was_aborted and bool(ordered_timeline))
+            should_store_response = should_record_usage and has_persistable_output and not response_stored
             if should_store_response:
                 for item in ordered_timeline:
                     if item["type"] == "thinking":
@@ -450,17 +476,40 @@ class ConversationStreamingService:
                         conversation_id,
                     )
                 except Exception as store_err:
-                    logger.error(
-                        "Failed to store AI response for conversation %s: %s",
-                        conversation_id,
-                        store_err,
-                        exc_info=True,
+                    public = public_tool_error(
+                        "CONVERSATION_RESPONSE_SAVE_FAILED",
+                        "Conversation response could not be saved.",
                     )
+                    log_safe_exception(logger, "save_conversation_response", store_err, public)
+                    persistence_error = public.message
+
+            if should_record_usage:
+                try:
+                    await run_in_threadpool(
+                        UsageAnalyticsService.record_ai_request,
+                        user_id,
+                        event_id=usage_event_id,
+                        provider=run_policy.provider,
+                        model=run_policy.model,
+                        task_mode=run_policy.task_mode,
+                        **usage_totals,
+                    )
+                except Exception as usage_err:
+                    public = public_tool_error(
+                        "USAGE_ANALYTICS_SAVE_FAILED",
+                        "Usage analytics could not be saved.",
+                    )
+                    log_safe_exception(logger, "save_ai_usage_analytics", usage_err, public)
             elif has_fatal_error:
                 logger.info(
                     "Skipped storing response due to fatal error for conversation %s",
                     conversation_id,
                 )
+
+        # Do not yield from finally: cancellation/close must propagate without frames.
+        if persistence_error:
+            yield _make_sse_error(persistence_error)
+        yield 'data: {"type": "done"}\n\n'
 
     @staticmethod
     def get_streaming_headers(conversation_id: str) -> dict:

@@ -2,18 +2,19 @@ import { alpha } from '@mui/material/styles';
 import { primitives } from './primitives.js';
 
 const DARK_BACKGROUND = Object.freeze({
+  shell: primitives.neutral[1000],
   default: primitives.neutral[950],
-  paper: primitives.neutral[900],
+  paper: primitives.neutral[850],
   input: primitives.neutral[900],
   composer: primitives.neutral[850],
-  sunken: primitives.neutral[850],
-  hover: primitives.neutral[850],
+  sunken: primitives.neutral[900],
+  hover: primitives.neutral[800],
   strong: primitives.neutral[700],
-  elevated1: primitives.neutral[900],
-  elevated2: primitives.neutral[900],
-  elevated3: primitives.neutral[900],
-  elevated4: primitives.neutral[900],
-  elevated5: primitives.neutral[900],
+  elevated1: primitives.neutral[850],
+  elevated2: primitives.neutral[800],
+  elevated3: primitives.neutral[800],
+  elevated4: primitives.neutral[800],
+  elevated5: primitives.neutral[800],
 });
 
 const createStatus = (family) => {
@@ -44,10 +45,10 @@ const createStatus = (family) => {
 
 const createDarkSemanticTokens = () => {
   const background = DARK_BACKGROUND;
-  const foreground = primitives.neutral[0];
+  const foreground = primitives.neutral[100];
   const secondaryForeground = primitives.neutral[300];
   const disabledForeground = primitives.neutral[500];
-  const hairline = primitives.neutral[800];
+  const hairline = alpha(primitives.neutral[0], 0.15);
   const card = background.paper;
 
   const semanticOpacity = Object.freeze({
@@ -88,12 +89,12 @@ const createDarkSemanticTokens = () => {
       primary: foreground,
       secondary: secondaryForeground,
       disabled: disabledForeground,
-      hint: disabledForeground,
+      hint: primitives.neutral[400],
     }),
     border: Object.freeze({
       idle: hairline,
-      subtle: hairline,
-      separator: alpha(foreground, 0.055),
+      subtle: alpha(primitives.neutral[0], 0.05),
+      separator: alpha(primitives.neutral[0], 0.15),
       default: disabledForeground,
       hover: alpha(foreground, 0.25),
       focus: foreground,
@@ -101,8 +102,8 @@ const createDarkSemanticTokens = () => {
       base: foreground,
     }),
     action: Object.freeze({
-      hover: alpha(foreground, 0.07),
-      selected: alpha(foreground, 0.11),
+      hover: alpha(primitives.neutral[0], 0.1),
+      selected: alpha(primitives.neutral[0], 0.15),
       focus: alpha(foreground, 0.16),
       active: alpha(foreground, 0.72),
       disabled: alpha(foreground, 0.38),

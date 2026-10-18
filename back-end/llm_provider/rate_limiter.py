@@ -37,6 +37,7 @@ import logging
 import time
 from collections import deque
 from dataclasses import dataclass
+from uuid import uuid4
 
 from llm_provider.model_factory import get_provider_api_key, get_supported_providers
 
@@ -47,7 +48,7 @@ logger = logging.getLogger(__name__)
 #
 # ZREMRANGEBYSCORE drops entries older than (now - 60s), then ZCARD counts
 # the remaining entries. If the count is below max_rpm we add a new member
-# at score=now with a unique member value (now + ":" + a tiny sequence) and
+# at score=now with a unique UUID member value and
 # return 1 (allowed). Otherwise return 0 (rejected). The whole sequence is
 # atomic because Lua scripts in Redis run to completion without
 # interruption — every worker sees the same counter state.
@@ -80,48 +81,6 @@ if current < max_concurrent then
     return 1
 end
 return 0
-"""
-
-# ENH [RL-ACCOUNT]: Global account-level RPM guard.
-#
-# The per-user limiter (above) prevents one user from starving another, but
-# it does NOT protect the Bedrock account's total RPM quota. If 100 users
-# each send 5 RPM = 500 RPM total, and the Bedrock account limit is 500,
-# the account gets throttled — even though every user was "under their limit."
-#
-# This global guard uses the same sliding-window ZSET pattern as the per-user
-# guard, but keys on the provider only (not the user). It runs BEFORE the
-# per-user check so account-level rejection happens fast.
-#
-# Configure via LLM_ACCOUNT_MAX_RPM (default 0 = disabled, meaning the
-# account quota is assumed to be managed by Bedrock's own throttling).
-_ACCOUNT_RPM_LUA = """
-local key = KEYS[1]
-local now = tonumber(ARGV[1])
-local window = tonumber(ARGV[2])
-local max_rpm = tonumber(ARGV[3])
-local member = ARGV[4]
-
-redis.call('ZREMRANGEBYSCORE', key, 0, now - window)
-local count = redis.call('ZCARD', key)
-if count < max_rpm then
-    redis.call('ZADD', key, now, member)
-    redis.call('PEXPIRE', key, window)
-    return 1
-end
-return 0
-"""
-
-
-# ENH [RL-REFUND]: RPM slot refund Lua script.
-# When the concurrency limiter rejects (concurrency full), we "refund" the
-# RPM slot by removing the ZSET member we just added. This prevents the
-# RPM slot from being burned while waiting for concurrency.
-_RPM_REFUND_LUA = """
-local key = KEYS[1]
-local member = ARGV[2]
-redis.call('ZREM', key, member)
-return 1
 """
 
 
@@ -315,135 +274,57 @@ class ProviderRateLimiter:
         return True, api_key
 
     async def _acquire_redis(self, provider: str, user_id: str, api_key: str) -> tuple[bool, str | None]:
-        """Redis-backed sliding-window + concurrency acquire (FIX [M19]).
-
-        ENH [RL-ACCOUNT]: Now checks the global account-level RPM guard
-        BEFORE the per-user guard. This prevents total Bedrock account
-        throttling when many users each stay under their per-user limit
-        but the aggregate exceeds the account quota.
-
-        ENH [RL-REFUND]: When the concurrency limiter rejects, the RPM
-        slot is now refunded (removed from the ZSET) instead of being
-        burned for 60 seconds. This prevents a user's RPM budget from
-        being consumed by requests that never reached the LLM.
-        """
+        """Reserve account/user RPM and concurrency; undo unadmitted RPM slots."""
         max_rpm = int(getattr(self.app_config, "LLM_MAX_RPM_PER_KEY", 25))
         max_concurrent = int(getattr(self.app_config, "LLM_MAX_CONCURRENT", 5))
         queue_timeout = int(getattr(self.app_config, "LLM_QUEUE_TIMEOUT", 60))
-        # ENH [RL-ACCOUNT]: Account-level RPM guard (0 = disabled)
         account_max_rpm = int(getattr(self.app_config, "LLM_ACCOUNT_MAX_RPM", 0))
 
         rpm_key = self._redis_key(provider, user_id, suffix="rpm")
         conc_key = self._redis_key(provider, user_id, suffix="conc")
-        # ENH [RL-ACCOUNT]: Global account-level key (no user_id)
-        account_rpm_key = f"llm_ratelimit:{provider}:account:rpm"
+        rpm_limits = []
+        if account_max_rpm > 0:
+            rpm_limits.append((f"llm_ratelimit:{provider}:account:rpm", account_max_rpm))
+        rpm_limits.append((rpm_key, max_rpm))
 
         deadline = time.time() + queue_timeout
-        member_seq = 0
         while True:
             now_ms = int(time.time() * 1000)
-            member = f"{now_ms}:{member_seq}"
-            member_seq += 1
-
-            # ENH [RL-ACCOUNT]: Check account-level RPM first (if configured)
-            if account_max_rpm > 0:
-                try:
-                    allowed_account = await self.redis.eval(
-                        _ACCOUNT_RPM_LUA,
-                        1,
-                        account_rpm_key,
-                        now_ms,
-                        60_000,
-                        account_max_rpm,
-                        member,
-                    )
-                except Exception as exc:
-                    logger.warning(
-                        "Redis account-level RPM eval failed (%s); denying request to preserve Bedrock quota.",
-                        exc,
-                    )
-                    return False, None
-
-                if int(allowed_account) != 1:
-                    # Account-level RPM full — this is the hard wall.
-                    remaining = deadline - time.time()
-                    if remaining <= 0:
-                        logger.info(
-                            "Account-level RPM limit reached for provider %s (limit=%d). Denying user %s.",
-                            provider,
-                            account_max_rpm,
-                            user_id,
-                        )
-                        return False, None
-                    await asyncio.sleep(min(0.5, remaining))
-                    continue
-
-            # Per-user RPM check
+            member = uuid4().hex
+            attempted_keys = []
+            acquired = False
             try:
-                allowed_rpm = await self.redis.eval(
-                    _RATE_LIMIT_LUA,
-                    1,
-                    rpm_key,
-                    now_ms,
-                    60_000,  # 60-second window in ms
-                    max_rpm,
-                    member,
-                )
+                for key, limit in rpm_limits:
+                    # Record before sending: an interrupted response may hide
+                    # a successful write. ZREM of our unique member is safe.
+                    attempted_keys.append(key)
+                    allowed = await self.redis.eval(_RATE_LIMIT_LUA, 1, key, now_ms, 60_000, limit, member)
+                    if int(allowed) != 1:
+                        break
+                else:
+                    allowed_conc = await self.redis.eval(_CONCURRENCY_ACQUIRE_LUA, 1, conc_key, max_concurrent)
+                    if int(allowed_conc) == 1:
+                        acquired = True
+                        return True, api_key
             except Exception as exc:
                 logger.warning(
-                    "Redis rate-limit RPM eval failed (%s); denying request to "
-                    "preserve Bedrock quota. Configure Redis for shared rate "
-                    "limiting.",
-                    exc,
-                )
-                return False, None
-
-            if int(allowed_rpm) != 1:
-                # Per-user RPM window full — wait and retry until queue_timeout.
-                remaining = deadline - time.time()
-                if remaining <= 0:
-                    logger.info(
-                        "Rate limiter queue timeout for user %s on provider %s",
-                        user_id,
-                        provider,
-                    )
-                    return False, None
-                await asyncio.sleep(min(0.5, remaining))
-                continue
-
-            # RPM slot acquired — now acquire a concurrency slot.
-            try:
-                allowed_conc = await self.redis.eval(
-                    _CONCURRENCY_ACQUIRE_LUA,
-                    1,
-                    conc_key,
-                    max_concurrent,
-                )
-            except Exception as exc:
-                # ENH [RL-REFUND]: Refund the RPM slot since we can't proceed
-                await self._refund_rpm_slot(rpm_key, member)
-                logger.warning(
-                    "Redis rate-limit concurrency eval failed (%s); denying request. RPM slot refunded.",
-                    exc,
-                )
-                return False, None
-
-            if int(allowed_conc) == 1:
-                logger.debug(
-                    "Redis rate-limit slot acquired for user %s on %s",
+                    "Redis rate-limit acquire failed for user %s on %s (%s); denying request.",
                     user_id,
                     provider,
+                    exc,
                 )
-                return True, api_key
-
-            # ENH [RL-REFUND]: Concurrency full — refund the RPM slot so it's
-            # not burned for 60 seconds while we wait. Then retry.
-            await self._refund_rpm_slot(rpm_key, member)
+                return False, None
+            finally:
+                # Runs on rejection, errors, and cancellation, before waiting
+                # to retry. Successful requests retain RPM until expiry.
+                if not acquired:
+                    for key in attempted_keys:
+                        await self._refund_rpm_slot(key, member)
 
             remaining = deadline - time.time()
             if remaining <= 0:
                 logger.info(
-                    "Rate limiter concurrency timeout for user %s on provider %s",
+                    "Rate limiter queue timeout for user %s on provider %s",
                     user_id,
                     provider,
                 )
@@ -451,19 +332,9 @@ class ProviderRateLimiter:
             await asyncio.sleep(min(0.5, remaining))
 
     async def _refund_rpm_slot(self, rpm_key: str, member: str) -> None:
-        """ENH [RL-REFUND]: Remove an RPM slot from the sliding window.
-
-        Called when the concurrency limiter rejects — without this, the RPM
-        slot would be "burned" for 60 seconds even though the request never
-        reached the LLM, effectively reducing the user's RPM budget.
-        """
+        """Remove only this attempt's RPM reservation, atomically and idempotently."""
         try:
-            await self.redis.eval(
-                _RPM_REFUND_LUA,
-                1,
-                rpm_key,
-                member,
-            )
+            await self.redis.zrem(rpm_key, member)
         except Exception as exc:
             # Non-fatal — the slot will expire naturally in 60s.
             logger.debug("RPM slot refund failed (will expire naturally): %s", exc)

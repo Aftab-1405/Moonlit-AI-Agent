@@ -9,6 +9,8 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
+from core.errors import log_safe_exception, public_error_for_code, public_tool_error
+
 logger = logging.getLogger(__name__)
 
 _SUMMARY_BULLET_TYPES = {
@@ -203,8 +205,12 @@ async def _run_summary_claim_heartbeat(
                 return
         except asyncio.CancelledError:
             raise
-        except Exception:
-            logger.exception("Could not renew summary claim %s", claim_id)
+        except Exception as exc:
+            public = public_tool_error(
+                "SUMMARY_CLAIM_RENEWAL_FAILED",
+                "Summary claim renewal failed.",
+            )
+            log_safe_exception(logger, "renew_summary_claim", exc, public)
 
 
 def _clear_summary_claim(doc_ref, claim_id: str) -> None:
@@ -271,12 +277,54 @@ def _summarize_tool_result(tool_name: str, result, status: str) -> str:
     input. Handles common structured result shapes from Moonlit's tool set.
     """
     if status == "error":
-        if isinstance(result, dict) and result.get("error"):
-            return f"ERROR — {str(result['error'])[:120]}"
-        return "ERROR"
+        code = result.get("error_code") if isinstance(result, dict) else None
+        public = public_error_for_code(code)
+        return f"ERROR [{public.code}] — {public.message}"
 
     if not isinstance(result, dict):
         return str(result)[:120] if result else "(no result)"
+
+    if tool_name == "read_skill":
+        skill_name = str(result.get("skill_name") or "unknown")[:80]
+        state = "reused" if result.get("already_loaded") else "loaded"
+        return f"{state} skill {skill_name}"
+
+    if tool_name == "analyze_query_result":
+        operation = result.get("operation")
+        analyzed_rows = result.get("analyzed_rows", 0)
+        columns = result.get("columns")
+        if operation == "correlation" and isinstance(columns, list) and len(columns) == 2:
+            coefficient = result.get("pearson_correlation")
+            if isinstance(coefficient, (int, float)):
+                return (
+                    f"correlation over {analyzed_rows} row(s): "
+                    f"{str(columns[0])[:40]} vs {str(columns[1])[:40]}, r={coefficient:.3f}"
+                )
+        column_count = len(columns) if isinstance(columns, dict) else 0
+        if operation == "data_quality":
+            duplicates = result.get("duplicate_row_count", 0)
+            return f"data quality over {analyzed_rows} row(s), {column_count} column(s), {duplicates} duplicate row(s)"
+        return f"profiled {analyzed_rows} row(s) across {column_count} column(s)"
+
+    if tool_name == "web_search":
+        count = result.get("count", 0)
+        query = str(result.get("query") or "")[:80]
+        return f'{count} web source(s) for "{query}"'
+
+    if tool_name == "get_query_history":
+        queries = result.get("queries", [])
+        successful = (
+            sum(1 for item in queries if isinstance(item, dict) and item.get("status") == "success")
+            if isinstance(queries, list)
+            else 0
+        )
+        count = result.get("count", len(queries) if isinstance(queries, list) else 0)
+        return f"{count} recent query entry/entries ({successful} successful)"
+
+    if tool_name == "retrieve_memory":
+        state = "found" if result.get("found") else "not found"
+        query = str(result.get("query") or "")[:80]
+        return f'memory {state} for "{query}"'
 
     if tool_name == "execute_query":
         row_count = result.get("row_count")
@@ -326,12 +374,26 @@ def _summarize_tool_result(tool_name: str, result, status: str) -> str:
         col_count = result.get("column_count", 0)
         return f"{col_count} column(s) detailed for {table}"
 
-    if tool_name == "get_table_row_count":
-        table = result.get("table", "")
-        row_count = result.get("row_count", 0)
-        is_estimate = result.get("is_estimate", False)
-        suffix = " (estimated)" if is_estimate else ""
-        return f"{table}: {row_count} row(s){suffix}"
+    if tool_name == "get_table_row_counts":
+        row_counts = result.get("row_counts", [])
+        if isinstance(row_counts, list):
+            entries = []
+            all_exact = True
+            for item in row_counts[:10]:
+                if not isinstance(item, dict):
+                    continue
+                table = item.get("table")
+                row_count = item.get("row_count")
+                if not isinstance(table, str) or not isinstance(row_count, int):
+                    continue
+                is_estimate = bool(item.get("is_estimate", False))
+                all_exact = all_exact and not is_estimate
+                suffix = "~" if is_estimate else ""
+                entries.append(f"{table}={suffix}{row_count}")
+            if entries:
+                qualifier = "exact " if all_exact else ""
+                return f"{len(entries)} {qualifier}table row count(s): {', '.join(entries)}"
+        return "no table row counts returned"
 
     if tool_name == "get_foreign_keys":
         count = result.get("count", 0)
@@ -1095,7 +1157,12 @@ class ConversationCompactionService:
                 # Loop back to summarize any remaining complete turns.
 
         except Exception as e:
-            logger.error(f"Error in background summarization: {e}", exc_info=True)
+            public = public_tool_error(
+                "CONVERSATION_COMPACTION_FAILED",
+                "Conversation compaction failed.",
+            )
+            log_safe_exception(logger, "compact_conversation", e, public)
             result["reason"] = "error"
-            result["error"] = str(e)
+            result["error_code"] = public.code
+            result["error"] = public.message
         return result

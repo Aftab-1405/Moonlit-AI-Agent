@@ -12,6 +12,9 @@ import {
 import { useTheme as useMuiTheme } from '@mui/material/styles';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { queryClient, queryKeys } from '@/api/queryClient';
+import { useQuery } from '@tanstack/react-query';
+import { resolveLlmSelection } from '@/config/llmSelection';
+import { getEffectiveReasoningEffort, REASONING_EFFORT_OPTIONS } from '@/config/userSettings';
 import { DialogShell } from '@/components';
 import { AiContextIcon, AiSparkleIcon, DatabaseIcon } from '@/components/icons';
 import { useTheme as useAppTheme } from '@/contexts/ThemeContext';
@@ -30,6 +33,7 @@ import {
   PreferenceRow,
   PreferenceSection,
 } from '@/features/overlays/preference-surface';
+import { canResetSettingsSection } from '@/features/overlays/settings/settingsModalModel';
 import UserDBContextManagerForAI from '@/features/overlays/settings/UserDBContextManagerForAI';
 import { getPopoverPaperSx, UI_Z_INDEX } from '@/styles/shared';
 
@@ -44,15 +48,18 @@ const SECTIONS = [
 ];
 
 function SettingsModal({ open, onClose, initialSection = null }) {
-  const { settings, updateSetting, resetSettings } = useAppTheme();
+  const { settings, updateSetting, updateSettings, resetSettings } = useAppTheme();
   const [activeSection, setActiveSection] = useState('ai');
   const headingRef = useRef(null);
 
-  const llmOptions = queryClient.getQueryData(queryKeys.llmOptions) || {};
-  const currentModel = settings.llmModel;
-  const supportsReasoning = currentModel
-    ? (llmOptions.capabilities?.[currentModel]?.supports_reasoning ?? false)
-    : false;
+  const { data: llmOptions = {} } = useQuery(
+    {
+      queryKey: queryKeys.llmOptions,
+      enabled: false,
+    },
+    queryClient,
+  );
+  const { supportsReasoning } = resolveLlmSelection(llmOptions, settings);
 
   useEffect(() => {
     if (open && initialSection) {
@@ -137,7 +144,7 @@ function SettingsModal({ open, onClose, initialSection = null }) {
                   label="Reasoning Effort"
                   description={
                     supportsReasoning
-                      ? 'Token budget for models that support reasoning'
+                      ? 'How much reasoning the selected model uses'
                       : 'Not supported by the currently selected model'
                   }
                   htmlFor="setting-reasoning-effort"
@@ -145,14 +152,18 @@ function SettingsModal({ open, onClose, initialSection = null }) {
                   <FormControl size="small" sx={controlSx} disabled={!supportsReasoning}>
                     <Select
                       id="setting-reasoning-effort"
-                      value={settings.reasoningEffort ?? 'medium'}
-                      onChange={(e) => updateSetting('reasoningEffort', e.target.value)}
+                      value={getEffectiveReasoningEffort(settings)}
+                      onChange={(e) =>
+                        updateSettings({ enableReasoning: true, reasoningEffort: e.target.value })
+                      }
                       MenuProps={selectMenuProps}
                       disabled={!supportsReasoning}
                     >
-                      <MenuItem value="low">Low (1,024 Tokens)</MenuItem>
-                      <MenuItem value="medium">Medium (5,000 Tokens)</MenuItem>
-                      <MenuItem value="high">High (16,000 Tokens)</MenuItem>
+                      {REASONING_EFFORT_OPTIONS.map(({ value, label }) => (
+                        <MenuItem key={value} value={value}>
+                          {label}
+                        </MenuItem>
+                      ))}
                     </Select>
                   </FormControl>
                 </PreferenceRow>
@@ -398,18 +409,13 @@ function SettingsModal({ open, onClose, initialSection = null }) {
       <PreferenceLayout sidebar={NavContent}>
         {renderContent()}
 
-        <PreferenceFooterActions sx={{ justifyContent: 'flex-start' }}>
-          <Button
-            color="secondary"
-            onClick={() => {
-              resetSettings();
-            }}
-            size="small"
-            sx={subtleButtonSx}
-          >
-            Reset to defaults
-          </Button>
-        </PreferenceFooterActions>
+        {canResetSettingsSection(activeSection) && (
+          <PreferenceFooterActions sx={{ justifyContent: 'flex-start' }}>
+            <Button color="secondary" onClick={resetSettings} size="small" sx={subtleButtonSx}>
+              Reset to defaults
+            </Button>
+          </PreferenceFooterActions>
+        )}
       </PreferenceLayout>
     </DialogShell>
   );

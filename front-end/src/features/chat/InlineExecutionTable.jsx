@@ -1,12 +1,16 @@
-import { Box, Skeleton, Typography } from '@mui/material';
+import { Box, Button, Skeleton, Typography } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
+import { motion, useReducedMotion } from 'framer-motion';
 import { MaterialReactTable, useMaterialReactTable } from 'material-react-table';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { getExecutionResult } from '@/api/conversations';
 import { ErrorIcon, TableIcon } from '@/components/icons';
+import { getChatMotionVariants } from '@/features/chat/chatMotion';
+import { getResponsivePillControlSx } from '@/features/styles/interfaceChrome';
 
 const MIN_COLUMN_SIZE = 112;
 const MAX_COLUMN_SIZE = 360;
+const MotionBox = motion.create(Box);
 // Serial-number (row-numbers) column has been removed entirely — the
 // MarkdownRenderer tables don't have one, so keeping it here would break
 // visual parity. Data rows still render in source order, which is sufficient
@@ -208,7 +212,32 @@ function ResultState({ error }) {
   );
 }
 
-export default function InlineExecutionTable({ conversationId, executionId }) {
+function ResultReveal({ animateEntry, children }) {
+  const prefersReducedMotion = useReducedMotion();
+  const structuredMotion = useMemo(
+    () => getChatMotionVariants(prefersReducedMotion).structured,
+    [prefersReducedMotion],
+  );
+
+  return (
+    <MotionBox
+      data-result-motion={animateEntry ? 'live' : 'static'}
+      initial={animateEntry ? structuredMotion.initial : false}
+      animate={structuredMotion.animate}
+      sx={{ width: '100%', maxWidth: '100%', minWidth: 0 }}
+    >
+      {children}
+    </MotionBox>
+  );
+}
+
+export default function InlineExecutionTable({
+  conversationId,
+  executionId,
+  sourceQuery = '',
+  onOpenArtifact,
+  animateEntry = false,
+}) {
   const theme = useTheme();
   const [data, setData] = useState([]);
   const [columns, setColumns] = useState([]);
@@ -412,12 +441,47 @@ export default function InlineExecutionTable({ conversationId, executionId }) {
 
   if (!conversationId || !executionId) return null;
   if (loading) return <LoadingTable />;
-  if (error) return <ResultState error={error} />;
-  if (data.length === 0) return <ResultState />;
+  if (error) {
+    return (
+      <ResultReveal animateEntry={animateEntry}>
+        <ResultState error={error} />
+      </ResultReveal>
+    );
+  }
+  if (data.length === 0) {
+    return (
+      <ResultReveal animateEntry={animateEntry}>
+        <ResultState />
+      </ResultReveal>
+    );
+  }
 
   return (
-    <Box sx={{ width: '100%', maxWidth: '100%', minWidth: 0 }}>
+    <ResultReveal animateEntry={animateEntry}>
       <MaterialReactTable table={table} />
-    </Box>
+      {onOpenArtifact && (
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: -1, mb: 1 }}>
+          <Button
+            type="button"
+            variant="text"
+            sx={{
+              ...getResponsivePillControlSx(theme, { desktopHeight: 36 }),
+              ...theme.typography.uiBodySm,
+            }}
+            onClick={() =>
+              onOpenArtifact({
+                id: `execution:${conversationId}:${executionId}`,
+                type: 'query-result',
+                title: 'Query results',
+                source: null,
+                props: { conversationId, executionId, sourceQuery },
+              })
+            }
+          >
+            Explore query results
+          </Button>
+        </Box>
+      )}
+    </ResultReveal>
   );
 }

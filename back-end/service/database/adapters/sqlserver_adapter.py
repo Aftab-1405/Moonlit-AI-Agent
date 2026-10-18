@@ -1,29 +1,8 @@
-"""
-SQL Server Database Adapter
+"""SQL Server operations using pymssql.
 
-Implements database operations for SQL Server using pymssql.
-Supports local SQL Server instances and cloud providers (Azure SQL, AWS RDS, Google Cloud SQL, Somee.com).
-
-Pooling note (FIX [L9])
------------------------
-pymssql has no first-class pool object, so this adapter's "pool" is the
-config dict itself: each ``get_connection_from_pool`` call opens a fresh
-TCP connection. ``return_connection_to_pool`` closes the connection.
-Previously ``close_pool`` was a no-op, so a disconnect left every
-in-flight connection open until GC. We now track open connections in a
-set on the pool dict and ``close_pool`` closes them all before returning.
-
-Query timeout (FIX [EC3])
--------------------------
-SQL Server does not have a single ``SET QUERY_TIMEOUT`` statement. We
-enforce a server-side lock-wait timeout via ``SET LOCK_TIMEOUT <ms>``
-(see ``get_set_timeout_sql``), executed before each user query. The
-asyncio ``wait_for`` cancel in the caller is the second line of defense
-for CPU-bound queries that pass the lock-wait phase. Without the
-``SET LOCK_TIMEOUT`` call, cancelling the Python coroutine left the
-underlying DB thread alive and held the pool connection until SQL Server
-itself finished — see ``operations.execute_sql_query`` and
-``ai_tool_executor._execute_query_with_db_config`` for the call sites.
+Each borrow opens a connection; the pool tracks live connections in a private
+config copy so disconnect can close them. Driver query/login timeouts bound
+network operations, and SET LOCK_TIMEOUT bounds server-side lock waits.
 """
 
 import logging
@@ -32,6 +11,7 @@ from contextlib import contextmanager
 from typing import Any, Dict, List, Optional
 
 from config import get_config
+from core.errors import log_safe_exception, public_database_error
 
 from .base_adapter import BaseDatabaseAdapter
 
@@ -81,6 +61,8 @@ class SQLServerAdapter(BaseDatabaseAdapter):
         try:
             import re
 
+            # Pool bookkeeping must never enter the JSON session config.
+            config = dict(config)
             connection_string = config.get("connection_string")
 
             if connection_string:
@@ -101,12 +83,7 @@ class SQLServerAdapter(BaseDatabaseAdapter):
                 config["password"] = pwd_match.group(1).strip() if pwd_match else ""
 
             else:
-                logger.info(
-                    "Creating SQL Server config for %s@%s:%s",
-                    "***",
-                    config.get("host"),
-                    config.get("port", Config.DEFAULT_SQLSERVER_PORT),
-                )
+                logger.info("Creating SQL Server connection config")
 
             # FIX [L9]: track open connections so close_pool can close them.
             config["_open_connections"] = set()
@@ -114,7 +91,7 @@ class SQLServerAdapter(BaseDatabaseAdapter):
             return config
 
         except Exception as err:
-            logger.error(f"Failed to create SQL Server connection config: {err}")
+            log_safe_exception(logger, "create_sqlserver_config", err, public_database_error(err))
             raise
 
     def get_connection_from_pool(self, pool: Any) -> Any:
@@ -146,7 +123,7 @@ class SQLServerAdapter(BaseDatabaseAdapter):
                 pool["_open_connections"].add(connection)
             return connection
         except Exception as err:
-            logger.error(f"Failed to get SQL Server connection: {err}")
+            log_safe_exception(logger, "acquire_sqlserver_connection", err, public_database_error(err))
             raise
 
     def close_pool(self, pool: Any) -> bool:
@@ -169,7 +146,13 @@ class SQLServerAdapter(BaseDatabaseAdapter):
                 conn.close()
                 closed_count += 1
             except Exception as close_err:
-                logger.debug(f"Error closing in-flight SQL Server connection: {close_err}")
+                log_safe_exception(
+                    logger,
+                    "close_sqlserver_connection",
+                    close_err,
+                    public_database_error(close_err),
+                    level=logging.DEBUG,
+                )
         logger.info(f"SQL Server pool closed ({closed_count} connection(s) shut down)")
         return True
 
@@ -184,7 +167,13 @@ class SQLServerAdapter(BaseDatabaseAdapter):
             if connection:
                 connection.close()
         except Exception as err:
-            logger.warning(f"Failed to close SQL Server connection: {err}")
+            log_safe_exception(
+                logger,
+                "return_sqlserver_connection",
+                err,
+                public_database_error(err),
+                level=logging.WARNING,
+            )
         finally:
             # FIX [L9]: remove from the in-flight tracker regardless of
             # whether close() succeeded, so the set does not grow unbounded.
@@ -262,8 +251,14 @@ class SQLServerAdapter(BaseDatabaseAdapter):
                 cursor.execute("SELECT 1")
                 cursor.fetchone()
                 return True
-        except Exception as e:
-            logger.debug(f"SQL Server connection validation failed: {e}")
+        except Exception as err:
+            log_safe_exception(
+                logger,
+                "validate_sqlserver_connection",
+                err,
+                public_database_error(err),
+                level=logging.DEBUG,
+            )
         finally:
             # FIX [M11]: always close the cursor, even on the error path.
             if cursor is not None:
@@ -478,9 +473,12 @@ class SQLServerAdapter(BaseDatabaseAdapter):
             try:
                 cursor.execute("SET SHOWPLAN_TEXT OFF")
             except Exception as teardown_err:
-                logger.debug(
-                    "Could not SET SHOWPLAN_TEXT OFF (non-blocking): %s",
+                log_safe_exception(
+                    logger,
+                    "reset_sqlserver_showplan",
                     teardown_err,
+                    public_database_error(teardown_err),
+                    level=logging.DEBUG,
                 )
 
     # Table-details Method (added for the get_table_details AI tool)

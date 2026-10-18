@@ -12,7 +12,7 @@
 //   - handleGuidedConfirm()      — fire onConfirm then close
 //
 // This is split out so the streaming hook can register interrupts without
-// holding dialog state itself, and so MainInterface can render the banner
+// holding dialog state itself, and so ChatWorkspacePage can render the banner
 // without reaching into streaming internals.
 
 import { useCallback, useState } from 'react';

@@ -5,6 +5,7 @@
 // makes future visual changes local to a single mapping.
 
 export { default as TimeIcon } from '@mui/icons-material/AccessTimeRounded';
+export { default as MindmapIcon } from '@mui/icons-material/AccountTreeRounded';
 export { default as AddIcon } from '@mui/icons-material/AddRounded';
 export { default as ScrollDownIcon } from '@mui/icons-material/ArrowDownwardRounded';
 export { default as ArrowForwardIcon } from '@mui/icons-material/ArrowForwardRounded';
@@ -30,7 +31,6 @@ export { default as FullscreenEnterIcon } from '@mui/icons-material/FullscreenRo
 export { default as GitHubBrandIcon } from '@mui/icons-material/GitHub';
 export { default as HelpIcon } from '@mui/icons-material/HelpOutlineRounded';
 export { default as HomeIcon } from '@mui/icons-material/HomeRounded';
-export { default as DiagramIcon } from '@mui/icons-material/HubRounded';
 export { default as ImageIcon } from '@mui/icons-material/ImageOutlined';
 export { default as InfoIcon } from '@mui/icons-material/InfoOutlined';
 export { default as AnalyticsIcon } from '@mui/icons-material/InsightsRounded';

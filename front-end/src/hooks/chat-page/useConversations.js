@@ -1,14 +1,6 @@
-/**
- * useConversations Hook
- *
- * Manages conversation state, CRUD operations, and URL synchronization.
- * Extracted from Chat.jsx for better separation of concerns.
- *
- * @module hooks/useConversations
- */
-
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   deleteConversation,
   getAllUserConversations,
@@ -20,43 +12,163 @@ import {
   conversationListLoadReducer,
   initialConversationListLoadState,
 } from '@/features/sidebar-left/conversationListModel';
+import {
+  activateChatSession,
+  bindChatSessionConversation,
+  CHAT_LOAD_STATUS,
+  createChatSession,
+  resolveRouteChatSessionKey,
+} from '@/hooks/chat-page/chatSessionModel';
 import { normalizeConversationMessage } from '@/utils/chatMessages';
 import { recoverLegacyConversationTitle } from '@/utils/conversationTitles';
 import logger from '@/utils/logger';
 
-/**
- * Hook for managing conversations and messages
- * @returns {Object} Conversation state and handlers
- */
+let draftSequence = 0;
+
+function createDraftSessionKey() {
+  if (globalThis.crypto?.randomUUID) return `draft:${globalThis.crypto.randomUUID()}`;
+  draftSequence += 1;
+  return `draft:${Date.now()}:${draftSequence}`;
+}
+
+function getPersistedSessionKey(conversationId) {
+  return `conversation:${conversationId}`;
+}
+
+function findLatestUsage(messages) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index]?.role === 'assistant' && messages[index]?.usage) {
+      return messages[index].usage;
+    }
+  }
+  return null;
+}
+
 export function useConversations() {
-  const { conversationId } = useParams();
+  const { conversationId: routeConversationIdParam } = useParams();
+  const routeConversationId = routeConversationIdParam || null;
+  const location = useLocation();
   const navigate = useNavigate();
-  const [messages, setMessages] = useState([]);
+  const initialDraftSessionKeyRef = useRef(createDraftSessionKey());
+  const sessionKeysByConversationRef = useRef(null);
+  if (sessionKeysByConversationRef.current === null) {
+    // Dashboard links carry the persisted URL, not the draft's route state.
+    // Recover stable identities from the account-scoped in-memory session cache.
+    sessionKeysByConversationRef.current = new Map(
+      queryClient
+        .getQueriesData({ queryKey: ['chatSessions'] })
+        .map(([, session]) => session)
+        .filter((session) => session?.conversationId && session?.sessionKey)
+        .map((session) => [session.conversationId, session.sessionKey]),
+    );
+  }
+  const conversationLoadGenerationRef = useRef(new Map());
+  const conversationsLoadSeqRef = useRef(0);
+  const legacyTitleSourceRef = useRef(new Map());
+  const activeSessionKeyRef = useRef(null);
+  const [sessionMetadataRevision, bumpSessionMetadataRevision] = useReducer(
+    (revision) => revision + 1,
+    0,
+  );
+
+  const locationSessionKey = location.state?.chatSessionKey;
+  const activeSessionKey = resolveRouteChatSessionKey({
+    routeConversationId,
+    locationSessionKey,
+    locationSession: locationSessionKey
+      ? queryClient.getQueryData(queryKeys.chatSession(locationSessionKey))
+      : null,
+    knownConversationSessionKey: routeConversationId
+      ? sessionKeysByConversationRef.current.get(routeConversationId)
+      : null,
+    initialDraftSessionKey: initialDraftSessionKeyRef.current,
+  });
+  activeSessionKeyRef.current = activeSessionKey;
+  if (routeConversationId) {
+    sessionKeysByConversationRef.current.set(routeConversationId, activeSessionKey);
+  }
+
   const [conversations, setConversations] = useState([]);
-  const [currentConversationId, setCurrentConversationId] = useState(null);
   const [isConversationsLoading, setIsConversationsLoading] = useState(false);
-  const [isConversationLoading, setIsConversationLoading] = useState(Boolean(conversationId));
   const [conversationListLoadState, dispatchConversationListLoad] = useReducer(
     conversationListLoadReducer,
     initialConversationListLoadState,
   );
-  const [routeConversationLoadState, setRouteConversationLoadState] = useState(
-    conversationId ? 'loading' : 'idle',
+
+  const { data: activeSession } = useQuery({
+    queryKey: queryKeys.chatSession(activeSessionKey),
+    queryFn: () =>
+      createChatSession({
+        sessionKey: activeSessionKey,
+        conversationId: routeConversationId,
+        loadStatus: routeConversationId ? CHAT_LOAD_STATUS.LOADING : CHAT_LOAD_STATUS.IDLE,
+      }),
+    initialData: () =>
+      createChatSession({
+        sessionKey: activeSessionKey,
+        conversationId: routeConversationId,
+        loadStatus: routeConversationId ? CHAT_LOAD_STATUS.LOADING : CHAT_LOAD_STATUS.IDLE,
+      }),
+    enabled: false,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+
+  const getSession = useCallback(
+    (sessionKey) => queryClient.getQueryData(queryKeys.chatSession(sessionKey)) || null,
+    [],
   );
-  const prevConversationIdRef = useRef(null);
-  const lastLoadedConversationIdRef = useRef(null);
-  const newlyCreatedConvIdRef = useRef(null);
-  const conversationLoadSeqRef = useRef(0);
-  const conversationsLoadSeqRef = useRef(0);
-  const legacyTitleSourceRef = useRef(new Map());
+
+  const updateSession = useCallback((sessionKey, updater, { notifyMetadata = true } = {}) => {
+    queryClient.setQueryData(queryKeys.chatSession(sessionKey), (current) => {
+      const base =
+        current ||
+        createChatSession({
+          sessionKey,
+          loadStatus: CHAT_LOAD_STATUS.IDLE,
+        });
+      return typeof updater === 'function' ? updater(base) : { ...base, ...updater };
+    });
+    if (notifyMetadata) bumpSessionMetadataRevision();
+  }, []);
+
+  const updateSessionMessages = useCallback(
+    (sessionKey, updater) => {
+      let conversationId = null;
+      let nextMessages = [];
+      updateSession(
+        sessionKey,
+        (session) => {
+          conversationId = session.conversationId;
+          nextMessages =
+            typeof updater === 'function' ? updater(session.messages || []) : updater || [];
+          return { ...session, messages: nextMessages };
+        },
+        { notifyMetadata: false },
+      );
+
+      if (conversationId) {
+        queryClient.setQueryData(queryKeys.conversation(conversationId), (current) => ({
+          ...(current || { status: 'success' }),
+          messages: nextMessages,
+        }));
+      }
+    },
+    [updateSession],
+  );
+
+  const isSessionActive = useCallback(
+    (sessionKey) => activeSessionKeyRef.current === sessionKey,
+    [],
+  );
+
   const fetchConversations = useCallback(async (signal, options = {}) => {
     const showLoading = options.showLoading ?? true;
     const requestSeq = conversationsLoadSeqRef.current + 1;
     conversationsLoadSeqRef.current = requestSeq;
     dispatchConversationListLoad({ type: 'started', visible: showLoading });
-    if (showLoading) {
-      setIsConversationsLoading(true);
-    }
+    if (showLoading) setIsConversationsLoading(true);
+
     try {
       if (options.force) {
         await queryClient.invalidateQueries({ queryKey: queryKeys.conversations });
@@ -79,47 +191,40 @@ export function useConversations() {
             ? { ...conversation, title: recoveredTitle }
             : conversation;
         });
-        setConversations((prev) => {
-          if (prev.length !== nextConversations.length) return nextConversations;
-          for (let i = 0; i < prev.length; i += 1) {
-            if (prev[i]?.id !== nextConversations[i]?.id) return nextConversations;
-            if (prev[i]?.title !== nextConversations[i]?.title) return nextConversations;
-            if (prev[i]?.timestamp !== nextConversations[i]?.timestamp) return nextConversations;
-          }
-          return prev;
+        setConversations((previous) => {
+          if (previous.length !== nextConversations.length) return nextConversations;
+          const changed = previous.some(
+            (conversation, index) =>
+              conversation.id !== nextConversations[index]?.id ||
+              conversation.title !== nextConversations[index]?.title ||
+              conversation.timestamp !== nextConversations[index]?.timestamp,
+          );
+          return changed ? nextConversations : previous;
         });
       }
       dispatchConversationListLoad({ type: 'succeeded' });
     } catch (error) {
-      if (error.name === 'AbortError') return; // Ignore abort errors
+      if (error.name === 'AbortError') return;
       if (conversationsLoadSeqRef.current !== requestSeq) return;
       dispatchConversationListLoad({ type: 'failed' });
       logger.error('Failed to fetch conversations:', error);
     } finally {
-      if (conversationsLoadSeqRef.current === requestSeq) {
-        setIsConversationsLoading(false);
-      }
+      if (conversationsLoadSeqRef.current === requestSeq) setIsConversationsLoading(false);
     }
   }, []);
+
   const retryConversations = useCallback(
     () => fetchConversations(undefined, { force: true, showLoading: true }),
     [fetchConversations],
   );
-  const registerStreamingConversation = useCallback((convId) => {
-    newlyCreatedConvIdRef.current = convId;
-    lastLoadedConversationIdRef.current = convId;
-    prevConversationIdRef.current = convId;
-    setCurrentConversationId(convId);
-    setIsConversationLoading(false);
-  }, []);
-  const recoverGeneratedTitle = useCallback((convId, conversationMessages) => {
+
+  const recoverGeneratedTitle = useCallback((conversationId, conversationMessages) => {
     const firstUserMessage = conversationMessages.find((message) => message?.role === 'user')?.text;
     if (!firstUserMessage) return;
-    legacyTitleSourceRef.current.set(convId, firstUserMessage);
-
-    setConversations((prev) =>
-      prev.map((conversation) => {
-        if (conversation.id !== convId) return conversation;
+    legacyTitleSourceRef.current.set(conversationId, firstUserMessage);
+    setConversations((previous) =>
+      previous.map((conversation) => {
+        if (conversation.id !== conversationId) return conversation;
         const recoveredTitle = recoverLegacyConversationTitle(conversation.title, firstUserMessage);
         return recoveredTitle && recoveredTitle !== conversation.title
           ? { ...conversation, title: recoveredTitle }
@@ -127,93 +232,185 @@ export function useConversations() {
       }),
     );
   }, []);
-  const resetChatState = useCallback(() => {
-    setMessages([]);
-    setCurrentConversationId(null);
-    setIsConversationLoading(false);
-  }, []);
-  const handleSelectConversation = useCallback(
-    async (convId) => {
-      const cachedConversation = queryClient.getQueryData(queryKeys.conversation(convId));
-      if (cachedConversation?.messages) {
-        setCurrentConversationId(convId);
-        setMessages(cachedConversation.messages);
-        recoverGeneratedTitle(convId, cachedConversation.messages);
-        lastLoadedConversationIdRef.current = convId;
-        setIsConversationLoading(false);
+
+  const loadConversation = useCallback(
+    async (sessionKey, conversationId) => {
+      const session = getSession(sessionKey);
+      if (session?.conversationId === conversationId && session.messages?.length > 0) {
+        updateSession(sessionKey, activateChatSession);
         return true;
       }
 
-      const requestSeq = ++conversationLoadSeqRef.current;
-      setIsConversationLoading(true);
+      const cachedConversation = queryClient.getQueryData(queryKeys.conversation(conversationId));
+      if (cachedConversation?.messages) {
+        const messages = cachedConversation.messages;
+        updateSession(sessionKey, (current) => ({
+          ...current,
+          conversationId,
+          messages,
+          loadStatus: CHAT_LOAD_STATUS.READY,
+          usageMetrics: findLatestUsage(messages),
+          unreadActivity: null,
+        }));
+        recoverGeneratedTitle(conversationId, messages);
+        return true;
+      }
+
+      const generation = (conversationLoadGenerationRef.current.get(sessionKey) || 0) + 1;
+      conversationLoadGenerationRef.current.set(sessionKey, generation);
+      updateSession(sessionKey, (current) => ({
+        ...current,
+        conversationId,
+        loadStatus: CHAT_LOAD_STATUS.LOADING,
+      }));
+
       try {
         const data = await queryClient.fetchQuery({
-          queryKey: queryKeys.conversation(convId),
-          queryFn: ({ signal: querySignal }) => getConversation(convId, querySignal),
+          queryKey: queryKeys.conversation(conversationId),
+          queryFn: ({ signal }) => getConversation(conversationId, signal),
           staleTime: 5 * 60 * 1000,
         });
-
-        // Guard: if the user switched conversations while this request was
-        // in-flight, discard the stale result entirely.
-        if (conversationLoadSeqRef.current !== requestSeq) {
+        if (conversationLoadGenerationRef.current.get(sessionKey) !== generation) return false;
+        if (data.status !== 'success' || !data.conversation) {
+          updateSession(sessionKey, (current) => ({
+            ...current,
+            loadStatus: CHAT_LOAD_STATUS.ERROR,
+          }));
           return false;
         }
 
-        if (data.status === 'success' && data.conversation) {
-          setCurrentConversationId(convId);
-          const formattedMessages = (data.conversation.messages || []).map((msg, index) =>
-            normalizeConversationMessage(msg, index),
-          );
-          queryClient.setQueryData(queryKeys.conversation(convId), {
-            ...data,
-            messages: formattedMessages,
-          });
-          setMessages(formattedMessages);
-          recoverGeneratedTitle(convId, formattedMessages);
-          lastLoadedConversationIdRef.current = convId;
-          return true;
-        }
-        return false;
+        const messages = (data.conversation.messages || []).map((message, index) =>
+          normalizeConversationMessage(message, index),
+        );
+        queryClient.setQueryData(queryKeys.conversation(conversationId), { ...data, messages });
+        updateSession(sessionKey, (current) => ({
+          ...current,
+          conversationId,
+          messages,
+          loadStatus: CHAT_LOAD_STATUS.READY,
+          usageMetrics: findLatestUsage(messages),
+          unreadActivity: null,
+        }));
+        recoverGeneratedTitle(conversationId, messages);
+        return true;
       } catch (error) {
-        if (error.name === 'AbortError') return false; // Ignore abort errors
+        if (error.name === 'AbortError') return false;
         logger.error('Failed to load conversation:', error);
+        updateSession(sessionKey, (current) => ({
+          ...current,
+          loadStatus: CHAT_LOAD_STATUS.ERROR,
+        }));
         return false;
-      } finally {
-        // Only reset loading if this is still the active request.
-        if (conversationLoadSeqRef.current === requestSeq) {
-          setIsConversationLoading(false);
-        }
       }
     },
-    [recoverGeneratedTitle],
+    [getSession, recoverGeneratedTitle, updateSession],
   );
-  const handleDeleteConversation = useCallback(
-    async (convId) => {
-      try {
-        await deleteConversation(convId);
-        queryClient.removeQueries({ queryKey: queryKeys.conversation(convId) });
-        queryClient.invalidateQueries({ queryKey: queryKeys.conversations });
-        setConversations((prev) => prev.filter((c) => c.id !== convId));
-        if (currentConversationId === convId) {
-          navigate('/chat');
+
+  const startNewChat = useCallback(() => {
+    const sessionKey = createDraftSessionKey();
+    queryClient.setQueryData(
+      queryKeys.chatSession(sessionKey),
+      createChatSession({ sessionKey, loadStatus: CHAT_LOAD_STATUS.IDLE }),
+    );
+    navigate('/chat', { state: { chatSessionKey: sessionKey } });
+    return sessionKey;
+  }, [navigate]);
+
+  const selectConversation = useCallback(
+    (conversationId) => {
+      const sessionKey =
+        sessionKeysByConversationRef.current.get(conversationId) ||
+        getPersistedSessionKey(conversationId);
+      sessionKeysByConversationRef.current.set(conversationId, sessionKey);
+      const existing = getSession(sessionKey);
+      queryClient.setQueryData(
+        queryKeys.chatSession(sessionKey),
+        activateChatSession(
+          existing ||
+            createChatSession({
+              sessionKey,
+              conversationId,
+              loadStatus: CHAT_LOAD_STATUS.LOADING,
+            }),
+        ),
+      );
+      bumpSessionMetadataRevision();
+      navigate(`/chat/${conversationId}`, { state: { chatSessionKey: sessionKey } });
+      return sessionKey;
+    },
+    [getSession, navigate],
+  );
+
+  const bindStreamingConversation = useCallback(
+    (sessionKey, conversationId, optimisticTitle) => {
+      sessionKeysByConversationRef.current.set(conversationId, sessionKey);
+      updateSession(sessionKey, (session) =>
+        bindChatSessionConversation(session, conversationId, optimisticTitle),
+      );
+      setConversations((previous) => {
+        const existing = previous.find((conversation) => conversation.id === conversationId);
+        if (existing) {
+          return previous.map((conversation) =>
+            conversation.id === conversationId
+              ? { ...conversation, title: conversation.title || optimisticTitle }
+              : conversation,
+          );
         }
+        return [
+          {
+            id: conversationId,
+            title: optimisticTitle,
+            created_at: new Date().toISOString(),
+          },
+          ...previous,
+        ];
+      });
+    },
+    [updateSession],
+  );
+
+  const getSessionKeyForConversation = useCallback(
+    (conversationId) =>
+      sessionKeysByConversationRef.current.get(conversationId) ||
+      getPersistedSessionKey(conversationId),
+    [],
+  );
+
+  const handleDeleteConversation = useCallback(
+    async (conversationId) => {
+      try {
+        await deleteConversation(conversationId);
+        queryClient.invalidateQueries({ queryKey: queryKeys.conversations });
+        queryClient.removeQueries({ queryKey: queryKeys.conversation(conversationId) });
+        const sessionKey = getSessionKeyForConversation(conversationId);
+        queryClient.removeQueries({ queryKey: queryKeys.chatSession(sessionKey) });
+        sessionKeysByConversationRef.current.delete(conversationId);
+        setConversations((previous) =>
+          previous.filter((conversation) => conversation.id !== conversationId),
+        );
+        if (activeSessionKeyRef.current === sessionKey) startNewChat();
       } catch (error) {
-        if (error.name === 'AbortError') return; // Ignore abort errors
+        if (error.name === 'AbortError') return;
         logger.error('Failed to delete conversation:', error);
         throw error;
       }
     },
-    [currentConversationId, navigate],
+    [getSessionKeyForConversation, startNewChat],
   );
-  const handleRenameConversation = useCallback(async (convId, title) => {
+
+  const handleRenameConversation = useCallback(async (conversationId, title) => {
     const trimmedTitle = title.trim();
     if (!trimmedTitle) return false;
     try {
-      const data = await renameConversation(convId, trimmedTitle);
+      const data = await renameConversation(conversationId, trimmedTitle);
       const savedTitle = data.title || trimmedTitle;
       queryClient.invalidateQueries({ queryKey: queryKeys.conversations });
-      setConversations((prev) =>
-        prev.map((c) => (c.id === convId ? { ...c, title: savedTitle } : c)),
+      setConversations((previous) =>
+        previous.map((conversation) =>
+          conversation.id === conversationId
+            ? { ...conversation, title: savedTitle }
+            : conversation,
+        ),
       );
       return true;
     } catch (error) {
@@ -222,79 +419,55 @@ export function useConversations() {
       throw error;
     }
   }, []);
-  useEffect(() => {
-    if (!currentConversationId) return;
-    queryClient.setQueryData(queryKeys.conversation(currentConversationId), (prev) => ({
-      ...(prev || { status: 'success' }),
-      messages,
-    }));
-  }, [currentConversationId, messages]);
+
   useEffect(() => {
     fetchConversations();
   }, [fetchConversations]);
+
   useEffect(() => {
-    let cancelled = false;
+    if (!routeConversationId) return;
+    loadConversation(activeSessionKey, routeConversationId);
+  }, [activeSessionKey, loadConversation, routeConversationId]);
 
-    const loadRouteConversation = () => {
-      setRouteConversationLoadState('loading');
-      handleSelectConversation(conversationId).then((loaded) => {
-        if (cancelled) return;
-        if (loaded) {
-          prevConversationIdRef.current = conversationId;
-          setRouteConversationLoadState('ready');
-          return;
-        }
-        setRouteConversationLoadState('error');
-      });
-    };
-
-    if (conversationId) {
-      if (
-        conversationId !== prevConversationIdRef.current ||
-        conversationId !== lastLoadedConversationIdRef.current
-      ) {
-        if (conversationId === newlyCreatedConvIdRef.current) {
-          newlyCreatedConvIdRef.current = null;
-          lastLoadedConversationIdRef.current = conversationId;
-          setRouteConversationLoadState('ready');
-        } else {
-          loadRouteConversation();
-        }
-      } else {
-        setRouteConversationLoadState('ready');
-      }
-    } else if (prevConversationIdRef.current) {
-      resetChatState();
-      lastLoadedConversationIdRef.current = null;
-      setRouteConversationLoadState('idle');
-    } else {
-      setRouteConversationLoadState('idle');
+  const conversationActivity = useMemo(() => {
+    void sessionMetadataRevision;
+    const activity = {};
+    for (const conversation of conversations) {
+      const sessionKey = sessionKeysByConversationRef.current.get(conversation.id);
+      if (!sessionKey) continue;
+      const session = getSession(sessionKey);
+      if (!session) continue;
+      activity[conversation.id] = {
+        streamStatus: session.streamStatus,
+        unreadActivity: session.unreadActivity,
+      };
     }
-    if (!conversationId || conversationId === lastLoadedConversationIdRef.current) {
-      prevConversationIdRef.current = conversationId;
-    }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [conversationId, handleSelectConversation, resetChatState]);
+    return activity;
+  }, [conversations, getSession, sessionMetadataRevision]);
 
   return {
-    messages,
-    setMessages,
+    activeSession,
+    activeSessionKey,
+    messages: activeSession?.messages || [],
+    updateSession,
+    updateSessionMessages,
+    getSession,
+    isSessionActive,
+    startNewChat,
+    selectConversation,
+    bindStreamingConversation,
+    getSessionKeyForConversation,
+    conversationActivity,
     isConversationsLoading,
     conversationListError: conversationListLoadState.error,
     conversationListFailureRevision: conversationListLoadState.failureRevision,
-    isConversationLoading,
+    isConversationLoading: activeSession?.loadStatus === CHAT_LOAD_STATUS.LOADING,
     conversations,
-    setConversations,
-    currentConversationId,
-    setCurrentConversationId,
-    routeConversationId: conversationId || null,
-    routeConversationLoadState,
+    currentConversationId: activeSession?.conversationId || routeConversationId,
+    routeConversationId,
+    routeConversationLoadState: activeSession?.loadStatus || CHAT_LOAD_STATUS.IDLE,
     fetchConversations,
     retryConversations,
-    registerStreamingConversation,
     handleDeleteConversation,
     handleRenameConversation,
     navigate,

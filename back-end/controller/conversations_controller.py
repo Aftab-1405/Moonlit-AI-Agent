@@ -5,7 +5,8 @@ Streaming workflow
 ------------------
 1. ``chat`` / ``resume_agent`` validate the request body and delegate to
    :func:`_handle_agent_stream`.
-2. ``_handle_agent_stream`` validates provider, verifies conversation ownership
+2. ``_handle_agent_stream`` authorizes the configured provider/model selection,
+   verifies conversation ownership
    (using a user_id-only projection so the full message array isn't
    downloaded — see FIX [L7]), debits the user quota via
    :class:`UserQuotaService`, then acquires the per-user-per-provider LLM
@@ -43,12 +44,15 @@ Config = get_config()
 from api_contract.conversations import (
     AgentResumeRequest,
     ChatRequest,
+    ConversationId,
     RenameConversationRequest,
 )
 from api_contract.streaming import STREAMING_RESPONSES
-from dependencies import get_current_user, get_db_config
+from core.errors import log_safe_exception, public_tool_error
+from dependencies import get_authenticated_db_config, get_current_user
 from service.conversations.conversation_service import ConversationService
-from service.llm import LLMOptionsService
+from service.conversations.run_context import resolve_run_policy
+from service.llm import LLMOptionsService, ModelSelectionError, ModelSelectionReason
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Moonlit Conversation End Points"])
@@ -79,12 +83,16 @@ def _firestore_unavailable_response(exc: Exception) -> HTTPException:
     Returns:
         A FastAPI HTTPException indicating temporary database unavailability with retry headers.
     """
-    logger.warning("Firestore temporarily unavailable: %s", exc)
+    public = public_tool_error(
+        "CONVERSATION_STORAGE_UNAVAILABLE",
+        "Conversation storage is temporarily unavailable.",
+    )
+    log_safe_exception(logger, "conversation_storage", exc, public)
     return HTTPException(
         status_code=503,
         detail={
-            "error": "firestore_unavailable",
-            "message": "Conversation storage is temporarily unavailable. Please retry.",
+            "error": public.code,
+            "message": public.message,
         },
         headers={"Retry-After": "2"},
     )
@@ -143,6 +151,7 @@ async def _stream_with_heartbeats(source, *, interval_seconds: float = 15.0):
             if kind == "item":
                 yield value
             elif kind == "error":
+                logger.warning("SSE source failed exception_type=%s", type(value).__name__)
                 raise value
             else:
                 break
@@ -160,20 +169,25 @@ async def _handle_agent_stream(
     provider: str,
     model: Optional[str],
     stream_generator_kwargs: dict,
+    require_existing_conversation: bool = True,
 ):
     """
-    Validate limits, acquire quota + rate-limiter locks, and return a streaming SSE response for the agent.
+    Authorize model selection, acquire quota + rate-limiter locks, and return a streaming SSE response.
 
-    The acquisition order is intentionally quota-first, rate-limiter-second:
+    Authorization occurs before every resource-affecting operation. For a
+    continuation or resume, existing ownership is required before quota. The
+    remaining admission order is intentionally quota-first, rate-limiter-second:
 
-    1. **Debit quota** via :meth:`UserQuotaService.check_and_increment`.
+    1. **Verify ownership** for client-supplied conversation IDs. A missing
+       conversation returns 404 and an unowned conversation returns 403.
+    2. **Debit quota** via :meth:`UserQuotaService.check_and_increment`.
        If the user is over quota we short-circuit with a 429 and do NOT
        touch the rate limiter.
-    2. **Acquire the per-user-per-provider LLM rate-limiter slot**
+    3. **Acquire the per-user-per-provider LLM rate-limiter slot**
        (:meth:`ProviderRateLimiter.acquire`). If it rejects, the request
        never produced LLM output, so we :meth:`refund` the quota debit
        (FIX [C4]).
-    3. **Build the SSE response.** If the underlying streaming generator
+    4. **Build the SSE response.** If the underlying streaming generator
        raises before yielding its first event, the quota debit is also
        refunded (FIX [C4]). The rate-limiter slot is released exactly once
        via a ``finally`` block guarded by ``rate_limiter_released``.
@@ -185,38 +199,93 @@ async def _handle_agent_stream(
         provider: LLM Provider name (e.g., 'gemini', 'openai').
         model: Optional specific LLM model ID.
         stream_generator_kwargs: Additional parameters passed to the streaming generator.
+        require_existing_conversation: Whether ownership of an existing conversation is required.
 
     Returns:
         A StreamingResponse yielding Server-Sent Events (SSE).
 
     Raises:
-        HTTPException: For invalid provider (400), database permission errors (403),
-                     user rate-limits (429), or internal errors (500).
+        HTTPException: For invalid provider/model (400), database permission
+            errors (403), missing continuations (404), user rate-limits (429),
+            or internal errors (500).
     """
-    supported = LLMOptionsService.supported_providers()
-    if provider not in supported:
+    try:
+        provider, model = LLMOptionsService.resolve_selection(provider, model)
+    except ModelSelectionError as exc:
+        if exc.reason is ModelSelectionReason.INVALID_PROVIDER:
+            detail = {
+                "error": "invalid_provider",
+                "message": "Unsupported model provider.",
+            }
+        else:
+            detail = {
+                "error": "invalid_model",
+                "message": "Model is not enabled for this provider.",
+            }
         raise HTTPException(
             status_code=400,
-            detail={
-                "error": "invalid_provider",
-                "message": f"Unsupported provider '{provider}'. Supported values: {sorted(supported)}",
-            },
+            detail=detail,
+        ) from exc
+
+    requested_mode = stream_generator_kwargs.pop("task_mode", "normal") or "normal"
+    is_resume = stream_generator_kwargs.get("resume") is not None
+    run_policy = None
+    if not is_resume:
+        run_policy = resolve_run_policy(
+            stream_generator_kwargs.get("prompt"),
+            requested_mode,
+            None,
+            provider,
+            model,
+            bool((stream_generator_kwargs.get("db_config") or {}).get("db_type")),
         )
 
-    if conversation_id:
+    if require_existing_conversation:
         try:
             # FIX [L7]: Previously this called get_conversation_data, which
             # downloaded the ENTIRE conversation document (all messages,
             # potentially megabytes) purely to verify ownership. Use the
             # user_id-only projection variant instead — same security check,
             # ~1 field of Firestore read traffic.
-            _ = await run_in_threadpool(
+            conversation_exists = await run_in_threadpool(
                 ConversationService.verify_conversation_owner,
                 conversation_id,
                 user_id,
             )
+            if not conversation_exists:
+                raise HTTPException(status_code=404, detail="Conversation not found")
         except PermissionError as e:
-            raise HTTPException(status_code=403, detail=str(e))
+            public = public_tool_error(
+                "CONVERSATION_ACCESS_DENIED",
+                "Conversation access denied.",
+            )
+            log_safe_exception(logger, "verify_conversation_owner", e, public)
+            raise HTTPException(
+                status_code=403,
+                detail={"error": public.code, "message": public.message},
+            ) from e
+
+    if is_resume:
+        try:
+            conversation = await run_in_threadpool(
+                ConversationService.get_conversation_data,
+                conversation_id,
+                user_id,
+            )
+        except _TRANSIENT_FIRESTORE_ERRORS as exc:
+            raise _firestore_unavailable_response(exc) from exc
+        if conversation is None:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        run_policy = resolve_run_policy(
+            stream_generator_kwargs.get("prompt"),
+            requested_mode,
+            conversation.get("task_mode") or "normal",
+            provider,
+            model,
+            bool((stream_generator_kwargs.get("db_config") or {}).get("db_type")),
+        )
+
+    assert run_policy is not None
 
     user_quota = request.app.state.user_quota
     quota_allowed, usage = await user_quota.check_and_increment(user_id)
@@ -278,8 +347,7 @@ async def _handle_agent_stream(
                     conversation_id=conversation_id,
                     user_id=user_id,
                     api_key=api_key,
-                    provider=provider,
-                    model=model,
+                    run_policy=run_policy,
                     **stream_generator_kwargs,
                 )
                 async for sse_line in _stream_with_heartbeats(source):
@@ -294,11 +362,11 @@ async def _handle_agent_stream(
                     try:
                         await user_quota.refund(user_id)
                     except Exception as refund_err:
-                        logger.warning(
-                            "Quota refund failed for user %s: %s",
-                            user_id,
-                            refund_err,
+                        public = public_tool_error(
+                            "QUOTA_REFUND_FAILED",
+                            "Quota refund failed.",
                         )
+                        log_safe_exception(logger, "refund_stream_quota", refund_err, public)
                     quota_refunded = True
                 raise
             finally:
@@ -328,9 +396,17 @@ async def _handle_agent_stream(
             try:
                 await user_quota.refund(user_id)
             except Exception as refund_err:
-                logger.warning("Quota refund failed for user %s: %s", user_id, refund_err)
+                public = public_tool_error(
+                    "QUOTA_REFUND_FAILED",
+                    "Quota refund failed.",
+                )
+                log_safe_exception(logger, "refund_agent_quota", refund_err, public)
             quota_refunded = True
-        logger.error("Error streaming agent: %s", e)
+        public = public_tool_error(
+            "AGENT_STREAM_FAILED",
+            "Agent streaming failed.",
+        )
+        log_safe_exception(logger, "stream_agent", e, public)
         if ConversationService.check_quota_error(str(e)):
             raise HTTPException(status_code=429, detail="Rate limit exceeded")
         raise HTTPException(status_code=500, detail="An internal server error occurred.")
@@ -348,7 +424,7 @@ async def chat(
     request: Request,
     data: ChatRequest,
     user: dict = Depends(get_current_user),
-    db_config: Optional[dict] = Depends(get_db_config),
+    db_config: Optional[dict] = Depends(get_authenticated_db_config),
 ):
     """
     Handle incoming user prompts and stream the agentic/LLM response as SSE.
@@ -366,7 +442,8 @@ async def chat(
         A StreamingResponse yielding SSE tokens/events.
     """
     provider = data.provider or Config.LLM_PROVIDER
-    conversation_id = ConversationService.create_or_get_conversation_id(data.conversation_id)
+    require_existing_conversation = data.conversation_id is not None
+    conversation_id = data.conversation_id or ConversationService.create_conversation_id()
     user_id = user.get("uid") if isinstance(user, dict) else user
 
     logger.info(
@@ -393,6 +470,7 @@ async def chat(
         provider=provider,
         model=data.model,
         stream_generator_kwargs=kwargs,
+        require_existing_conversation=require_existing_conversation,
     )
 
 
@@ -407,7 +485,7 @@ async def resume_agent(
     request: Request,
     data: AgentResumeRequest,
     user: dict = Depends(get_current_user),
-    db_config: Optional[dict] = Depends(get_db_config),
+    db_config: Optional[dict] = Depends(get_authenticated_db_config),
 ):
     """
     Resume an active LangGraph conversation paused by a human-in-the-loop interrupt.
@@ -445,6 +523,7 @@ async def resume_agent(
         provider=provider,
         model=data.model,
         stream_generator_kwargs=kwargs,
+        require_existing_conversation=True,
     )
 
 
@@ -559,7 +638,7 @@ def _sanitize_messages(messages: list) -> list:
 
 
 @router.get("/get_conversation/{conversation_id}")
-async def get_conversation(conversation_id: str, user: dict = Depends(get_current_user)):
+async def get_conversation(conversation_id: ConversationId, user: dict = Depends(get_current_user)):
     """
     Get message history and status for a specific conversation.
 
@@ -594,21 +673,37 @@ async def get_conversation(conversation_id: str, user: dict = Depends(get_curren
             return {"status": "success", "conversation": sanitized_conv}
         raise HTTPException(status_code=404, detail="Conversation not found")
     except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+        public = public_tool_error(
+            "CONVERSATION_ACCESS_DENIED",
+            "Conversation access denied.",
+        )
+        log_safe_exception(logger, "get_conversation_access", e, public)
+        raise HTTPException(
+            status_code=403,
+            detail={"error": public.code, "message": public.message},
+        ) from e
     except _TRANSIENT_FIRESTORE_ERRORS as e:
         raise _firestore_unavailable_response(e)
     except HTTPException:
         raise
-    except Exception:
-        logger.exception("Error fetching conversation")
+    except Exception as exc:
+        public = public_tool_error(
+            "CONVERSATION_FETCH_FAILED",
+            "Conversation retrieval failed.",
+        )
+        log_safe_exception(logger, "get_conversation", exc, public)
         raise HTTPException(
             status_code=500,
             detail="An internal error occurred while fetching conversation.",
-        )
+        ) from exc
 
 
 @router.get("/get_execution_result/{conversation_id}/{execution_id}")
-async def fetch_execution_result(conversation_id: str, execution_id: str, user: dict = Depends(get_current_user)):
+async def fetch_execution_result(
+    conversation_id: ConversationId,
+    execution_id: str,
+    user: dict = Depends(get_current_user),
+):
     """
     Get full query execution results (columns and rows) for an inline table.
 
@@ -656,14 +751,26 @@ async def fetch_execution_result(conversation_id: str, execution_id: str, user: 
         }
         return {"status": "success", "data": sanitized_result}
     except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+        public = public_tool_error(
+            "CONVERSATION_ACCESS_DENIED",
+            "Conversation access denied.",
+        )
+        log_safe_exception(logger, "get_execution_result_access", e, public)
+        raise HTTPException(
+            status_code=403,
+            detail={"error": public.code, "message": public.message},
+        ) from e
     except _TRANSIENT_FIRESTORE_ERRORS as e:
         raise _firestore_unavailable_response(e)
     except HTTPException:
         raise
-    except Exception:
-        logger.exception("Error fetching execution result")
-        raise HTTPException(status_code=500, detail="An internal error occurred.")
+    except Exception as exc:
+        public = public_tool_error(
+            "EXECUTION_RESULT_FETCH_FAILED",
+            "Execution result retrieval failed.",
+        )
+        log_safe_exception(logger, "get_execution_result", exc, public)
+        raise HTTPException(status_code=500, detail="An internal error occurred.") from exc
 
 
 @router.get("/get_all_user_conversations")
@@ -684,7 +791,7 @@ async def get_all_user_conversations(user: dict = Depends(get_current_user)):
 
 
 @router.delete("/delete_conversation/{conversation_id}")
-async def delete_conversation(conversation_id: str, user: dict = Depends(get_current_user)):
+async def delete_conversation(conversation_id: ConversationId, user: dict = Depends(get_current_user)):
     """
     Delete a conversation and all its associated messages.
 
@@ -704,20 +811,40 @@ async def delete_conversation(conversation_id: str, user: dict = Depends(get_cur
         await run_in_threadpool(ConversationService.delete_user_conversation, conversation_id, user_id)
         return {"status": "success"}
     except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+        public = public_tool_error(
+            "CONVERSATION_ACCESS_DENIED",
+            "Conversation access denied.",
+        )
+        log_safe_exception(logger, "delete_conversation_access", e, public)
+        raise HTTPException(
+            status_code=403,
+            detail={"error": public.code, "message": public.message},
+        ) from e
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        public = public_tool_error(
+            "CONVERSATION_NOT_FOUND",
+            "Conversation not found.",
+        )
+        log_safe_exception(logger, "delete_conversation_missing", e, public)
+        raise HTTPException(
+            status_code=404,
+            detail={"error": public.code, "message": public.message},
+        ) from e
     except Exception as e:
-        logger.error("Error deleting conversation: %s", e)
+        public = public_tool_error(
+            "CONVERSATION_DELETE_FAILED",
+            "Conversation deletion failed.",
+        )
+        log_safe_exception(logger, "delete_conversation", e, public)
         raise HTTPException(
             status_code=500,
             detail="An internal error occurred while deleting conversation.",
-        )
+        ) from e
 
 
 @router.patch("/rename_conversation/{conversation_id}")
 async def rename_conversation(
-    conversation_id: str,
+    conversation_id: ConversationId,
     data: RenameConversationRequest,
     user: dict = Depends(get_current_user),
 ):
@@ -746,12 +873,32 @@ async def rename_conversation(
         )
         return {"status": "success", "title": title}
     except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+        public = public_tool_error(
+            "CONVERSATION_ACCESS_DENIED",
+            "Conversation access denied.",
+        )
+        log_safe_exception(logger, "rename_conversation_access", e, public)
+        raise HTTPException(
+            status_code=403,
+            detail={"error": public.code, "message": public.message},
+        ) from e
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        public = public_tool_error(
+            "CONVERSATION_NOT_FOUND",
+            "Conversation not found.",
+        )
+        log_safe_exception(logger, "rename_conversation_missing", e, public)
+        raise HTTPException(
+            status_code=404,
+            detail={"error": public.code, "message": public.message},
+        ) from e
     except Exception as e:
-        logger.error("Error renaming conversation: %s", e)
+        public = public_tool_error(
+            "CONVERSATION_RENAME_FAILED",
+            "Conversation rename failed.",
+        )
+        log_safe_exception(logger, "rename_conversation", e, public)
         raise HTTPException(
             status_code=500,
             detail="An internal error occurred while renaming conversation.",
-        )
+        ) from e

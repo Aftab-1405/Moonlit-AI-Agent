@@ -1,13 +1,11 @@
 // UserProfileMenu — account identity, session details, and account actions.
 //
-// Shell chrome: lives at the application-shell level. Its trigger lives in the
-// Sidebar footer, which calls `onProfileOpen` to set the anchor element. The
-// menu itself is mounted once at the shell so it floats above all three
-// columns.
+// The sidebar renders account details and keyboard-accessible actions inline.
+// The anchored Menu variant remains available to other shell callers.
 
-import { Avatar, Box, Menu, MenuItem, Typography } from '@mui/material';
+import { Avatar, Box, Menu, MenuItem, MenuList, ListSubheader, Typography } from '@mui/material';
 import { memo } from 'react';
-import { LogoutIcon, SettingsIcon } from '@/components/icons';
+import { HomeIcon, LogoutIcon, SettingsIcon } from '@/components/icons';
 import { getProfileSettingsMode } from '@/features/sidebar-left/profileSettingsModel';
 import {
   getPopoverDividerSx,
@@ -57,9 +55,11 @@ const ProfileDetail = ({ label, value }) => (
 );
 
 const UserProfileMenu = memo(function UserProfileMenu({
+  inline = false,
   anchorEl,
   open,
   onClose,
+  onOpenDashboard,
   onOpenSettings,
   onLogout,
   user,
@@ -71,26 +71,8 @@ const UserProfileMenu = memo(function UserProfileMenu({
   const lastSignInAt = formatProfileDate(user?.lastSignInAt);
   const { showPopoverSettings } = getProfileSettingsMode(sidebarExpanded);
 
-  return (
-    <Menu
-      anchorEl={anchorEl}
-      open={open}
-      onClose={onClose}
-      anchorOrigin={{
-        vertical: 'top',
-        horizontal: sidebarExpanded ? 'left' : 'right',
-      }}
-      transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-      MenuListProps={{ sx: getPopoverMenuListSx() }}
-      PaperProps={{
-        sx: {
-          ...getPopoverPaperSx(theme),
-          width: 288,
-          p: 0,
-          overflow: 'hidden',
-        },
-      }}
-    >
+  const identity = (
+    <>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, px: 1.5, py: 1.25 }}>
         <Avatar
           src={user?.photoURL || undefined}
@@ -144,7 +126,17 @@ const UserProfileMenu = memo(function UserProfileMenu({
       )}
 
       <Box aria-hidden sx={getPopoverDividerSx(theme)} />
-      {showPopoverSettings && (
+    </>
+  );
+  const actions = (
+    <>
+      <MenuItem onClick={onOpenDashboard} sx={{ ...getPopoverMenuItemSx(theme) }}>
+        <HomeIcon sx={{ color: 'text.secondary', flexShrink: 0 }} />
+        <Typography sx={{ ...theme.typography.uiNavItem, color: 'text.primary' }}>
+          Dashboard
+        </Typography>
+      </MenuItem>
+      {(inline || showPopoverSettings) && (
         <MenuItem
           onClick={onOpenSettings}
           data-ui-target="settings_button"
@@ -162,6 +154,35 @@ const UserProfileMenu = memo(function UserProfileMenu({
           Sign out
         </Typography>
       </MenuItem>
+    </>
+  );
+  if (inline)
+    return (
+      <>
+        {identity}
+        <MenuList aria-label="Account actions" sx={{ p: 0 }}>
+          {actions.props.children}
+        </MenuList>
+      </>
+    );
+  return (
+    <Menu
+      anchorEl={anchorEl}
+      open={open}
+      onClose={onClose}
+      anchorOrigin={{ vertical: 'top', horizontal: sidebarExpanded ? 'left' : 'right' }}
+      transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+      MenuListProps={{ sx: getPopoverMenuListSx() }}
+      PaperProps={{ sx: { ...getPopoverPaperSx(theme), width: 288, p: 0, overflow: 'hidden' } }}
+    >
+      <ListSubheader
+        component="div"
+        disableSticky
+        sx={{ p: 0, bgcolor: 'transparent', lineHeight: 'inherit' }}
+      >
+        {identity}
+      </ListSubheader>
+      {actions.props.children}
     </Menu>
   );
 });

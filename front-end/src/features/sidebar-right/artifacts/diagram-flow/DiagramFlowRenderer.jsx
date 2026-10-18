@@ -780,8 +780,11 @@ function DiagramFlowRenderer({
         } catch {
           flowInstanceRef.current?.setViewport?.(initialViewport, { duration: 0 });
         }
-        hasInitialFitRef.current = true;
         revealFrame = requestAnimationFrame(() => {
+          // A resize may cancel this frame. Only finish initialization once
+          // the graph is revealed, so an interrupted fit can retry.
+          hasInitialFitRef.current = true;
+          setHasRenderedOnce(true);
           setViewportReadySignature(viewportSignature);
         });
       });
@@ -883,7 +886,7 @@ function DiagramFlowRenderer({
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
         <ArtifactShell
-          title="DIAGRAM"
+          title="Diagram"
           chrome={chrome}
           onClose={onClose}
           onRequestClose={onRequestClose}
@@ -946,7 +949,7 @@ function DiagramFlowRenderer({
 
   const flowContent = (
     <ArtifactShell
-      title="DIAGRAM"
+      title="Diagram"
       chrome={chrome}
       onClose={onClose}
       onRequestClose={onRequestClose}
@@ -990,7 +993,7 @@ function DiagramFlowRenderer({
           >
             <CircularProgress size={32} sx={{ color: 'text.secondary' }} />
             <Typography sx={{ ...theme.typography.uiCaptionMd, color: 'text.secondary' }}>
-              Receiving diagram data...
+              Receiving diagram data
             </Typography>
           </Box>
         ) : (

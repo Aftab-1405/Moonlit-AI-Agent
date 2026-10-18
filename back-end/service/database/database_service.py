@@ -9,7 +9,20 @@ import logging
 import re
 from typing import List
 
+from core.errors import log_safe_exception, public_database_error
+
 logger = logging.getLogger(__name__)
+
+
+def _database_service_failure(operation: str, exc: BaseException) -> dict:
+    """Return a stable status-style database failure with safe diagnostics."""
+    public = public_database_error(exc)
+    log_safe_exception(logger, operation, exc, public)
+    return {
+        "status": "error",
+        "error_code": public.code,
+        "message": public.message,
+    }
 
 
 class DatabaseService:
@@ -50,28 +63,27 @@ class DatabaseService:
 
         db_type = db_config.get("db_type", "postgresql")
 
-        # FIX [H8]: Previously, `re.sub(r"(/[^/?]+)(\?|$)", f"/{new_db_name}\\2",
-        # connection_string)` interpolated user-controlled `new_db_name` into a
-        # regex replacement string. In `re.sub` replacements, backslash escapes
-        # (e.g. ``\1``, ``\g<name>``) and ``&`` are interpreted, so a database
-        # name like ``\1`` would inject captured-group content, and a name
-        # containing ``?`` or ``&`` could corrupt the connection string and
-        # inject connection parameters. Using a lambda replacement disables
-        # all escape/sequence interpretation — the user's name is inserted
-        # verbatim as the new path segment.
-        new_connection_string = re.sub(
-            r"(/[^/?]+)(\?|$)",
-            lambda m: f"/{new_db_name}{m.group(2)}",
-            connection_string,
-        )
         new_config = {
-            "db_type": db_type,
-            "connection_string": new_connection_string,
+            **db_config,
             "database": new_db_name,
             "is_remote": True,
         }
+        if user_id:
+            new_config["_pool_owner"] = user_id
 
         try:
+            if db_type == "postgresql":
+                from psycopg2.extensions import make_dsn
+
+                new_config["connection_string"] = make_dsn(connection_string, dbname=new_db_name)
+            else:
+                from urllib.parse import quote
+
+                new_config["connection_string"] = re.sub(
+                    r"(/[^/?]+)(\?|$)",
+                    lambda m: f"/{quote(new_db_name, safe='') if db_type == 'mysql' else new_db_name}{m.group(2)}",
+                    connection_string,
+                )
             manager = get_connection_manager()
             adapter = get_adapter(db_type)
 
@@ -100,8 +112,7 @@ class DatabaseService:
                 "db_config": new_config,
             }
         except Exception as err:
-            logger.exception("Error switching database")
-            return {"status": "error", "message": str(err)}
+            return _database_service_failure("switch_remote_database", err)
 
     @staticmethod
     def select_schema(db_config: dict, schema_name: str, user_id: str = None) -> dict:
@@ -158,10 +169,12 @@ class DatabaseService:
             # FIX [M12]: do NOT swallow the fetch error. Surface it to the
             # caller, do not update context, and do not persist the bad
             # schema on the db_config.
-            logger.error(f"Error fetching tables for schema {schema_name}: {err}")
+            public = public_database_error(err)
+            log_safe_exception(logger, "select_database_schema", err, public)
             return {
                 "status": "error",
-                "message": (f"Failed to select schema '{schema_name}': {err}. Schema has NOT been changed."),
+                "error_code": public.code,
+                "message": public.message,
                 "schema": schema_name,
                 "tables": [],
                 "db_config": db_config,
@@ -176,7 +189,8 @@ class DatabaseService:
 
                 get_default_context_sync().update_schema(user_id, schema_name)
             except Exception as e:
-                logger.warning(f"Failed to update schema context: {e}")
+                public = public_database_error(e)
+                log_safe_exception(logger, "update_selected_schema_context", e, public)
 
             # FIX [EC4]: the schema cache key in
             # ``ContextService.get_schema_context`` is ``database`` only
@@ -201,9 +215,12 @@ class DatabaseService:
                     schema_name,
                 )
             except Exception as cache_err:
-                logger.warning(
-                    "Schema cache invalidation/refresh failed after schema switch (non-blocking): %s",
+                public = public_database_error(cache_err)
+                log_safe_exception(
+                    logger,
+                    "refresh_selected_schema_cache",
                     cache_err,
+                    public,
                 )
 
         logger.info(f"Selected schema: {schema_name} with {len(tables)} tables")
@@ -284,7 +301,8 @@ class DatabaseService:
             return {"status": "error", "message": "No database selected"}
 
         schema = DatabaseOperations.get_table_schema(db_config, table_name, db_name)
-        row_count = DatabaseOperations.get_table_row_count(db_config, table_name, db_name)
+        row_counts = DatabaseOperations.get_table_row_counts(db_config, [table_name], db_name)
+        row_count = row_counts[0]["row_count"]
 
         return {
             "status": "success",
@@ -306,13 +324,10 @@ class DatabaseService:
             Dict with status and message
         """
         from service.database.connection_manager import get_connection_manager
-        from service.database.operations import DatabaseOperations
 
         try:
             manager = get_connection_manager()
             closed = manager.close_pool(db_config) if db_config else False
-
-            DatabaseOperations.clear_cache()
 
             # Clear Firestore context
             if user_id:
@@ -323,13 +338,13 @@ class DatabaseService:
 
                     get_default_context_sync().clear_connection(user_id)
                 except Exception as e:
-                    logger.warning(f"Failed to clear context: {e}")
+                    public = public_database_error(e)
+                    log_safe_exception(logger, "clear_database_context", e, public)
 
             logger.info(f"Disconnected (pool closed: {closed})")
             return {"status": "success", "message": "Disconnected from database."}
         except Exception as e:
-            logger.exception("Error disconnecting")
-            return {"status": "error", "message": str(e)}
+            return _database_service_failure("disconnect_database", e)
 
     @staticmethod
     def execute_query(
@@ -354,7 +369,13 @@ class DatabaseService:
         """
         from service.database.operations import execute_sql_query
 
-        result = execute_sql_query(db_config, sql_query, max_rows=max_rows, timeout_seconds=timeout)
+        result = execute_sql_query(
+            db_config,
+            sql_query,
+            user_id=user_id,
+            max_rows=max_rows,
+            timeout_seconds=timeout,
+        )
         if user_id:
             try:
                 from service.database.context_sync import (
@@ -366,7 +387,8 @@ class DatabaseService:
                 status = "success" if result["status"] == "success" else "error"
                 get_default_context_sync().add_query(user_id, sql_query, db_name, row_count, status)
             except Exception as e:
-                logger.warning(f"Failed to log query: {e}")
+                public = public_database_error(e)
+                log_safe_exception(logger, "record_database_query", e, public)
 
         return result
 
@@ -416,7 +438,8 @@ class DatabaseService:
                 cursor.execute(tables_query, tables_params)
                 tables = [row[0] for row in cursor.fetchall()]
         except Exception as e:
-            logger.warning(f"Failed to fetch tables: {e}")
+            public = public_database_error(e)
+            log_safe_exception(logger, "fetch_database_tables", e, public)
 
         return tables
 
@@ -430,4 +453,5 @@ class DatabaseService:
 
             get_default_context_sync().set_connection(user_id, db_type, database, host, is_remote)
         except Exception as e:
-            logger.warning(f"Failed to update context: {e}")
+            public = public_database_error(e)
+            log_safe_exception(logger, "update_database_context", e, public)

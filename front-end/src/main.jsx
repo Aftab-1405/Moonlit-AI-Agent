@@ -17,32 +17,32 @@ import { UserSettingsSync } from '@/contexts/UserSettingsSync';
  * Provider Hierarchy (outermost to innermost):
  * 1. StrictMode - Development checks
  * 2. BrowserRouter - Routing
- * 3. ThemeProvider - MUI theme + app settings (localStorage)
- * 4. ErrorBoundary - Catches unhandled errors
- * 5. AuthProvider - Firebase authentication
+ * 3. AuthProvider - Firebase authentication and account storage identity
+ * 4. ThemeProvider - MUI theme + account-scoped app settings
+ * 5. ErrorBoundary - Catches unhandled application errors
  * 6. DatabaseProvider - Database connection state
  *
  * This order ensures:
- * - Theme is available everywhere (including error fallback UI)
- * - Errors are caught before they crash the entire app
- * - Auth is available to Database (for user-specific connections in future)
+ * - Auth identifies the local settings namespace before Theme initializes
+ * - Theme is available to the application and error fallback UI
+ * - Auth is available to Database for user-specific connections
  * - Database state is available to all authenticated components
  */
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
       <QueryClientProvider client={queryClient}>
-        <ThemeProvider>
-          <CssBaseline />
-          <ErrorBoundary>
-            <AuthProvider>
+        <AuthProvider>
+          <ThemeProvider>
+            <CssBaseline />
+            <ErrorBoundary>
               <UserSettingsSync />
               <DatabaseProvider>
                 <App />
               </DatabaseProvider>
-            </AuthProvider>
-          </ErrorBoundary>
-        </ThemeProvider>
+            </ErrorBoundary>
+          </ThemeProvider>
+        </AuthProvider>
       </QueryClientProvider>
     </BrowserRouter>
   </StrictMode>,

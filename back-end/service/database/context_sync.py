@@ -1,6 +1,12 @@
 """Database context-sync adapters."""
 
+import logging
+import uuid
+
 from api_contract.database_protocols import DatabaseContextSync
+from core.errors import log_safe_exception, public_database_error
+
+logger = logging.getLogger(__name__)
 
 
 class UserContextDatabaseSync:
@@ -68,6 +74,18 @@ class UserContextDatabaseSync:
         from service.context.context_service import ContextService
 
         ContextService.add_query(user_id, query, database, row_count, status)
+        try:
+            from service.dashboard.usage_analytics import UsageAnalyticsService
+
+            UsageAnalyticsService.record_sql_execution(
+                user_id,
+                event_id=f"sql:{uuid.uuid4()}",
+                status=status,
+                rows_returned=row_count,
+            )
+        except Exception as error:
+            public = public_database_error(error)
+            log_safe_exception(logger, "save_sql_usage_analytics", error, public)
 
 
 def get_default_context_sync() -> DatabaseContextSync:

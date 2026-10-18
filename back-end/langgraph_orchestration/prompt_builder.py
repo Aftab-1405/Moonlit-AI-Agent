@@ -7,6 +7,8 @@ turn.
 
 import textwrap
 
+from api_contract.run_context import ResolvedRunPolicy
+
 STYLE_PROMPTS = {
     "concise": "<response_style>Be extremely concise.</response_style>",
     "balanced": "",
@@ -98,7 +100,7 @@ class PromptBuilder:
             <tool_selection_guide>
             Quick reference for common tasks (load the relevant skill for full guidance):
             - Schema discovery: use get_schema_overview (broad) or get_table_details (one table's types/constraints)
-            - Row counts: use get_table_row_count (fast, no row budget) instead of SELECT COUNT(*) via execute_query
+            - Row counts: use get_table_row_counts with up to 10 unique unqualified names per call (fast, no row budget); for more than 10, use the minimum number of batches instead of one call per table or SELECT COUNT(*) via execute_query
             - Query execution: use execute_query (read-only SELECT; full rows in UI, preview to you)
             - Query performance: use explain_query (execution plan) then get_table_indexes (missing indexes)
             - Foreign keys: use get_foreign_keys (single table or all)
@@ -111,38 +113,11 @@ class PromptBuilder:
             </tool_selection_guide>
 
             <task_mode_reference>
-            You operate in one of three task modes that scale your step budget (maximum
-            tool-call + reasoning iterations per turn). The active mode for the current
-            turn is shown in <current_session_state>. When the user asks about your modes
-            or step limits, answer factually using this reference — never invent mode names
-            or step counts.
-
-            Modes and their per-turn step budgets:
-            - normal (Standard): up to 50 steps. Used for quick Q&A, single queries, and
-              short lookups. This is the default when no mode is explicitly selected and
-              the backend's prompt classifier does not detect a long-task intent.
-            - tool_task (Tool Task): up to 100 steps. Used for multi-tool workflows that
-              need more headroom than a quick lookup — schema exploration across many
-              tables, multi-table comparisons, data-quality checks, optimizations.
-            - long_task (Long Task): up to 200 steps. Used for multi-step deliverables
-              like reports, deep analyses, end-to-end builds, migrations, and any request
-              that synthesizes many tool results into a structured artifact.
-
-            How the mode is chosen:
-            - The backend classifier examines the user's prompt and UPGRADES the mode from
-              normal → tool_task / long_task when the intent clearly calls for it (e.g.,
-              "analyze the data and produce a report" → long_task). An explicit user
-              choice always overrides auto-detection.
-            - The user can also select the mode explicitly via the slash command menu
-              (type "/" in the chat input: /auto, /standard, /tool, /long) or via the
-              "Default Task Mode" setting.
-            - Across segment continuations (when the agent pauses at the step limit and
-              the user clicks "Continue Task"), the total step budget is capped at 500
-              steps per turn.
-
-            If you reach the step limit mid-task, the user is offered a "Continue Task"
-              button; clicking it resumes from a durable checkpoint without losing
-              progress. Do not claim a fixed step count other than what is listed above.
+            The active task mode and authoritative graph, segment, tool-call, and
+            wall-clock budgets for this run are shown in <resolved_run_policy> and
+            <current_session_state>. Use those values when discussing the current run;
+            never infer or invent a different limit. normal is intended for quick Q&A,
+            tool_task for multi-tool workflows, and long_task for multi-step deliverables.
             </task_mode_reference>
 
             <evidence_and_hallucination_rules>
@@ -204,6 +179,7 @@ class PromptBuilder:
         response_style: str = "balanced",
         user_message: str = "",
         db_connected: bool = True,
+        run_policy: ResolvedRunPolicy | None = None,
     ) -> str:
         """Return the complete, untruncated prompt including skill routing cards.
 
@@ -224,6 +200,18 @@ class PromptBuilder:
         sections = [
             STYLE_PROMPTS.get(response_style, ""),
             PromptBuilder.get_system_prompt(),
+            (
+                "<resolved_run_policy>\n"
+                f"active task mode: {run_policy.task_mode}\n"
+                f"mode source: {run_policy.task_mode_source}\n"
+                f"graph step budget: {run_policy.budgets.graph_steps}\n"
+                f"segment step budget: {run_policy.budgets.segment_steps}\n"
+                f"tool call budget: {run_policy.budgets.tool_calls}\n"
+                f"wall clock budget: {run_policy.budgets.wall_clock_seconds} seconds\n"
+                "</resolved_run_policy>"
+                if run_policy is not None
+                else ""
+            ),
             get_skill_registry().build_available_skills_context(db_connected=db_connected).strip(),
         ]
         content = "\n\n".join(section for section in sections if section)

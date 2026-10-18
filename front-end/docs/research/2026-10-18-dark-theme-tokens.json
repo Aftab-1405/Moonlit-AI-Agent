@@ -1,0 +1,28 @@
+{
+  "scope": "ChatGPT Work dark surfaces and Moonlit dark-theme adaptation; light theme deferred",
+  "reference": "https://chatgpt.com/c/6ad43b32-40ec-83e8-8e33-fa90bd935572",
+  "rea": {
+    "stylesheet": "https://chatgpt.com/cdn/assets/886701.4d6dcd85de.css",
+    "evidence_id": "ev_013e5386a085fc3d26985ec1674326ca3d8c4054d6adf871b22e799ead30923e",
+    "method": "REA browser scenario captured published stylesheet as DOM text; complete capture, 1683551 bytes",
+    "verified": "Dark neutral primitives have equal RGB channels; semantic surface/text aliases map through these variables.",
+    "limits": "Unauthenticated application navigation encountered a verification page. No challenge was solved. The public stylesheet was independently accessible. Network body retention exceeded 64 KiB; DOM text capture retained the stylesheet."
+  },
+  "authenticated_browser_measurements": {
+    "method": "Read-only computed styles and CSSOM from signed-in internal browser; Work inline overrides are distinct from the base REA stylesheet",
+    "shell": "#000000",
+    "workspace": "#0e0e0e",
+    "card_and_sidebar_panel": "#212121",
+    "raised_control_and_model_picker": "#303030",
+    "recessed_neutral": "#181818",
+    "text_primary": "#ededed",
+    "text_secondary": "#cdcdcd",
+    "text_tertiary": "#afafaf",
+    "border_light": "#ffffff0d",
+    "border_default": "#ffffff26",
+    "border_heavy": "#ffffff33",
+    "button_hover": "#ffffff1a",
+    "workspace_clipping": "inset(0px round 16px)"
+  },
+  "adaptation": "Neutral Moonlit palette, semantic shell/card/control surfaces, neutral editor chrome, shared rounded menu papers. Preserve status, chart, provider and syntax accent colors. Keep Moonlit's existing 20px workspace and 16px sidebar card geometry."
+}

@@ -141,7 +141,7 @@ function StatusBar({
             !isConnected
               ? 'Connect a database to run this query'
               : isRunning
-                ? 'Running query…'
+                ? 'Running query'
                 : 'Run query (Ctrl+Enter)'
           }
         >

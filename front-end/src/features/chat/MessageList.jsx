@@ -1,3 +1,4 @@
+import { getQueryExecutionMeta } from '@/features/chat/conversationOutputs';
 /**
  * MessageList — renders the conversation transcript.
  *
@@ -30,18 +31,21 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material';
-import Fade from '@mui/material/Fade';
 import { alpha, keyframes } from '@mui/material/styles';
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { forwardRef, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckIcon, CopyIcon, ErrorIcon, PauseIcon } from '@/components/icons';
 import { StepsAccordion } from '@/features/chat/ai-response-steps';
-import { slideIn } from '@/features/chat/ai-response-steps/timelineShared';
+import { getChatMotionVariants, getNewMessageEntryIds } from '@/features/chat/chatMotion';
 import {
   getDiagramArtifactCardPresentation,
   getDiagramArtifactPhase,
 } from '@/features/chat/diagramArtifactModel';
 import MarkdownRenderer from '@/features/chat/MarkdownRenderer';
-import { getResponsivePillIconButtonSx } from '@/features/styles/interfaceChrome';
+import {
+  getMobileEdgeControlSx,
+  getResponsivePillIconButtonSx,
+} from '@/features/styles/interfaceChrome';
 import {
   HOVER_CAPABLE_QUERY,
   REDUCED_MOTION_QUERY,
@@ -55,6 +59,9 @@ import InlineExecutionTable from './InlineExecutionTable';
 const COPY_FEEDBACK_DURATION = 2000;
 const CANVAS_CODE_LANGUAGES = new Set(['diagram-flow']);
 const FENCED_CODE_BLOCK_PATTERN = /```([A-Za-z0-9_-]+)[^\n]*\n([\s\S]*?)```/g;
+const MOBILE_ASSISTANT_ACTION_EDGE_SX = getMobileEdgeControlSx('left', 1.25);
+const MOBILE_USER_ACTION_EDGE_SX = getMobileEdgeControlSx('right', 1.25);
+const MotionBox = motion.create(Box);
 
 const softPulse = keyframes`
   0%, 100% { opacity: 1; }
@@ -95,7 +102,7 @@ const getMessageActionButtonSx = (theme, copied = false) => {
 
   return {
     ...getResponsivePillIconButtonSx(theme, { desktopSize: 30 }),
-    color: copied ? theme.palette.success.main : theme.palette.text.disabled,
+    color: copied ? theme.palette.success.main : theme.palette.text.secondary,
     transition: theme.transitions.create(['background-color', 'color'], {
       duration: theme.transitions.duration.shorter,
     }),
@@ -170,6 +177,48 @@ function useCopyToClipboard() {
   return { copied, copyText, copyRich };
 }
 
+function useMessageEntryMotion({ sessionKey, isLoading, messageIds }) {
+  const [snapshot, setSnapshot] = useState(() => ({
+    sessionKey: null,
+    isLoading: false,
+    seenBySession: new Map(),
+    messageIds: [],
+    entryIds: new Set(),
+  }));
+  const inputsChanged =
+    snapshot.sessionKey !== sessionKey ||
+    snapshot.isLoading !== isLoading ||
+    snapshot.messageIds.length !== messageIds.length ||
+    snapshot.messageIds.some((id, index) => id !== messageIds[index]);
+
+  if (!inputsChanged) return snapshot.entryIds;
+
+  const seenIds = snapshot.seenBySession.get(sessionKey) || new Set();
+  const entryIds = getNewMessageEntryIds({
+    previousSessionKey: snapshot.sessionKey,
+    sessionKey,
+    wasLoading: snapshot.isLoading,
+    isLoading,
+    seenIds,
+    messageIds,
+  });
+  const nextSeenBySession = new Map(snapshot.seenBySession);
+  const nextSeenIds = new Set(seenIds);
+  messageIds.forEach((id) => {
+    if (id) nextSeenIds.add(id);
+  });
+  if (sessionKey) nextSeenBySession.set(sessionKey, nextSeenIds);
+  setSnapshot({
+    sessionKey,
+    isLoading,
+    seenBySession: nextSeenBySession,
+    messageIds,
+    entryIds,
+  });
+
+  return entryIds;
+}
+
 const CopyButton = memo(function CopyButton({
   copied,
   onClick,
@@ -196,98 +245,69 @@ const CopyButton = memo(function CopyButton({
   );
 });
 
-const UserMessage = memo(function UserMessage({ message }) {
+const UserMessage = memo(function UserMessage({ message, animateEntry, entryMotion }) {
   const { copied, copyText } = useCopyToClipboard();
   const theme = useTheme();
   const handleCopy = useCallback(() => copyText(message), [copyText, message]);
   const bubbleBg = theme.palette.layer.subtle;
 
   return (
-    <Fade in timeout={180}>
+    <MotionBox
+      component="article"
+      aria-label="Your message"
+      data-entry-motion={animateEntry ? 'live' : 'static'}
+      initial={animateEntry ? entryMotion.initial : false}
+      animate={entryMotion.animate}
+      sx={{
+        mt: { xs: 2, md: 2.5 },
+        mb: 0,
+        ...turnGroupHoverSx,
+      }}
+    >
       <Box
-        component="article"
-        aria-label="Your message"
         sx={{
-          mt: { xs: 2, md: 2.5 },
-          mb: 0,
-          ...turnGroupHoverSx,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-end',
+          gap: 0.5,
         }}
       >
         <Box
           sx={{
-            display: 'flex',
+            display: 'inline-flex',
             flexDirection: 'column',
-            alignItems: 'flex-end',
-            gap: 0.5,
+            maxWidth: { xs: '90%', md: '70%' },
+            borderRadius: '24px',
+            px: { xs: 1.5, md: 2 },
+            py: { xs: 1, md: 1.5 },
+            bgcolor: bubbleBg,
+            color: 'text.primary',
           }}
         >
-          <Box
+          <Typography
+            component="div"
+            data-testid="user-message"
             sx={{
-              display: 'inline-flex',
-              flexDirection: 'column',
-              maxWidth: { xs: 'min(90%, 72ch)', md: 'min(78%, 75ch)' },
-              borderRadius: '8px',
-              px: { xs: 1.5, md: 2 },
-              py: { xs: 1, md: 1.5 },
-              bgcolor: bubbleBg,
-              color: 'text.primary',
+              ...theme.typography.uiResponseBody,
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
             }}
           >
-            <Typography
-              component="div"
-              data-testid="user-message"
-              sx={{
-                ...theme.typography.uiResponseBody,
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-              }}
-            >
-              {message}
-            </Typography>
-          </Box>
-          <Box
-            className="msg-actions-row"
-            role="group"
-            aria-label="Message actions"
-            sx={getMessageActionsRowSx(theme)}
-          >
-            <CopyButton copied={copied} onClick={handleCopy} data-testid="action-bar-copy" />
-          </Box>
+            {message}
+          </Typography>
+        </Box>
+        <Box
+          className="msg-actions-row"
+          role="group"
+          aria-label="Message actions"
+          sx={{ ...getMessageActionsRowSx(theme), ...MOBILE_USER_ACTION_EDGE_SX }}
+        >
+          <CopyButton copied={copied} onClick={handleCopy} data-testid="action-bar-copy" />
         </Box>
       </Box>
-    </Fade>
+    </MotionBox>
   );
 });
-
-function getQueryExecutionMeta(step, fallbackConversationId = null) {
-  if (step?.name !== 'execute_query' || step?.status !== 'done' || !step?.result) {
-    return null;
-  }
-
-  const parsedResult = step.result;
-  const result = parsedResult && typeof parsedResult === 'object' ? parsedResult : {};
-  const nestedResult =
-    result.data && typeof result.data === 'object' && !Array.isArray(result.data)
-      ? result.data
-      : {};
-  const executionId =
-    result.execution_id ||
-    result.executionId ||
-    nestedResult.execution_id ||
-    nestedResult.executionId;
-
-  if (!executionId) return null;
-
-  return {
-    executionId,
-    conversationId:
-      result.conversation_id ||
-      result.conversationId ||
-      nestedResult.conversation_id ||
-      nestedResult.conversationId ||
-      fallbackConversationId,
-  };
-}
 
 /**
  * Extracts completed canvas code blocks (both fences present) from markdown.
@@ -318,184 +338,197 @@ function extractCanvasCodeArtifacts(markdown) {
  *   - isGenerating=true  → passive status row
  *   - isGenerating=false → full-row interactive artifact
  */
-const DiagramArtifactCard = memo(function DiagramArtifactCard({
-  artifact,
-  isGenerating = false,
-  onOpen,
-}) {
-  const theme = useTheme();
-  const presentation = getDiagramArtifactCardPresentation({
-    isGenerating,
-    title: artifact.title,
-  });
+const DiagramArtifactCard = memo(
+  forwardRef(function DiagramArtifactCard(
+    { artifact, isGenerating = false, onOpen, animateEntry = false, motionVariants },
+    ref,
+  ) {
+    const theme = useTheme();
+    const presentation = getDiagramArtifactCardPresentation({ isGenerating });
 
-  return (
-    <Box
-      component={presentation.isInteractive ? 'button' : 'div'}
-      type={presentation.isInteractive ? 'button' : undefined}
-      role={isGenerating ? 'status' : undefined}
-      aria-live={isGenerating ? 'polite' : undefined}
-      aria-busy={isGenerating || undefined}
-      aria-label={isGenerating ? 'Moonlit is building the diagram' : `Open ${presentation.title}`}
-      onClick={presentation.isInteractive ? () => onOpen?.(artifact) : undefined}
-      sx={{
-        position: 'relative',
-        overflow: 'hidden',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        width: '100%',
-        minWidth: 0,
-        height: { xs: 68, sm: 70 },
-        px: { xs: 1.5, sm: 2 },
-        py: 0,
-        borderRadius: '8px',
-        border: '1px solid',
-        borderColor: isGenerating
-          ? alpha(theme.palette.info.main, 0.28)
-          : theme.palette.border.subtle,
-        bgcolor: 'transparent',
-        color: 'text.primary',
-        font: 'inherit',
-        textAlign: 'left',
-        appearance: 'none',
-        cursor: presentation.isInteractive ? 'pointer' : 'default',
-        transition: theme.transitions.create(['background-color', 'border-color', 'box-shadow'], {
-          duration: theme.transitions.duration.shorter,
-        }),
-        '&:focus-visible': {
-          outline: 'none',
-          boxShadow: `inset 0 0 0 2px ${theme.palette.border.focus}`,
-        },
-        ...(presentation.isInteractive && {
-          [HOVER_CAPABLE_QUERY]: {
-            '&:hover': {
-              bgcolor: alpha(theme.palette.text.primary, 0.025),
-              borderColor: theme.palette.border.hover,
-            },
-            '&:hover .diagram-card-preview': {
-              transform: 'translateY(12px) rotate(2.5deg) scale(1.025)',
-            },
-          },
-        }),
-      }}
-    >
-      <Box
-        sx={{
-          flex: 1,
-          minWidth: 0,
-          pr: 1.5,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          gap: 0.55,
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0, gap: 0.8 }}>
-          {isGenerating && (
-            <Box
-              aria-hidden
-              sx={{
-                width: 5,
-                height: 5,
-                flexShrink: 0,
-                borderRadius: '50%',
-                bgcolor: 'info.main',
-                animation: `${diagramStatusDot} 1.25s ease-in-out infinite`,
-                [REDUCED_MOTION_QUERY]: { animation: 'none', opacity: 0.72 },
-              }}
-            />
-          )}
-          <Typography
-            sx={{
-              ...theme.typography.uiBodySm,
-              minWidth: 0,
-              fontFamily: theme.typography.fontFamily,
-              fontWeight: 400,
-              lineHeight: 1.2,
-              color: isGenerating ? 'info.main' : 'text.primary',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {presentation.title}
-          </Typography>
-        </Box>
-
-        <Typography
-          sx={{
-            ...theme.typography.uiCaptionMd,
-            fontFamily: theme.typography.fontFamily,
-            lineHeight: 1.25,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            color: theme.palette.text.secondary,
-          }}
-        >
-          {presentation.metadata}
-        </Typography>
-      </Box>
-
-      <Box
-        aria-hidden
+    return (
+      <MotionBox
+        ref={ref}
+        component={presentation.isInteractive ? 'button' : 'div'}
+        type={presentation.isInteractive ? 'button' : undefined}
+        role={isGenerating ? 'status' : undefined}
+        aria-live={isGenerating ? 'polite' : undefined}
+        aria-busy={isGenerating || undefined}
+        aria-label={presentation.ariaLabel}
+        data-artifact-motion={animateEntry ? 'live' : 'static'}
+        initial={animateEntry ? motionVariants.structured.initial : false}
+        animate={motionVariants.structured.animate}
+        exit={motionVariants.status.exit}
+        onClick={presentation.isInteractive ? () => onOpen?.(artifact) : undefined}
         sx={{
           position: 'relative',
-          alignSelf: 'stretch',
-          width: { xs: 58, sm: 68 },
-          flexShrink: 0,
-          pointerEvents: 'none',
+          overflow: 'hidden',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          width: '100%',
+          minWidth: 0,
+          height: { xs: 68, sm: 70 },
+          px: { xs: 1.5, sm: 2 },
+          py: 0,
+          borderRadius: '8px',
+          border: '1px solid',
+          borderColor: isGenerating
+            ? alpha(theme.palette.info.main, 0.28)
+            : theme.palette.border.subtle,
+          bgcolor: 'transparent',
+          color: 'text.primary',
+          font: 'inherit',
+          textAlign: 'left',
+          appearance: 'none',
+          cursor: presentation.isInteractive ? 'pointer' : 'default',
+          transition: theme.transitions.create(['background-color', 'border-color', 'box-shadow'], {
+            duration: theme.transitions.duration.shorter,
+          }),
+          '&:focus-visible': {
+            outline: 'none',
+            boxShadow: `inset 0 0 0 2px ${theme.palette.border.focus}`,
+          },
+          ...(presentation.isInteractive && {
+            [HOVER_CAPABLE_QUERY]: {
+              '&:hover': {
+                bgcolor: alpha(theme.palette.text.primary, 0.025),
+                borderColor: theme.palette.border.hover,
+              },
+              '&:hover .diagram-card-preview': {
+                transform: 'translateY(12px) rotate(2.5deg) scale(1.025)',
+              },
+            },
+          }),
         }}
       >
         <Box
-          className="diagram-card-preview"
           sx={{
-            position: 'absolute',
-            right: { xs: 0, sm: 0.5 },
-            top: 0,
-            width: { xs: 48, sm: 52 },
-            height: { xs: 62, sm: 66 },
-            p: 0.75,
-            overflow: 'hidden',
-            borderRadius: '8px 8px 0 0',
-            border: '1px solid',
-            borderColor: isGenerating
-              ? alpha(theme.palette.info.main, 0.25)
-              : theme.palette.border.hover,
-            bgcolor: theme.palette.background.paper,
-            color: isGenerating ? 'info.main' : 'text.secondary',
-            transform: 'translateY(13px) rotate(4.5deg)',
-            transformOrigin: 'center bottom',
-            transition: theme.transitions.create('transform', {
-              duration: theme.transitions.duration.short,
-              easing: theme.transitions.easing.easeOut,
-            }),
-            [REDUCED_MOTION_QUERY]: { transition: 'none' },
+            flex: 1,
+            minWidth: 0,
+            pr: 1.5,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            gap: 0.55,
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0, gap: 0.8 }}>
+            {isGenerating && (
+              <Box
+                aria-hidden
+                sx={{
+                  width: 5,
+                  height: 5,
+                  flexShrink: 0,
+                  borderRadius: '50%',
+                  bgcolor: 'info.main',
+                  animation: `${diagramStatusDot} 1.25s ease-in-out infinite`,
+                  [REDUCED_MOTION_QUERY]: { animation: 'none', opacity: 0.72 },
+                }}
+              />
+            )}
+            <Typography
+              sx={{
+                ...theme.typography.uiBodySm,
+                minWidth: 0,
+                fontFamily: theme.typography.fontFamily,
+                fontWeight: 400,
+                lineHeight: 1.2,
+                color: isGenerating ? 'info.main' : 'text.primary',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {presentation.title}
+            </Typography>
+          </Box>
+
+          {presentation.metadata ? (
+            <Typography
+              sx={{
+                ...theme.typography.uiCaptionMd,
+                fontFamily: theme.typography.fontFamily,
+                lineHeight: 1.25,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                color: theme.palette.text.secondary,
+              }}
+            >
+              {presentation.metadata}
+            </Typography>
+          ) : null}
+        </Box>
+
+        <Box
+          aria-hidden
+          sx={{
+            position: 'relative',
+            alignSelf: 'stretch',
+            width: { xs: 58, sm: 68 },
+            flexShrink: 0,
+            pointerEvents: 'none',
           }}
         >
           <Box
-            component="svg"
-            viewBox="0 0 44 54"
-            focusable="false"
-            sx={{ display: 'block', width: '100%', height: '100%' }}
+            className="diagram-card-preview"
+            sx={{
+              position: 'absolute',
+              right: { xs: 0, sm: 0.5 },
+              top: 0,
+              width: { xs: 48, sm: 52 },
+              height: { xs: 62, sm: 66 },
+              p: 0.75,
+              overflow: 'hidden',
+              borderRadius: '8px 8px 0 0',
+              border: '1px solid',
+              borderColor: isGenerating
+                ? alpha(theme.palette.info.main, 0.25)
+                : theme.palette.border.hover,
+              bgcolor: theme.palette.background.paper,
+              color: isGenerating ? 'info.main' : 'text.secondary',
+              transform: 'translateY(13px) rotate(4.5deg)',
+              transformOrigin: 'center bottom',
+              transition: theme.transitions.create('transform', {
+                duration: theme.transitions.duration.short,
+                easing: theme.transitions.easing.easeOut,
+              }),
+              [REDUCED_MOTION_QUERY]: { transition: 'none' },
+            }}
           >
-            <path
-              d="M13 13 L30 20 M30 20 L17 38"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.4"
-              opacity="0.5"
-            />
-            <rect x="4" y="7" width="14" height="11" rx="2" fill="currentColor" opacity="0.34" />
-            <rect x="27" y="15" width="13" height="11" rx="2" fill="currentColor" opacity="0.68" />
-            <rect x="9" y="34" width="16" height="11" rx="2" fill="currentColor" opacity="0.48" />
+            <Box
+              component="svg"
+              viewBox="0 0 44 54"
+              focusable="false"
+              sx={{ display: 'block', width: '100%', height: '100%' }}
+            >
+              <path
+                d="M13 13 L30 20 M30 20 L17 38"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                opacity="0.5"
+              />
+              <rect x="4" y="7" width="14" height="11" rx="2" fill="currentColor" opacity="0.34" />
+              <rect
+                x="27"
+                y="15"
+                width="13"
+                height="11"
+                rx="2"
+                fill="currentColor"
+                opacity="0.68"
+              />
+              <rect x="9" y="34" width="16" height="11" rx="2" fill="currentColor" opacity="0.48" />
+            </Box>
           </Box>
         </Box>
-      </Box>
-    </Box>
-  );
-});
+      </MotionBox>
+    );
+  }),
+);
 
 const AIMessage = memo(function AIMessage({
   id,
@@ -506,6 +539,8 @@ const AIMessage = memo(function AIMessage({
   onRunQuery,
   onOpenCanvasArtifact,
   conversationId,
+  animateEntry,
+  motionVariants,
 }) {
   const { copied, copyRich } = useCopyToClipboard();
   const contentRef = useRef(null);
@@ -514,6 +549,27 @@ const AIMessage = memo(function AIMessage({
   const isStreaming = status === MESSAGE_STATUS.STREAMING;
   const isWaiting = status === MESSAGE_STATUS.WAITING;
   const isPaused = status === MESSAGE_STATUS.PAUSED;
+  const isError = status === MESSAGE_STATUS.ERROR;
+  const animateLiveContent = animateEntry;
+  const terminalStatus = isPaused
+    ? {
+        key: 'paused-status',
+        role: 'status',
+        ariaLabel: 'Task paused',
+        color: 'warning.main',
+        message: 'Agent paused — step limit reached.',
+        Icon: PauseIcon,
+      }
+    : isError
+      ? {
+          key: 'error-status',
+          role: 'alert',
+          ariaLabel: 'Response error',
+          color: 'error.main',
+          message: 'Response stopped because of an error.',
+          Icon: ErrorIcon,
+        }
+      : null;
 
   const wasStreamingOrWaitingRef = useRef(false);
   useEffect(() => {
@@ -627,9 +683,12 @@ const AIMessage = memo(function AIMessage({
     (content, key, streamThisBlock = false) => {
       if (!content || !String(content).trim()) return null;
       return (
-        <Box
+        <MotionBox
           key={key}
           data-testid="assistant-text-chunk"
+          data-content-motion={animateLiveContent ? 'live' : 'static'}
+          initial={animateLiveContent ? motionVariants.content.initial : false}
+          animate={motionVariants.content.animate}
           sx={{
             // Symmetric horizontal padding so text blocks align with step
             // blocks. The previous version used `pr: 3` on the right which
@@ -640,21 +699,18 @@ const AIMessage = memo(function AIMessage({
             minWidth: 0,
             py: 0.1,
             overflowAnchor: 'none',
-            // Same entry spec as StepsAccordion and timeline items — one
-            // consistent fade-in for every piece of content that materialises.
-            animation: `${slideIn} 0.22s ease-out both`,
-            '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
           }}
         >
           <MarkdownRenderer
             content={content}
             onRunQuery={onRunQuery}
             isStreaming={streamThisBlock}
+            animateBlocks={animateLiveContent}
           />
-        </Box>
+        </MotionBox>
       );
     },
-    [onRunQuery],
+    [animateLiveContent, motionVariants.content, onRunQuery],
   );
 
   const renderStepBlock = useCallback(
@@ -662,9 +718,12 @@ const AIMessage = memo(function AIMessage({
       const executionMeta = getQueryExecutionMeta(step, conversationId);
 
       return (
-        <Box
+        <MotionBox
           key={key}
           data-testid={`assistant-${step.type}-step`}
+          data-content-motion={animateLiveContent ? 'live' : 'static'}
+          initial={animateLiveContent ? motionVariants.content.initial : false}
+          animate={motionVariants.content.animate}
           sx={{
             pl: { xs: 0, sm: 0.5 },
             pr: { xs: 0, sm: 0.5 },
@@ -672,17 +731,31 @@ const AIMessage = memo(function AIMessage({
             minWidth: 0,
           }}
         >
-          <StepsAccordion steps={[step]} isStreaming={isWaiting || isStreaming} />
+          <StepsAccordion
+            steps={[step]}
+            isStreaming={isWaiting || isStreaming}
+            animateLiveUpdates={animateLiveContent}
+          />
           {executionMeta?.executionId && (
             <InlineExecutionTable
               conversationId={executionMeta.conversationId}
               executionId={executionMeta.executionId}
+              sourceQuery={step.args?.query || ''}
+              onOpenArtifact={onOpenCanvasArtifact}
+              animateEntry={animateLiveContent}
             />
           )}
-        </Box>
+        </MotionBox>
       );
     },
-    [isStreaming, isWaiting, conversationId],
+    [
+      animateLiveContent,
+      conversationId,
+      isStreaming,
+      isWaiting,
+      motionVariants.content,
+      onOpenCanvasArtifact,
+    ],
   );
 
   /**
@@ -716,9 +789,12 @@ const AIMessage = memo(function AIMessage({
       // execute_query result tables rendered below.
       const streamFlag = isWaiting || isStreaming;
       return (
-        <Box
+        <MotionBox
           key={key}
           data-testid="assistant-step-group"
+          data-content-motion={animateLiveContent ? 'live' : 'static'}
+          initial={animateLiveContent ? motionVariants.content.initial : false}
+          animate={motionVariants.content.animate}
           sx={{
             pl: { xs: 0, sm: 0.5 },
             pr: { xs: 0, sm: 0.5 },
@@ -726,7 +802,11 @@ const AIMessage = memo(function AIMessage({
             minWidth: 0,
           }}
         >
-          <StepsAccordion steps={groupedSteps} isStreaming={streamFlag} />
+          <StepsAccordion
+            steps={groupedSteps}
+            isStreaming={streamFlag}
+            animateLiveUpdates={animateLiveContent}
+          />
           {groupedSteps.map((step, idx) => {
             const executionMeta = getQueryExecutionMeta(step, conversationId);
             if (!executionMeta?.executionId) return null;
@@ -735,13 +815,24 @@ const AIMessage = memo(function AIMessage({
                 key={`exec-${executionMeta.executionId}-${idx}`}
                 conversationId={executionMeta.conversationId}
                 executionId={executionMeta.executionId}
+                sourceQuery={step.args?.query || ''}
+                onOpenArtifact={onOpenCanvasArtifact}
+                animateEntry={animateLiveContent}
               />
             );
           })}
-        </Box>
+        </MotionBox>
       );
     },
-    [isStreaming, isWaiting, conversationId, renderStepBlock],
+    [
+      animateLiveContent,
+      conversationId,
+      isStreaming,
+      isWaiting,
+      motionVariants.content,
+      renderStepBlock,
+      onOpenCanvasArtifact,
+    ],
   );
 
   /**
@@ -797,39 +888,57 @@ const AIMessage = memo(function AIMessage({
   );
 
   return (
-    <Fade in timeout={180}>
-      <Box
-        component="article"
-        aria-label="Moonlit response"
-        aria-busy={isWaiting || isStreaming || undefined}
-        data-response-state={isWaiting ? 'waiting' : isStreaming ? 'streaming' : 'complete'}
-        sx={{
-          pb: { xs: 2.25, sm: 2.5 },
-          minWidth: 0,
-          ...turnGroupHoverSx,
-        }}
-      >
-        <Box ref={contentRef} sx={{ position: 'relative', minWidth: 0 }}>
-          {/* Fade in+out so it cross-fades with the first arriving step
+    <MotionBox
+      component="article"
+      aria-label="Moonlit response"
+      aria-busy={isWaiting || isStreaming || undefined}
+      data-response-state={
+        isWaiting
+          ? 'waiting'
+          : isStreaming
+            ? 'streaming'
+            : isPaused
+              ? 'paused'
+              : isError
+                ? 'error'
+                : 'complete'
+      }
+      data-entry-motion={animateEntry ? 'live' : 'static'}
+      initial={animateEntry ? motionVariants.turn.initial : false}
+      animate={motionVariants.turn.animate}
+      sx={{
+        pb: { xs: 2.25, sm: 2.5 },
+        minWidth: 0,
+        ...turnGroupHoverSx,
+      }}
+    >
+      <Box ref={contentRef} sx={{ position: 'relative', minWidth: 0 }}>
+        {/* Fade in+out so it cross-fades with the first arriving step
                rather than instantly popping out when the accordion mounts. */}
-          {/* ENH [ANTI-FLOOD]: Consecutive non-text timeline items are
+        {/* ENH [ANTI-FLOOD]: Consecutive non-text timeline items are
               grouped into a single StepsAccordion per phase. Text items
               break the chain so alternating text → tools → text → tools
               produces one accordion per phase. The fallback path (no
               timeline, only legacy steps + text) also groups the steps. */}
-          {hasEffectiveTimeline
-            ? renderGroupedTimeline(effectiveTimeline)
-            : renderGroupedTimeline([
-                ...(Array.isArray(displaySteps) ? displaySteps : []),
-                ...(displayText.trim()
-                  ? [{ type: 'text', content: displayText, id: 'fallback-text' }]
-                  : []),
-              ])}
+        {hasEffectiveTimeline
+          ? renderGroupedTimeline(effectiveTimeline)
+          : renderGroupedTimeline([
+              ...(Array.isArray(displaySteps) ? displaySteps : []),
+              ...(displayText.trim()
+                ? [{ type: 'text', content: displayText, id: 'fallback-text' }]
+                : []),
+            ])}
 
+        <AnimatePresence>
           {showThinkingSpinner && (
-            <Box
+            <MotionBox
+              key="thinking-status"
               role="status"
               aria-label="Moonlit is thinking"
+              data-status-motion={animateLiveContent ? 'live' : 'static'}
+              initial={animateLiveContent ? motionVariants.status.initial : false}
+              animate={motionVariants.status.animate}
+              exit={motionVariants.status.exit}
               sx={{
                 width: 'max-content',
                 py: 0.65,
@@ -851,37 +960,49 @@ const AIMessage = memo(function AIMessage({
               >
                 Thinking
               </Typography>
-            </Box>
+            </MotionBox>
           )}
+        </AnimatePresence>
 
-          {allArtifacts.length > 0 && (
-            <Box
-              sx={{
-                pl: { xs: 0, sm: 0.5 },
-                pr: { xs: 0, sm: 0.5 },
-                mt: 1,
-                mb: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 1,
-              }}
-            >
+        {allArtifacts.length > 0 && (
+          <Box
+            sx={{
+              pl: { xs: 0, sm: 0.5 },
+              pr: { xs: 0, sm: 0.5 },
+              mt: 1,
+              mb: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 1,
+              position: 'relative',
+            }}
+          >
+            <AnimatePresence mode="popLayout">
               {allArtifacts.map((artifact) => (
                 <DiagramArtifactCard
                   key={artifact.key}
                   artifact={artifact}
                   isGenerating={!!artifact.isGenerating}
                   onOpen={onOpenCanvasArtifact}
+                  animateEntry={animateLiveContent}
+                  motionVariants={motionVariants}
                 />
               ))}
-            </Box>
-          )}
-        </Box>
+            </AnimatePresence>
+          </Box>
+        )}
+      </Box>
 
-        {isPaused && (
-          <Box
-            role="status"
-            aria-label="Task paused"
+      <AnimatePresence>
+        {terminalStatus && (
+          <MotionBox
+            key={terminalStatus.key}
+            role={terminalStatus.role}
+            aria-label={terminalStatus.ariaLabel}
+            data-status-motion={animateLiveContent ? 'live' : 'static'}
+            initial={animateLiveContent ? motionVariants.status.initial : false}
+            animate={motionVariants.status.animate}
+            exit={motionVariants.status.exit}
             sx={{
               display: 'flex',
               alignItems: 'center',
@@ -891,45 +1012,55 @@ const AIMessage = memo(function AIMessage({
               py: 0.9,
               px: 1.5,
               borderRadius: '8px',
-              bgcolor: (th) => alpha(th.palette.warning.main, th.palette.opacity.soft),
+              bgcolor: (th) =>
+                alpha(
+                  isPaused ? th.palette.warning.main : th.palette.error.main,
+                  th.palette.opacity.soft,
+                ),
               border: '1px solid',
               borderColor: (th) =>
-                alpha(th.palette.warning.main, th.palette.opacity.statusBorderHover),
+                alpha(
+                  isPaused ? th.palette.warning.main : th.palette.error.main,
+                  th.palette.opacity.statusBorderHover,
+                ),
               maxWidth: 'max-content',
             }}
           >
-            <PauseIcon sx={{ fontSize: 16, color: 'warning.main', flexShrink: 0 }} />
+            <terminalStatus.Icon
+              sx={{ fontSize: 16, color: terminalStatus.color, flexShrink: 0 }}
+            />
             <Typography
               variant="caption"
               sx={{
-                color: 'warning.main',
+                color: terminalStatus.color,
                 fontWeight: 400,
                 letterSpacing: 0.1,
               }}
             >
-              Agent paused — step limit reached.
+              {terminalStatus.message}
             </Typography>
-          </Box>
+          </MotionBox>
         )}
+      </AnimatePresence>
 
-        {showMessageActions && (
-          <Box
-            className="msg-actions-row"
-            role="group"
-            aria-label="Message actions"
-            sx={(theme) => ({
-              ...getMessageActionsRowSx(theme),
-              width: '100%',
-              mt: 0.15,
-              pl: { xs: 0, sm: 0.5 },
-              pr: { xs: 0, sm: 0.5 },
-            })}
-          >
-            <CopyButton copied={copied} onClick={handleCopy} data-testid="action-bar-copy" />
-          </Box>
-        )}
-      </Box>
-    </Fade>
+      {showMessageActions && (
+        <Box
+          className="msg-actions-row"
+          role="group"
+          aria-label="Message actions"
+          sx={(theme) => ({
+            ...getMessageActionsRowSx(theme),
+            ...MOBILE_ASSISTANT_ACTION_EDGE_SX,
+            width: '100%',
+            mt: 0.15,
+            pl: { xs: 0, sm: 0.5 },
+            pr: { xs: 0, sm: 0.5 },
+          })}
+        >
+          <CopyButton copied={copied} onClick={handleCopy} data-testid="action-bar-copy" />
+        </Box>
+      )}
+    </MotionBox>
   );
 });
 
@@ -951,7 +1082,7 @@ const ConversationLoadingSkeleton = memo(function ConversationLoadingSkeleton() 
           width: '100%',
           maxWidth: UI_LAYOUT.chatInputMaxWidth,
           mx: 'auto',
-          px: { xs: 1.25, sm: 2 },
+          px: 0,
           pt: 0.25,
           display: 'flex',
           flexDirection: 'column',
@@ -1060,6 +1191,7 @@ function normalizeAssistantMessage(message) {
 }
 
 const MessageList = memo(function MessageList({
+  sessionKey = null,
   messages = [],
   isLoadingConversation = false,
   loadError = false,
@@ -1088,6 +1220,20 @@ const MessageList = memo(function MessageList({
   const hiddenCount = Math.max(0, normalizedMessages.length - effectiveVisibleCount);
   const visibleMessages =
     hiddenCount > 0 ? normalizedMessages.slice(-effectiveVisibleCount) : normalizedMessages;
+  const messageIds = useMemo(
+    () => normalizedMessages.map((message) => message.id),
+    [normalizedMessages],
+  );
+  const animatedMessageIds = useMessageEntryMotion({
+    sessionKey,
+    isLoading: isLoadingConversation,
+    messageIds,
+  });
+  const prefersReducedMotion = useReducedMotion();
+  const motionVariants = useMemo(
+    () => getChatMotionVariants(prefersReducedMotion),
+    [prefersReducedMotion],
+  );
 
   if (isLoadingConversation) {
     return <ConversationLoadingSkeleton />;
@@ -1163,7 +1309,7 @@ const MessageList = memo(function MessageList({
           width: '100%',
           maxWidth: UI_LAYOUT.chatInputMaxWidth,
           mx: 'auto',
-          px: { xs: 1.25, sm: 2 },
+          px: 0,
           pt: 0.25,
           flex: 1,
           display: 'flex',
@@ -1185,7 +1331,12 @@ const MessageList = memo(function MessageList({
         )}
         {visibleMessages.map((message) =>
           message.role === 'user' ? (
-            <UserMessage key={message.id} message={message.text} />
+            <UserMessage
+              key={message.id}
+              message={message.text}
+              animateEntry={animatedMessageIds.has(message.id)}
+              entryMotion={motionVariants.turn}
+            />
           ) : (
             <AIMessage
               key={message.id}
@@ -1197,6 +1348,8 @@ const MessageList = memo(function MessageList({
               onRunQuery={onRunQuery}
               onOpenCanvasArtifact={onOpenCanvasArtifact}
               conversationId={conversationId}
+              animateEntry={animatedMessageIds.has(message.id)}
+              motionVariants={motionVariants}
             />
           ),
         )}

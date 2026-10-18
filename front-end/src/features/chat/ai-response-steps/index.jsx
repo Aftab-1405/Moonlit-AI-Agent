@@ -1,5 +1,6 @@
 import { Box, ButtonBase, Collapse, Typography, useMediaQuery, useTheme } from '@mui/material';
 import { keyframes } from '@mui/material/styles';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { ExpandMoreIcon } from '@/components/icons';
 import {
@@ -17,9 +18,9 @@ import {
 } from '@/features/chat/ai-response-steps/stepUtils';
 import {
   getFlatStepControlSx,
-  slideIn,
   TIMELINE_LINE_X,
 } from '@/features/chat/ai-response-steps/timelineShared';
+import { getChatMotionVariants } from '@/features/chat/chatMotion';
 
 /**
  * StepsAccordion — collapsible summary of the AI's reasoning steps.
@@ -48,10 +49,21 @@ const dotPulse = keyframes`
   50%      { opacity: 0.5; transform: scale(0.85); }
 `;
 
-export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming }) {
+const MotionBox = motion.create(Box);
+
+export const StepsAccordion = memo(function StepsAccordion({
+  steps,
+  isStreaming,
+  animateLiveUpdates = false,
+}) {
   const [expanded, setExpanded] = useState(false);
   const theme = useTheme();
   const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const prefersReducedMotion = useReducedMotion();
+  const contentMotion = useMemo(
+    () => getChatMotionVariants(prefersReducedMotion).content,
+    [prefersReducedMotion],
+  );
 
   // Skill items are filtered out upstream (MessageList renders them directly).
   // normalizedSteps here will only ever contain thinking + tool steps.
@@ -105,9 +117,6 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
         width: '100%',
         textAlign: 'left',
         mb: 1.5,
-        // Unified entry spec — matches timeline items and text blocks.
-        animation: `${slideIn} 0.22s ease-out both`,
-        '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
       }}
     >
       <ButtonBase
@@ -257,40 +266,54 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
               },
             }}
           >
-            {normalizedSteps.map((step, idx) => {
-              const animDelay = Math.min(idx * 25, 100);
-              if (step.type === 'thinking') {
+            <AnimatePresence initial={false}>
+              {normalizedSteps.map((step, idx) => {
+                let content = null;
+                if (step.type === 'thinking') {
+                  content = (
+                    <ThinkingStep
+                      content={step.content}
+                      isComplete={step.isComplete}
+                      isCurrent={idx === currentStepIndex}
+                    />
+                  );
+                } else if (step.type === 'tool') {
+                  content = (
+                    <ToolStep
+                      stepName={step.name}
+                      actionText={step.actionText}
+                      parsedArgs={step.parsedArgs}
+                      parsedResult={step.parsedResult}
+                      isError={step.isError}
+                      isRunning={step.isRunning}
+                      isCompactMobile={isCompactMobile}
+                    />
+                  );
+                } else if (step.type === 'skill') {
+                  content = <SkillStep skills={step.skills} />;
+                }
+                if (!content) return null;
+
                 return (
-                  <ThinkingStep
+                  <MotionBox
                     key={step.id}
-                    content={step.content}
-                    isComplete={step.isComplete}
-                    isCurrent={idx === currentStepIndex}
-                    animDelay={animDelay}
-                  />
+                    initial={animateLiveUpdates ? contentMotion.initial : false}
+                    animate={contentMotion.animate}
+                  >
+                    {content}
+                  </MotionBox>
                 );
-              }
-              if (step.type === 'tool') {
-                return (
-                  <ToolStep
-                    key={step.id}
-                    stepName={step.name}
-                    actionText={step.actionText}
-                    parsedArgs={step.parsedArgs}
-                    parsedResult={step.parsedResult}
-                    isError={step.isError}
-                    isRunning={step.isRunning}
-                    isCompactMobile={isCompactMobile}
-                    animDelay={animDelay}
-                  />
-                );
-              }
-              if (step.type === 'skill') {
-                return <SkillStep key={step.id} skills={step.skills} animDelay={animDelay} />;
-              }
-              return null;
-            })}
-            {isAllComplete && <DoneIndicator />}
+              })}
+              {isAllComplete && (
+                <MotionBox
+                  key="done"
+                  initial={animateLiveUpdates ? contentMotion.initial : false}
+                  animate={contentMotion.animate}
+                >
+                  <DoneIndicator />
+                </MotionBox>
+              )}
+            </AnimatePresence>
           </Box>
         </Collapse>
       )}

@@ -13,13 +13,16 @@
  * @module features/styles/interfaceChrome
  */
 
-export const COMPOSER_MAX_WIDTH = 672;
+import { TOUCH_DEVICE_QUERY } from '../../styles/mediaQueries.js';
+import { UI_LAYOUT } from '../../styles/shared.js';
+
+export const COMPOSER_MAX_WIDTH = UI_LAYOUT.chatInputMaxWidth;
 
 /** Radius scale used by interface chrome. */
 export const INTERFACE_RADIUS = Object.freeze({
   row: '8px',
   control: '8px',
-  composer: '20px',
+  composer: '26px',
   suggestionPanel: '16px',
   panel: '8px',
   popover: '8px',
@@ -42,6 +45,16 @@ export function getResponsivePillIconButtonSx(theme, { desktopSize, mobileSize =
     minWidth: { xs: mobileSize, md: desktopSize },
     minHeight: { xs: mobileSize, md: desktopSize },
     borderRadius: theme.shape.radius.pill,
+    [TOUCH_DEVICE_QUERY]: { minWidth: UI_LAYOUT.touchTarget, minHeight: UI_LAYOUT.touchTarget },
+  };
+}
+
+/** Offset a mobile touch target by its container gutter while preserving its size. */
+export function getMobileEdgeControlSx(edge, gutter) {
+  const marginProperty = edge === 'right' ? 'mr' : 'ml';
+
+  return {
+    [marginProperty]: { xs: -gutter, sm: 0 },
   };
 }
 
@@ -49,20 +62,127 @@ export function getResponsivePillIconButtonSx(theme, { desktopSize, mobileSize =
 export function getComposerLayoutSx(theme) {
   return {
     form: {
-      px: { xs: 0.5, md: 1 },
+      px: 0,
       pb: { xs: `max(${theme.spacing(1)}, env(safe-area-inset-bottom))`, md: 1 },
     },
-    surface: { minHeight: { xs: 132, md: 124 } },
-    content: { px: { xs: 1.5, md: 2 }, py: 1.5, gap: 1.5 },
+    surface: { minHeight: { xs: 116, md: 108 } },
+    content: { px: { xs: 1.5, md: 2 }, py: 1.5, gap: 1 },
     toolbar: { gap: 1 },
+  };
+}
+
+/**
+ * Stable three-row stage used by both the welcome and active chat states.
+ * Structural track changes intentionally snap so streaming updates cannot
+ * displace the composer while its containing grid is mid-transition.
+ */
+export function getChatStageLayoutSx(placement) {
+  const isWelcome = placement === 'welcome';
+  return {
+    gridTemplateRows: isWelcome
+      ? 'minmax(0, 1fr) auto minmax(0, 1fr)'
+      : 'minmax(0, 1fr) auto minmax(0, 0fr)',
+    transition: 'none',
+    reducedMotion: { transition: 'none' },
+    composer: { gridRow: 2 },
+    transcript: {
+      gridRow: 1,
+      pointerEvents: isWelcome ? 'none' : 'auto',
+    },
+  };
+}
+
+/** Full-viewport layout contract for the immersive schema mindmap viewer. */
+export function getMindmapViewerLayoutSx() {
+  return {
+    paper: {
+      width: '100vw',
+      maxWidth: '100vw',
+      height: '100dvh',
+      maxHeight: '100dvh',
+      minHeight: '100dvh',
+      m: 0,
+      borderRadius: 0,
+      '@supports not (height: 100dvh)': {
+        height: '100vh',
+        maxHeight: '100vh',
+        minHeight: '100vh',
+      },
+    },
+    header: {
+      minHeight: { xs: 64, sm: 68 },
+      px: { xs: 1.5, sm: 2.5, md: 3 },
+      py: 0,
+      flexShrink: 0,
+    },
+    content: {
+      width: '100%',
+      maxWidth: 'none',
+      mx: 0,
+      px: { xs: 1, sm: 1.5, md: 2 },
+      pt: { xs: 1, sm: 1.5, md: 2 },
+      pb: { xs: 'max(8px, env(safe-area-inset-bottom))', sm: 1.5, md: 2 },
+      display: 'flex',
+      flexDirection: 'column',
+      flex: 1,
+      overflow: 'hidden',
+      minHeight: 0,
+    },
+    canvas: {
+      display: 'flex',
+      flexDirection: 'column',
+      flex: 1,
+      width: '100%',
+      minWidth: 0,
+      minHeight: 0,
+    },
+  };
+}
+
+/** Keep the full schema legible while avoiding excessive empty fit-view space. */
+export function getMindmapFitViewOptions(isMobile) {
+  return { padding: isMobile ? 0.18 : 0.1 };
+}
+
+/** Trackpad and mouse-wheel gestures zoom the mindmap; dragging pans it. */
+export function getMindmapInteractionProps(isMobile) {
+  return {
+    panOnScroll: false,
+    panOnDrag: true,
+    zoomOnScroll: !isMobile,
+    zoomOnPinch: true,
+    preventScrolling: true,
   };
 }
 
 /** Responsive spacing contract for the empty chat state. */
 export function getWelcomeLayoutSx() {
   return {
-    outer: { px: { xs: 1, md: 3 }, py: { xs: 2.5, md: 4 } },
-    content: { gap: { xs: 2, md: 3 } },
+    outer: {
+      alignItems: { xs: 'stretch', sm: 'safe center' },
+      px: { xs: 1, md: 3 },
+      pt: { xs: 2.5, md: 4 },
+      pb: { xs: 0, sm: 2.5, md: 4 },
+    },
+    content: {
+      height: { xs: '100%', sm: 'auto' },
+      minHeight: 0,
+      gap: { xs: 0, sm: 2, md: 3 },
+    },
+    hero: {
+      flex: { xs: 1, sm: '0 0 auto' },
+      minHeight: 0,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    composer: {
+      width: '100%',
+      flexShrink: 0,
+    },
+    suggestions: {
+      display: { xs: 'none', sm: 'block' },
+    },
   };
 }
 
@@ -170,15 +290,18 @@ export function getAppSunkenSurfaceSx(theme) {
 export function getShellWorkspaceSx(theme) {
   return {
     backgroundColor: theme.palette.background.default,
+    border: `1px solid ${theme.palette.border.subtle}`,
+    borderRadius: { xs: 0, md: '20px' },
     backgroundImage: 'none',
   };
 }
 
-/** Sidebar chrome — a quiet tonal shift, without a dividing rule. */
-export function getSidebarChromeSx(theme) {
+/** Layout-only sidebar wrapper; rounded surfaces paint above the shell backdrop. */
+export function getSidebarChromeSx(_theme) {
   return {
-    borderRight: '1px solid',
-    borderColor: theme.palette.border.separator,
+    backgroundColor: 'transparent',
+    backgroundImage: 'none',
+    borderRight: 'none',
     boxShadow: 'none',
   };
 }
@@ -193,18 +316,18 @@ export function getComposerSurfaceSx(theme) {
     borderRadius: INTERFACE_RADIUS.composer,
     border: `1px solid ${theme.palette.border.idle}`,
     overflow: 'hidden',
-    backgroundColor: theme.palette.background.input,
+    backgroundColor: theme.palette.background.composer,
     backgroundImage: 'none',
     boxShadow: 'none',
     transition: 'border-color 140ms ease, background-color 140ms ease',
   };
 }
 
-/** Artifact panel chrome — a sibling surface without a permanent seam. */
+/** Artifact card uses the same enclosed surface as the chat workspace. */
 export function getArtifactPanelChromeSx(theme) {
   return {
-    borderLeft: getHairlineBorder(theme),
-    ...getAppPanelSurfaceSx(theme),
+    ...getShellWorkspaceSx(theme),
+    borderRadius: '20px',
   };
 }
 
@@ -252,7 +375,11 @@ export function getPreferenceSectionSurfaceSx(theme) {
 export function getWelcomeHeroSx(theme) {
   return {
     ...theme.typography.uiDisplaySm,
+    width: '100%',
+    maxWidth: COMPOSER_MAX_WIDTH,
+    fontSize: { xs: '1.35rem', md: '1.5rem' },
+    fontWeight: 400,
+    lineHeight: 1.4,
     color: 'text.primary',
-    textWrap: 'balance',
   };
 }

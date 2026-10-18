@@ -1,32 +1,8 @@
-"""
-Connection Handlers
+"""Database connection handlers returning framework-independent result dicts.
 
-Database connection handlers that return dicts (not framework responses).
-All methods accept db_config explicitly.
-
-Only remote-accessible databases are supported — connections to loopback
-addresses (localhost, 127.0.0.1, ::1) are rejected since the cloud-hosted
-backend cannot reach a user's locally-running DBMS.
-
-SSRF protection
----------------
-Every connect path resolves the user-supplied host via ``socket.getaddrinfo``
-and rejects any address that is private, loopback, or link-local (see
-``_validate_host``). For connection-string-based remote connections
-(``connect_remote_*``), the host is extracted from the *adapter's* parse
-result rather than the handler's own regex, so that alternate formats the
-adapter accepts (e.g. an Oracle string without a service name) cannot bypass
-the check.
-
-Connection lifecycle
---------------------
-Validation must use ``manager.get_connection_context`` (a context manager
-that always returns the connection to the pool on exit). Calling
-``manager.get_connection`` directly for validation leaks the connection —
-the pool fills up after ~5 attempts and every subsequent connect hangs.
-``DatabaseOperations.get_databases`` and ``manager.get_cursor`` each acquire
-their *own* short-lived connection and return it correctly, so the validation
-connection is the only one we need to manage here.
+Remote hosts must resolve to public addresses. PostgreSQL DSNs use libpq's
+parser and pin validated addresses while retaining host names for TLS checks.
+Validation borrows use context managers to always release pooled connections.
 """
 
 import ipaddress
@@ -36,6 +12,7 @@ import socket
 from typing import Dict
 
 from config import get_config
+from core.errors import log_safe_exception, public_database_error, public_error_for_code
 
 logger = logging.getLogger(__name__)
 Config = get_config()
@@ -44,17 +21,39 @@ Config = get_config()
 _LOOPBACK = frozenset(Config.BLOCKED_DB_HOSTS)
 
 
+def _database_connection_failure(operation: str, exc: BaseException) -> dict:
+    """Return a stable connection-handler failure with safe diagnostics."""
+    public = public_database_error(exc)
+    log_safe_exception(logger, operation, exc, public)
+    return {
+        "status": "error",
+        "error_code": public.code,
+        "message": public.message,
+    }
+
+
+def _public_failure(code: str) -> dict:
+    """Return the canonical status-style database failure for ``code``."""
+    public = public_error_for_code(code)
+    return {
+        "status": "error",
+        "error_code": public.code,
+        "message": public.message,
+    }
+
+
 # HELPER FUNCTIONS
 
 
-def _clear_cache():
-    """Clear any cached database metadata."""
-    try:
-        from service.database.operations import DatabaseOperations
-
-        DatabaseOperations.clear_cache()
-    except Exception:
-        logger.debug("Failed to clear DatabaseOperations cache")
+def _resolve_public_host(host: str) -> list[str]:
+    """Resolve once and reject every non-public or socket destination."""
+    clean_host = (host or "").strip().strip("[]")
+    if not clean_host or clean_host.lower() in _LOOPBACK or clean_host.startswith(("/", "@")):
+        raise ValueError("Invalid database host")
+    addresses = [entry[4][0] for entry in socket.getaddrinfo(clean_host, None)]
+    if not addresses or any(not ipaddress.ip_address(address).is_global for address in addresses):
+        raise ValueError("Database host must resolve to public addresses")
+    return addresses
 
 
 def _validate_host(host: str) -> dict | None:
@@ -79,55 +78,31 @@ def _validate_host(host: str) -> dict | None:
     never slip through validation.
     """
     if not host:
-        return {"status": "error", "message": "Host is required."}
+        return _public_failure("DB_HOST_VALIDATION_FAILED")
     if host.strip().lower() in _LOOPBACK or host.strip().lower() == "[::1]":
-        return {
-            "status": "error",
-            "message": (
-                f"Host '{host}' is a loopback address and cannot be used. "
-                "Please provide a publicly accessible remote host."
-            ),
-        }
+        return _public_failure("DB_HOST_VALIDATION_FAILED")
 
     try:
-        clean_host = host.strip()
-        if clean_host.startswith("[") and clean_host.endswith("]"):
-            clean_host = clean_host[1:-1]
-        addr_infos = socket.getaddrinfo(clean_host, None)
-        if not addr_infos:
-            # FIX [H4]: Previously an empty resolution result fell through and
-            # the host was accepted. Fail closed — no resolved address means no
-            # validated IP, so refuse the connection.
-            return {
-                "status": "error",
-                "message": f"Host '{host}' did not resolve to any address.",
-            }
-        for _, _, _, _, sockaddr in addr_infos:
-            ip_str = sockaddr[0]
-            ip = ipaddress.ip_address(ip_str)
-            if ip.is_private or ip.is_loopback or ip.is_link_local:
-                return {
-                    "status": "error",
-                    "message": (
-                        f"Host '{host}' resolves to a private internal IP ({ip_str}) "
-                        "and cannot be used for security reasons. "
-                        "Please provide a publicly accessible remote host."
-                    ),
-                }
+        _resolve_public_host(host)
     except socket.gaierror as e:
         # FIX [H4]: DNS resolution failed (NXDOMAIN, timeout, transient).
         # Fail closed — never let an unresolvable host bypass SSRF validation.
+        public = public_error_for_code("DB_HOST_RESOLUTION_FAILED")
+        log_safe_exception(logger, "resolve_database_host", e, public)
         return {
             "status": "error",
-            "message": f"Could not resolve host '{host}': {e}",
+            "error_code": public.code,
+            "message": public.message,
         }
     except Exception as e:
         # FIX [H4]: Any other unexpected validation error also fails closed
         # rather than silently letting the host through.
-        logger.warning("Unexpected error validating host '%s': %s", host, e)
+        public = public_error_for_code("DB_HOST_VALIDATION_FAILED")
+        log_safe_exception(logger, "validate_database_host", e, public)
         return {
             "status": "error",
-            "message": f"Host validation failed for '{host}'.",
+            "error_code": public.code,
+            "message": public.message,
         }
 
     return None
@@ -143,7 +118,7 @@ def _parse_connection_string(connection_string: str) -> Dict[str, str]:
     from the adapter's parse, not this helper, to avoid format-mismatch bypass
     (see FIX [C3] in ``connect_remote_oracle``).
     """
-    from urllib.parse import urlparse
+    from urllib.parse import unquote, urlparse
 
     try:
         parsed = urlparse(connection_string)
@@ -151,9 +126,9 @@ def _parse_connection_string(connection_string: str) -> Dict[str, str]:
         if not host:
             # Fallback to regex if hostname is empty (e.g. invalid URL structure)
             host_match = re.search(r"@([^/:]+)", connection_string)
-            host = host_match.group(1) if host_match else "remote"
+            host = host_match.group(1) if host_match else ""
 
-        db = parsed.path.lstrip("/")
+        db = unquote(parsed.path.lstrip("/"))
         if not db:
             db_match = re.search(r"/([^/?]+)(\?|$)", connection_string)
             db = db_match.group(1) if db_match else "remote_db"
@@ -167,7 +142,7 @@ def _parse_connection_string(connection_string: str) -> Dict[str, str]:
         host_match = re.search(r"@([^/:]+)", connection_string)
         return {
             "database": db_match.group(1) if db_match else "remote_db",
-            "host": host_match.group(1) if host_match else "remote",
+            "host": host_match.group(1) if host_match else "",
         }
 
 
@@ -181,6 +156,8 @@ def connect_mysql(
     user: str,
     password: str,
     database: str = None,
+    *,
+    pool_owner: str | None = None,
 ) -> dict:
     """
     Connect to a remote MySQL server using host/port credentials.
@@ -199,9 +176,8 @@ def connect_mysql(
     from service.database.connection_manager import get_connection_manager
     from service.database.operations import DatabaseOperations
 
-    _clear_cache()
-
     db_config = {
+        "_pool_owner": pool_owner,
         "db_type": "mysql",
         "host": host,
         "port": int(port) if port else Config.DEFAULT_MYSQL_PORT,
@@ -228,7 +204,7 @@ def connect_mysql(
         dbs_result = DatabaseOperations.get_databases(db_config)
 
         if dbs_result.get("status") == "success":
-            logger.info(f"Connected to MySQL: {host}:{port}")
+            logger.info("Connected to MySQL")
             return {
                 "status": "connected",
                 "message": f"Connected to MySQL at {host}:{port}",
@@ -246,8 +222,7 @@ def connect_mysql(
             "db_config": db_config,
         }
     except Exception as err:
-        logger.exception("Error connecting to MySQL")
-        return {"status": "error", "message": str(err)}
+        return _database_connection_failure("connect_mysql", err)
 
 
 def connect_postgresql(
@@ -256,6 +231,8 @@ def connect_postgresql(
     user: str,
     password: str,
     database: str = None,
+    *,
+    pool_owner: str | None = None,
 ) -> dict:
     """
     Connect to a remote PostgreSQL server using host/port credentials.
@@ -272,9 +249,8 @@ def connect_postgresql(
     from service.database.connection_manager import get_connection_manager
     from service.database.operations import DatabaseOperations
 
-    _clear_cache()
-
     db_config = {
+        "_pool_owner": pool_owner,
         "db_type": "postgresql",
         "host": host,
         "port": int(port) if port else Config.DEFAULT_POSTGRESQL_PORT,
@@ -297,7 +273,7 @@ def connect_postgresql(
         dbs_result = DatabaseOperations.get_databases(db_config)
 
         if dbs_result.get("status") == "success":
-            logger.info(f"Connected to PostgreSQL: {host}:{port}")
+            logger.info("Connected to PostgreSQL")
             return {
                 "status": "connected",
                 "message": f"Connected to PostgreSQL at {host}:{port}",
@@ -315,8 +291,7 @@ def connect_postgresql(
             "db_config": db_config,
         }
     except Exception as err:
-        logger.exception("Error connecting to PostgreSQL")
-        return {"status": "error", "message": str(err)}
+        return _database_connection_failure("connect_postgresql", err)
 
 
 def connect_sqlserver(
@@ -325,6 +300,8 @@ def connect_sqlserver(
     user: str,
     password: str,
     database: str = None,
+    *,
+    pool_owner: str | None = None,
 ) -> dict:
     """
     Connect to a remote SQL Server database using host/port credentials.
@@ -341,9 +318,8 @@ def connect_sqlserver(
     from service.database.adapters import get_adapter
     from service.database.connection_manager import get_connection_manager
 
-    _clear_cache()
-
     db_config = {
+        "_pool_owner": pool_owner,
         "db_type": "sqlserver",
         "host": host,
         "port": int(port) if port else Config.DEFAULT_SQLSERVER_PORT,
@@ -371,11 +347,12 @@ def connect_sqlserver(
                 system_dbs = adapter.get_system_databases()
                 databases = [db for db in all_dbs if db.lower() not in system_dbs]
         except Exception as e:
-            logger.warning(f"Failed to fetch SQL Server databases: {e}")
+            public = public_database_error(e)
+            log_safe_exception(logger, "fetch_sqlserver_databases", e, public)
             if database:
                 databases = [database]
 
-        logger.info(f"Connected to SQL Server: {host}:{port}")
+        logger.info("Connected to SQL Server")
         return {
             "status": "connected",
             "message": f"Connected to SQL Server at {host}:{port}",
@@ -385,8 +362,7 @@ def connect_sqlserver(
             "selectedDatabase": database,
         }
     except Exception as err:
-        logger.exception("Error connecting to SQL Server")
-        return {"status": "error", "message": str(err)}
+        return _database_connection_failure("connect_sqlserver", err)
 
 
 def connect_oracle(
@@ -395,6 +371,8 @@ def connect_oracle(
     user: str,
     password: str,
     service_name: str = None,
+    *,
+    pool_owner: str | None = None,
 ) -> dict:
     """
     Connect to a remote Oracle database server using host/port credentials.
@@ -411,9 +389,8 @@ def connect_oracle(
     from service.database.adapters import get_adapter
     from service.database.connection_manager import get_connection_manager
 
-    _clear_cache()
-
     db_config = {
+        "_pool_owner": pool_owner,
         "db_type": "oracle",
         "host": host,
         "port": int(port) if port else Config.DEFAULT_ORACLE_PORT,
@@ -440,11 +417,12 @@ def connect_oracle(
                 cursor.execute(adapter.get_databases_query())
                 schemas = [row[0] for row in cursor.fetchall()]
         except Exception as e:
-            logger.warning(f"Failed to fetch Oracle schemas: {e}")
+            public = public_database_error(e)
+            log_safe_exception(logger, "fetch_oracle_schemas", e, public)
             schemas = [user.upper()] if user else []
 
         schema_name = user.upper() if user else "SYSTEM"
-        logger.info(f"Connected to Oracle: {host}:{port}/{service_name}")
+        logger.info("Connected to Oracle")
         return {
             "status": "connected",
             "message": f"Connected to Oracle at {host}:{port}/{service_name}",
@@ -461,47 +439,62 @@ def connect_oracle(
             "selectedDatabase": schema_name,
         }
     except Exception as err:
-        logger.exception("Error connecting to Oracle")
-        return {"status": "error", "message": str(err)}
+        return _database_connection_failure("connect_oracle", err)
 
 
 # CONNECTION STRING FUNCTIONS (remote only)
 
 
-def connect_remote_postgresql(connection_string: str) -> dict:
-    """
-    Connect to a remote PostgreSQL database using a connection string.
+def connect_remote_postgresql(connection_string: str, *, pool_owner: str | None = None) -> dict:
+    """Connect using libpq's effective options and pinned public addresses."""
+    from psycopg2.extensions import make_dsn, parse_dsn
 
-    SSRF note: the host for validation is taken from this handler's
-    ``_parse_connection_string`` (which handles the standard DSN form
-    PostgreSQL uses). Validation runs inside ``get_connection_context`` so
-    the pooled connection is always returned.
-    """
     from service.database.adapters import get_adapter
     from service.database.connection_manager import get_connection_manager
 
-    _clear_cache()
+    try:
+        options = parse_dsn(connection_string)
+    except Exception:
+        return _public_failure("DB_CONNECTION_STRING_INVALID")
 
-    parsed = _parse_connection_string(connection_string)
-    db_name = parsed["database"]
-    host = parsed["host"]
-
-    # FIX [C3]: Validate every host parsed from the connection string,
-    # regardless of whether the adapter's looser parser also accepts it.
-    # Fail closed if the host cannot be extracted.
-    if not host:
-        return {
-            "status": "error",
-            "message": "Could not extract host from connection string.",
-        }
-    err = _validate_host(host)
-    if err:
-        return err
+    # Service files and omitted hosts can introduce destinations outside the
+    # submitted DSN. Validate every effective host/hostaddr, including URL
+    # query overrides, and retain host names for TLS certificate validation.
+    if options.get("service") or not (options.get("host") or options.get("hostaddr")):
+        return _public_failure("DB_CONNECTION_STRING_INVALID")
+    hosts = options.get("host", "").split(",")
+    supplied_addresses = options.get("hostaddr", "").split(",")
+    if options.get("hostaddr") and not options.get("host"):
+        hosts = supplied_addresses
+    if options.get("hostaddr") and len(supplied_addresses) != len(hosts):
+        return _public_failure("DB_CONNECTION_STRING_INVALID")
+    try:
+        addresses = []
+        for index, host in enumerate(hosts):
+            resolved = _resolve_public_host(host)
+            address = supplied_addresses[index] if options.get("hostaddr") else ""
+            if address:
+                if not ipaddress.ip_address(address).is_global:
+                    raise ValueError("Invalid database address")
+            else:
+                address = resolved[0]
+            addresses.append(address)
+    except socket.gaierror:
+        return _public_failure("DB_HOST_RESOLUTION_FAILED")
+    except Exception:
+        return _public_failure("DB_HOST_VALIDATION_FAILED")
+    options["host"] = ",".join(hosts)
+    options["hostaddr"] = ",".join(addresses)
+    db_name = options.get("dbname") or options.get("user") or Config.DEFAULT_POSTGRESQL_DATABASE
+    options["dbname"] = db_name
+    connection_string = make_dsn(**options)
 
     db_config = {
+        "_pool_owner": pool_owner,
         "db_type": "postgresql",
         "connection_string": connection_string,
         "database": db_name,
+        "host": options["host"],
         "is_remote": True,
     }
 
@@ -515,7 +508,7 @@ def connect_remote_postgresql(connection_string: str) -> dict:
             if not adapter.validate_connection(conn):
                 return {"status": "error", "message": "Failed to connect to remote PostgreSQL"}
 
-        logger.info(f"Connected to remote PostgreSQL: {db_name} at {host}")
+        logger.info("Connected to remote PostgreSQL")
 
         all_databases = []
         try:
@@ -532,7 +525,8 @@ def connect_remote_postgresql(connection_string: str) -> dict:
                 cursor.execute(query, params)
                 tables = [row[0] for row in cursor.fetchall()]
         except Exception as e:
-            logger.warning(f"Failed to fetch tables: {e}")
+            public = public_database_error(e)
+            log_safe_exception(logger, "fetch_remote_postgresql_tables", e, public)
 
         message = f"Connected to remote PostgreSQL: {db_name}"
         if tables:
@@ -549,11 +543,10 @@ def connect_remote_postgresql(connection_string: str) -> dict:
             "db_config": db_config,
         }
     except Exception as err:
-        logger.exception("Error connecting to remote PostgreSQL")
-        return {"status": "error", "message": str(err)}
+        return _database_connection_failure("connect_remote_postgresql", err)
 
 
-def connect_remote_mysql(connection_string: str) -> dict:
+def connect_remote_mysql(connection_string: str, *, pool_owner: str | None = None) -> dict:
     """
     Connect to a remote MySQL database using a connection string.
 
@@ -565,8 +558,6 @@ def connect_remote_mysql(connection_string: str) -> dict:
     from service.database.adapters import get_adapter
     from service.database.connection_manager import get_connection_manager
 
-    _clear_cache()
-
     parsed = _parse_connection_string(connection_string)
     db_name = parsed["database"]
     host = parsed["host"]
@@ -574,15 +565,13 @@ def connect_remote_mysql(connection_string: str) -> dict:
     # FIX [C3]: Fail closed if the host cannot be extracted — do NOT default
     # to "remote" and skip validation.
     if not host:
-        return {
-            "status": "error",
-            "message": "Could not extract host from connection string.",
-        }
+        return _public_failure("DB_CONNECTION_STRING_INVALID")
     err = _validate_host(host)
     if err:
         return err
 
     db_config = {
+        "_pool_owner": pool_owner,
         "db_type": "mysql",
         "connection_string": connection_string,
         "database": db_name,
@@ -599,7 +588,7 @@ def connect_remote_mysql(connection_string: str) -> dict:
             if not adapter.validate_connection(conn):
                 return {"status": "error", "message": "Failed to connect to remote MySQL"}
 
-        logger.info(f"Connected to remote MySQL: {db_name} at {host}")
+        logger.info("Connected to remote MySQL")
 
         all_databases = []
         try:
@@ -624,7 +613,8 @@ def connect_remote_mysql(connection_string: str) -> dict:
                 )
                 tables = [row[0] for row in cursor.fetchall()]
         except Exception as e:
-            logger.warning(f"Failed to fetch tables: {e}")
+            public = public_database_error(e)
+            log_safe_exception(logger, "fetch_remote_mysql_tables", e, public)
 
         message = f"Connected to remote MySQL: {db_name}"
         if tables:
@@ -641,11 +631,10 @@ def connect_remote_mysql(connection_string: str) -> dict:
             "db_config": db_config,
         }
     except Exception as err:
-        logger.exception("Error connecting to remote MySQL")
-        return {"status": "error", "message": str(err)}
+        return _database_connection_failure("connect_remote_mysql", err)
 
 
-def connect_remote_oracle(connection_string: str) -> dict:
+def connect_remote_oracle(connection_string: str, *, pool_owner: str | None = None) -> dict:
     """
     Connect to a remote Oracle database using a connection string.
 
@@ -664,8 +653,6 @@ def connect_remote_oracle(connection_string: str) -> dict:
     from service.database.adapters import get_adapter
     from service.database.connection_manager import get_connection_manager
 
-    _clear_cache()
-
     adapter = get_adapter("oracle")
 
     # FIX [C3]: parse with the adapter's parser (the same one that will be
@@ -674,9 +661,12 @@ def connect_remote_oracle(connection_string: str) -> dict:
     try:
         parsed = adapter._parse_connection_string(connection_string)
     except Exception as parse_err:
+        public = public_error_for_code("DB_CONNECTION_STRING_INVALID")
+        log_safe_exception(logger, "parse_oracle_connection_string", parse_err, public)
         return {
             "status": "error",
-            "message": f"Could not parse Oracle connection string: {parse_err}",
+            "error_code": public.code,
+            "message": public.message,
         }
 
     # The adapter's _parse_connection_string returns a 'dsn' like
@@ -695,10 +685,7 @@ def connect_remote_oracle(connection_string: str) -> dict:
     if not host:
         # FIX [C3]: fail closed if no host can be extracted — do NOT fall
         # through and let the adapter connect to an unvalidated host.
-        return {
-            "status": "error",
-            "message": "Could not extract host from Oracle connection string.",
-        }
+        return _public_failure("DB_CONNECTION_STRING_INVALID")
 
     err = _validate_host(host)
     if err:
@@ -707,6 +694,7 @@ def connect_remote_oracle(connection_string: str) -> dict:
     schema_name = user.upper() if user else "REMOTE"
 
     db_config = {
+        "_pool_owner": pool_owner,
         "db_type": "oracle",
         "connection_string": connection_string,
         "database": schema_name,
@@ -723,7 +711,7 @@ def connect_remote_oracle(connection_string: str) -> dict:
             if not adapter.validate_connection(conn):
                 return {"status": "error", "message": "Failed to connect to remote Oracle"}
 
-        logger.info(f"Connected to remote Oracle: {schema_name}")
+        logger.info("Connected to remote Oracle")
 
         schemas = []
         try:
@@ -740,7 +728,8 @@ def connect_remote_oracle(connection_string: str) -> dict:
                 cursor.execute(tables_query, tables_params)
                 tables = [row[0] for row in cursor.fetchall()]
         except Exception as e:
-            logger.warning(f"Failed to fetch Oracle tables: {e}")
+            public = public_database_error(e)
+            log_safe_exception(logger, "fetch_remote_oracle_tables", e, public)
 
         message = f"Connected to remote Oracle: {schema_name}"
         if tables:
@@ -760,11 +749,10 @@ def connect_remote_oracle(connection_string: str) -> dict:
             "db_config": db_config,
         }
     except Exception as err:
-        logger.exception("Error connecting to remote Oracle")
-        return {"status": "error", "message": str(err)}
+        return _database_connection_failure("connect_remote_oracle", err)
 
 
-def connect_remote_sqlserver(connection_string: str) -> dict:
+def connect_remote_sqlserver(connection_string: str, *, pool_owner: str | None = None) -> dict:
     """
     Connect to a remote SQL Server database using a connection string.
 
@@ -780,8 +768,6 @@ def connect_remote_sqlserver(connection_string: str) -> dict:
     from service.database.adapters import get_adapter
     from service.database.connection_manager import get_connection_manager
 
-    _clear_cache()
-
     db_match = _re.search(r"(?:Database|Initial Catalog)=([^;]+)", connection_string, _re.IGNORECASE)
     server_match = _re.search(r"(?:Server|Data Source)=([^;,]+)", connection_string, _re.IGNORECASE)
 
@@ -791,15 +777,13 @@ def connect_remote_sqlserver(connection_string: str) -> dict:
     # FIX [C3]: Fail closed if no host can be extracted — do NOT default to
     # "remote" and skip validation.
     if not host:
-        return {
-            "status": "error",
-            "message": "Could not extract host from SQL Server connection string.",
-        }
+        return _public_failure("DB_CONNECTION_STRING_INVALID")
     err = _validate_host(host)
     if err:
         return err
 
     db_config = {
+        "_pool_owner": pool_owner,
         "db_type": "sqlserver",
         "connection_string": connection_string,
         "database": db_name,
@@ -816,7 +800,7 @@ def connect_remote_sqlserver(connection_string: str) -> dict:
             if not adapter.validate_connection(conn):
                 return {"status": "error", "message": "Failed to connect to remote SQL Server"}
 
-        logger.info(f"Connected to remote SQL Server: {db_name} at {host}")
+        logger.info("Connected to remote SQL Server")
 
         all_databases = []
         try:
@@ -835,7 +819,8 @@ def connect_remote_sqlserver(connection_string: str) -> dict:
                 cursor.execute(tables_query, tables_params)
                 tables = [row[0] for row in cursor.fetchall()]
         except Exception as e:
-            logger.warning(f"Failed to fetch SQL Server tables: {e}")
+            public = public_database_error(e)
+            log_safe_exception(logger, "fetch_remote_sqlserver_tables", e, public)
 
         message = f"Connected to remote SQL Server: {db_name}"
         if tables:
@@ -852,8 +837,7 @@ def connect_remote_sqlserver(connection_string: str) -> dict:
             "db_config": db_config,
         }
     except Exception as err:
-        logger.exception("Error connecting to remote SQL Server")
-        return {"status": "error", "message": str(err)}
+        return _database_connection_failure("connect_remote_sqlserver", err)
 
 
 # DATABASE SELECTION
@@ -883,12 +867,11 @@ def select_database(db_config: dict, db_name: str) -> dict:
     try:
         fetch_database_info(new_config, db_name)
 
-        logger.info(f"Selected database: {db_name}")
+        logger.info("Database selection completed")
         return {
             "status": "connected",
             "message": f"Connected to database {db_name}",
             "db_config": new_config,
         }
     except Exception as err:
-        logger.exception(f"Error selecting database {db_name}")
-        return {"status": "error", "message": str(err)}
+        return _database_connection_failure("select_database", err)

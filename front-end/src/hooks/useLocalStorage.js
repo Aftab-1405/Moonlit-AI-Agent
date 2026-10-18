@@ -4,6 +4,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { resolveStoredValue } from '@/hooks/localStorageState';
 import logger from '@/utils/logger';
 
 /**
@@ -95,7 +96,7 @@ export function useLocalStorage(key, initialValue) {
       try {
         // Resolve functional updates using the ref — avoids side effects inside a
         // state updater (which React 18 StrictMode calls twice to detect impurity).
-        const valueToStore = value instanceof Function ? value(storedValueRef.current) : value;
+        const valueToStore = resolveStoredValue(storedValueRef.current, value);
 
         if (isBrowser()) {
           if (valueToStore === undefined || valueToStore === null) {
@@ -105,6 +106,7 @@ export function useLocalStorage(key, initialValue) {
           }
         }
 
+        storedValueRef.current = valueToStore;
         setStoredValue(valueToStore);
       } catch (error) {
         logger.warn(`useLocalStorage: Error setting key "${key}":`, error);

@@ -21,10 +21,8 @@ const SCHEMA_PANEL_MOTION = {
   easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
 };
 
-let cachedTabs = null;
-let cachedActiveTabId = null;
-
 function SqlWorkspace({
+  workspaceCache,
   _title,
   initialQuery = '',
   initialResults = null,
@@ -47,10 +45,13 @@ function SqlWorkspace({
   const errorDismissRef = useRef(null);
 
   // Query state
-  const [activeTabId, setActiveTabId] = useState(() => cachedActiveTabId || 'query-1');
+  const [activeTabId, setActiveTabId] = useState(
+    () => workspaceCache?.get()?.activeTabId || 'query-1',
+  );
   const [tabs, setTabs] = useState(() => {
-    if (cachedTabs && cachedTabs.length > 0) {
-      return cachedTabs;
+    const cached = workspaceCache?.get();
+    if (cached?.tabs?.length) {
+      return cached.tabs;
     }
     return [
       {
@@ -66,35 +67,39 @@ function SqlWorkspace({
 
   // Sync state with cache
   useEffect(() => {
-    cachedTabs = tabs;
-    cachedActiveTabId = activeTabId;
-  }, [tabs, activeTabId]);
+    workspaceCache?.set({ tabs, activeTabId });
+  }, [tabs, activeTabId, workspaceCache]);
 
-  // Handle incoming query/results updates
-  useEffect(() => {
+  // Reconcile incoming output data before children render. Reopening the same
+  // SQL with a newer result must select its tab and replace the old rows.
+  const [lastInput, setLastInput] = useState(null);
+  if (lastInput?.query !== initialQuery || lastInput?.results !== initialResults) {
+    setLastInput({ query: initialQuery, results: initialResults });
     if (initialQuery) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setTabs((prev) => {
-        const exists = prev.some((t) => t.query === initialQuery);
-        if (exists) {
-          const existingTab = prev.find((t) => t.query === initialQuery);
-          if (existingTab) setActiveTabId(existingTab.id);
-          return prev;
-        }
-        const newId = `query-${Date.now()}`;
-        const newTab = {
-          id: newId,
-          title: `Query ${prev.length + 1}`,
-          query: initialQuery,
-          isDirty: false,
-          results: initialResults,
-          error: null,
-        };
-        setActiveTabId(newId);
-        return [...prev, newTab];
-      });
+      const existing = tabs.find((tab) => tab.query === initialQuery);
+      if (existing) {
+        setActiveTabId(existing.id);
+        if (initialResults)
+          setTabs(
+            tabs.map((tab) => (tab.id === existing.id ? { ...tab, results: initialResults } : tab)),
+          );
+      } else {
+        const id = `query-${crypto.randomUUID()}`;
+        setTabs([
+          ...tabs,
+          {
+            id,
+            title: `Query ${tabs.length + 1}`,
+            query: initialQuery,
+            isDirty: false,
+            results: initialResults,
+            error: null,
+          },
+        ]);
+        setActiveTabId(id);
+      }
     }
-  }, [initialQuery, initialResults]);
+  }
 
   // Resizing state
   const [resizingSidebar, setResizingSidebar] = useState(false);
@@ -368,7 +373,7 @@ function SqlWorkspace({
       }}
     >
       <ArtifactShell
-        title="EDITOR"
+        title="Editor"
         chrome={chrome}
         onClose={onClose}
         onRequestClose={onRequestClose}

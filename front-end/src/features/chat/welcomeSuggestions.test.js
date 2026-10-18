@@ -259,3 +259,31 @@ test('database availability keeps its mixed category reachable when prompt sendi
     true,
   );
 });
+
+test('suggestion motion opens the panel before staggering rows and closes it after rows', () => {
+  assert.equal(typeof welcomeSuggestionsModel.getWelcomeSuggestionMotion, 'function');
+
+  const { panelVariants, itemVariants } = welcomeSuggestionsModel.getWelcomeSuggestionMotion(false);
+
+  assert.equal(panelVariants.open.scaleY, 1);
+  assert.equal(panelVariants.open.transition.when, 'beforeChildren');
+  assert.ok(panelVariants.open.transition.staggerChildren > 0);
+  assert.equal(itemVariants.open.opacity, 1);
+  assert.equal(itemVariants.open.y, 0);
+
+  assert.equal(panelVariants.closed.scaleY, 0);
+  assert.equal(panelVariants.closed.transition.when, 'afterChildren');
+  assert.ok(panelVariants.closed.transition.staggerChildren > 0);
+  assert.equal(itemVariants.closed.opacity, 0);
+  assert.ok(itemVariants.closed.y < 0);
+});
+
+test('suggestion panel is the sole animated transition source', () => {
+  const { containerLayout, stageTransition, panelVariants } =
+    welcomeSuggestionsModel.getWelcomeSuggestionMotion(false);
+
+  assert.equal(containerLayout, false);
+  assert.equal(stageTransition.duration, 0);
+  assert.equal(panelVariants.closed.scaleY, 0);
+  assert.equal(panelVariants.open.scaleY, 1);
+});

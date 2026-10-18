@@ -1,81 +1,64 @@
 import { Box, Fade, Typography } from '@mui/material';
 import { keyframes, useTheme } from '@mui/material/styles';
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import ChatInput from '@/features/chat/ChatInput';
+import { memo, useCallback, useMemo, useState } from 'react';
 import WelcomeSuggestions from '@/features/chat/WelcomeSuggestions';
-import {
-  COMPOSER_MAX_WIDTH,
-  getWelcomeHeroSx,
-  getWelcomeLayoutSx,
-} from '@/features/styles/interfaceChrome';
-import {
-  getWelcomeCategories,
-  getWelcomeGreeting,
-  getWelcomePeriodBoundaryDelay,
-  runWelcomeEntry,
-} from './welcomeSuggestions.js';
+import { getWelcomeHeroSx, getWelcomeLayoutSx } from '@/features/styles/interfaceChrome';
+import { getWelcomeCategories, runWelcomeEntry } from './welcomeSuggestions.js';
 
-/**
- * WelcomeScreen — empty-state hero shown when no conversation is selected.
- *
- * Renders the greeting headline + composer + connection-aware suggestions. The greeting
- * stays monochrome so the composer remains the visual anchor.
- */
-
-/** Soft entrance animation — fades content up from 4px below. */
 const softReveal = keyframes`
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 `;
 
 const WELCOME_LAYOUT = getWelcomeLayoutSx();
 
-function WelcomeScreen({ visible, user, chatInputProps, onOpenDatabase }) {
+function WelcomeScreen({ visible }) {
   const theme = useTheme();
+  return (
+    <Fade in={visible} timeout={160} unmountOnExit>
+      <Box
+        sx={{
+          position: 'absolute',
+          inset: 0,
+          minHeight: 0,
+          display: 'flex',
+          alignItems: 'flex-end',
+          justifyContent: 'center',
+          px: { xs: 1, md: 3 },
+          pb: { xs: 2, sm: 2.5, md: 3 },
+          textAlign: 'center',
+          pointerEvents: 'none',
+          animation: visible ? `${softReveal} 200ms ease-out both` : 'none',
+          '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
+        }}
+      >
+        <Typography
+          component="h1"
+          sx={{
+            ...getWelcomeHeroSx(theme),
+            mx: 'auto',
+          }}
+        >
+          What should we explore?
+        </Typography>
+      </Box>
+    </Fade>
+  );
+}
+
+export const WelcomeSuggestionsPanel = memo(function WelcomeSuggestionsPanel({
+  visible,
+  chatInputProps,
+  onOpenDatabase,
+}) {
   const [activeCategoryId, setActiveCategoryId] = useState(null);
-  const [greetingRevision, setGreetingRevision] = useState(0);
   const {
     disabled = false,
     isConnected = false,
     isStreaming = false,
     onSend,
   } = chatInputProps || {};
-  const previousIsConnectedRef = useRef(isConnected);
   const categories = useMemo(() => getWelcomeCategories(isConnected), [isConnected]);
-  const greeting = getWelcomeGreeting({
-    date: new Date(),
-    displayName: user?.displayName,
-  });
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the revision deliberately reschedules at each greeting boundary.
-  useEffect(() => {
-    if (!visible) return undefined;
-    const now = new Date();
-    const greetingTimerId = setTimeout(
-      () => setGreetingRevision((revision) => revision + 1),
-      getWelcomePeriodBoundaryDelay(now),
-    );
-    return () => clearTimeout(greetingTimerId);
-  }, [greetingRevision, visible]);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset welcome-only UI state when Fade hides and unmounts its child.
-    if (!visible) setActiveCategoryId(null);
-  }, [visible]);
-
-  useEffect(() => {
-    if (previousIsConnectedRef.current !== isConnected) {
-      previousIsConnectedRef.current = isConnected;
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Connection changes replace the available welcome catalog.
-      setActiveCategoryId(null);
-    }
-  }, [isConnected]);
 
   const handleActivate = useCallback(
     (entry) =>
@@ -88,87 +71,20 @@ function WelcomeScreen({ visible, user, chatInputProps, onOpenDatabase }) {
   );
 
   return (
-    <Fade in={visible} timeout={300} unmountOnExit>
-      <Box
-        sx={{
-          position: 'absolute',
-          inset: 0,
-          display: 'flex',
-          alignItems: 'safe center',
-          justifyContent: 'center',
-          overflowY: 'auto',
-          ...WELCOME_LAYOUT.outer,
-        }}
-      >
-        <Box
-          sx={{
-            width: '100%',
-            mx: 'auto',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            ...WELCOME_LAYOUT.content,
-            textAlign: 'center',
-          }}
-        >
-          <Box
-            sx={{
-              animation: visible ? `${softReveal} 200ms ease-out both` : 'none',
-              '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
-            }}
-          >
-            <Typography
-              component="h1"
-              sx={{
-                ...getWelcomeHeroSx(theme),
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 1.5,
-                maxWidth: COMPOSER_MAX_WIDTH,
-              }}
-            >
-              <Box
-                component="img"
-                src="/moonlit.svg"
-                alt=""
-                aria-hidden="true"
-                sx={{
-                  width: { xs: 28, md: 32 },
-                  height: { xs: 28, md: 32 },
-                  flexShrink: 0,
-                }}
-              />
-              <Box component="span" sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>
-                {greeting}
-              </Box>
-            </Typography>
-          </Box>
-
-          <Box
-            sx={{
-              width: '100%',
-              animation: visible ? `${softReveal} 240ms ease-out both` : 'none',
-              animationDelay: visible ? '45ms' : '0ms',
-              '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
-            }}
-          >
-            <ChatInput {...chatInputProps}>
-              <WelcomeSuggestions
-                key={isConnected ? 'connected' : 'disconnected'}
-                categories={categories}
-                activeCategoryId={activeCategoryId}
-                onCategoryChange={setActiveCategoryId}
-                onActivate={handleActivate}
-                canOpenDatabase={typeof onOpenDatabase === 'function'}
-                disabled={disabled || isStreaming || typeof onSend !== 'function'}
-              />
-            </ChatInput>
-          </Box>
-        </Box>
+    <Fade in={visible} timeout={160} unmountOnExit onExited={() => setActiveCategoryId(null)}>
+      <Box sx={WELCOME_LAYOUT.suggestions}>
+        <WelcomeSuggestions
+          key={isConnected ? 'connected' : 'disconnected'}
+          categories={categories}
+          activeCategoryId={activeCategoryId}
+          onCategoryChange={setActiveCategoryId}
+          onActivate={handleActivate}
+          canOpenDatabase={typeof onOpenDatabase === 'function'}
+          disabled={disabled || isStreaming || typeof onSend !== 'function'}
+        />
       </Box>
     </Fade>
   );
-}
+});
 
 export default memo(WelcomeScreen);

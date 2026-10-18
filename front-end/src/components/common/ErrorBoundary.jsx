@@ -291,11 +291,9 @@ function FullPageErrorFallback({ error, errorInfo, onReload, onGoHome }) {
           <Typography
             component="p"
             sx={{
-              ...theme.typography.uiMonoLabel,
+              ...theme.typography.uiCaptionMd,
               mb: 1,
               color: 'text.secondary',
-              letterSpacing: '0.1em',
-              textTransform: 'uppercase',
               fontWeight: 400,
             }}
           >

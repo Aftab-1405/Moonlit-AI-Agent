@@ -14,8 +14,12 @@ export const queryKeys = {
   llmOptions: ['llm', 'options'],
   conversations: ['conversations', 'list'],
   conversation: (conversationId) => ['conversations', 'detail', conversationId],
-  userSettings: ['user', 'settings'],
+  chatSession: (sessionKey) => ['chatSessions', sessionKey],
+  userSettings: (userId) => ['user', userId || '__anonymous__', 'settings'],
   userContext: ['user', 'context'],
+  dashboardOverview: (userId) => ['user', userId, 'dashboard', 'overview'],
+  dashboardUsage: (userId, days) => ['user', userId, 'dashboard', 'usage', days],
+  userQuota: (userId) => ['user', userId, 'quota'],
 };
 
 export const queryClient = new QueryClient({

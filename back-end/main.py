@@ -3,17 +3,16 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from time import perf_counter
 
 import redis.asyncio as redis
 from fastapi import FastAPI, HTTPException, Request, status
-from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from api_contract.common import ApiError
+from api_contract.common import api_error_response, serialize_validation_errors
 from composition import configure_runtime_ports
 from config import ProductionConfig, get_config
 
@@ -21,6 +20,18 @@ from config import ProductionConfig, get_config
 # @limiter.limit decorators. Previously the limiter was created here but
 # no routes had decorators — the limiter existed but never enforced.
 from controller.rate_limiter import limiter
+from core.account_activity import AccountActivityMiddleware
+from core.audit import configure_audit_logging
+from core.audit_middleware import PrivilegedActionAuditMiddleware
+from core.http_boundary import RequestBodyLimitMiddleware, ResponseSecurityMiddleware
+from core.logging import install_request_id_filter
+from core.startup_diagnostics import (
+    StartupProbeResult,
+    log_development_runtime_modes,
+    log_startup_probe,
+    log_startup_summary,
+    run_startup_probe,
+)
 from langgraph_orchestration.checkpointing import (
     init_checkpointer,
     shutdown_checkpointer,
@@ -36,7 +47,13 @@ logging.basicConfig(
     format=AppConfig.LOG_FORMAT,
     handlers=[logging.FileHandler(AppConfig.LOG_FILE), logging.StreamHandler()],
 )
+install_request_id_filter()
 logger = logging.getLogger(__name__)
+configure_audit_logging(
+    AppConfig.AUDIT_LOG_FILE,
+    max_bytes=AppConfig.AUDIT_LOG_MAX_BYTES,
+    backup_count=AppConfig.AUDIT_LOG_BACKUP_COUNT,
+)
 logging.getLogger().setLevel(getattr(logging, AppConfig.LOG_LEVEL, logging.INFO))
 third_party_log_level = getattr(logging, AppConfig.THIRD_PARTY_LOG_LEVEL, logging.WARNING)
 for noisy_logger in AppConfig.NOISY_LOGGER_NAMES:
@@ -47,6 +64,51 @@ for noisy_logger in AppConfig.NOISY_LOGGER_NAMES:
 from service.redis_service import get_redis_client, set_redis_client
 
 
+async def _run_startup_dependency_probes(
+    redis_client: redis.Redis | None,
+    *,
+    timeout_seconds: float,
+) -> list[StartupProbeResult]:
+    """Verify startup dependencies without exposing connection details."""
+    results: list[StartupProbeResult] = []
+
+    if redis_client is None:
+        redis_result = StartupProbeResult(
+            name="Redis",
+            status="not_checked",
+            detail="client not configured; using in-memory application state",
+            duration_ms=0,
+        )
+    else:
+
+        async def ping_redis() -> None:
+            if not await redis_client.ping():
+                raise ConnectionError("Redis PING returned a false response")
+
+        redis_result = await run_startup_probe(
+            "Redis",
+            ping_redis,
+            timeout_seconds=timeout_seconds,
+            success_detail="PING succeeded",
+        )
+    log_startup_probe(logger, redis_result)
+    results.append(redis_result)
+
+    def read_firestore() -> None:
+        db = FirestoreService.get_db()
+        next(db.collections(retry=None, timeout=timeout_seconds), None)
+
+    firestore_result = await run_startup_probe(
+        "Firestore",
+        lambda: asyncio.to_thread(read_firestore),
+        timeout_seconds=timeout_seconds,
+        success_detail="read probe succeeded",
+    )
+    log_startup_probe(logger, firestore_result)
+    results.append(firestore_result)
+    return results
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize and tear down application state (Firebase, Redis, checkpointer, VAMP).
@@ -55,8 +117,22 @@ async def lifespan(app: FastAPI):
         app: The FastAPI application instance.
     """
 
+    startup_started_at = perf_counter()
+    env = (AppConfig.APP_ENV or "development").lower()
+    diagnostics_results: list[StartupProbeResult] = []
+
     logger.info(f"🚀 Starting application in {AppConfig.APP_ENV.upper()} mode")
     logger.info(f"   Debug: {AppConfig.DEBUG}, Testing: {AppConfig.TESTING}")
+    if AppConfig.STARTUP_DIAGNOSTICS_ENABLED:
+        logger.info("Startup diagnostics [%s]", env)
+        if env == "development":
+            log_development_runtime_modes(
+                logger,
+                host=AppConfig.UVICORN_HOST,
+                http_rate_limit_enabled=AppConfig.RATELIMIT_ENABLED,
+                llm_rate_limit_enabled=AppConfig.LLM_RATELIMIT_ENABLED,
+                user_quota_enabled=AppConfig.USER_QUOTA_ENABLED,
+            )
 
     if isinstance(AppConfig, type) and issubclass(AppConfig, ProductionConfig):
         ProductionConfig.validate_production_settings()
@@ -70,7 +146,6 @@ async def lifespan(app: FastAPI):
     FirestoreService.initialize()
 
     redis_url = AppConfig.REDIS_URL
-    env = (AppConfig.APP_ENV or "development").lower()
     is_prod_like = env in ("staging", "production")
 
     if is_prod_like:
@@ -83,11 +158,25 @@ async def lifespan(app: FastAPI):
     checkpoint_redis_url: str | None = None
     if redis_url:
         checkpoint_redis_url = redis_url
-        client = redis.from_url(redis_url, decode_responses=True)
+        client = redis.from_url(
+            redis_url,
+            decode_responses=True,
+            socket_connect_timeout=AppConfig.REDIS_SOCKET_CONNECT_TIMEOUT_SECONDS,
+            socket_timeout=AppConfig.REDIS_SOCKET_TIMEOUT_SECONDS,
+            max_connections=AppConfig.REDIS_MAX_CONNECTIONS,
+        )
         set_redis_client(client)
-        logger.info("✅ Redis application state storage enabled")
+        logger.info("Redis client configured (reachability not yet verified)")
     else:
         logger.warning("⚠️ REDIS_URL not set, using in-memory application state")
+
+    if AppConfig.STARTUP_DIAGNOSTICS_ENABLED:
+        diagnostics_results.extend(
+            await _run_startup_dependency_probes(
+                get_redis_client(),
+                timeout_seconds=AppConfig.STARTUP_DIAGNOSTICS_TIMEOUT_SECONDS,
+            )
+        )
 
     # LangGraph thread persistence: Redis in staging/production, in-memory in dev.
     await init_checkpointer(
@@ -119,7 +208,28 @@ async def lifespan(app: FastAPI):
     from llm_provider.model_factory import prewarm_chat_models
 
     logger.info("Prewarming Bedrock model clients...")
-    await asyncio.to_thread(prewarm_chat_models)
+    bedrock_started_at = perf_counter()
+    prewarm_result = await asyncio.to_thread(prewarm_chat_models)
+    bedrock_duration_ms = (perf_counter() - bedrock_started_at) * 1000
+    attempted = prewarm_result["attempted"]
+    initialized = prewarm_result["initialized"]
+    if initialized == attempted:
+        bedrock_result = StartupProbeResult(
+            name="Bedrock",
+            status="not_checked",
+            detail=f"{initialized}/{attempted} clients constructed; API access not tested",
+            duration_ms=bedrock_duration_ms,
+        )
+    else:
+        bedrock_result = StartupProbeResult(
+            name="Bedrock",
+            status="warning",
+            detail=f"{initialized}/{attempted} clients constructed; API access not tested",
+            duration_ms=bedrock_duration_ms,
+        )
+    if AppConfig.STARTUP_DIAGNOSTICS_ENABLED:
+        log_startup_probe(logger, bedrock_result)
+        diagnostics_results.append(bedrock_result)
 
     vamp_stop = asyncio.Event()
     vamp_task = None
@@ -127,16 +237,43 @@ async def lifespan(app: FastAPI):
         from vamp_memory.maintenance import run_vamp_maintenance
         from vamp_memory.vamp_memory_service import get_vamp_memory_service
 
+        qdrant_started_at = perf_counter()
         try:
             # Warm and validate Qdrant before traffic arrives. Network work is
             # still asynchronous and a temporary outage remains recoverable.
             await get_vamp_memory_service().vector_store.ensure_ready()
         except Exception as exc:
-            logger.warning("VAMP vector store was not ready at startup: %s", exc)
+            qdrant_result = StartupProbeResult(
+                name="Qdrant",
+                status="warning",
+                detail=f"readiness probe failed ({type(exc).__name__})",
+                duration_ms=(perf_counter() - qdrant_started_at) * 1000,
+            )
+        else:
+            qdrant_result = StartupProbeResult(
+                name="Qdrant",
+                status="ok",
+                detail=f"collection={AppConfig.VAMP_QDRANT_COLLECTION}",
+                duration_ms=(perf_counter() - qdrant_started_at) * 1000,
+            )
+        if AppConfig.STARTUP_DIAGNOSTICS_ENABLED:
+            log_startup_probe(logger, qdrant_result)
+            diagnostics_results.append(qdrant_result)
+        elif qdrant_result.status == "ok":
+            logger.info("Qdrant vector store ready")
+        else:
+            logger.warning("VAMP vector store was not ready at startup (%s)", qdrant_result.detail)
 
         vamp_task = asyncio.create_task(
             run_vamp_maintenance(vamp_stop, AppConfig.VAMP_MAINTENANCE_INTERVAL_SECONDS),
             name="vamp-maintenance",
+        )
+
+    if AppConfig.STARTUP_DIAGNOSTICS_ENABLED:
+        log_startup_summary(
+            logger,
+            diagnostics_results,
+            total_duration_ms=(perf_counter() - startup_started_at) * 1000,
         )
 
     logger.info("✅ Application initialized successfully")
@@ -256,24 +393,6 @@ def create_app() -> FastAPI:
         return response
 
     @app.middleware("http")
-    async def add_security_headers(request: Request, call_next):
-        """Attach standard security headers (X-Content-Type-Options, HSTS, etc.) to every response."""
-        response = await call_next(request)
-        response.headers["X-Content-Type-Options"] = AppConfig.SECURITY_HEADER_CONTENT_TYPE_OPTIONS
-        response.headers["X-Frame-Options"] = AppConfig.SECURITY_HEADER_FRAME_OPTIONS
-        response.headers["X-XSS-Protection"] = AppConfig.SECURITY_HEADER_XSS_PROTECTION
-        response.headers["Strict-Transport-Security"] = AppConfig.SECURITY_HEADER_HSTS
-        response.headers["Referrer-Policy"] = AppConfig.SECURITY_HEADER_REFERRER_POLICY
-        response.headers["Permissions-Policy"] = AppConfig.SECURITY_HEADER_PERMISSIONS_POLICY
-
-        # Mask server header to prevent information disclosure
-        response.headers["Server"] = AppConfig.SERVER_HEADER_VALUE
-        if "x-powered-by" in response.headers:
-            del response.headers["x-powered-by"]
-
-        return response
-
-    @app.middleware("http")
     async def csrf_middleware(request: Request, call_next):
         """Enforce double-submit CSRF tokens on every state-mutating request."""
         if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
@@ -283,20 +402,38 @@ def create_app() -> FastAPI:
 
                     verify_csrf_token(request)
                 except HTTPException as exc:
-                    return JSONResponse(
+                    return api_error_response(
                         status_code=exc.status_code,
-                        content={
-                            "error": "FORBIDDEN",
-                            "message": str(exc.detail),
-                            "details": {},
-                        },
+                        error="FORBIDDEN",
+                        message=str(exc.detail),
                     )
 
         return await call_next(request)
 
+    app.add_middleware(
+        RequestBodyLimitMiddleware,
+        max_body_bytes=AppConfig.REQUEST_BODY_MAX_BYTES,
+    )
+
+    app.add_middleware(PrivilegedActionAuditMiddleware)
+    app.add_middleware(AccountActivityMiddleware)
+
+    app.add_middleware(
+        ResponseSecurityMiddleware,
+        security_headers={
+            "X-Content-Type-Options": AppConfig.SECURITY_HEADER_CONTENT_TYPE_OPTIONS,
+            "X-Frame-Options": AppConfig.SECURITY_HEADER_FRAME_OPTIONS,
+            "X-XSS-Protection": AppConfig.SECURITY_HEADER_XSS_PROTECTION,
+            "Strict-Transport-Security": AppConfig.SECURITY_HEADER_HSTS,
+            "Referrer-Policy": AppConfig.SECURITY_HEADER_REFERRER_POLICY,
+            "Permissions-Policy": AppConfig.SECURITY_HEADER_PERMISSIONS_POLICY,
+        },
+        server_header=AppConfig.SERVER_HEADER_VALUE,
+    )
+
     if AppConfig.RATELIMIT_ENABLED:
         app.state.limiter = limiter
-        app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+        app.add_exception_handler(RateLimitExceeded, _rate_limit_exception_handler)
         logger.info(f"Rate limiting enabled: {AppConfig.RATELIMIT_DEFAULT}")
 
     # Configure LLM rate limiter (single-key rate limiting)
@@ -343,31 +480,13 @@ def _register_error_handlers(app: FastAPI):
             status.HTTP_403_FORBIDDEN: "FORBIDDEN",
             status.HTTP_404_NOT_FOUND: "NOT_FOUND",
             status.HTTP_405_METHOD_NOT_ALLOWED: "METHOD_NOT_ALLOWED",
-            status.HTTP_422_UNPROCESSABLE_ENTITY: "VALIDATION_ERROR",
+            status.HTTP_422_UNPROCESSABLE_CONTENT: "VALIDATION_ERROR",
             status.HTTP_429_TOO_MANY_REQUESTS: "RATE_LIMITED",
             status.HTTP_500_INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
         }.get(status_code, "REQUEST_FAILED")
 
-    def api_error_response(
-        *,
-        status_code: int,
-        error: str,
-        message: str,
-        details: dict | None = None,
-        headers: dict | None = None,
-    ):
-        return JSONResponse(
-            status_code=status_code,
-            content=ApiError(
-                error=error,
-                message=message,
-                details=details or {},
-            ).model_dump(),
-            headers=headers,
-        )
-
-    @app.exception_handler(HTTPException)
-    async def http_exception_handler(request: Request, exc: HTTPException):
+    @app.exception_handler(StarletteHTTPException)
+    async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         """Translate HTTPException into the standard ApiError JSON envelope."""
         detail = exc.detail
         error = error_code_for_status(exc.status_code)
@@ -393,21 +512,24 @@ def _register_error_handlers(app: FastAPI):
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
         """Translate Pydantic validation errors into the standard ApiError JSON envelope."""
         return api_error_response(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             error="VALIDATION_ERROR",
             message="Request validation failed.",
-            details={"errors": jsonable_encoder(exc.errors())},
+            details={"errors": serialize_validation_errors(exc.errors())},
         )
 
-    @app.exception_handler(Exception)
-    async def internal_error_handler(request: Request, exc: Exception):
-        """Catch unhandled exceptions and return a 500 ApiError without leaking details."""
-        logger.exception(f"Internal server error: {exc}")
-        return api_error_response(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            error="INTERNAL_SERVER_ERROR",
-            message="Internal server error",
-        )
+
+
+async def _rate_limit_exception_handler(
+    request: Request,
+    exc: RateLimitExceeded,
+):
+    """Return the stable public error contract for SlowAPI rejections."""
+    return api_error_response(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        error="RATE_LIMITED",
+        message="Too many requests.",
+    )
 
 
 app = create_app()

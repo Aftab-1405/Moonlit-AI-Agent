@@ -1,27 +1,67 @@
 import { Box, CircularProgress, IconButton, InputBase, Tooltip, Typography } from '@mui/material';
-import { memo, useCallback, useState } from 'react';
-import { CheckIcon, CloseIcon, MenuIcon } from '@/components/icons';
-import { getResponsivePillIconButtonSx } from '@/features/styles/interfaceChrome';
+import { motion, useReducedMotion } from 'framer-motion';
+import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { CheckIcon, CloseIcon, MenuIcon, NewChatIcon } from '@/components/icons';
+import { getChatMotionVariants } from '@/features/chat/chatMotion';
+import {
+  getMobileEdgeControlSx,
+  getResponsivePillIconButtonSx,
+} from '@/features/styles/interfaceChrome';
 import { getInteractiveIconButtonSx, UI_LAYOUT } from '@/styles/shared';
 import { prepareConversationRename } from './chatHeaderModel';
 
+const MotionBox = motion.create(Box);
+
 const ChatHeader = memo(function ChatHeader({
+  sessionKey,
   conversationId,
   title,
   onRenameConversation,
+  onNewChat,
   isNarrowLayout,
   onOpenSidebar,
   openSidebarButtonRef,
+  actions,
   theme,
 }) {
+  const prefersReducedMotion = useReducedMotion();
+  const titleMotion = useMemo(
+    () => getChatMotionVariants(prefersReducedMotion).content,
+    [prefersReducedMotion],
+  );
+  const hasTitle = Boolean(conversationId && title);
+  const titleLifecycleRef = useRef({
+    sessionKey,
+    canAnimateGeneratedTitle: !conversationId,
+    hadTitle: hasTitle,
+  });
+  const animateTitle = Boolean(
+    hasTitle &&
+      titleLifecycleRef.current.sessionKey === sessionKey &&
+      titleLifecycleRef.current.canAnimateGeneratedTitle &&
+      !titleLifecycleRef.current.hadTitle,
+  );
+
+  useLayoutEffect(() => {
+    const previous = titleLifecycleRef.current;
+    titleLifecycleRef.current =
+      previous.sessionKey === sessionKey
+        ? { ...previous, hadTitle: previous.hadTitle || hasTitle }
+        : {
+            sessionKey,
+            canAnimateGeneratedTitle: !conversationId,
+            hadTitle: hasTitle,
+          };
+  }, [conversationId, hasTitle, sessionKey]);
+
   const [renameState, setRenameState] = useState(null);
-  const [isSaving, setIsSaving] = useState(false);
   const isRenaming = renameState?.conversationId === conversationId;
+  const isSaving = Boolean(isRenaming && renameState?.saving);
   const draftTitle = isRenaming ? renameState.title : '';
 
   const beginRename = useCallback(() => {
-    if (!onRenameConversation) return;
-    setRenameState({ conversationId, title });
+    if (!conversationId || !title || !onRenameConversation) return;
+    setRenameState({ conversationId, title, saving: false });
   }, [conversationId, onRenameConversation, title]);
 
   const cancelRename = useCallback(() => {
@@ -38,14 +78,24 @@ const ChatHeader = memo(function ChatHeader({
       return;
     }
 
-    setIsSaving(true);
+    setRenameState((current) =>
+      current?.conversationId === conversationId ? { ...current, saving: true } : current,
+    );
     try {
       const renamed = await onRenameConversation?.(conversationId, nextTitle);
-      if (renamed !== false) setRenameState(null);
+      if (renamed !== false) {
+        setRenameState((current) => (current?.conversationId === conversationId ? null : current));
+      }
     } catch {
-      setRenameState({ conversationId, title });
+      setRenameState((current) =>
+        current?.conversationId === conversationId
+          ? { conversationId, title, saving: false }
+          : current,
+      );
     } finally {
-      setIsSaving(false);
+      setRenameState((current) =>
+        current?.conversationId === conversationId ? { ...current, saving: false } : current,
+      );
     }
   }, [conversationId, draftTitle, isRenaming, isSaving, onRenameConversation, title]);
 
@@ -95,6 +145,7 @@ const ChatHeader = memo(function ChatHeader({
                 size: UI_LAYOUT.touchTarget,
                 radius: theme.shape.radius.pill,
               }),
+              ...getMobileEdgeControlSx('left', 1),
               flexShrink: 0,
               bgcolor: 'transparent',
               '&:hover': { bgcolor: 'action.hover' },
@@ -105,6 +156,17 @@ const ChatHeader = memo(function ChatHeader({
         </Tooltip>
       )}
 
+      {onNewChat && (
+        <Tooltip title="New chat">
+          <IconButton
+            aria-label="New chat"
+            onClick={onNewChat}
+            sx={{ borderRadius: '10px', flexShrink: 0 }}
+          >
+            <NewChatIcon sx={{ fontSize: 20 }} />
+          </IconButton>
+        </Tooltip>
+      )}
       <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center' }}>
         {isRenaming ? (
           <Box
@@ -120,7 +182,9 @@ const ChatHeader = memo(function ChatHeader({
               autoFocus
               value={draftTitle}
               disabled={isSaving}
-              onChange={(event) => setRenameState({ conversationId, title: event.target.value })}
+              onChange={(event) =>
+                setRenameState({ conversationId, title: event.target.value, saving: false })
+              }
               onKeyDown={handleInputKeyDown}
               inputProps={{ maxLength: 80, 'aria-label': 'Conversation title' }}
               sx={{
@@ -172,14 +236,17 @@ const ChatHeader = memo(function ChatHeader({
               </span>
             </Tooltip>
           </Box>
-        ) : (
+        ) : conversationId && title ? (
           <Tooltip title="Rename conversation" arrow>
-            <Box
+            <MotionBox
               component="button"
               type="button"
               onClick={beginRename}
               disabled={!onRenameConversation}
               aria-label={`Rename conversation: ${title}`}
+              data-title-motion={animateTitle ? 'live' : 'static'}
+              initial={animateTitle ? titleMotion.initial : false}
+              animate={titleMotion.animate}
               sx={{
                 maxWidth: 'min(100%, 560px)',
                 minWidth: 0,
@@ -206,10 +273,13 @@ const ChatHeader = memo(function ChatHeader({
               >
                 {title}
               </Typography>
-            </Box>
+            </MotionBox>
           </Tooltip>
+        ) : (
+          <Box aria-hidden sx={{ height: 32 }} />
         )}
       </Box>
+      {actions}
     </Box>
   );
 });

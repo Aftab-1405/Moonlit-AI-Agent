@@ -56,7 +56,7 @@ function SqlEditorSurface({
     () => [
       sql({ dialect: StandardSQL, upperCaseKeywords: true }),
       EditorView.lineWrapping,
-      placeholder('Write a SQL query…'),
+      placeholder('Write a SQL query'),
       // Ctrl+Enter / Cmd+Enter → same action as clicking the Run button
       Prec.high(
         keymap.of([
@@ -241,7 +241,7 @@ function SqlEditorSurface({
               fontWeight: 400,
             }}
           >
-            Agent is writing…
+            Agent is writing
           </Typography>
         </Box>
       )}

@@ -1,5 +1,5 @@
 import { alpha, createTheme, responsiveFontSizes } from '@mui/material/styles';
-import { MOBILE_SM_QUERY, REDUCED_MOTION_QUERY, TOUCH_DEVICE_QUERY } from '@/styles/mediaQueries';
+import { HOVER_CAPABLE_QUERY, MOBILE_SM_QUERY, REDUCED_MOTION_QUERY, TOUCH_DEVICE_QUERY } from '@/styles/mediaQueries';
 import { BREAKPOINTS, FONTS, SHAPE, SWITCH_GEOMETRY } from '@/theme/tokens';
 import { createTypography } from '@/theme/typography';
 
@@ -193,7 +193,7 @@ const createComponents = (S) => ({
         transition: 'background-color 140ms ease, border-color 140ms ease, color 140ms ease',
         [MOBILE_SM_QUERY]: { minHeight: 44, padding: '11px 16px' },
         [TOUCH_DEVICE_QUERY]: { minHeight: 44 },
-        '&:active': { transform: 'none' },
+        '&:active:not(.Mui-disabled)': { backgroundColor: S.action.selected },
         '&.Mui-disabled': {
           color: S.text.disabled,
           borderColor: S.border.idle,
@@ -241,12 +241,21 @@ const createComponents = (S) => ({
         color: S.text.secondary,
         backgroundColor: 'transparent',
         boxShadow: 'none',
-        '&:hover': { color: S.text.primary, backgroundColor: S.action.hover },
+        '& .MuiSvgIcon-root': { fontSize: '20px' },
+        [HOVER_CAPABLE_QUERY]: {
+          '&:hover:not(.Mui-disabled)': { color: S.text.primary, backgroundColor: S.action.hover },
+        },
+        [TOUCH_DEVICE_QUERY]: { minWidth: 44, minHeight: 44 },
+        [REDUCED_MOTION_QUERY]: { transition: 'none' },
         '&.Mui-focusVisible': { outline: `2px solid ${S.border.focus}`, outlineOffset: 2 },
-        '&:active': { transform: 'none' },
+        '&:active:not(.Mui-disabled)': { backgroundColor: S.action.selected },
         '&.Mui-disabled': { color: S.text.disabled, backgroundColor: 'transparent' },
       },
-      sizeSmall: { width: 32, height: 32, minWidth: 32, minHeight: 32 },
+      sizeSmall: {
+        width: 32, height: 32, minWidth: 32, minHeight: 32,
+        '& .MuiSvgIcon-root': { fontSize: '18px' },
+        [TOUCH_DEVICE_QUERY]: { minWidth: 44, minHeight: 44 },
+      },
       sizeLarge: { width: 44, height: 44, minWidth: 44, minHeight: 44 },
     },
     variants: [{ props: { variant: 'outlined' }, style: outlined(S) }],
@@ -384,7 +393,8 @@ const createComponents = (S) => ({
   MuiMenu: {
     styleOverrides: {
       paper: {
-        borderRadius: cardRadius,
+        borderRadius: '16px',
+        overflowX: 'hidden',
         border: `1px solid ${S.border.idle}`,
         backgroundColor: S.background.paper,
         backgroundImage: 'none',
@@ -397,7 +407,8 @@ const createComponents = (S) => ({
   MuiPopover: {
     styleOverrides: {
       paper: {
-        borderRadius: cardRadius,
+        borderRadius: '16px',
+        overflowX: 'hidden',
         border: `1px solid ${S.border.idle}`,
         backgroundColor: S.background.paper,
         backgroundImage: 'none',

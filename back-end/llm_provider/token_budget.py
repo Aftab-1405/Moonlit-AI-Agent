@@ -27,6 +27,7 @@ import logging
 import math
 import os
 from collections import OrderedDict
+from time import perf_counter
 from typing import Sequence, TypedDict
 
 # ENH [LOG]: Suppress transformers "PyTorch was not found" warning and
@@ -41,6 +42,7 @@ os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
 from cachetools import LRUCache
 
 from config import get_config
+from core.errors import log_safe_exception, public_tool_error
 from llm_provider.model_capabilities import get_model_capabilities
 
 Config = get_config()
@@ -53,7 +55,7 @@ _RUNTIME_COUNT_TOKENS_UNSUPPORTED: set[str] = set()
 # ENH [TOK]: Model-native tokenizer registry.
 # Each entry returns a callable encode(text) -> list[int].
 # Tokenizers are loaded lazily (on first use) and cached for the process lifetime.
-# All three tokenizer libraries are REQUIRED dependencies (see requirements.txt):
+# All three tokenizer libraries are REQUIRED dependencies (see pyproject.toml):
 # - tiktoken (GPT-OSS, GPT-4o)
 # - mistral-common (Devstral, Mistral Large)
 # - transformers (Kimi K2/K2.5, tokenizer-only, no PyTorch)
@@ -71,7 +73,7 @@ def _get_model_tokenizer(model_id: str | None):
     This makes the pre-call pressure check match the post-call usage.inputTokens,
     so the indicator and summarization trigger always agree.
 
-    Supported (all required dependencies in requirements.txt):
+    Supported (all required dependencies in pyproject.toml):
     - GPT-OSS 120B/20B, GPT-4o, GPT-4: tiktoken with o200k_base encoding
     - Mistral Devstral, Mistral Large, Mixtral: mistral-common tekken tokenizer
     - Moonshot Kimi K2/K2.5: HuggingFace transformers (no PyTorch needed)
@@ -99,12 +101,11 @@ def _get_model_tokenizer(model_id: str | None):
                 tokenizer = tiktoken.get_encoding("o200k_base").encode
             logger.debug("Loaded tiktoken tokenizer for model %s", model_id)
         except Exception as e:
-            logger.warning(
-                "Could not load tiktoken tokenizer for %s: %s. "
-                "Run: pip install tiktoken. Falling back to byte estimate.",
-                model_id,
-                e,
+            public = public_tool_error(
+                "TOKENIZER_INITIALIZATION_FAILED",
+                "Tokenizer initialization failed.",
             )
+            log_safe_exception(logger, "initialize_tiktoken_tokenizer", e, public)
 
     # Mistral / Devstral models → mistral-common tekken tokenizer
     elif any(k in model_lower for k in ("devstral", "mistral", "magistral", "mixtral", "ministral")):
@@ -129,13 +130,11 @@ def _get_model_tokenizer(model_id: str | None):
             tokenizer = _mistral_encode
             logger.debug("Loaded mistral-common tekken tokenizer for model %s", model_id)
         except Exception as e:
-            logger.warning(
-                "Could not load mistral-common tokenizer for %s: %s. "
-                "Run: pip install mistral-common sentencepiece. "
-                "Falling back to byte estimate.",
-                model_id,
-                e,
+            public = public_tool_error(
+                "TOKENIZER_INITIALIZATION_FAILED",
+                "Tokenizer initialization failed.",
             )
+            log_safe_exception(logger, "initialize_mistral_tokenizer", e, public)
 
     # Moonshot Kimi models → HuggingFace transformers (tokenizer only, no PyTorch)
     elif any(k in model_lower for k in ("kimi", "moonshot")):
@@ -143,28 +142,37 @@ def _get_model_tokenizer(model_id: str | None):
             import transformers
             from transformers import AutoTokenizer
 
-            hf_tok = AutoTokenizer.from_pretrained("moonshotai/Kimi-K2-Instruct", trust_remote_code=True)
+            load_started_at = perf_counter()
+            hf_tok = AutoTokenizer.from_pretrained(
+                Config.KIMI_TOKENIZER_REPOSITORY,
+                revision=Config.KIMI_TOKENIZER_REVISION,
+                trust_remote_code=True,
+            )
 
             def tokenizer(text):
                 return hf_tok.encode(text)
 
-            logger.debug(
-                "Loaded HuggingFace tokenizer for Kimi model %s (transformers %s)",
+            logger.info(
+                "Startup tokenizer: model=%s repository=%s revision=%s class=%s "
+                "transformers=%s authenticated=%s load_ms=%.1f",
                 model_id,
+                Config.KIMI_TOKENIZER_REPOSITORY,
+                Config.KIMI_TOKENIZER_REVISION,
+                type(hf_tok).__name__,
                 transformers.__version__,
+                bool(os.getenv("HF_TOKEN")),
+                (perf_counter() - load_started_at) * 1000,
             )
         except Exception as e:
             # ENH [TOK-FIX]: Catch ALL exceptions (not just ImportError) because
             # transformers --no-deps can leave the package in a state where
             # `import transformers` succeeds but `from transformers import
             # AutoTokenizer` fails due to missing sub-dependencies.
-            logger.warning(
-                "Could not load transformers tokenizer for %s: %s. "
-                "Run: pip install transformers --no-deps tokenizers huggingface-hub regex. "
-                "Falling back to byte estimate.",
-                model_id,
-                e,
+            public = public_tool_error(
+                "TOKENIZER_INITIALIZATION_FAILED",
+                "Tokenizer initialization failed.",
             )
+            log_safe_exception(logger, "initialize_transformers_tokenizer", e, public)
 
     _TOKENIZER_CACHE[cache_key] = tokenizer
     return tokenizer
@@ -327,7 +335,7 @@ def estimate_tokens(text: str, model_id: str | None = None) -> int:
     native tokenizers installed as required dependencies. If no tokenizer
     is available for a model, a clear error is logged ONCE and a conservative
     chars/4 estimate is used (this should never happen in production —
-    all three tokenizer libraries are in requirements.txt).
+    all three tokenizer libraries are in pyproject.toml).
     """
     if not text:
         return 0
@@ -492,19 +500,29 @@ def count_bedrock_converse_tokens(
         )
         return int(response["inputTokens"])
     except Exception as exc:
-        raise TokenCountingError(f"Bedrock CountTokens failed for model {resolved_model}: {exc}") from exc
+        public = public_tool_error(
+            "PROVIDER_TOKEN_COUNT_FAILED",
+            "Provider token counting failed.",
+        )
+        log_safe_exception(logger, "count_provider_tokens", exc, public)
+        raise TokenCountingError(public.message) from exc
 
 
 def _is_unsupported_count_tokens_error(exc: Exception) -> bool:
     """Return whether ``exc`` indicates the model doesn't support ``CountTokens``."""
-    text = str(exc).lower()
-    return (
-        "doesn't support counting tokens" in text
-        or "does not support counting tokens" in text
-        or "unsupported" in text
-        and "count" in text
-        and "token" in text
-    )
+    current: BaseException | None = exc
+    while current is not None:
+        text = str(current).lower()
+        if (
+            "doesn't support counting tokens" in text
+            or "does not support counting tokens" in text
+            or "unsupported" in text
+            and "count" in text
+            and "token" in text
+        ):
+            return True
+        current = current.__cause__
+    return False
 
 
 def count_converse_tokens_with_fallback(
@@ -566,9 +584,11 @@ def count_converse_tokens_with_fallback(
             _RUNTIME_COUNT_TOKENS_UNSUPPORTED.add(model_id)
             reason = "provider_unsupported"
         else:
-            import logging
-
-            logging.getLogger(__name__).warning("Token counting failed, falling back to estimation: %s", exc)
+            public = public_tool_error(
+                "PROVIDER_TOKEN_COUNT_FAILED",
+                "Provider token counting failed.",
+            )
+            log_safe_exception(logger, "count_tokens_with_fallback", exc, public)
             reason = "provider_error"
 
         return {
@@ -783,4 +803,8 @@ def eagerly_initialize_static_budgets():
             }
         logger.info("Pre-computed static budgets for %d models", len(STATIC_BUDGETS))
     except Exception as e:
-        logger.warning(f"Failed to eagerly initialize static token budgets: {e}")
+        public = public_tool_error(
+            "STATIC_TOKEN_BUDGET_INITIALIZATION_FAILED",
+            "Static token budget initialization failed.",
+        )
+        log_safe_exception(logger, "initialize_static_token_budgets", e, public)

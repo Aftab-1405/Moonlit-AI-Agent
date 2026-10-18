@@ -1,0 +1,414 @@
+{
+  "date": "2026-10-18",
+  "target_url": "https://chatgpt.com/c/6ad43b32-40ec-83e8-8e33-fa90bd935572",
+  "purpose": "Inspect ChatGPT Work composer and conversation patterns for a Moonlit optimization proposal",
+  "rea": {
+    "discovery_evidence_id": "ev_935253722a4e566dc8cd055bb8128b423c0863bd10c491a9df761b3a30d6401f",
+    "page_inspection": {
+      "evidence_id": "ev_5bfc03c2655fe4ca93a4d34c27887baf1133859d9aa56a9fe432c648a30051f1",
+      "provider": {
+        "id": "rea-cdp-browser",
+        "name": "REA Chrome DevTools Protocol observation provider",
+        "version": "2"
+      },
+      "confidence": "observed",
+      "accessibility_controls": [
+        {
+          "role": "button",
+          "name": "Toggle pinned summary",
+          "states": [
+            {
+              "name": "focusable",
+              "value": true
+            },
+            {
+              "name": "invalid",
+              "value": "false"
+            },
+            {
+              "name": "pressed",
+              "value": "true"
+            }
+          ]
+        },
+        {
+          "role": "button",
+          "name": "Regenerate response",
+          "states": [
+            {
+              "name": "expanded",
+              "value": false
+            },
+            {
+              "name": "focusable",
+              "value": true
+            },
+            {
+              "name": "hasPopup",
+              "value": "menu"
+            },
+            {
+              "name": "invalid",
+              "value": "false"
+            }
+          ]
+        },
+        {
+          "role": "button",
+          "name": "More actions",
+          "states": [
+            {
+              "name": "expanded",
+              "value": false
+            },
+            {
+              "name": "focusable",
+              "value": true
+            },
+            {
+              "name": "hasPopup",
+              "value": "menu"
+            },
+            {
+              "name": "invalid",
+              "value": "false"
+            }
+          ]
+        },
+        {
+          "role": "button",
+          "name": "Outputs",
+          "states": [
+            {
+              "name": "expanded",
+              "value": true
+            },
+            {
+              "name": "focusable",
+              "value": true
+            },
+            {
+              "name": "invalid",
+              "value": "false"
+            }
+          ]
+        },
+        {
+          "role": "button",
+          "name": "Sources",
+          "states": [
+            {
+              "name": "expanded",
+              "value": true
+            },
+            {
+              "name": "focusable",
+              "value": true
+            },
+            {
+              "name": "invalid",
+              "value": "false"
+            }
+          ]
+        },
+        {
+          "role": "button",
+          "name": "Worked for 12s",
+          "states": [
+            {
+              "name": "expanded",
+              "value": false
+            },
+            {
+              "name": "focusable",
+              "value": true
+            },
+            {
+              "name": "invalid",
+              "value": "false"
+            }
+          ]
+        },
+        {
+          "role": "button",
+          "name": "Open preview of monthly_revenue.png",
+          "states": [
+            {
+              "name": "focusable",
+              "value": true
+            },
+            {
+              "name": "invalid",
+              "value": "false"
+            }
+          ]
+        },
+        {
+          "role": "button",
+          "name": "Copy",
+          "states": [
+            {
+              "name": "focusable",
+              "value": true
+            },
+            {
+              "name": "invalid",
+              "value": "false"
+            }
+          ]
+        },
+        {
+          "role": "button",
+          "name": "Read aloud",
+          "states": [
+            {
+              "name": "focusable",
+              "value": true
+            },
+            {
+              "name": "invalid",
+              "value": "false"
+            },
+            {
+              "name": "pressed",
+              "value": "false"
+            }
+          ]
+        },
+        {
+          "role": "StaticText",
+          "name": "Outputs",
+          "states": []
+        },
+        {
+          "role": "button",
+          "name": "Open monthly_revenue.png",
+          "states": [
+            {
+              "name": "focusable",
+              "value": true
+            },
+            {
+              "name": "invalid",
+              "value": "false"
+            }
+          ]
+        },
+        {
+          "role": "StaticText",
+          "name": "Sources",
+          "states": []
+        },
+        {
+          "role": "StaticText",
+          "name": "Worked for 12s",
+          "states": []
+        },
+        {
+          "role": "button",
+          "name": "Download file",
+          "states": [
+            {
+              "name": "focusable",
+              "value": true
+            },
+            {
+              "name": "invalid",
+              "value": "false"
+            }
+          ]
+        },
+        {
+          "role": "InlineTextBox",
+          "name": "Outputs",
+          "states": []
+        },
+        {
+          "role": "InlineTextBox",
+          "name": "Sources",
+          "states": []
+        },
+        {
+          "role": "InlineTextBox",
+          "name": "Worked for 12s",
+          "states": []
+        },
+        {
+          "role": "textbox",
+          "name": "Work with ChatGPT",
+          "states": [
+            {
+              "name": "editable",
+              "value": "richtext"
+            },
+            {
+              "name": "focusable",
+              "value": true
+            },
+            {
+              "name": "focused",
+              "value": true
+            },
+            {
+              "name": "multiline",
+              "value": true
+            },
+            {
+              "name": "readonly",
+              "value": false
+            },
+            {
+              "name": "required",
+              "value": false
+            }
+          ]
+        },
+        {
+          "role": "button",
+          "name": "Start Voice",
+          "states": [
+            {
+              "name": "focusable",
+              "value": true
+            },
+            {
+              "name": "invalid",
+              "value": "false"
+            }
+          ]
+        },
+        {
+          "role": "button",
+          "name": "Add files and more",
+          "states": [
+            {
+              "name": "expanded",
+              "value": false
+            },
+            {
+              "name": "focusable",
+              "value": true
+            },
+            {
+              "name": "invalid",
+              "value": "false"
+            }
+          ]
+        },
+        {
+          "role": "button",
+          "name": "Select ChatGPT model",
+          "states": [
+            {
+              "name": "expanded",
+              "value": false
+            },
+            {
+              "name": "focusable",
+              "value": true
+            },
+            {
+              "name": "hasPopup",
+              "value": "menu"
+            },
+            {
+              "name": "invalid",
+              "value": "false"
+            }
+          ]
+        },
+        {
+          "role": "button",
+          "name": "Dictate",
+          "states": [
+            {
+              "name": "focusable",
+              "value": true
+            },
+            {
+              "name": "invalid",
+              "value": "false"
+            }
+          ]
+        },
+        {
+          "role": "StaticText",
+          "name": "Work with ChatGPT",
+          "states": []
+        },
+        {
+          "role": "InlineTextBox",
+          "name": "Work with ChatGPT",
+          "states": []
+        },
+        {
+          "role": "InlineTextBox",
+          "name": "Work with ChatGPT",
+          "states": []
+        }
+      ],
+      "limitations": [
+        "Artifact identity is unavailable for this observation.",
+        "Observation starts when REA attaches; prior network and console activity is unavailable.",
+        "Raw network headers, bodies, cookies, storage values, console objects, and WebSocket payloads are never retained; explicitly requested primitive console text is retained verbatim, while payload captures retain value-free shapes.",
+        "Source maps are reported only as declarative URLs and are not fetched.",
+        "URL-less scripts and console events without an allowed source URL are excluded because their origin cannot be proven.",
+        "CDP discovery omitted the target attachment state; attached is reported as unknown.",
+        "Browser host platform and architecture were not observed."
+      ]
+    },
+    "screenshot": {
+      "evidence_id": "ev_40026ff2d2b6b034a70e8b2d3cdb7bb3948b71ebedb5e0b7b01c09f2a69e6ed5",
+      "viewport": {
+        "width": 1920,
+        "height": 961
+      },
+      "sha256": "7378988e1910c1f1b5406b3f1f014b5687b56324d964770d530dc9ad640f1af0",
+      "limitations": [
+        "Artifact identity is unavailable for this observation.",
+        "The screenshot contains the visible viewport, including on-screen content.",
+        "REA does not scroll, evaluate JavaScript, or capture beyond the current viewport.",
+        "Browser host platform and architecture were not observed."
+      ]
+    },
+    "scenario_capture": {
+      "status": "failed",
+      "provider": "rea-playwright-browser-scenario",
+      "code": "execution_failure",
+      "scope": "No successful action trace was returned. MCP and public CLI attempts failed, including CLI outside the shell sandbox. Doctor confirmed Codex registration and installed skill alignment. No dependencies or registrations were changed.",
+      "fallback": "Menu actions were observed using the internal browser, separately attributed below."
+    }
+  },
+  "internal_browser": {
+    "source": "Live signed-in in-app browser; separate from REA evidence",
+    "viewport": {
+      "width": 1368,
+      "height": 805
+    },
+    "observed": [
+      "Model trigger opens a compact model/power menu; Select model opens a list with a checked Default item and named model rows.",
+      "Power exposes Light, 2 of 6 and left/right arrow instructions; fast mode is separate. No selection changed.",
+      "Plus menu shows file upload, library, image creation, web search, sketch and connected plugin actions.",
+      "An eight-line fictional unsent draft grows the composer and changes Start Voice into Send; clearing it restores Start Voice.",
+      "Worked for 12s expands and collapses a short activity summary.",
+      "Response More actions contains branch-in-new-chat; regeneration menu contains a change-response field, Try again and web-search action. Neither executed.",
+      "Artifact preview opens the existing fictional monthly_revenue.png in a full view with viewer controls and a compact composer; closing restores the conversation."
+    ],
+    "measured_css": {
+      "composer_width": 767.997,
+      "empty_composer_height": 101.974,
+      "composer_radius": 26,
+      "composer_background": "rgb(33, 33, 33)",
+      "input_font_size": 16,
+      "input_line_height": 26,
+      "input_horizontal_padding": 18
+    },
+    "restoration": "Cleared only the inspection draft, closed menus and artifact viewer. No messages submitted, model/effort preferences changed, uploads, sharing or generation triggered."
+  },
+  "limits": [
+    "Desktop account/build-specific observations; not a universal model catalog.",
+    "No live generation/streaming, voice, upload, sharing, billing or mobile keyboard exercise.",
+    "Moonlit comparison is current-source inspection; no fresh runtime test of Moonlit during this investigation.",
+    "Raw page captures and unrelated sidebar conversation titles are intentionally not stored in this repository."
+  ]
+}

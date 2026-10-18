@@ -1,36 +1,37 @@
-"""Sanitized exception formatting for API responses and LLM tool output.
+"""Stable API/LLM errors and fail-closed exception diagnostics.
 
 Two concerns are interleaved in this module:
 
-1. **User-facing / LLM-facing error sanitization** — DB driver errors and
+1. **User-facing / LLM-facing stable errors** — DB driver errors and
    internal tracebacks routinely leak schema names, column names,
-   connection strings, and hostnames. When these are surfaced to the LLM
-   in tool output, the LLM may quote them back to the user. When they
-   are surfaced in HTTP error responses, attackers gain reconnaissance.
+   connection strings, and hostnames. Public boundaries therefore expose
+   only fixed ``PublicError`` values.
 
 2. **Classified error categories** — the AI tool executor needs a
    stable category string ("table_not_found", "permission_denied",
    "timeout", "syntax_error", "unknown") so it can write a helpful
    retry message instead of dumping the raw exception.
 
-All helpers are pure functions.
+``log_safe_exception`` records stable metadata only. It never renders
+exception text or traceback data because heuristic redaction cannot safely
+recognize every caller-controlled value an exception might echo.
 """
 
 from __future__ import annotations
 
+import logging
 import re
-from typing import Literal
+from dataclasses import dataclass
+from typing import Literal, Mapping
 
-#: Maximum length of any sanitized error string. Long errors are
-#: truncated with an ellipsis; the tail is never kept because driver
-#: errors often put the offending SQL fragment at the end.
-_MAX_SANITIZED_LEN: int = 280
+from core.logging import current_request_id
 
 #: Token bucket of regex patterns matched against the *lower-cased* error
 #: message. First match wins. Order matters — more specific patterns first.
 _ERROR_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\b(table|view|relation).*does not exist\b"), "table_not_found"),
-    (re.compile(r"\bunknown (table|view|column)\b"), "table_not_found"),
+    (re.compile(r"\bunknown (table|view)\b"), "table_not_found"),
+    (re.compile(r"\bunknown column\b"), "column_not_found"),
     (re.compile(r"\binvalid column name\b"), "column_not_found"),
     (re.compile(r"\bcolumn .* does not exist\b"), "column_not_found"),
     (re.compile(r"\bunrecognized column\b"), "column_not_found"),
@@ -90,68 +91,126 @@ def classify_db_error(message: str) -> ErrorCategory:
     return "unknown"
 
 
-#: Substrings removed from sanitized error messages because they reveal
-#: infrastructure details (schema names, hosts, paths) that the LLM and
-#: end users do not need.
-_LEAKAGE_PATTERNS: tuple[re.Pattern[str], str, ...] = (
-    # Connection-string fragments: `user:pass@host:port/db`
-    (
-        re.compile(r"\b[A-Za-z0-9_.-]+:[^@\s]+@[A-Za-z0-9_.-]+(?::\d+)?(?:/\S*)?"),
-        "[connection-string]",
+@dataclass(frozen=True)
+class PublicError:
+    """Immutable error code and message safe for public boundaries."""
+
+    code: str
+    message: str
+
+
+_PUBLIC_DB_ERRORS = {
+    "table_not_found": PublicError("DB_TABLE_NOT_FOUND", "The requested table or view was not found."),
+    "column_not_found": PublicError("DB_COLUMN_NOT_FOUND", "The requested column was not found."),
+    "permission_denied": PublicError("DB_PERMISSION_DENIED", "Database permission denied."),
+    "timeout": PublicError("DB_TIMEOUT", "Database operation timed out."),
+    "deadlock": PublicError("DB_DEADLOCK", "Database operation could not complete due to a deadlock."),
+    "constraint_violation": PublicError(
+        "DB_CONSTRAINT_VIOLATION",
+        "Database constraint rejected the operation.",
     ),
-    # `host=...` `password=...` `user=...` key/value fragments
-    (
-        re.compile(
-            r"\b(host|user|username|password|passwd|dsn|port|database|dbname)\s*=\s*[^\s;]+",
-            re.IGNORECASE,
-        ),
-        "[redacted]",
-    ),
-    # Filesystem paths from tracebacks
-    (re.compile(r"/(?:[A-Za-z0-9_.-]+/)+[A-Za-z0-9_.-]+"), "[path]"),
-    # SQL Server / Oracle bracketed identifiers leaked in errors
-    (re.compile(r"'[^']*\.dbo\.[^']*'"), "[schema]"),
-)
+    "syntax_error": PublicError("DB_SYNTAX_ERROR", "Database query syntax is invalid."),
+    "connection_error": PublicError("DB_CONNECTION_ERROR", "Database connection failed."),
+    "unknown": PublicError("DB_OPERATION_FAILED", "Database operation failed."),
+}
+
+_DEFAULT_PUBLIC_ERROR = PublicError("TOOL_EXECUTION_FAILED", "Tool execution failed.")
+
+# Codes accepted from persisted/tool result dictionaries. Messages paired with
+# those dictionaries are untrusted and must never cross a public or model
+# boundary. Add a code here only with its canonical, context-free safe message.
+_PUBLIC_ERRORS_BY_CODE = {
+    public.code: public
+    for public in (
+        *_PUBLIC_DB_ERRORS.values(),
+        _DEFAULT_PUBLIC_ERROR,
+        PublicError("DB_HOST_RESOLUTION_FAILED", "Database host could not be resolved."),
+        PublicError("DB_HOST_VALIDATION_FAILED", "Database host validation failed."),
+        PublicError("DB_CONNECTION_STRING_INVALID", "Database connection string is invalid."),
+        PublicError("TOOL_ARGUMENT_INVALID", "Tool arguments are invalid."),
+        PublicError("TOOL_BUDGET_EXCEEDED", "Tool call budget exceeded."),
+        PublicError("TOOL_LOOP_DETECTED", "Repeated tool call stopped."),
+        PublicError("TOOL_TIMEOUT", "Tool execution timed out."),
+        PublicError("TOOL_RESULT_INVALID", "Tool result could not be structured."),
+        PublicError("TOOL_RESULT_PERSISTENCE_FAILED", "Tool result persistence failed."),
+        PublicError("WEB_SEARCH_TIMEOUT", "Web search timed out."),
+        PublicError("WEB_SEARCH_FAILED", "Web search failed."),
+        PublicError("MEMORY_CONTEXT_UNAVAILABLE", "Memory context is unavailable."),
+        PublicError("MEMORY_ACCESS_DENIED", "Memory access denied."),
+        PublicError("MEMORY_RETRIEVAL_FAILED", "Memory retrieval failed."),
+    )
+}
 
 
-def sanitize_error_message(message: str, *, max_length: int = _MAX_SANITIZED_LEN) -> str:
-    """Return a PII-safe, length-capped version of ``message``.
+def public_database_error(exc: BaseException) -> PublicError:
+    """Map a database exception to a stable public error."""
+    category = classify_db_error(str(exc))
+    return _PUBLIC_DB_ERRORS[category]
 
-    Args:
-        message: Raw error string (typically ``str(exception)``).
-        max_length: Maximum returned length.
 
-    Returns:
-        Sanitized message with connection strings, credentials, and
-        filesystem paths replaced by ``[redacted]`` / ``[path]``.
-        Truncated to ``max_length`` with a trailing ellipsis if needed.
+def public_error_for_code(code: object) -> PublicError:
+    """Resolve an untrusted code to its canonical safe public error."""
+    if not isinstance(code, str):
+        return _DEFAULT_PUBLIC_ERROR
+    return _PUBLIC_ERRORS_BY_CODE.get(code, _DEFAULT_PUBLIC_ERROR)
+
+
+def public_tool_error(code: str, message: str) -> PublicError:
+    """Build a trusted error, deferring known codes to the canonical catalog."""
+    if code in _PUBLIC_ERRORS_BY_CODE:
+        return _PUBLIC_ERRORS_BY_CODE[code]
+    return PublicError(code=code, message=message)
+
+
+def canonicalize_coded_error_payload(payload: Mapping[str, object]) -> dict:
+    """Replace paired text on a coded payload with its catalogued message.
+
+    Internal result dictionaries are untrusted at every forwarding boundary.
+    The payload's existing text key is preserved (``error`` or ``message``),
+    while its value and code are replaced atomically. Unknown and malformed
+    codes resolve to the generic tool failure.
     """
-    if not message:
-        return ""
-    sanitized = message
-    for pattern, replacement in _LEAKAGE_PATTERNS:
-        sanitized = pattern.sub(replacement, sanitized)
-    if len(sanitized) > max_length:
-        sanitized = sanitized[: max_length - 1] + "…"
-    return sanitized
+    canonical = dict(payload)
+    if "error_code" not in canonical:
+        return canonical
+
+    public = public_error_for_code(canonical.get("error_code"))
+    canonical["error_code"] = public.code
+    if "error" in canonical:
+        canonical["error"] = public.message
+    if "message" in canonical:
+        canonical["message"] = public.message
+    return canonical
 
 
-def sanitize_exception(exc: BaseException) -> str:
-    """Sanitize an exception for safe inclusion in API / LLM responses.
-
-    Args:
-        exc: Any exception.
-
-    Returns:
-        A sanitized, length-capped string. Never includes the exception
-        traceback.
-    """
-    return sanitize_error_message(str(exc))
+def log_safe_exception(
+    logger: logging.Logger,
+    operation: str,
+    exc: BaseException,
+    public_error: PublicError,
+    *,
+    level: int = logging.ERROR,
+) -> None:
+    """Log stable exception metadata with the active request correlation ID."""
+    request_id = current_request_id() or "-"
+    logger.log(
+        level,
+        "%s failed: exception_type=%s error_code=%s request_id=%s",
+        operation,
+        type(exc).__name__,
+        public_error.code,
+        request_id,
+        extra={"request_id": request_id},
+    )
 
 
 __all__ = [
     "ErrorCategory",
+    "PublicError",
     "classify_db_error",
-    "sanitize_error_message",
-    "sanitize_exception",
+    "canonicalize_coded_error_payload",
+    "log_safe_exception",
+    "public_database_error",
+    "public_error_for_code",
+    "public_tool_error",
 ]

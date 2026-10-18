@@ -7,6 +7,7 @@ import logging
 import uuid
 from typing import AsyncGenerator, Optional
 
+from api_contract.run_context import ResolvedRunPolicy
 from service.conversations.conversation_compaction_service import (
     ConversationCompactionService,
 )
@@ -20,12 +21,9 @@ logger = logging.getLogger(__name__)
 class ConversationService:
     """Service for managing conversations and AI interactions (facade)."""
 
-
     @staticmethod
-    def create_or_get_conversation_id(provided_id: Optional[str] = None) -> str:
-        """Return the provided conversation id or mint a fresh UUID."""
-        if provided_id:
-            return provided_id
+    def create_conversation_id() -> str:
+        """Mint a canonical UUIDv4 for a new conversation."""
         return str(uuid.uuid4())
 
     @staticmethod
@@ -108,16 +106,14 @@ class ConversationService:
         conversation_id: str,
         prompt: str | None,
         user_id: str,
+        run_policy: ResolvedRunPolicy,
         db_config: dict = None,
         enable_reasoning: bool = True,
         reasoning_effort: str = "medium",
         response_style: str = "balanced",
         max_rows: int = None,
         api_key: str = None,
-        provider: str | None = None,
-        model: str | None = None,
         resume: dict | None = None,
-        task_mode: str = "normal",
     ) -> AsyncGenerator[str, None]:
         """Facade over ConversationStreamingService.create_streaming_generator."""
         return ConversationStreamingService.create_streaming_generator(
@@ -130,10 +126,8 @@ class ConversationService:
             response_style=response_style,
             max_rows=max_rows,
             api_key=api_key,
-            provider=provider,
-            model=model,
+            run_policy=run_policy,
             resume=resume,
-            task_mode=task_mode,
         )
 
     @staticmethod

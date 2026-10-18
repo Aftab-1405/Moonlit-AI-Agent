@@ -1,0 +1,40 @@
+{
+  "source": "https://chatgpt.com/cdn/assets/886701.4d6dcd85de.css",
+  "evidenceId": "ev_108683deb45acde38c5a63c1c766cb34547e90c6cb4485fb50fc4b4459b5cc84",
+  "method": "REA browser scenario, stylesheet DOM capture",
+  "controlTokens": [
+    "--control-size-4xs:1.25rem",
+    "--control-size-3xs:1.375rem",
+    "--control-size-2xs:1.5rem",
+    "--control-size-xs:1.625rem",
+    "--control-size-sm:1.75rem",
+    "--control-size-md:2rem",
+    "--control-size-lg:2.25rem",
+    "--control-size-xl:2.5rem",
+    "--control-size-2xl:2.75rem",
+    "--control-size-3xl:3rem",
+    "--control-icon-size-xs:.875rem",
+    "--control-icon-size-sm:1rem",
+    "--control-icon-size-md:1.125rem",
+    "--control-icon-size-lg:1.25rem",
+    "--control-icon-size-xl:1.375rem",
+    "--control-icon-size-2xl:1.5rem"
+  ],
+  "observations": [
+    "Button glyph size is independent of hit-area size.",
+    "Shared buttons use 2px focus-visible outline with default 2px offset.",
+    "Hover surface rules are guarded by hover capability.",
+    "Pressed surfaces have a separate active background; disabled controls suppress press scaling."
+  ],
+  "moonlitChanges": [
+    "Canonical button glyphs: small 18px, regular 20px.",
+    "Composer glyph container increased from 14px to 20px.",
+    "Custom icons no longer implicitly inherit text size.",
+    "Artifact controls reuse common interaction styles and expose toggle state."
+  ],
+  "limitations": [
+    "Static shipped CSS proves definitions, not which sizes the authenticated page currently uses.",
+    "Live Moonlit conversation unavailable; user authorized continuing source audit.",
+    "Visual hover, clipping and actual artifact integration still require browser verification."
+  ]
+}

@@ -24,6 +24,7 @@ test('normalizes safe account metadata and de-duplicates friendly providers', ()
   );
 
   assert.deepEqual(user.providers, ['Email', 'Google']);
+  assert.deepEqual(user.providerIds, ['password', 'google.com']);
   assert.equal(user.emailVerified, true);
   assert.equal(user.createdAt, '2024-01-15T10:00:00.000Z');
   assert.equal(user.lastSignInAt, '2026-08-15T08:30:00.000Z');
@@ -49,6 +50,7 @@ test('prefers explicit backend metadata and safely omits invalid dates', () => {
 
   assert.equal(user.emailVerified, false);
   assert.deepEqual(user.providers, ['GitHub', 'Microsoft', 'Email']);
+  assert.deepEqual(user.providerIds, ['github.com', 'microsoft.com', 'password']);
   assert.equal(user.createdAt, null);
   assert.equal(user.lastSignInAt, '2026-08-14T12:00:00.000Z');
   assert.equal(normalizeAuthTimestamp('invalid'), null);

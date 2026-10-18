@@ -1,15 +1,32 @@
 """Conversation request schemas."""
 
-from typing import Any, Literal, Optional
+from typing import Annotated, Any, Literal, Optional
+from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AfterValidator, Field, field_validator
 
+from api_contract.common import ExternalRequestModel
 from config import get_config
 
 Config = get_config()
 
 
-class BaseConversationRequest(BaseModel):
+def validate_conversation_id(value: str) -> str:
+    """Require the canonical lowercase, hyphenated representation of a UUIDv4."""
+    try:
+        parsed = UUID(str(value))
+    except (TypeError, ValueError, AttributeError) as exc:
+        raise ValueError("Conversation ID must be a canonical UUIDv4") from exc
+    canonical = str(parsed)
+    if parsed.version != 4 or str(value) != canonical:
+        raise ValueError("Conversation ID must be a canonical UUIDv4")
+    return canonical
+
+
+ConversationId = Annotated[str, AfterValidator(validate_conversation_id)]
+
+
+class BaseConversationRequest(ExternalRequestModel):
     """Base schema for conversation requests."""
 
     enable_reasoning: bool = Field(default=True)
@@ -43,7 +60,15 @@ class ChatRequest(BaseConversationRequest):
     """Schema for chat request."""
 
     prompt: str = Field(..., min_length=1, max_length=Config.CHAT_PROMPT_MAX_LENGTH)
-    conversation_id: Optional[str] = Field(None, max_length=Config.CONVERSATION_ID_MAX_LENGTH)
+    conversation_id: Optional[ConversationId] = Field(None, max_length=Config.CONVERSATION_ID_MAX_LENGTH)
+
+    @field_validator("conversation_id", mode="before")
+    @classmethod
+    def conversation_id_not_null(cls, v):
+        """Reserve an omitted conversation ID as the only new-chat signal."""
+        if v is None:
+            raise ValueError("Conversation ID cannot be null")
+        return v
 
     @field_validator("prompt")
     @classmethod
@@ -57,7 +82,7 @@ class ChatRequest(BaseConversationRequest):
 class AgentResumeRequest(BaseConversationRequest):
     """Schema for resuming a paused LangGraph conversation."""
 
-    conversation_id: str = Field(..., min_length=1, max_length=Config.CONVERSATION_ID_MAX_LENGTH)
+    conversation_id: ConversationId = Field(..., max_length=Config.CONVERSATION_ID_MAX_LENGTH)
     # FIX [AUDIT-2-D]: the previous ``resume: dict[str, Any]`` had no
     # size cap, allowing a malicious client to send a multi-MB payload
     # and exhaust process memory. Additive constraint: cap the number
@@ -82,7 +107,7 @@ class AgentResumeRequest(BaseConversationRequest):
         return v
 
 
-class RenameConversationRequest(BaseModel):
+class RenameConversationRequest(ExternalRequestModel):
     """Schema for renaming a saved conversation."""
 
     title: str = Field(..., min_length=1, max_length=Config.CONVERSATION_TITLE_MAX_LENGTH)

@@ -4,45 +4,50 @@ import logging
 import time
 from typing import Any, Optional
 
-from fastapi import APIRouter, Request, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 
-from dependencies import (
-    get_current_user,
-    get_db_config,
-    require_db_config,
-    update_session_data,
-)
-from service.database.connection_service import ConnectionService
-from service.database.database_service import DatabaseService
+from api_contract.common import COMMON_ERROR_RESPONSES, ApiSuccess
 from api_contract.database import (
     ConnectDBRequest,
     RunQueryRequest,
     SwitchDatabaseRequest,
 )
-from api_contract.common import COMMON_ERROR_RESPONSES, ApiSuccess
 from api_contract.database_schemas import (
     ConnectDatabaseData,
     DatabaseConfigPublic,
-    DatabaseStatusData,
-    DisconnectDatabaseData,
     DatabaseListData,
     DatabaseSelectionData,
+    DatabaseStatusData,
+    DisconnectDatabaseData,
 )
 from api_contract.query_schemas import QueryResultData, RunSqlQueryData
+from core.errors import PublicError, log_safe_exception, public_error_for_code
+from dependencies import (
+    get_authenticated_db_config,
+    get_current_user,
+    require_authenticated_db_config,
+    update_session_data,
+)
+from service.database.connection_service import ConnectionService
+from service.database.database_service import DatabaseService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Database Operations End Points"])
+
+_DB_METADATA_ERROR = PublicError("DB_METADATA_FAILED", "Database metadata retrieval failed.")
 
 
 def _raise_service_error(result: dict, status_code: int = 400) -> None:
     """Raise an ``HTTPException`` if the service result carries an error status."""
     if result.get("status") == "error":
+        error_code = result.get("error_code") if "error_code" in result else "DB_OPERATION_FAILED"
+        public = public_error_for_code(error_code)
         raise HTTPException(
             status_code=status_code,
             detail={
-                "error": "database_operation_failed",
-                "message": result.get("message") or "Database operation failed.",
+                "error": public.code,
+                "message": public.message,
             },
         )
 
@@ -91,7 +96,7 @@ async def _schema_metadata_for_config(raw_config: dict | None) -> dict[str, Any]
                 "current_schema": result.get("current_schema") or raw_config.get("schema", "public"),
             }
     except Exception as e:
-        logger.warning(f"Failed to fetch schemas for connection metadata: {e}")
+        log_safe_exception(logger, "fetch_connection_schema_metadata", e, _DB_METADATA_ERROR)
 
     return {
         "schemas": [],
@@ -299,12 +304,7 @@ async def connect_db(
 ):
     """Connect to a remote database via connection string or host/port credentials."""
     user_id = user.get("uid") or user
-    safe_log_data = {
-        k: v
-        for k, v in data.model_dump().items()
-        if k not in ("password", "connection_string")
-    }
-    logger.info(f"Connect request data: {safe_log_data}")
+    logger.info("Database connection requested: db_type=%s is_remote=%s", data.db_type, data.is_remote)
 
     result = await run_in_threadpool(
         ConnectionService.connect_database, data.model_dump(), user_id
@@ -320,7 +320,10 @@ async def connect_db(
         )
 
     if result.get("status") == "error":
-        logger.error(f"Connection failed: {result.get('message')}")
+        public = public_error_for_code(
+            result.get("error_code") if "error_code" in result else "DB_OPERATION_FAILED"
+        )
+        logger.error("Database connection failed: error_code=%s", public.code)
         _raise_service_error(result)
 
     schema_metadata = await _schema_metadata_for_config(result.get("db_config"))
@@ -337,7 +340,7 @@ async def connect_db(
 )
 async def disconnect_db(
     request: Request,
-    db_config: Optional[dict] = Depends(get_db_config),
+    db_config: Optional[dict] = Depends(get_authenticated_db_config),
     user: dict = Depends(get_current_user),
 ):
     """Disconnect from the current database."""
@@ -367,11 +370,13 @@ async def disconnect_db(
     response_model=ApiSuccess[DatabaseStatusData],
     responses=COMMON_ERROR_RESPONSES,
 )
-async def sync_connection_state(db_config: Optional[dict] = Depends(get_db_config)):
+async def sync_connection_state(
+    db_config: Optional[dict] = Depends(get_authenticated_db_config),
+):
     """Synchronize the active database connection state with the consumer.
 
-    This endpoint is used primarily by the frontend React application to restore, 
-    hydrate, and synchronize its local state (e.g. green badges, active tables, 
+    This endpoint is used primarily by the frontend React application to restore,
+    hydrate, and synchronize its local state (e.g. green badges, active tables,
     and sidebar schema explorers) on page reload or fresh tab visits.
 
     Returns all state needed by the client-side DatabaseContext:
@@ -403,7 +408,7 @@ async def sync_connection_state(db_config: Optional[dict] = Depends(get_db_confi
         if result.get("status") == "success":
             databases = result.get("databases", [])
     except Exception as e:
-        logger.warning(f"Failed to fetch databases for status: {e}")
+        log_safe_exception(logger, "fetch_connection_database_metadata", e, _DB_METADATA_ERROR)
 
     return ApiSuccess(
         data=DatabaseStatusData(
@@ -424,7 +429,9 @@ async def sync_connection_state(db_config: Optional[dict] = Depends(get_db_confi
     response_model=ApiSuccess[DatabaseListData],
     responses=COMMON_ERROR_RESPONSES,
 )
-async def get_databases_route(db_config: dict = Depends(require_db_config)):
+async def get_databases_route(
+    db_config: dict = Depends(require_authenticated_db_config),
+):
     """Get list of available databases."""
     result = await run_in_threadpool(DatabaseService.get_databases, db_config)
     _raise_service_error(result)
@@ -439,7 +446,7 @@ async def get_databases_route(db_config: dict = Depends(require_db_config)):
 async def switch_remote_database(
     request: Request,
     data: SwitchDatabaseRequest,
-    db_config: dict = Depends(require_db_config),
+    db_config: dict = Depends(require_authenticated_db_config),
     user: dict = Depends(get_current_user),
 ):
     """Switch to a different database on remote server."""
@@ -474,7 +481,7 @@ async def switch_remote_database(
 async def select_database(
     request: Request,
     data: SwitchDatabaseRequest,
-    db_config: dict = Depends(require_db_config),
+    db_config: dict = Depends(require_authenticated_db_config),
     user: dict = Depends(get_current_user),
 ):
     """Select a database on existing connection."""
@@ -512,7 +519,7 @@ async def select_database(
 )
 async def run_sql_query(
     data: RunQueryRequest,
-    db_config: dict = Depends(require_db_config),
+    db_config: dict = Depends(require_authenticated_db_config),
     user: dict = Depends(get_current_user),
 ):
     """Execute a SQL query."""

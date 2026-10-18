@@ -5,6 +5,8 @@
 
 import { createContext, useCallback, useContext, useMemo } from 'react';
 import { defaultUserSettings } from '@/config/userSettings';
+import { useAuth } from '@/contexts/AuthContext';
+import { getAccountStorageKey } from '@/features/dashboard/accountModel';
 import { useLocalStorage } from '@/hooks';
 import { THEME_STORAGE_KEY } from '@/theme/mode';
 
@@ -28,7 +30,11 @@ export function useSettings() {
 }
 
 export function SettingsProvider({ children }) {
-  const [rawSettings, setRawSettings] = useLocalStorage(THEME_STORAGE_KEY, defaultSettings);
+  const { user } = useAuth();
+  const storageKey = user?.uid
+    ? getAccountStorageKey(user.uid, 'settings')
+    : THEME_STORAGE_KEY;
+  const [rawSettings, setRawSettings] = useLocalStorage(storageKey, defaultSettings);
   const settings = useMemo(
     () => ({
       ...defaultSettings,

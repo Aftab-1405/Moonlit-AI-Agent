@@ -429,8 +429,8 @@ function Auth() {
                 >
                   {authOperation === 'email'
                     ? tabValue === 0
-                      ? 'Signing in…'
-                      : 'Creating account…'
+                      ? 'Signing in'
+                      : 'Creating account'
                     : tabValue === 0
                       ? 'Sign in'
                       : 'Create account'}
@@ -452,7 +452,7 @@ function Auth() {
                     onClick={() => handleProviderSignIn('google')}
                     sx={authActionSx}
                   >
-                    {authOperation === 'google' ? 'Connecting…' : 'Google'}
+                    {authOperation === 'google' ? 'Connecting' : 'Google'}
                   </Button>
                   <Button
                     type="button"
@@ -469,7 +469,7 @@ function Auth() {
                     onClick={() => handleProviderSignIn('github')}
                     sx={authActionSx}
                   >
-                    {authOperation === 'github' ? 'Connecting…' : 'GitHub'}
+                    {authOperation === 'github' ? 'Connecting' : 'GitHub'}
                   </Button>
                 </Box>
               </Stack>
@@ -535,7 +535,7 @@ function Auth() {
               startIcon={authOperation === 'reset' ? <ButtonLoadingSpinner size={14} /> : null}
               sx={getConfirmActionGeometrySx(theme)}
             >
-              {authOperation === 'reset' ? 'Sending…' : 'Send reset link'}
+              {authOperation === 'reset' ? 'Sending' : 'Send reset link'}
             </Button>
           </>
         }

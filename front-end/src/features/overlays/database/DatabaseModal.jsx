@@ -28,7 +28,9 @@ import {
   VisibilityOnIcon,
 } from '@/components/icons';
 import { DB_TYPES } from '@/config/databases';
+import { useAuth } from '@/contexts/AuthContext';
 import { useSettings } from '@/contexts/SettingsContext';
+import { getAccountStorageKey } from '@/features/dashboard/accountModel';
 import {
   getPreferenceBackdropSx,
   getPreferenceBodySx,
@@ -54,6 +56,7 @@ import {
   credentialsSchema,
   dbFieldSchemas,
 } from '@/utils/validationSchemas';
+import { getConnectedActionDisabledSx, getConnectionActionState } from './databaseModalState';
 
 const Transition = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="up" ref={ref} {...props} />;
@@ -266,11 +269,15 @@ function DatabaseModal({
 }) {
   const headingRef = useRef(null);
   const theme = useTheme();
+  const { user } = useAuth();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const { settings } = useSettings();
   const defaultDbType = settings.defaultDbType || 'postgresql';
   const rememberConnection = settings.rememberConnection ?? false;
-  const [savedConnection, setSavedConnection] = useLocalStorage('moonlit-saved-connection', null);
+  const savedConnectionKey = user?.uid
+    ? getAccountStorageKey(user.uid, 'saved-connection')
+    : 'moonlit-saved-connection';
+  const [savedConnection, setSavedConnection] = useLocalStorage(savedConnectionKey, null);
   const [dbType, setDbType] = useState(defaultDbType);
   const [connectionMode, setConnectionMode] = useState('credentials');
   const [connectionString, setConnectionString] = useState('');
@@ -551,7 +558,16 @@ function DatabaseModal({
 
   const toggleGroupSx = useMemo(() => getPreferenceToggleGroupSx(theme), [theme]);
   const dangerButtonSx = useMemo(() => getPreferenceButtonSx(theme, { tone: 'danger' }), [theme]);
-  const successButtonSx = useMemo(() => getPreferenceButtonSx(theme, { tone: 'success' }), [theme]);
+  const connectionActionState = getConnectionActionState({ loading, connected: connectionActive });
+  const connectionButtonSx = useMemo(() => {
+    const sx = getPreferenceButtonSx(theme, { tone: connectionActionState.tone });
+    if (connectionActionState.tone !== 'success') return sx;
+
+    return {
+      ...sx,
+      ...getConnectedActionDisabledSx(theme),
+    };
+  }, [connectionActionState.tone, theme]);
 
   const navContent = (
     <PreferenceNavList ariaLabel="Database type">
@@ -809,16 +825,16 @@ function DatabaseModal({
             <Box />
           )}
           <Button
-            variant="contained"
-            color="primary"
+            variant="outlined"
+            color={connectionActionState.tone}
             disableElevation
             onClick={handleConnect}
-            disabled={loading || connectionActive}
+            disabled={connectionActionState.disabled}
             startIcon={loading ? <ButtonLoadingSpinner /> : null}
             size="small"
-            sx={successButtonSx}
+            sx={connectionButtonSx}
           >
-            {loading ? 'Connecting…' : connectionActive ? 'Connected' : 'Connect'}
+            {connectionActionState.label}
           </Button>
         </PreferenceFooterActions>
       </PreferenceLayout>

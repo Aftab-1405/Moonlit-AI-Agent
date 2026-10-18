@@ -43,7 +43,11 @@ export { runQuery } from '@/api/query';
 
 export {
   getContext as getUserContext,
+  getDashboardOverview,
+  getDashboardUsage,
+  getQuotaStatus,
   getSettings as getUserSettings,
+  deleteAccount,
   saveSettings as saveUserSettings,
   sessionActive,
 } from '@/api/user';

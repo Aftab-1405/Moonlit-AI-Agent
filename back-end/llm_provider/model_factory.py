@@ -20,14 +20,38 @@ first user request doesn't pay the boto3 init cost.
 """
 
 import logging
+from enum import Enum
 from functools import lru_cache
-from typing import Optional
+from typing import Optional, TypedDict
 
 from langchain_core.language_models.chat_models import BaseChatModel
 
 from config import get_config
+from core.errors import log_safe_exception, public_tool_error
 
 logger = logging.getLogger(__name__)
+
+
+class ModelSelectionReason(str, Enum):
+    """Machine-readable reasons a configured model selection can fail."""
+
+    INVALID_PROVIDER = "invalid_provider"
+    INVALID_MODEL = "invalid_model"
+
+
+class ModelSelectionError(ValueError):
+    """Reject a provider/model selection without encoding behavior in text."""
+
+    def __init__(self, reason: ModelSelectionReason) -> None:
+        self.reason = reason
+        super().__init__("Model selection rejected.")
+
+
+class ModelPrewarmResult(TypedDict):
+    """Counts from best-effort provider client construction."""
+
+    attempted: int
+    initialized: int
 
 
 def get_default_model(provider: str) -> str:
@@ -127,17 +151,16 @@ def get_chat_model(
 ) -> BaseChatModel:
     """Return a reusable LangChain chat model for the requested configuration.
 
-    Only the ``bedrock`` provider is supported; other names log a warning and
-    fall back to Bedrock. The selected model is resolved via
-    :func:`get_default_model` when ``model`` is omitted, and the requested
-    ``max_tokens`` is clamped to the model's ``max_output_tokens`` capability.
+    The provider and model must be enabled in configuration. The selected model
+    is resolved via :func:`resolve_model_selection` when ``model`` is omitted,
+    and the requested ``max_tokens`` is clamped to the model's
+    ``max_output_tokens`` capability.
     The underlying client is cached by :func:`_get_cached_chat_model` so
     repeated calls with the same configuration reuse one
     ``ChatBedrockConverse`` instance.
 
     Args:
-        provider: Provider name (case-insensitive); only ``"bedrock"`` is
-            supported. Other values are coerced to ``bedrock`` with a warning.
+        provider: Provider name (case-insensitive) enabled in configuration.
         model: Optional explicit model ID. Defaults to the provider's first
             configured model.
         api_key: Unused — Bedrock uses the AWS credential provider chain.
@@ -153,20 +176,10 @@ def get_chat_model(
         A cached :class:`BaseChatModel` (``ChatBedrockConverse`) instance.
 
     Raises:
-        ValueError: If no model is configured for the requested provider.
+        ValueError: If the provider or model is not enabled in configuration.
     """
     del api_key  # Bedrock uses the AWS credential provider chain.
-    provider = provider.strip().lower()
-    if provider != "bedrock":
-        logger.warning(
-            "Provider %s requested, but only Bedrock is supported; using Bedrock.",
-            provider,
-        )
-        provider = "bedrock"
-
-    selected_model = str(model or get_default_model(provider)).strip()
-    if not selected_model:
-        raise ValueError(f"No model is configured for provider '{provider}'")
+    provider, selected_model = resolve_model_selection(provider, model)
     from llm_provider.model_capabilities import model_capability
 
     config = get_config()
@@ -192,8 +205,9 @@ def get_supported_providers() -> tuple[str, ...]:
 def get_provider_models(provider: str) -> list[str]:
     """Return the list of model IDs configured for ``provider``.
 
-    Reads the ``{PROVIDER}_MODELS`` config attribute (falling back to
-    :func:`get_default_model` when unset) and strips/normalizes each entry.
+    Reads only the ``{PROVIDER}_MODELS`` config attribute and
+    strips/normalizes each entry. A separately configured default is not an
+    enabled-model fallback.
 
     Args:
         provider: Provider name (case-insensitive).
@@ -205,10 +219,24 @@ def get_provider_models(provider: str) -> list[str]:
     config = get_config()
     provider = provider.strip().lower()
     models = getattr(config, f"{provider.upper()}_MODELS", []) or []
-    if models:
-        return [str(model).strip() for model in models if str(model).strip()]
-    default = get_default_model(provider)
-    return [default] if default else []
+    return [str(model).strip() for model in models if str(model).strip()]
+
+
+def resolve_model_selection(provider: str, model: str | None = None) -> tuple[str, str]:
+    """Normalize and authorize one configured provider/model selection.
+
+    This is the sole configured allowlist boundary for chat-model construction
+    and HTTP request admission. A resolved model is always a member of the
+    selected provider's configured model tuple.
+    """
+    normalized_provider = str(provider or "").strip().lower()
+    if normalized_provider not in get_supported_providers():
+        raise ModelSelectionError(ModelSelectionReason.INVALID_PROVIDER)
+    allowed_models = tuple(get_provider_models(normalized_provider))
+    selected_model = str(model or get_default_model(normalized_provider)).strip()
+    if not allowed_models or selected_model not in allowed_models:
+        raise ModelSelectionError(ModelSelectionReason.INVALID_MODEL)
+    return normalized_provider, selected_model
 
 
 def get_provider_api_key(provider: str) -> str | None:
@@ -223,7 +251,7 @@ def get_provider_api_key(provider: str) -> str | None:
     return None
 
 
-def prewarm_chat_models() -> None:
+def prewarm_chat_models() -> ModelPrewarmResult:
     """Construct reusable provider clients/models before accepting traffic.
 
     Called from the FastAPI lifespan so the first user request doesn't pay
@@ -233,10 +261,22 @@ def prewarm_chat_models() -> None:
     prewarmed instances don't bake in static AWS credentials — when
     ``AWS_ACCESS_KEY_ID`` is unset the underlying boto3 clients resolve
     credentials from the default chain on each call.
+
+    Returns:
+        Counts of attempted and successfully initialized model clients.
     """
+    attempted = 0
+    initialized = 0
     for provider in get_supported_providers():
         for model in get_provider_models(provider):
+            attempted += 1
             try:
                 get_chat_model(provider, model=model)
+                initialized += 1
             except Exception as exc:
-                logger.warning("Could not prewarm model %s: %s", model, exc)
+                public = public_tool_error(
+                    "PROVIDER_INITIALIZATION_FAILED",
+                    "Model provider initialization failed.",
+                )
+                log_safe_exception(logger, "prewarm_chat_model", exc, public)
+    return {"attempted": attempted, "initialized": initialized}

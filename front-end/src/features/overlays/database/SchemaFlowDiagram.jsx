@@ -6,6 +6,7 @@ import { alpha } from '@mui/material/styles';
 import {
   Background,
   BaseEdge,
+  Controls,
   getBezierPath,
   Handle,
   Position,
@@ -15,6 +16,10 @@ import {
 } from '@xyflow/react';
 import { ChevronRightIcon, DatabaseIcon, PrimaryKeyIcon, TableIcon } from '@/components/icons';
 import { getReadOnlyReactFlowProps } from '@/config/reactFlow';
+import {
+  getMindmapFitViewOptions,
+  getMindmapInteractionProps,
+} from '@/features/styles/interfaceChrome';
 import {
   FLOW_NODE_CARD_CLASS,
   getReactFlowDefaultEdgeOptions,
@@ -317,7 +322,7 @@ const getSchemaNodeCardSx = (theme, { interactive = false } = {}) => {
   };
 };
 
-const getSchemaCanvasSx = (theme) => {
+const getSchemaCanvasSx = (theme, { isMobile = false } = {}) => {
   return {
     width: '100%',
     height: '100%',
@@ -360,6 +365,36 @@ const getSchemaCanvasSx = (theme) => {
     '& .react-flow__edge:hover .react-flow__edge-path': {
       strokeWidth: 2,
       stroke: theme.palette.layer.emphasis,
+    },
+    '& .react-flow__controls': {
+      display: 'flex',
+      overflow: 'hidden',
+      border: '1px solid',
+      borderColor: theme.palette.border.subtle,
+      borderRadius: '10px',
+      backgroundColor: theme.palette.background.paper,
+      boxShadow: 'none',
+    },
+    '& .react-flow__controls-button': {
+      width: isMobile ? 44 : 36,
+      height: isMobile ? 44 : 36,
+      border: 0,
+      borderRight: '1px solid',
+      borderRightColor: theme.palette.border.subtle,
+      color: theme.palette.text.secondary,
+      backgroundColor: theme.palette.background.paper,
+      '&:last-of-type': { borderRight: 0 },
+      '&:hover': {
+        color: theme.palette.text.primary,
+        backgroundColor: theme.palette.action.hover,
+      },
+      '&:focus-visible': {
+        position: 'relative',
+        zIndex: 1,
+        outline: `2px solid ${theme.palette.border.focus}`,
+        outlineOffset: -2,
+      },
+      '& svg': { width: 15, height: 15, fill: 'currentColor' },
     },
   };
 };
@@ -540,6 +575,7 @@ function SchemaFlowDiagramCanvas({ database, tables, columns }) {
     () => getReactFlowDefaultEdgeOptions(theme, { isMobile }),
     [isMobile, theme],
   );
+  const fitViewOptions = useMemo(() => getMindmapFitViewOptions(isMobile), [isMobile]);
 
   useEffect(() => {
     setNodes(initialNodes);
@@ -561,7 +597,7 @@ function SchemaFlowDiagramCanvas({ database, tables, columns }) {
         backgroundColor: theme.palette.layer.surfaceMuted,
       }}
     >
-      <Box sx={getSchemaCanvasSx(theme)}>
+      <Box sx={getSchemaCanvasSx(theme, { isMobile })}>
         <ReactFlow
           aria-label="Database schema diagram"
           nodes={nodes}
@@ -572,17 +608,19 @@ function SchemaFlowDiagramCanvas({ database, tables, columns }) {
           edgeTypes={edgeTypes}
           defaultEdgeOptions={defaultEdgeOptions}
           fitView
-          fitViewOptions={{ padding: isMobile ? 0.2 : 0.34 }}
+          fitViewOptions={fitViewOptions}
           minZoom={0.2}
           maxZoom={2}
           {...reactFlowProps}
-          panOnScroll={!isMobile}
-          panOnDrag={true}
-          zoomOnScroll={!isMobile}
-          zoomOnPinch={true}
-          preventScrolling={true}
+          {...getMindmapInteractionProps(isMobile)}
         >
           <Background gap={24} size={0.65} color={theme.palette.layer.subtle} />
+          <Controls
+            position="bottom-right"
+            orientation="horizontal"
+            showInteractive={false}
+            fitViewOptions={fitViewOptions}
+          />
         </ReactFlow>
       </Box>
     </Box>

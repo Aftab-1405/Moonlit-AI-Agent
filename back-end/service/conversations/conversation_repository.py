@@ -12,6 +12,7 @@ Each conversation document has the shape::
     {
         "user_id":   "<owner uid>",
         "timestamp": Datetime,
+        "updated_at": Datetime,
         "title":     "<preview title>",
         "preview":   "<short preview>",
         "messages":  [ { sender, content, timestamp, ... }, ... ],
@@ -34,6 +35,8 @@ import logging
 import threading
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
+
+from core.errors import log_safe_exception, public_tool_error
 
 logger = logging.getLogger(__name__)
 
@@ -169,16 +172,20 @@ class ConversationRepository:
             return None
         except Exception as exc:
             if not (config.FIRESTORE_REST_READ_FALLBACK_ENABLED and _is_transient_firestore_error(exc)):
-                logger.error("Error retrieving conversation %s: %s", conversation_id, exc)
+                public = public_tool_error(
+                    "CONVERSATION_READ_FAILED",
+                    "Conversation could not be read.",
+                )
+                log_safe_exception(logger, "get_conversation", exc, public)
                 raise
 
             with _REST_READ_FALLBACK_LOCK:
                 _REST_READ_FALLBACK_ACTIVE = True
-            logger.warning(
-                "Firestore gRPC conversation read failed; switching this process "
-                "to the non-streaming REST fallback: %s",
-                exc,
+            public = public_tool_error(
+                "CONVERSATION_READ_FAILED",
+                "Conversation could not be read.",
             )
+            log_safe_exception(logger, "get_conversation_grpc", exc, public)
             return _get_conversation_via_rest(db, conversation_id, timeout)
 
     @staticmethod
@@ -261,7 +268,7 @@ class ConversationRepository:
             conversations = (
                 db.collection(ConversationRepository.COLLECTION_NAME)
                 .where(filter=FieldFilter("user_id", "==", user_id))
-                .select(["timestamp", "title"])
+                .select(["timestamp", "updated_at", "title"])
                 .get(retry=retry, timeout=timeout)
             )
 
@@ -273,17 +280,22 @@ class ConversationRepository:
                     {
                         "id": conv.id,
                         "timestamp": conv_data.get("timestamp"),
+                        "updated_at": conv_data.get("updated_at") or conv_data.get("timestamp"),
                         "title": title,
                     }
                 )
 
             conversation_list.sort(
-                key=lambda x: x["timestamp"] if x["timestamp"] else datetime.min,
+                key=lambda x: x["updated_at"] if x["updated_at"] else datetime.min.replace(tzinfo=timezone.utc),
                 reverse=True,
             )
             return conversation_list
         except Exception as e:
-            logger.error(f"Error retrieving conversations for user {user_id}: {e}")
+            public = public_tool_error(
+                "CONVERSATION_LIST_FAILED",
+                "Conversations could not be listed.",
+            )
+            log_safe_exception(logger, "list_conversations", e, public)
             raise
 
     @staticmethod
@@ -318,13 +330,17 @@ class ConversationRepository:
                 raise PermissionError("User does not own this conversation")
 
             sanitized_title = title.strip()
-            conversation_ref.update({"title": sanitized_title})
+            conversation_ref.update({"title": sanitized_title, "updated_at": datetime.now(timezone.utc)})
             logger.info(f"Conversation {conversation_id} renamed successfully")
             return sanitized_title
         except (ValueError, PermissionError):
             raise
         except Exception as e:
-            logger.error(f"Error renaming conversation {conversation_id}: {e}")
+            public = public_tool_error(
+                "CONVERSATION_RENAME_FAILED",
+                "Conversation could not be renamed.",
+            )
+            log_safe_exception(logger, "rename_conversation", e, public)
             raise
 
     @staticmethod
@@ -411,11 +427,13 @@ class ConversationRepository:
                 from config import get_config
 
                 title = content_str[: get_config().CONVERSATION_TITLE_MAX_LENGTH]
+                created_at = datetime.now(timezone.utc)
                 txn.set(
                     ref,
                     {
                         "user_id": user_id,
-                        "timestamp": datetime.now(timezone.utc),
+                        "timestamp": created_at,
+                        "updated_at": created_at,
                         "messages": [],
                         "title": title,
                         "preview": preview,
@@ -467,7 +485,13 @@ class ConversationRepository:
                     if tool_trace_summary is not None:
                         last_message["tool_trace_summary"] = tool_trace_summary
 
-                    txn.update(ref, {"messages": messages_list})
+                    txn.update(
+                        ref,
+                        {
+                            "messages": messages_list,
+                            "updated_at": datetime.now(timezone.utc),
+                        },
+                    )
                     return
 
             content = (message or "").strip()
@@ -501,7 +525,13 @@ class ConversationRepository:
             if tool_trace_summary is not None:
                 message_data["tool_trace_summary"] = tool_trace_summary
 
-            txn.update(ref, {"messages": firestore.ArrayUnion([message_data])})
+            txn.update(
+                ref,
+                {
+                    "messages": firestore.ArrayUnion([message_data]),
+                    "updated_at": datetime.now(timezone.utc),
+                },
+            )
 
         try:
             transaction = db.transaction()
@@ -526,20 +556,28 @@ class ConversationRepository:
         except PermissionError:
             raise
         except Exception as e:
-            logger.error(f"Error storing message in conversation {conversation_id}: {e}")
+            public = public_tool_error(
+                "CONVERSATION_WRITE_FAILED",
+                "Conversation message could not be stored.",
+            )
+            log_safe_exception(logger, "store_conversation_message", e, public)
             raise
 
     @staticmethod
-    def delete(conversation_id: str, user_id: str) -> bool:
+    def delete(
+        conversation_id: str,
+        user_id: str,
+        *,
+        strict_subcollection_cleanup: bool = True,
+    ) -> bool:
         """
         Delete a conversation and its subcollections (summary blocks, execution results).
 
-        Verifies user ownership before deleting. Best-effort cleans up the
+        Verifies user ownership before deleting. Cleans up the
         ``summary_blocks`` and ``execution_results`` subcollections (including
         their ``payload_chunks`` / ``chunks`` grandchild docs) before removing
-        the conversation document itself. Subcollection cleanup failures are
-        logged but do NOT abort the conversation delete — orphaned chunk docs
-        are reclaimed by a periodic janitor job.
+        the conversation document itself. By default, cleanup failures retain
+        the parent document so deletion can be retried without orphaning data.
 
         Args:
             conversation_id: The conversation ID
@@ -577,7 +615,13 @@ class ConversationRepository:
                     conversation_id,
                 )
             except Exception as blocks_err:
-                logger.warning("Failed to clean up Firestore summary blocks: %s", blocks_err)
+                public = public_tool_error(
+                    "SUMMARY_BLOCK_CLEANUP_FAILED",
+                    "Summary block cleanup failed.",
+                )
+                log_safe_exception(logger, "cleanup_summary_blocks", blocks_err, public)
+                if strict_subcollection_cleanup:
+                    raise
             try:
                 execution_results_ref = conversation_ref.collection("execution_results")
                 for execution_doc in execution_results_ref.get():
@@ -589,17 +633,29 @@ class ConversationRepository:
                     conversation_id,
                 )
             except Exception as execution_err:
-                logger.warning(
-                    "Failed to clean up Firestore execution results: %s",
-                    execution_err,
+                public = public_tool_error(
+                    "EXECUTION_RESULT_CLEANUP_FAILED",
+                    "Execution result cleanup failed.",
                 )
+                log_safe_exception(
+                    logger,
+                    "cleanup_execution_results",
+                    execution_err,
+                    public,
+                )
+                if strict_subcollection_cleanup:
+                    raise
             conversation_ref.delete()
             logger.info(f"Conversation {conversation_id} deleted successfully")
             return True
         except (ValueError, PermissionError):
             raise
         except Exception as e:
-            logger.error(f"Error deleting conversation {conversation_id}: {e}")
+            public = public_tool_error(
+                "CONVERSATION_DELETE_FAILED",
+                "Conversation could not be deleted.",
+            )
+            log_safe_exception(logger, "delete_conversation", e, public)
             raise
 
     @staticmethod
@@ -607,6 +663,11 @@ class ConversationRepository:
         """Create a Firestore retry record for failed external memory cleanup."""
         from service.firestore.firestore_service import FirestoreService
 
+        public = public_tool_error(
+            "MEMORY_CLEANUP_FAILED",
+            "Memory cleanup failed.",
+        )
+        log_safe_exception(logger, "cleanup_conversation_memory", cleanup_error, public)
         try:
             db = FirestoreService.get_db()
             db.collection("qdrant_conversation_cleanup").add(
@@ -616,7 +677,8 @@ class ConversationRepository:
                     "user_id": user_id,
                     "status": "pending",
                     "attempts": 0,
-                    "last_error": str(cleanup_error),
+                    "error_code": public.code,
+                    "last_error": public.message,
                     "created_at": datetime.now(timezone.utc),
                     "updated_at": datetime.now(timezone.utc),
                 }
@@ -626,10 +688,36 @@ class ConversationRepository:
                 conversation_id,
             )
         except Exception as db_err:
-            logger.error(
-                "Failed to create qdrant_conversation_cleanup retry record: %s",
-                db_err,
+            persist_public = public_tool_error(
+                "MEMORY_CLEANUP_RETRY_PERSIST_FAILED",
+                "Memory cleanup retry could not be stored.",
             )
+            log_safe_exception(
+                logger,
+                "create_memory_cleanup_retry",
+                db_err,
+                persist_public,
+            )
+
+    @staticmethod
+    def get_memory_cleanup_retries_for_user(user_id: str) -> list[dict]:
+        """Include pending and exhausted retries, even after conversation deletion."""
+        from google.cloud.firestore_v1 import FieldFilter
+
+        from service.firestore.firestore_service import FirestoreService
+
+        db = FirestoreService.get_db()
+        snapshots = (
+            db.collection("qdrant_conversation_cleanup").where(filter=FieldFilter("user_id", "==", user_id)).get()
+        )
+        return [{**snapshot.to_dict(), "id": snapshot.id} for snapshot in snapshots]
+
+    @staticmethod
+    def delete_memory_cleanup_retry(retry_id: str) -> None:
+        """Retire a retry only after its external memory has been erased."""
+        from service.firestore.firestore_service import FirestoreService
+
+        FirestoreService.get_db().collection("qdrant_conversation_cleanup").document(retry_id).delete()
 
     @staticmethod
     def retry_qdrant_cleanups(memory_cleaner) -> int:
@@ -709,19 +797,19 @@ class ConversationRepository:
             except Exception as e:
                 attempts += 1
                 status = "failed" if attempts >= 5 else "pending"
+                public = public_tool_error(
+                    "MEMORY_CLEANUP_FAILED",
+                    "Memory cleanup failed.",
+                )
                 doc.reference.update(
                     {
                         "attempts": attempts,
                         "status": status,
-                        "last_error": str(e),
+                        "error_code": public.code,
+                        "last_error": public.message,
                         "updated_at": datetime.now(timezone.utc),
                     }
                 )
-                logger.warning(
-                    "Retry cleanup attempt %s failed for conversation %s: %s",
-                    attempts,
-                    conversation_id,
-                    e,
-                )
+                log_safe_exception(logger, "retry_conversation_memory_cleanup", e, public)
 
         return success_count

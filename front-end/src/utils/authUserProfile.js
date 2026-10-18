@@ -31,7 +31,13 @@ export function normalizeAuthUser(firebaseUser, backendUser = {}) {
   const backendProviders = Array.isArray(backendUser.providers)
     ? backendUser.providers
     : [backendUser.provider, backendUser.providerId];
-  const providers = [...backendProviders, ...(firebaseUser.providerData || [])]
+  const providerValues = [...backendProviders, ...(firebaseUser.providerData || [])];
+  const providerIds = providerValues
+    .map(getProviderId)
+    .map((providerId) => providerId?.trim())
+    .filter(Boolean)
+    .filter((providerId, index, list) => list.indexOf(providerId) === index);
+  const providers = providerValues
     .map(getProviderLabel)
     .filter(Boolean)
     .filter((provider, index, list) => list.indexOf(provider) === index);
@@ -58,6 +64,7 @@ export function normalizeAuthUser(firebaseUser, backendUser = {}) {
           ? firebaseUser.emailVerified
           : null,
     providers,
+    providerIds,
     createdAt: normalizeAuthTimestamp(
       backendUser.createdAt || backendUser.created_at || firebaseUser.metadata?.creationTime,
     ),

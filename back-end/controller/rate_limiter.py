@@ -16,9 +16,9 @@ RATELIMIT_STORAGE_URL to a Redis URL that the sync client can handle
 FIX [AUDIT-2-D]: the previous ``key_func=get_remote_address`` is not
 proxy-aware — behind nginx / ALB / Cloudflare it returns the proxy's IP
 for every request, so all users share a single rate-limit bucket. The
-new ``_proxy_aware_remote_address`` honors ``X-Forwarded-For`` (leftmost
-non-trusted hop) and ``X-Real-IP`` when the request appears to come from
-a trusted proxy (loopback or private CIDR).
+new ``_proxy_aware_remote_address`` honors ``X-Forwarded-For`` (nearest
+untrusted hop) and ``X-Real-IP`` only when the immediate peer belongs to
+an explicitly configured trusted-proxy CIDR.
 
 Usage in controllers::
 
@@ -34,91 +34,74 @@ the route function signature for the decorator to work.
 """
 
 import ipaddress
-import logging
 
 from slowapi import Limiter
 from starlette.requests import Request
 
 from config import get_config
 
-logger = logging.getLogger(__name__)
 Config = get_config()
 
+Network = ipaddress.IPv4Network | ipaddress.IPv6Network
 
-#: RFC 1918 private networks + loopback. We intentionally do NOT treat
-#: all ``ipaddress.is_private`` addresses as trusted, because Python's
-#: ``is_private`` also includes TEST-NET (203.0.113.0/24), benchmarking
-#: (198.18.0.0/15), and other special-use ranges that should not be
-#: trusted as proxies in production.
-_TRUSTED_PRIVATE_NETWORKS: tuple[str, ...] = (
-    "10.0.0.0/8",
-    "172.16.0.0/12",
-    "192.168.0.0/16",
-    "127.0.0.0/8",
-    "169.254.0.0/16",  # IPv4 link-local
-    "::1/128",
-    "fc00::/7",  # IPv6 unique-local
-    "fe80::/10",  # IPv6 link-local
-)
+
+def _parse_trusted_proxy_networks(cidrs: tuple[str, ...]) -> tuple[Network, ...]:
+    """Parse configured proxy CIDRs, failing startup on an invalid boundary."""
+    networks: list[Network] = []
+    for cidr in cidrs:
+        try:
+            networks.append(ipaddress.ip_network(cidr, strict=False))
+        except ValueError as exc:
+            raise ValueError(f"Invalid TRUSTED_PROXY_CIDRS entry: {cidr}") from exc
+    return tuple(networks)
+
+
+_TRUSTED_PROXY_NETWORKS = _parse_trusted_proxy_networks(Config.TRUSTED_PROXY_CIDRS)
 
 
 def _is_trusted_proxy(ip_str: str) -> bool:
-    """Return True if ``ip_str`` is a trusted proxy (loopback or RFC 1918 private).
-
-    Args:
-        ip_str: IPv4/IPv6 address string.
-
-    Returns:
-        True if the address is loopback, in an RFC 1918 private range,
-        IPv6 unique-local, or IPv6 link-local. TEST-NET and other
-        special-use ranges are NOT trusted.
-    """
+    """Return whether an IP belongs to an explicitly configured proxy network."""
     try:
-        ip = ipaddress.ip_address(ip_str)
+        address = ipaddress.ip_address(ip_str)
     except ValueError:
         return False
-    for cidr in _TRUSTED_PRIVATE_NETWORKS:
-        try:
-            if ip in ipaddress.ip_network(cidr, strict=False):
-                return True
-        except ValueError:
-            continue
-    return False
+    return any(address in network for network in _TRUSTED_PROXY_NETWORKS)
+
+
+def _parse_forwarded_chain(value: str) -> list[str] | None:
+    """Return normalized IP tokens or None when any token is malformed."""
+    tokens = [token.strip() for token in value.split(",")]
+    if not tokens or any(not token for token in tokens):
+        return None
+    try:
+        return [str(ipaddress.ip_address(token)) for token in tokens]
+    except ValueError:
+        return None
 
 
 def _proxy_aware_remote_address(request: Request) -> str:
-    """Return the client IP, honoring ``X-Forwarded-For`` behind a proxy.
-
-    Falls back to ``request.client.host`` when no proxy headers are
-    present or when the immediate peer is not a trusted proxy.
-
-    Args:
-        request: Inbound Starlette / FastAPI request.
-
-    Returns:
-        The client IP string to use as the rate-limit key.
-    """
+    """Resolve the nearest untrusted client hop for rate-limit identity."""
     peer = request.client.host if request.client else ""
-    if not peer:
-        return ""
-
-    # Only trust forwarded headers when the immediate peer is itself a
-    # trusted proxy (loopback / private / link-local). This prevents a
-    # remote attacker from spoofing X-Forwarded-For to dodge rate limits.
-    if not _is_trusted_proxy(peer):
+    if not peer or not _is_trusted_proxy(peer):
         return peer
 
-    # X-Forwarded-For: client, proxy1, proxy2, ... — leftmost is the
-    # original client. Take the leftmost non-empty, non-trusted hop.
-    xff = request.headers.get("x-forwarded-for")
-    if xff:
-        for hop in (h.strip() for h in xff.split(",")):
-            if hop and not _is_trusted_proxy(hop):
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        chain = _parse_forwarded_chain(forwarded_for)
+        if chain is None:
+            return peer
+        for hop in reversed(chain):
+            if not _is_trusted_proxy(hop):
                 return hop
-        # All hops were trusted proxies; fall through to X-Real-IP.
+        return peer
+
     x_real_ip = request.headers.get("x-real-ip")
     if x_real_ip:
-        return x_real_ip.strip()
+        parsed = _parse_forwarded_chain(x_real_ip)
+        if parsed is None or len(parsed) != 1:
+            return peer
+        return parsed[0]
+
     return peer
 
 

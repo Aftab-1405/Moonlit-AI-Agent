@@ -8,7 +8,7 @@
  * @module api/user
  */
 
-import { get, post } from '@/api/client';
+import { del, get, post } from '@/api/client';
 import { USER } from '@/api/endpoints';
 
 /**
@@ -56,4 +56,20 @@ export async function sessionActive(sessionInstanceId) {
  */
 export async function getContextMetrics() {
   return get(USER.CONTEXT_METRICS);
+}
+
+export async function getDashboardOverview() {
+  return get(USER.DASHBOARD_OVERVIEW);
+}
+
+export async function getDashboardUsage(days = 30) {
+  return get(`${USER.DASHBOARD_USAGE}?days=${encodeURIComponent(days)}`);
+}
+
+export async function getQuotaStatus() {
+  return get(USER.QUOTA_STATUS);
+}
+
+export async function deleteAccount() {
+  return del(USER.ACCOUNT);
 }

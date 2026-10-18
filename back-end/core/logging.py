@@ -31,8 +31,7 @@ _request_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar("re
 #: sanitized to ``[A-Za-z0-9_-]{1,64}`` and replaced if invalid.
 REQUEST_ID_HEADER: Final[str] = "X-Request-ID"
 
-#: Logger that the filter is attached to (the root logger, so all child
-#: loggers inherit it). The filter is attached once at import time.
+#: Root logger whose active handlers receive the correlation filter.
 _ROOT_LOGGER: logging.Logger = logging.getLogger()
 
 
@@ -45,9 +44,16 @@ class _RequestIdFilter(logging.Filter):
         return True
 
 
-# Attach exactly once.
-if not any(isinstance(f, _RequestIdFilter) for f in _ROOT_LOGGER.filters):
-    _ROOT_LOGGER.addFilter(_RequestIdFilter())
+def install_request_id_filter() -> None:
+    """Attach the request-ID filter to every active root handler exactly once.
+
+    Logger filters do not run for records propagated from child loggers, while
+    root-handler filters do. Installation therefore happens after application
+    logging handlers have been configured.
+    """
+    for handler in _ROOT_LOGGER.handlers:
+        if not any(isinstance(item, _RequestIdFilter) for item in handler.filters):
+            handler.addFilter(_RequestIdFilter())
 
 
 def _generate_request_id() -> str:
@@ -83,7 +89,11 @@ def current_request_id() -> str | None:
 
 def _sanitize_inbound(value: str) -> str:
     """Return ``value`` if it matches the safe charset, else a fresh ID."""
-    if 1 <= len(value) <= 64 and all(c.isalnum() or c in "-_" for c in value):
+    if (
+        1 <= len(value) <= 64
+        and value.isascii()
+        and all(c.isalnum() or c in "-_" for c in value)
+    ):
         return value
     return _generate_request_id()
 
@@ -93,4 +103,5 @@ __all__ = [
     "bind_request_id",
     "clear_request_id",
     "current_request_id",
+    "install_request_id_filter",
 ]

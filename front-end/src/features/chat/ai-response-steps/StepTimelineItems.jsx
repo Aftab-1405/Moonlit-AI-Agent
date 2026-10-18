@@ -17,7 +17,7 @@ import {
 } from '@/features/chat/ai-response-steps/ToolResultDetails';
 import {
   getFlatStepControlSx,
-  slideIn,
+  getTimelineNodeTopSx,
   TIMELINE_LINE_X,
 } from '@/features/chat/ai-response-steps/timelineShared';
 import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
@@ -57,9 +57,14 @@ const pulse = keyframes`
 `;
 
 const TIMELINE_CONTENT_PL = { xs: 3.5, md: 4 };
-const TIMELINE_ITEM_PY = 0.5;
-const TIMELINE_NODE_TOP = { xs: 20, sm: 21 };
+const TIMELINE_ITEM_PADDING_PX = 4;
+const TIMELINE_ITEM_PY = `${TIMELINE_ITEM_PADDING_PX}px`;
 const STEP_TITLE_MIN_HEIGHT = { xs: 44, md: 32 };
+const TIMELINE_NODE_TOP = getTimelineNodeTopSx({
+  mobileTitleMinHeight: STEP_TITLE_MIN_HEIGHT.xs,
+  desktopTitleMinHeight: STEP_TITLE_MIN_HEIGHT.md,
+  itemPadding: TIMELINE_ITEM_PADDING_PX,
+});
 const REASONING_MAX_WIDTH = '72ch';
 
 const getTimelineNodeSx = ({ color, animation, theme, top = TIMELINE_NODE_TOP }) => ({
@@ -113,7 +118,6 @@ export const ThinkingStep = memo(function ThinkingStep({
   content = '',
   isComplete,
   isCurrent = false,
-  animDelay = 0,
 }) {
   const [showMore, setShowMore] = useState(false);
   const theme = useTheme();
@@ -140,8 +144,6 @@ export const ThinkingStep = memo(function ThinkingStep({
   return (
     <Box
       sx={{
-        animation: `${slideIn} 0.22s ease-out ${animDelay}ms both`,
-        '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
         position: 'relative',
         pl: TIMELINE_CONTENT_PL,
         py: TIMELINE_ITEM_PY,
@@ -234,7 +236,7 @@ function humanizeSkillName(name) {
 }
 
 /** Renders an activated skill as a completed timeline event. */
-export const SkillStep = memo(function SkillStep({ skills = [], animDelay = 0 }) {
+export const SkillStep = memo(function SkillStep({ skills = [] }) {
   const theme = useTheme();
 
   const SKILL_LABELS = {
@@ -266,8 +268,6 @@ export const SkillStep = memo(function SkillStep({ skills = [], animDelay = 0 })
   return (
     <Box
       sx={{
-        animation: `${slideIn} 0.22s ease-out ${animDelay}ms both`,
-        '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
         position: 'relative',
         pl: TIMELINE_CONTENT_PL,
         py: TIMELINE_ITEM_PY,
@@ -318,7 +318,6 @@ export const ToolStep = memo(function ToolStep({
   isError,
   isRunning,
   isCompactMobile = false,
-  animDelay = 0,
 }) {
   const [expanded, setExpanded] = useState(false);
   const detailsId = useId();
@@ -364,8 +363,6 @@ export const ToolStep = memo(function ToolStep({
   return (
     <Box
       sx={{
-        animation: `${slideIn} 0.22s ease-out ${animDelay}ms both`,
-        '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
         position: 'relative',
         pl: TIMELINE_CONTENT_PL,
         py: TIMELINE_ITEM_PY,
@@ -483,8 +480,6 @@ export const DoneIndicator = memo(function DoneIndicator() {
         pl: TIMELINE_CONTENT_PL,
         py: TIMELINE_ITEM_PY,
         minHeight: { xs: 40, sm: 42 },
-        animation: `${slideIn} 0.22s ease-out both`,
-        '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
       }}
     >
       <CheckIcon sx={doneNodeSx} />

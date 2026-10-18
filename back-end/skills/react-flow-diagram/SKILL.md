@@ -20,7 +20,7 @@ A diagram is a presentation task, not permission for exhaustive analysis. Use th
 | ERD/schema facts are absent or materially incomplete | Call `get_schema_overview(target_tables?)` once |
 | Required FKs are still missing after the overview | Call `get_foreign_keys` once for only the missing scope |
 | User requests an actual execution-plan diagram for SQL | Call `explain_query(query)` once |
-| User explicitly requests table sizes, row counts, or cardinality comparison | Call `get_table_row_count` only for the requested tables |
+| User explicitly requests table sizes, row counts, or cardinality comparison | Call `get_table_row_counts` with up to ten requested tables; use the minimum batches only if more are required |
 
 Omit optional metadata when it is unavailable. Never retrieve row counts merely to decorate nodes, choose a layout, appear thorough, or complete an example field. Never call tools for colors, positioning, labels inferable from the request, or facts already verified in active context. Every call must unlock a required node, edge, label, or user-requested metric; stop when the diagram can be built.
 

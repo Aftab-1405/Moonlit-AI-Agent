@@ -8,11 +8,24 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { skipToken, useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/api/queryClient';
+import { createChatSession } from '@/hooks/chat-page/chatSessionModel';
 
 const MIN_CANVAS_WIDTH_FLOOR = 320;
-const MIN_CANVAS_WIDTH_RATIO = 0.3;
-const MAX_CANVAS_WIDTH_RATIO = 0.88;
+const MIN_CHAT_WIDTH = 360;
 const DEFAULT_CANVAS_WIDTH = 520;
+const EMPTY_OUTPUTS = [];
+
+function createEditorCache() {
+  let state = null;
+  return {
+    get: () => state,
+    set: (next) => {
+      state = next;
+    },
+  };
+}
 
 function getWorkspaceWidth(sidebarWidth) {
   if (typeof window === 'undefined') return 1200;
@@ -21,16 +34,8 @@ function getWorkspaceWidth(sidebarWidth) {
 
 function getCanvasWidthBounds(sidebarWidth) {
   const workspace = getWorkspaceWidth(sidebarWidth);
-  const minFromRatio = Math.floor(workspace * MIN_CANVAS_WIDTH_RATIO);
-  const minWidth = Math.min(
-    Math.max(0, workspace - 8),
-    Math.max(MIN_CANVAS_WIDTH_FLOOR, minFromRatio),
-  );
-  let maxWidth = Math.floor(workspace * MAX_CANVAS_WIDTH_RATIO);
-  maxWidth = Math.max(minWidth + 1, Math.min(maxWidth, workspace - 4));
-  if (maxWidth <= minWidth) {
-    maxWidth = Math.min(workspace - 4, minWidth + 120);
-  }
+  const minWidth = Math.min(MIN_CANVAS_WIDTH_FLOOR, Math.floor(workspace / 2));
+  const maxWidth = Math.max(minWidth, Math.floor(workspace / 2), workspace - MIN_CHAT_WIDTH);
   return { minWidth, maxWidth };
 }
 
@@ -39,9 +44,25 @@ function clampCanvasWidth(width, sidebarWidth) {
   return Math.min(maxWidth, Math.max(minWidth, Math.round(width)));
 }
 
-export function useWorkspaceCanvas({ sidebarWidth = 260 } = {}) {
-  const [workspaceCanvasOpen, setWorkspaceCanvasOpen] = useState(false);
-  const [workspaceCanvasArtifact, setWorkspaceCanvasArtifact] = useState(null);
+export function useWorkspaceCanvas({
+  sidebarWidth = 344,
+  sessionKey = 'default',
+  source = null,
+  historyOutputs = EMPTY_OUTPUTS,
+} = {}) {
+  const queryClient = useQueryClient();
+  const { data: session } = useQuery({
+    queryKey: queryKeys.chatSession(sessionKey),
+    enabled: false,
+    queryFn: skipToken,
+    initialData: () => createChatSession({ sessionKey }),
+    select: (chat) => chat.workspaceCanvas,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+  const workspaceCanvasOpen = session?.open || false;
+  const workspaceCanvasArtifact = session?.artifact || null;
+  const workspaceOutputs = session?.outputs || EMPTY_OUTPUTS;
   const [hasBeenResized, setHasBeenResized] = useState(false);
   const [workspaceCanvasWidth, setWorkspaceCanvasWidth] = useState(DEFAULT_CANVAS_WIDTH);
   const sidebarWidthRef = useRef(sidebarWidth);
@@ -52,19 +73,42 @@ export function useWorkspaceCanvas({ sidebarWidth = 260 } = {}) {
     sidebarWidthRef.current = sidebarWidth;
   }, [sidebarWidth]);
 
-  const handleOpenCanvasArtifact = useCallback((artifact) => {
-    if (!artifact?.type) return;
-    setWorkspaceCanvasArtifact(artifact);
-    setWorkspaceCanvasOpen(true);
-    setHasBeenResized(false);
-    setWorkspaceCanvasWidth(() => {
-      const currentSidebarWidth = sidebarWidthRef.current;
-      const workspace = getWorkspaceWidth(currentSidebarWidth);
-      const half = Math.floor(workspace * 0.5);
-      const { minWidth, maxWidth } = getCanvasWidthBounds(currentSidebarWidth);
-      return Math.min(maxWidth, Math.max(minWidth, half));
-    });
-  }, []);
+  const handleOpenCanvasArtifact = useCallback(
+    (artifact) => {
+      if (!artifact?.type) return;
+      const historyOutput = historyOutputs.find(
+        (item) =>
+          item.type === artifact.type &&
+          ((artifact.type === 'sql-editor' &&
+            item.props.initialQuery === artifact.props?.initialQuery) ||
+            (artifact.type === 'react-flow' && item.props.code === artifact.props?.code)),
+      );
+      const id = artifact.id || historyOutput?.id || crypto.randomUUID();
+      queryClient.setQueryData(queryKeys.chatSession(sessionKey), (previous) => {
+        // Deletion/logout can clear the session while a query is finishing.
+        if (!previous) return previous;
+        const current = previous.workspaceCanvas;
+        const workspaceCache = current?.workspaceCache || createEditorCache();
+        const next = {
+          ...artifact,
+          id,
+          source:
+            artifact.source === undefined
+              ? (historyOutput?.source ?? (historyOutput ? null : source))
+              : artifact.source,
+          props: { ...artifact.props, workspaceCache },
+        };
+        const outputs = (current?.outputs || []).filter((item) => item.id !== id);
+        // The empty editor is a workspace action, not an output.
+        if (next.type !== 'sql-editor' || next.props.initialQuery?.trim()) outputs.push(next);
+        return {
+          ...previous,
+          workspaceCanvas: { open: true, artifact: next, outputs, workspaceCache },
+        };
+      });
+    },
+    [queryClient, sessionKey, source, historyOutputs],
+  );
 
   const handleOpenSqlEditor = useCallback(
     (query = '', results = null) => {
@@ -81,8 +125,15 @@ export function useWorkspaceCanvas({ sidebarWidth = 260 } = {}) {
   );
 
   const handleCloseWorkspaceCanvas = useCallback(() => {
-    setWorkspaceCanvasOpen(false);
-  }, []);
+    queryClient.setQueryData(queryKeys.chatSession(sessionKey), (previous) =>
+      previous
+        ? {
+            ...previous,
+            workspaceCanvas: { ...previous.workspaceCanvas, open: false },
+          }
+        : previous,
+    );
+  }, [queryClient, sessionKey]);
 
   const handleCanvasResize = useCallback((deltaX) => {
     setHasBeenResized(true);
@@ -123,6 +174,7 @@ export function useWorkspaceCanvas({ sidebarWidth = 260 } = {}) {
   return {
     workspaceCanvasOpen,
     workspaceCanvasArtifact,
+    workspaceOutputs,
     workspaceCanvasWidth,
     workspaceCanvasMinWidth,
     workspaceCanvasMaxWidth,

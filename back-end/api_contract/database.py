@@ -2,14 +2,15 @@
 
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator
 
+from api_contract.common import ExternalRequestModel
 from config import get_config
 
 Config = get_config()
 
 
-class ConnectDBRequest(BaseModel):
+class ConnectDBRequest(ExternalRequestModel):
     """Schema for /connect_db."""
 
     db_type: Literal["mysql", "postgresql", "sqlserver", "oracle"] = Field(...)
@@ -24,7 +25,7 @@ class ConnectDBRequest(BaseModel):
     is_remote: bool = Field(default=False)
     connection_string: Optional[str] = Field(None, max_length=Config.DB_CONNECTION_STRING_MAX_LENGTH)
 
-    model_config = {"populate_by_name": True}
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     @field_validator("database")
     @classmethod
@@ -43,7 +44,7 @@ class ConnectDBRequest(BaseModel):
         return v
 
 
-class SwitchDatabaseRequest(BaseModel):
+class SwitchDatabaseRequest(ExternalRequestModel):
     """Schema for /switch_remote_database."""
 
     database: str = Field(..., min_length=1, max_length=Config.DB_IDENTIFIER_MAX_LENGTH)
@@ -57,7 +58,7 @@ class SwitchDatabaseRequest(BaseModel):
         return v.replace(";", "").replace("--", "").strip()
 
 
-class SelectSchemaRequest(BaseModel):
+class SelectSchemaRequest(ExternalRequestModel):
     """Schema for /select_schema."""
 
     schema_name: str = Field(..., min_length=1, max_length=Config.DB_IDENTIFIER_MAX_LENGTH)
@@ -75,7 +76,7 @@ class SelectSchemaRequest(BaseModel):
         return v.strip()
 
 
-class GetTableSchemaRequest(BaseModel):
+class GetTableSchemaRequest(ExternalRequestModel):
     """Schema for /get_table_schema."""
 
     table_name: str = Field(..., min_length=1, max_length=Config.DB_IDENTIFIER_MAX_LENGTH)
@@ -89,7 +90,7 @@ class GetTableSchemaRequest(BaseModel):
         return v.replace(";", "").replace("--", "").strip()
 
 
-class RunQueryRequest(BaseModel):
+class RunQueryRequest(ExternalRequestModel):
     """Schema for /run_sql_query."""
 
     sql_query: str = Field(..., min_length=1, max_length=Config.SQL_QUERY_MAX_LENGTH)

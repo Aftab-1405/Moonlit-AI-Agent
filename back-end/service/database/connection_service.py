@@ -55,7 +55,7 @@ class ConnectionService:
                     "status": "error",
                     "message": f"Remote {db_type} via connection string is not supported.",
                 }
-            result = handler(connection_string)
+            result = handler(connection_string, pool_owner=user_id)
             ConnectionService._sync_context_from_result(result, user_id)
             return result
 
@@ -69,6 +69,7 @@ class ConnectionService:
             connection_params.get("username"),
             connection_params.get("password"),
             connection_params.get("database"),
+            pool_owner=user_id,
         )
         ConnectionService._sync_context_from_result(result, user_id)
         return result
@@ -88,6 +89,8 @@ class ConnectionService:
         """
         from service.database import connection_handlers
 
+        if user_id:
+            db_config = {**db_config, "_pool_owner": user_id}
         result = connection_handlers.select_database(db_config, db_name)
         ConnectionService._sync_context_from_result(result, user_id)
         return result

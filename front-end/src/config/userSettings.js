@@ -22,6 +22,20 @@ export const defaultUserSettings = {
   llmModel: null,
 };
 
+export const REASONING_EFFORT_OPTIONS = [
+  { value: 'low', label: 'Low' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'high', label: 'High' },
+];
+
+/** Supported reasoning models clamp disabled reasoning to Low, not Off. */
+export function getEffectiveReasoningEffort(settings) {
+  if (settings.enableReasoning === false) return 'low';
+  return REASONING_EFFORT_OPTIONS.some(({ value }) => value === settings.reasoningEffort)
+    ? settings.reasoningEffort
+    : 'medium';
+}
+
 /**
  * Valid task-mode values for the user-facing selector.
  * 'auto' is the default — the backend classifier decides per prompt.

@@ -52,8 +52,11 @@ SENSITIVE_KEY_NAMES: frozenset[str] = frozenset(
     }
 )
 
-#: Database config keys whose values are scrubbed in DB-log redaction.
-_DB_REDACTED_KEYS: frozenset[str] = frozenset({"password", "user", "username", "passwd", "pwd"})
+#: Database identity keys masked more selectively than credentials.
+_DB_USER_KEYS: frozenset[str] = frozenset({"user", "username"})
+
+#: Database credential aliases not necessarily used outside connection configs.
+_DB_CREDENTIAL_KEYS: frozenset[str] = frozenset({"password", "passwd", "pwd"})
 
 _REDACTED_PLACEHOLDER: str = "***REDACTED***"
 
@@ -71,12 +74,18 @@ _SENSITIVE_SUBSTRINGS: tuple[str, ...] = (
 )
 
 
+def _normalize_key(key: str) -> str:
+    """Canonicalize snake, kebab, camel, and Pascal case for policy checks."""
+    normalized = re.sub(r"(?<=[A-Z])(?=[A-Z][a-z])", "_", key)
+    normalized = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", normalized)
+    return re.sub(r"[^A-Za-z0-9]+", "_", normalized).strip("_").lower()
+
+
 def _is_sensitive_key(key: str) -> bool:
     """Return True if ``key`` (case-insensitive, snake/kebab/camel) is sensitive."""
     if not isinstance(key, str):
         return False
-    normalized = key.lower().replace("-", "_").replace(" ", "_")
-    return normalized in SENSITIVE_KEY_NAMES
+    return _normalize_key(key) in SENSITIVE_KEY_NAMES
 
 
 def redact(value: Any, *, _depth: int = 0) -> Any:
@@ -144,23 +153,22 @@ def redact_connection_config(config: Mapping[str, Any]) -> dict[str, Any]:
             ``host``, ``port``, ``database``, ``db_type``).
 
     Returns:
-        New dict with ``password`` always redacted, ``user`` masked to
-        its first character + ``***``, and the original ``host`` /
-        ``database`` / ``db_type`` preserved (needed for operator logs).
+        New dict with credentials, DSNs, connection strings, and other
+        sensitive fields fully redacted. Database usernames are masked to
+        their first character plus ``***``; operational fields such as
+        ``host``, ``database``, and ``db_type`` are preserved.
     """
     if not isinstance(config, Mapping):
         return {}
     safe: dict[str, Any] = {}
     for key, value in config.items():
-        if key.lower() in _DB_REDACTED_KEYS:
-            if key.lower() == "password":
-                safe[key] = _REDACTED_PLACEHOLDER
-            elif isinstance(value, str) and value:
-                safe[key] = f"{value[0]}***"
-            else:
-                safe[key] = _REDACTED_PLACEHOLDER
+        normalized = _normalize_key(key)
+        if normalized in _DB_USER_KEYS:
+            safe[key] = f"{value[0]}***" if isinstance(value, str) and value else _REDACTED_PLACEHOLDER
+        elif normalized in _DB_CREDENTIAL_KEYS or _is_sensitive_key(key):
+            safe[key] = _REDACTED_PLACEHOLDER
         else:
-            safe[key] = value
+            safe[key] = redact(value)
     return safe
 
 

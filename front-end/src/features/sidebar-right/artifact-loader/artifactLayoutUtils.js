@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { getInteractionColors } from '@/styles/shared';
+import { getInteractiveIconButtonSx } from '@/styles/shared';
+import { TOUCH_DEVICE_QUERY } from '@/styles/mediaQueries';
 
 export const ARTIFACT_ROOT_SX = {
   height: '100%',
@@ -14,35 +15,18 @@ export function useArtifactActions(actions = []) {
   return useMemo(() => actions.filter((action) => action && !action.hidden), [actions]);
 }
 
-export const getArtifactActionButtonSx = (theme, { active = false, size = 36 } = {}) => {
-  const interaction = getInteractionColors(theme, { active });
-  const responsiveSize = { xs: 44, md: size };
-  return {
-    width: responsiveSize,
-    height: responsiveSize,
-    minWidth: responsiveSize,
-    minHeight: responsiveSize,
-    flexShrink: 0,
-    borderRadius: theme.shape.radius.pill,
-    border: '1px solid transparent',
-    color: interaction.color,
-    bgcolor: active ? interaction.activeBackground : 'transparent',
-    transition: theme.transitions.create(['background-color', 'border-color', 'color', 'opacity'], {
-      duration: theme.transitions.duration.shorter,
-    }),
-    '&:hover': {
-      color: interaction.hoverColor,
-      bgcolor: active ? interaction.activeHoverBackground : interaction.hoverBackground,
-      borderColor: 'transparent',
-    },
-    '&.Mui-focusVisible': {
-      outline: `2px solid ${interaction.focusRing}`,
-      outlineOffset: 2,
-    },
-    '&.Mui-disabled': {
-      opacity: 0.68,
-      color: theme.palette.text.secondary,
-      borderColor: 'transparent',
-    },
-  };
-};
+export const getArtifactActionButtonSx = (theme, { active = false, size = 36 } = {}) => ({
+  ...getInteractiveIconButtonSx(theme, {
+    active,
+    size: { xs: 44, md: size },
+    radius: theme.shape.radius.pill,
+  }),
+  flexShrink: 0,
+  '& .MuiSvgIcon-root': { fontSize: '18px' },
+  [TOUCH_DEVICE_QUERY]: { minWidth: 44, minHeight: 44 },
+  '&.Mui-disabled': {
+    color: theme.palette.text.disabled,
+    backgroundColor: 'transparent',
+    borderColor: 'transparent',
+  },
+});

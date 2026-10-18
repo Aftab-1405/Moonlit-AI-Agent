@@ -8,11 +8,10 @@ Stream lifecycle (one SSE request == one agent turn)
    model call. The lease prevents two concurrent streams from mutating the
    same conversation's Redis checkpointer state. Acquisition is skipped for
    mock models used in unit tests.
-2. **Checkpoint clearing (new-turn path).** For a brand-new user message
-   (no resume), the Redis checkpointer thread is wiped via
-   :func:`clear_checkpointer_thread` so the agent starts from a clean
-   state rather than resuming a half-finished tool call from the previous
-   turn. Paused/resumable tasks preserve their checkpoint.
+2. **Checkpoint generation preparation.** Every attempt receives a new
+   immutable physical namespace. Fresh turns activate an empty generation;
+   explicit resumes clone and verify the previously active generation before
+   owner-CAS activation.
 3. **Context budget & VAMP retrieval.** :func:`prepare_stream_budget`
    measures system prompt, tool schemas, VAMP historical context, and any
    task checkpoint summary, then subtracts them from the model's context
@@ -55,8 +54,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from html import escape
 from typing import AsyncGenerator, Optional
+from uuid import uuid4
 
 from fastapi.concurrency import run_in_threadpool
 from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage
@@ -64,6 +65,13 @@ from langchain_core.messages.utils import merge_message_runs
 from langgraph.errors import GraphRecursionError
 from langgraph.types import Command
 
+from api_contract.run_context import (
+    ResolvedRunPolicy,
+    RunControl,
+    create_checkpoint_generation,
+)
+from api_contract.runtime_ports import get_conversation_task_state_store
+from core.errors import log_safe_exception, public_tool_error
 from langgraph_orchestration.context_usage import (
     build_summary_completed_events,
     get_pre_call_summary_pressure,
@@ -185,10 +193,7 @@ async def generate_task_checkpoint_summary(chat_model, raw_trace: str, existing_
             return _limit_checkpoint_summary(_response_text(merge_response))
         return new_summary
     except Exception as e:
-        logger.warning(
-            "Failed to generate LLM-based task checkpoint summary: %s. Falling back to raw concatenation.",
-            e,
-        )
+        _log_stream_exception("generate_task_checkpoint_summary", e)
         if existing_summary:
             return _limit_checkpoint_summary(existing_summary + "\n" + raw_trace)
         return _limit_checkpoint_summary(raw_trace)
@@ -268,12 +273,7 @@ async def check_and_perform_compaction(agent, config, conversation_id, chat_mode
                     # then overwrote Firestore with that merge — masking
                     # infrastructure outages from operators. Log the failure
                     # so the fallback is at least visible in metrics.
-                    logger.warning(
-                        "Could not load conv_data for checkpoint merge "
-                        "(conv=%s): %s; using in-memory existing_summary as fallback.",
-                        conversation_id,
-                        conv_err,
-                    )
+                    _log_stream_exception("load_checkpoint_merge_conversation", conv_err)
 
                 updated_summary = await generate_task_checkpoint_summary(chat_model, raw_trace, existing_summary)
 
@@ -282,14 +282,16 @@ async def check_and_perform_compaction(agent, config, conversation_id, chat_mode
                 )
 
                 task_run_id = config["configurable"].get("task_run_id")
+                task_run_fence = config["configurable"].get("task_run_fence")
                 persisted = False
-                if task_run_id:
+                if task_run_id and task_run_fence is not None:
                     try:
-                        persisted = await asyncio.to_thread(
+                        persisted = await run_in_threadpool(
                             get_conversation_task_state_store().update_task_checkpoint_summary,
                             conversation_id,
                             updated_summary,
                             task_run_id,
+                            task_run_fence,
                         )
                     except Exception as write_err:
                         # WENH [6]: If the Firestore write raised (e.g.
@@ -311,13 +313,7 @@ async def check_and_perform_compaction(agent, config, conversation_id, chat_mode
                         # in-memory summary here — keep the old value for
                         # this turn so the model continues to see
                         # SOMETHING (the old summary) rather than nothing.
-                        logger.warning(
-                            "Failed to persist task_checkpoint_summary to "
-                            "Firestore for %s: %s. In-memory summary is now "
-                            "dirty; next stream will re-load from Firestore.",
-                            conversation_id,
-                            write_err,
-                        )
+                        _log_stream_exception("persist_task_checkpoint_summary", write_err)
                         config["configurable"]["_task_checkpoint_summary_dirty"] = True
                         return
                     if not persisted:
@@ -345,11 +341,13 @@ async def check_and_perform_compaction(agent, config, conversation_id, chat_mode
                         len(remove_updates),
                     )
     except Exception as e:
-        logger.warning("Failed during check_and_perform_compaction: %s", e)
+        _log_stream_exception("compact_stream_checkpoint", e)
 
 
 from langgraph_orchestration.checkpointing import (
+    GenerationCheckpointer,
     get_checkpointer,
+    prepare_checkpoint_generation,
 )
 from langgraph_orchestration.prompt_builder import PromptBuilder
 from langgraph_orchestration.react_graph import (
@@ -380,36 +378,20 @@ from langgraph_orchestration.stream_protocol import (
     sse_error,
 )
 from langgraph_orchestration.tools import ALL_TOOLS
-from llm_provider.model_factory import get_chat_model, get_default_model
+from llm_provider.model_factory import get_chat_model
 
 logger = logging.getLogger(__name__)
 
 
-# Safety limit — prevents runaway tool loops (applies to node transitions)
-async def clear_checkpointer_thread(checkpointer, thread_id: str) -> None:
-    """Completely clear all checkpoint data for the given thread_id.
-
-    Called on every new user turn (when no resumable task is in flight) so
-    the agent starts fresh and cannot accidentally resume a half-finished
-    tool call from the previous turn — Bedrock rejects message histories
-    where an ``AIMessage.tool_calls`` block is missing its matching
-    ``ToolMessage`` response.
-
-    FIX [M3]: The previous implementation caught every exception and only
-    logged a warning, then continued streaming. If Redis was down or
-    returned an error, the Redis checkpoint STILL contained the previous
-    turn's messages, so ``agent.astream`` silently resumed from the stale
-    checkpoint and Bedrock rejected the message history. Treat
-    checkpoint-clear failure as fatal for a new turn: raise
-    ``RuntimeError`` so the caller can return a clean error to the user
-    instead of producing a broken stream.
-    """
-    try:
-        await checkpointer.adelete_thread(thread_id)
-        logger.info("Cleared checkpoint for thread %s", thread_id)
-    except Exception as e:
-        logger.error("Failed to clear checkpoint for thread %s: %s", thread_id, e)
-        raise RuntimeError(f"Could not clear previous checkpoint for {thread_id}; retry the request.") from e
+def _log_stream_exception(
+    operation: str,
+    exc: BaseException,
+    *,
+    code: str = "AGENT_STREAM_OPERATION_FAILED",
+    message: str = "Agent stream operation failed.",
+) -> None:
+    """Emit correlated, sanitized diagnostics for a stream operation."""
+    log_safe_exception(logger, operation, exc, public_tool_error(code, message))
 
 
 # ENH [LATENCY]: These were previously lazy imports inside functions.
@@ -450,7 +432,7 @@ async def _stream_graph_with_continuations(
             if state and getattr(state, "metadata", None):
                 current_step = int(state.metadata.get("step", 0))
         except Exception as e:
-            logger.debug("Could not determine current step from state metadata: %s", e)
+            _log_stream_exception("read_stream_step_metadata", e)
 
         current_limit = min(segment_step_limit, total_step_budget - consumed_steps)
         config["recursion_limit"] = current_step + current_limit
@@ -530,16 +512,14 @@ async def stream_conversation(
     message: str | None,
     user_id: str,
     *,
+    run_policy: ResolvedRunPolicy,
     db_config: Optional[dict] = None,
     response_style: str = "balanced",
     max_rows: Optional[int] = None,
     api_key: Optional[str] = None,
-    provider: str = "bedrock",
-    model: Optional[str] = None,
     enable_reasoning: bool = True,
     reasoning_effort: str = "medium",
     resume: Optional[dict] = None,
-    task_mode: str = "normal",
 ) -> AsyncGenerator[str, None]:
     """Stream a full agent turn as SSE-encoded JSON events.
 
@@ -566,123 +546,85 @@ async def stream_conversation(
     # inside `_stream_graph_with_continuations` or inside the
     # `GraphRecursionError` handler.
     compaction_done = False
+    buffered_resumable_events: list[dict] = []
     run_lease: TaskRunLease | None = None
     interruption_reason = "error"
+    run_control = RunControl(
+        deadline_monotonic=time.monotonic() + run_policy.budgets.wall_clock_seconds,
+        tool_limit=run_policy.budgets.tool_calls,
+    )
 
     try:
-        selected_model = model or get_default_model(provider)
+        selected_model = run_policy.model
         request_tools = ALL_TOOLS
 
         is_continue_task = isinstance(resume, dict) and resume.get("continue_task", False)
         is_new_turn = (resume is None) and (message is not None)
-        existing_task_status = ""
+        namespaced_thread_id = f"{user_id}:{conversation_id}"
+        acquisition = None
         if not str(selected_model).startswith("mock"):
             run_lease = TaskRunLease(
                 conversation_id,
-                task_mode or "normal",
+                namespaced_thread_id,
+                run_policy.task_mode,
+                uuid4().hex,
+                run_control,
+                resume_checkpoint=resume is not None,
             )
             try:
                 acquisition = await run_lease.acquire()
-                existing_task_status = acquisition.previous_status
-            except ConcurrentTaskRunError as busy_err:
+                run_lease.register_stream_task(asyncio.current_task())
+                run_lease.ensure_owned()
+            except ConcurrentTaskRunError:
                 logger.info(
                     "Rejected concurrent task run for conversation %s",
                     conversation_id,
                 )
-                yield sse_error(str(busy_err))
+                yield sse_error("Another request is already running for this conversation.")
                 yield sse_done()
                 return
+
+        base_checkpointer = get_checkpointer()
+        if acquisition is not None:
+            checkpointer = await prepare_checkpoint_generation(
+                base_checkpointer,
+                conversation_id=conversation_id,
+                acquisition=acquisition,
+                task_state_store=get_conversation_task_state_store(),
+                run_control=run_control,
+            )
+        else:
+            generation = create_checkpoint_generation(
+                namespaced_thread_id,
+                uuid4().hex,
+                1,
+            )
+            checkpointer = GenerationCheckpointer(
+                base_checkpointer,
+                generation,
+                reserved_generation=generation,
+                active_generation=generation,
+                run_control=run_control,
+            )
+
+        if is_new_turn and run_lease is not None:
+            await run_lease.reset_checkpoint()
 
         system_prompt = PromptBuilder.build_system_prompt(
             response_style,
             user_message=message or "",
+            run_policy=run_policy,
             # ENH [5]: When the user has no live database connection, drop
             # the database-related skill cards from <available_skills> —
             # saves ~250 tokens for zero benefit on non-DB turns.
             db_connected=bool(db_config and db_config.get("db_type")),
         )
 
-        checkpointer = get_checkpointer()
-
-        # Namespace thread_id by user_id to prevent unauthenticated checkpoint access.
-        namespaced_thread_id = f"{user_id}:{conversation_id}"
-
-        # Clear checkpointer and task_checkpoint_summary if it is a new user turn.
-        # Skip clearing when the agent is continuing a paused long task.
-        #
-        # FIX [L4]: The previous guard `and not str(selected_model).startswith("mock")`
-        # skipped checkpoint clearing for mock models, so sequential messages
-        # to the same conversation_id in unit tests resumed from the first
-        # turn's checkpoint — producing non-deterministic test results. Mock
-        # models still go through the checkpointer and need a clean slate
-        # between turns just like real models. The lease acquire path above
-        # is what skips for mocks (run_lease stays None); the checkpoint
-        # clear itself must still run.
-        #
-        # WENH [4]: Initialize the stale-checkpoint nudge flag. If
-        # `clear_checkpointer_thread` fails below, we set this to a system
-        # nudge that gets appended to the user's request later, telling the
-        # model to ignore any stale tool_calls in the history. FIX [M3]
-        # made checkpoint-clear failures fatal to prevent stale-checkpoint
-        # resume bugs, but a transient Redis outage shouldn't block ALL
-        # new turns — so we catch the failure here, log a warning, and
-        # proceed without clearing (with the nudge as a defense-in-depth
-        # prompt to the model).
-        _stale_checkpoint_nudge = None
-        if is_new_turn:
-            resumable_statuses = {
-                "running",
-                "paused_step_limit",
-                "paused_cancelled",
-                "paused_error",
-            }
-            if existing_task_status not in resumable_statuses:
-                # WENH [4]: Fallback for clear_checkpointer_thread failures.
-                # FIX [M3] made checkpoint-clear failures fatal to prevent
-                # stale-checkpoint resume bugs. But a transient Redis outage
-                # shouldn't block ALL new turns for the affected conversation.
-                # On failure, fall back to proceeding without clearing, but
-                # inject a system nudge that tells the model to ignore stale
-                # tool_calls in the history. The nudge is appended to the
-                # current user request below (where the HumanMessage is built).
-                try:
-                    await clear_checkpointer_thread(checkpointer, namespaced_thread_id)
-                except Exception as clear_err:
-                    logger.warning(
-                        "Could not clear checkpoint for %s (Redis may be down): %s. "
-                        "Proceeding without clear; injecting stale-state warning.",
-                        conversation_id,
-                        clear_err,
-                    )
-                    _stale_checkpoint_nudge = (
-                        "<system_nudge>The previous checkpoint could not be "
-                        "cleared. If you see any tool_calls in the history "
-                        "without matching tool results, ignore them and "
-                        "start fresh.</system_nudge>"
-                    )
-                if run_lease is not None:
-                    try:
-                        await run_lease.reset_checkpoint()
-                    except Exception as e:
-                        logger.error("Failed to clear task_checkpoint_summary: %s", e)
-                        raise
-            else:
-                logger.info(
-                    "Preserving checkpoint for paused task %s — new message continues the task.",
-                    conversation_id,
-                )
-        elif is_continue_task:
+        if is_continue_task:
             logger.info(
-                "continue_task=True: skipping checkpoint clear for conversation %s",
+                "continue_task=True: activated cloned checkpoint generation for conversation %s",
                 conversation_id,
             )
-
-        # Determine recursion limit dynamically by task mode.
-        # For continue_task resumes: restore task_mode from persisted Firestore state
-        # so the step budget scales correctly across continuation calls.
-        from config import get_config
-
-        Config = get_config()
 
         initial_context = await load_initial_stream_context(
             conversation_id,
@@ -693,114 +635,33 @@ async def stream_conversation(
         conv_data = initial_context.conversation
         historical_context = initial_context.historical_context
 
-        if is_continue_task and task_mode in (None, "normal", ""):
-            stored_task_mode = (
-                run_lease.previous_task_mode
-                if run_lease is not None
-                else (conv_data or {}).get("task_mode", "normal") or "normal"
-            )
-            if stored_task_mode != "normal":
-                task_mode = stored_task_mode
-                if run_lease is not None:
-                    await run_lease.change_task_mode(task_mode)
-                logger.info(
-                    "Restored task_mode=%s from Firestore for continue_task on %s",
-                    task_mode,
-                    conversation_id,
-                )
-
-        task_mode = task_mode or "normal"
-
-        # ENH [AUTO-TASK-MODE]: Auto-detect long / tool tasks from the
-        # user's prompt so the agent gets a 100- or 200-step budget
-        # instead of the default 50-step ceiling. Without this, prompts
-        # like "analyze the data and produce a report" hit the 50-step
-        # limit mid-flight and surface a "Task Paused" dialog to the
-        # user, who then has to click "Continue Task". The classifier
-        # only ever UPGRADES `normal` → `tool_task` / `long_task`; an
-        # explicit user choice is always respected. Disable by setting
-        # `AGENT_AUTO_TASK_MODE=false` in the environment.
-        _task_mode_source = "user"
-        if is_new_turn and task_mode == "normal":
-            try:
-                from langgraph_orchestration.task_mode_detector import (
-                    classify_task_mode,
-                    should_auto_classify,
-                )
-
-                classification = classify_task_mode(
-                    message,
-                    current_mode=task_mode,
-                    allow_auto=should_auto_classify(),
-                )
-                if classification["task_mode"] != task_mode:
-                    logger.info(
-                        "Auto-detected task_mode=%s for conversation %s (intent=%s, pattern=%r, source=%s)",
-                        classification["task_mode"],
-                        conversation_id,
-                        classification["detected_intent"],
-                        classification["matched_pattern"],
-                        classification["source"],
-                    )
-                    task_mode = classification["task_mode"]
-                    _task_mode_source = classification["source"]
-            except Exception as detect_err:
-                logger.warning(
-                    "Task-mode auto-detection failed for %s: %s — falling back to %s",
-                    conversation_id,
-                    detect_err,
-                    task_mode,
-                )
-
-        # ENH [AUTO-TASK-MODE]: Notify the frontend of the effective task
-        # mode so it can show a badge ("Long Task: 200 steps") and the
-        # user understands why the agent is taking longer. The event is
-        # emitted BEFORE the model is built so the badge appears as soon
-        # as the stream starts.
-        if is_new_turn:
-            task_mode_labels = {
-                "normal": "Standard",
-                "tool_task": "Tool Task",
-                "long_task": "Long Task",
+        task_mode_labels = {
+            "normal": "Standard",
+            "tool_task": "Tool Task",
+            "long_task": "Long Task",
+        }
+        yield sse_encode(
+            {
+                "type": "task_mode",
+                "task_mode": run_policy.task_mode,
+                "label": task_mode_labels[run_policy.task_mode],
+                "recursion_limit": run_policy.budgets.graph_steps,
+                "source": run_policy.task_mode_source,
             }
-            yield sse_encode(
-                {
-                    "type": "task_mode",
-                    "task_mode": task_mode,
-                    "label": task_mode_labels.get(task_mode, task_mode),
-                    "recursion_limit": min(
-                        {
-                            "normal": Config.AGENT_DEFAULT_STEPS,
-                            "tool_task": Config.AGENT_TOOL_TASK_STEPS,
-                            "long_task": Config.AGENT_LONG_TASK_STEPS,
-                        }.get(task_mode, Config.AGENT_DEFAULT_STEPS),
-                        Config.AGENT_TOTAL_STEP_BUDGET,
-                    ),
-                    "source": _task_mode_source,
-                }
-            )
-
-        if task_mode == "tool_task":
-            recursion_limit = Config.AGENT_TOOL_TASK_STEPS
-        elif task_mode == "long_task":
-            recursion_limit = Config.AGENT_LONG_TASK_STEPS
-        else:
-            recursion_limit = Config.AGENT_DEFAULT_STEPS
-        recursion_limit = min(recursion_limit, Config.AGENT_TOTAL_STEP_BUDGET)
-        segment_step_limit = min(
-            recursion_limit,
-            max(1, getattr(Config, "AGENT_STEP_SEGMENT_STEPS", 50)),
         )
+
+        recursion_limit = run_policy.budgets.graph_steps
+        segment_step_limit = run_policy.budgets.segment_steps
 
         # ENH [LATENCY]: output_reserve_for_task_mode imported at module level
 
         chat_model = get_chat_model(
-            provider,
+            run_policy.provider,
             selected_model,
             api_key,
             enable_reasoning=enable_reasoning,
             reasoning_effort=reasoning_effort,
-            max_tokens=output_reserve_for_task_mode(task_mode),
+            max_tokens=output_reserve_for_task_mode(run_policy.task_mode),
         )
         agent = build_react_agent(
             chat_model,
@@ -814,13 +675,12 @@ async def stream_conversation(
 
         try:
             budget_info = await prepare_stream_budget(
-                selected_model=selected_model,
+                run_policy=run_policy,
                 response_style=response_style,
                 system_prompt=system_prompt,
                 request_tools=request_tools,
                 historical_context=historical_context,
                 task_checkpoint_summary=task_checkpoint_summary,
-                task_mode=task_mode,
                 conversation=conv_data,
             )
 
@@ -829,7 +689,7 @@ async def stream_conversation(
 
             if not isinstance(count_err, TokenCountingError):
                 raise
-            logger.error("Exact token counting failed before model call: %s", count_err)
+            _log_stream_exception("count_pre_model_tokens", count_err)
             yield sse_error("Unable to count request tokens exactly. Please try again.")
             yield sse_done()
             return
@@ -903,15 +763,12 @@ async def stream_conversation(
                     )
                 historical_context = truncated_hc
             except Exception as hc_trunc_err:
-                logger.warning(
-                    "Could not truncate historical_context to VAMP budget (conv=%s): %s; using full context.",
-                    conversation_id,
-                    hc_trunc_err,
-                )
+                _log_stream_exception("truncate_vamp_historical_context", hc_trunc_err)
 
         config = {
             "configurable": {
                 "thread_id": namespaced_thread_id,
+                "conversation_id": conversation_id,
                 "user_id": user_id,
                 "db_config": db_config,
                 "max_rows": max_rows,
@@ -939,9 +796,15 @@ async def stream_conversation(
                 # configurable so the per-turn <current_session_state> block
                 # in prepare_model_messages can advertise them to the LLM
                 # without an extra get_connection_status round-trip.
-                "task_mode": task_mode or "normal",
+                "task_mode": run_policy.task_mode,
+                "task_mode_source": run_policy.task_mode_source,
+                "graph_step_budget": run_policy.budgets.graph_steps,
+                "segment_step_budget": run_policy.budgets.segment_steps,
+                "tool_call_budget": run_policy.budgets.tool_calls,
+                "wall_clock_budget_seconds": run_policy.budgets.wall_clock_seconds,
                 "reasoning_effort": reasoning_effort,
                 "task_run_id": run_lease.run_id if run_lease is not None else None,
+                "task_run_fence": run_lease.fence if run_lease is not None else None,
             },
             "recursion_limit": segment_step_limit,
         }
@@ -964,7 +827,7 @@ async def stream_conversation(
                                 if s_name and s_name not in config["configurable"]["activated_skills"]:
                                     config["configurable"]["activated_skills"].append(s_name)
         except Exception as e:
-            logger.debug("Could not restore activated_skills from checkpoint: %s", e)
+            _log_stream_exception("restore_checkpoint_activated_skills", e)
 
         graph_input = None
         post_summary_events = []
@@ -1049,10 +912,7 @@ async def stream_conversation(
                                     "using the locally advanced summary boundary."
                                 )
                         except Exception as e:
-                            logger.warning(
-                                "Failed to recalculate tail_tokens post-summarization: %s",
-                                e,
-                            )
+                            _log_stream_exception("recalculate_post_summary_tokens", e)
 
                         post_summary_events = build_summary_completed_events(
                             budget_info,
@@ -1080,10 +940,7 @@ async def stream_conversation(
                             )
                             config["configurable"]["historical_context"] = historical_context
                         except Exception as vamp_err:
-                            logger.warning(
-                                "Could not reload VAMP after summarization: %s",
-                                vamp_err,
-                            )
+                            _log_stream_exception("reload_vamp_after_summary", vamp_err)
 
                         if conv_data_post is not None:
                             conv_data = conv_data_post
@@ -1100,7 +957,7 @@ async def stream_conversation(
                             summary_result.get("threshold_tokens") if summary_result else None,
                         )
             except Exception as sum_err:
-                logger.warning("Pre-call summarization failed: %s", sum_err)
+                _log_stream_exception("run_pre_call_summarization", sum_err)
 
         if resume is not None:
             if is_continue_task:
@@ -1171,14 +1028,7 @@ async def stream_conversation(
             # FIX [CTX-SUMMARY]: Summarization now runs above (unconditionally
             # for non-resume turns). This branch just loads history.
             history = await _load_firestore_history(conversation_id, message, hot_history_budget, selected_model)
-            # WENH [4]: Append the stale-checkpoint nudge (set when
-            # `clear_checkpointer_thread` failed above) to the user's
-            # request so the model knows to ignore stale tool_calls in
-            # the resumed history. The nudge is only set on failure, so
-            # the happy path is unchanged.
             _current_message_text = message or ""
-            if _stale_checkpoint_nudge:
-                _current_message_text = _current_message_text + "\n" + _stale_checkpoint_nudge
             initial_messages = history + [HumanMessage(content=format_current_user_request(_current_message_text))]
             initial_messages = merge_message_runs(initial_messages)
             if history:
@@ -1189,11 +1039,7 @@ async def stream_conversation(
                 )
             graph_input = {"messages": initial_messages}
         else:
-            # WENH [4]: Same stale-checkpoint nudge as above for the
-            # no-checkpoint branch (no Firestore history to seed).
             _current_message_text = message or ""
-            if _stale_checkpoint_nudge:
-                _current_message_text = _current_message_text + "\n" + _stale_checkpoint_nudge
             initial_messages = [HumanMessage(content=format_current_user_request(_current_message_text))]
             graph_input = {"messages": initial_messages}
 
@@ -1202,18 +1048,6 @@ async def stream_conversation(
         # agent's active context transition ordered together.
         for summary_event in post_summary_events:
             yield sse_encode(summary_event)
-
-        # WENH [1]: Register the current task with the lease so the renew loop
-        # can cancel it on ownership loss (FIX [M2]). Without this, a
-        # long-running tool call (e.g. 30s execute_query) continues past
-        # lease theft, mutating state that another stream now owns. Set
-        # AFTER `run_lease` is confirmed acquired (acquire() at line 531
-        # above) and BEFORE the streaming loop begins (the first
-        # `agent.astream` call lives inside `_stream_graph_with_continuations`).
-        if run_lease is not None:
-            import asyncio as _asyncio
-
-            run_lease._stream_task = _asyncio.current_task()
 
         try:
             async for part in _stream_graph_with_continuations(
@@ -1235,6 +1069,9 @@ async def stream_conversation(
                 # token events before sending to the user. This is the safety
                 # net for models that mimic the input envelope tags.
                 for event in events:
+                    if event.get("type") == "agent_interrupt":
+                        buffered_resumable_events.append(event)
+                        continue
                     if event.get("type") == "token":
                         cleaned = tag_stripper.process_chunk(event.get("content", ""))
                         if cleaned:
@@ -1264,11 +1101,7 @@ async def stream_conversation(
 
             if is_recursion:
                 step_limit_reached = True
-                logger.warning(
-                    "Agent step limit reached for conversation %s: %s",
-                    conversation_id,
-                    graph_err,
-                )
+                _log_stream_exception("reach_agent_step_limit", graph_err)
                 # FIX [AUDIT-2-A]: the inner `_stream_graph_with_continuations`
                 # runner may have ALREADY run compaction when it caught the
                 # GraphRecursionError mid-flight (it sets
@@ -1290,16 +1123,11 @@ async def stream_conversation(
                             active_context_budget,
                         )
                     except Exception as comp_err:
-                        logger.warning(
-                            "Compaction failed during GraphRecursionError handling: %s",
-                            comp_err,
-                        )
+                        _log_stream_exception("compact_after_agent_step_limit", comp_err)
                 compaction_done = True
-                try:
-                    if run_lease is not None:
-                        await run_lease.pause()
-                except Exception as db_err:
-                    logger.error("Failed to save task status: %s", db_err)
+                if run_lease is None:
+                    raise RuntimeError("Agent step-limit continuation requires a durable task lease.")
+                await run_lease.pause()
                 yield sse_encode(
                     {
                         "type": "agent_step_limit_reached",
@@ -1307,7 +1135,7 @@ async def stream_conversation(
                         "conversation_id": conversation_id,
                         "can_continue": True,
                         "steps_used": recursion_limit,
-                        "task_mode": task_mode,
+                        "task_mode": run_policy.task_mode,
                         "message": (
                             f"The agent reached its step budget ({recursion_limit} steps). "
                             'The task context has been saved. Click "Continue" to resume.'
@@ -1334,17 +1162,24 @@ async def stream_conversation(
         if remaining:
             yield sse_encode({"type": "token", "content": remaining})
 
-        if not step_limit_reached and not str(selected_model).startswith("mock"):
+        if buffered_resumable_events and run_lease is None:
+            raise RuntimeError("Agent interrupt requires a durable task lease.")
+        if buffered_resumable_events and run_lease is not None:
+            await run_lease.pause()
+            for event in buffered_resumable_events:
+                yield sse_encode(event)
+        elif not step_limit_reached and not str(selected_model).startswith("mock"):
             try:
                 if run_lease is not None:
                     await run_lease.complete()
             except Exception as status_err:
-                logger.warning("Failed to clear completed task status: %s", status_err)
+                _log_stream_exception("clear_completed_task_status", status_err)
 
         yield sse_done()
 
     except asyncio.CancelledError:
         interruption_reason = "cancelled"
+        logger.warning("Agent stream aborted for conversation %s reason=cancelled", conversation_id)
         raise
 
     except Exception as e:
@@ -1357,7 +1192,7 @@ async def stream_conversation(
                 try:
                     await run_lease.complete()
                 except Exception as status_err:
-                    logger.warning("Failed to clear tool-completed task status: %s", status_err)
+                    _log_stream_exception("clear_tool_completed_task_status", status_err)
             yield sse_encode(
                 {
                     "type": "token",
@@ -1400,7 +1235,7 @@ async def stream_conversation(
                 )
                 compaction_done = True
             except BaseException as comp_err:
-                logger.warning("Emergency compaction failed: %s", comp_err)
+                _log_stream_exception("run_emergency_compaction", comp_err)
             # Yield a clear error that tells the user to retry.
             yield sse_encode(
                 {
@@ -1414,7 +1249,12 @@ async def stream_conversation(
             yield sse_done()
             return
 
-        logger.error("Agent stream error: %s", e, exc_info=True)
+        _log_stream_exception(
+            "stream_agent_graph",
+            e,
+            code="AGENT_STREAM_FAILED",
+            message="Agent streaming failed.",
+        )
         yield sse_error(friendly_error(str(e)))
         yield sse_done()
 
@@ -1431,21 +1271,13 @@ async def stream_conversation(
             try:
                 await asyncio.shield(run_lease.interrupt(interruption_reason))
             except BaseException as status_err:  # incl. CancelledError
-                logger.warning("Failed to release task lease: %s", status_err)
+                _log_stream_exception("release_task_lease", status_err)
         if run_lease is not None:
             try:
                 await asyncio.shield(run_lease.close())
             except BaseException:
                 # Closing the renewal loop must not block cancellation.
                 pass
-
-        # WENH [1]: Clear the stream task reference so the renew loop does
-        # not hold a stale reference after this stream has ended. This pairs
-        # with the assignment above (right before the streaming loop) and
-        # is placed AFTER the lease is released so the renew loop has
-        # already exited (close() cancels _renew_task).
-        if run_lease is not None:
-            run_lease._stream_task = None
 
         # Best-effort compaction. Runs only if compaction has not already
         # run for this turn (see FIX [M1] — `compaction_done` replaces the
@@ -1484,10 +1316,7 @@ async def stream_conversation(
                 )
                 compaction_done = True
             except BaseException as summary_err:  # incl. CancelledError/TimeoutError
-                logger.warning(
-                    "Could not persist task_checkpoint_summary in finally: %s",
-                    summary_err,
-                )
+                _log_stream_exception("persist_final_task_checkpoint_summary", summary_err)
 
 
 async def _has_checkpoint(checkpointer, thread_id: str) -> bool:
@@ -1495,7 +1324,7 @@ async def _has_checkpoint(checkpointer, thread_id: str) -> bool:
         result = await checkpointer.aget_tuple({"configurable": {"thread_id": thread_id}})
         return result is not None
     except Exception as e:
-        logger.warning("Could not check checkpointer state for %s: %s", thread_id, e)
+        _log_stream_exception("check_checkpoint_state", e)
         return False
 
 
@@ -1602,11 +1431,7 @@ async def _load_firestore_history(
         return lc_messages
 
     except Exception as e:
-        logger.warning(
-            "Failed to load Firestore history for seeding (conversation %s): %s",
-            conversation_id,
-            e,
-        )
+        _log_stream_exception("load_firestore_history", e)
         return []
 
 

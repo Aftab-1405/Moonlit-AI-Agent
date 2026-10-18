@@ -1,3 +1,4 @@
+import { HOVER_CAPABLE_QUERY } from '../../../styles/mediaQueries.js';
 import { getInteractionColors, UI_LAYOUT } from '../../../styles/shared.js';
 import { getAppPanelSurfaceSx } from '../../styles/interfaceChrome.js';
 
@@ -16,13 +17,13 @@ import { getAppPanelSurfaceSx } from '../../styles/interfaceChrome.js';
  *   - `ROW_HEIGHT` (36px) is the consistent height for every row.
  */
 
-const SIDEBAR_RADIUS = '8px';
+const SIDEBAR_RADIUS = '10px';
 
 // ─── Shared token ────────────────────────────────────────────────────────────
 // Every clickable row uses the same horizontal inset (px: ROW_PX = 8px each side).
 // The icon column is ICON_COL wide — a fixed-width slot that centers the icon.
 // Height is controlled by the row's minHeight, not the icon slot.
-export const ROW_PX = 1; // MUI spacing → 8px each side
+const ROW_PX = 1; // MUI spacing → 8px each side
 export const ICON_COL = 36; // px — fixed icon column width only (not height)
 const ROW_HEIGHT = UI_LAYOUT.controlRowHeight; // shared with popover action rows
 const focusRing = (theme) => `0 0 0 3px ${theme.palette.border.focus}`;
@@ -77,28 +78,19 @@ export function buildNavRowSx(
     boxShadow: 'none',
     color: isActive ? theme.palette.text.primary : theme.palette.text.secondary,
     opacity: disabled ? 0.4 : 1,
-    '&::before': isActive
-      ? {
-          content: '""',
-          position: 'absolute',
-          left: 0,
-          top: 9,
-          bottom: 9,
-          width: 2,
-          borderRadius: 9999,
-          backgroundColor: theme.palette.primary.main,
-        }
-      : undefined,
     transition: theme.transitions.create(
       ['background-color', 'color', 'opacity', 'box-shadow', 'width'],
       {
         duration: theme.transitions.duration.shorter,
       },
     ),
-    '&:hover:not(:disabled)': {
-      backgroundColor: isActive ? interaction.activeHoverBackground : interaction.hoverBackground,
-      color: theme.palette.text.primary,
+    [HOVER_CAPABLE_QUERY]: {
+      '&:hover:not(:disabled)': {
+        backgroundColor: isActive ? interaction.activeHoverBackground : interaction.hoverBackground,
+        color: theme.palette.text.primary,
+      },
     },
+    '&:active:not(:disabled)': { backgroundColor: interaction.activeBackground },
     '&:focus-visible': {
       outline: 'none',
       // Use boxShadow (not outline) so the ring doesn't clip with borderRadius.
@@ -197,7 +189,7 @@ export function buildDesktopNavSx(_theme) {
     width: '100%',
     height: '100%',
     display: 'flex',
-    flexDirection: 'column',
+    flexDirection: 'row',
     overflow: 'hidden',
     boxSizing: 'border-box',
   };
@@ -213,28 +205,10 @@ export function buildMobileDrawerPaperStyles(theme) {
     width: { xs: '88vw', sm: 320 },
     maxWidth: 320,
     paddingBottom: 'env(safe-area-inset-bottom)',
-    borderRadius: 0,
+    borderRadius: '0 20px 20px 0',
     boxSizing: 'border-box',
     ...getAppPanelSurfaceSx(theme),
+    backgroundColor: theme.palette.background.paper,
     borderRight: 'none',
-  };
-}
-
-// ─── Section label ────────────────────────────────────────────────────────────
-// Returns sx that matches theme.typography.uiSectionLabel.
-// Used as a spread: sx={{ ...buildSidebarSectionLabelSx(), px: 0, pt: 0, pb: 0 }}
-export function buildSidebarSectionLabelSx() {
-  return {
-    px: 2,
-    pt: 2,
-    pb: 0.75,
-    fontSize: '0.8125rem',
-    fontFamily: '"Geist Mono", ui-monospace, monospace',
-    fontWeight: 400,
-    lineHeight: 1.3,
-    color: 'text.secondary',
-    letterSpacing: '1.2px',
-    textTransform: 'uppercase',
-    opacity: 0.88,
   };
 }

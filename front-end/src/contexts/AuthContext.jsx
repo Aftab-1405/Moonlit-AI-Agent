@@ -1,16 +1,28 @@
 import {
   createUserWithEmailAndPassword,
+  EmailAuthProvider,
   getRedirectResult,
+  linkWithCredential,
+  linkWithPopup,
+  linkWithRedirect,
   onAuthStateChanged,
+  reauthenticateWithCredential,
+  reauthenticateWithPopup,
+  reauthenticateWithRedirect,
+  reload,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
   signOut,
+  unlink,
+  updatePassword,
   updateProfile,
+  verifyBeforeUpdateEmail,
 } from 'firebase/auth';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
+  deleteAccount as deleteAccountBackend,
   logoutAuthenticatedUserSession as logoutBackend,
   setAuthenticatedUserSession as setBackendSession,
 } from '@/api';
@@ -22,6 +34,11 @@ import {
   initializeFirebase,
 } from '@/config/firebase';
 import { normalizeAuthUser } from '@/utils/authUserProfile';
+import {
+  canUnlinkProvider,
+  clearAccountStorage,
+  normalizeDisplayName,
+} from '@/features/dashboard/accountModel';
 import logger from '@/utils/logger';
 
 /**
@@ -52,6 +69,51 @@ const ERROR_MESSAGES = {
   'auth/too-many-requests': 'Too many attempts. Try again later.',
   'auth/popup-closed-by-user': 'Sign-in cancelled.',
   'auth/account-exists-with-different-credential': 'Email exists with different sign-in method.',
+  'auth/credential-already-in-use': 'That sign-in method already belongs to another account.',
+  'auth/provider-already-linked': 'That sign-in method is already linked.',
+  'auth/requires-recent-login': 'Please reauthenticate before completing this sensitive action.',
+};
+
+const PENDING_AUTH_ACTION_KEY = 'moonlit-auth-pending-action';
+const RECENT_REAUTHENTICATION_KEY = 'moonlit-auth-recent-reauthentication';
+const RECENT_REAUTHENTICATION_MAX_AGE_MS = 5 * 60 * 1000;
+
+const readSessionValue = (key) => {
+  try {
+    const value = sessionStorage.getItem(key);
+    return value ? JSON.parse(value) : null;
+  } catch {
+    return null;
+  }
+};
+
+const rememberRedirectReauthentication = (redirectResult, pendingAction) => {
+  const userId = redirectResult?.user?.uid;
+  if (pendingAction?.type !== 'reauthenticate' || !pendingAction.providerId || !userId) return;
+
+  sessionStorage.setItem(
+    RECENT_REAUTHENTICATION_KEY,
+    JSON.stringify({
+      userId,
+      providerId: pendingAction.providerId,
+      completedAt: Date.now(),
+    }),
+  );
+};
+
+const hasRecentRedirectReauthentication = (userId, providerId) => {
+  const recent = readSessionValue(RECENT_REAUTHENTICATION_KEY);
+  const completedAt = Number(recent?.completedAt);
+  const age = Date.now() - completedAt;
+  const isRecent =
+    recent?.userId === userId &&
+    recent?.providerId === providerId &&
+    Number.isFinite(completedAt) &&
+    age >= 0 &&
+    age <= RECENT_REAUTHENTICATION_MAX_AGE_MS;
+
+  if (!isRecent && recent) sessionStorage.removeItem(RECENT_REAUTHENTICATION_KEY);
+  return isRecent;
 };
 
 /**
@@ -96,11 +158,25 @@ export const AuthProvider = ({ children }) => {
    * Handshake function: Takes the Firebase user token, passes it to the backend's
    * /set_authenticated_user_session route to establish a secure backend cookie session, and normalizes the output.
    */
-  const establishBackendSession = useCallback(async (firebaseUser) => {
-    const idToken = await firebaseUser.getIdToken();
+  const establishBackendSession = useCallback(async (firebaseUser, { forceRefresh = false } = {}) => {
+    const idToken = await firebaseUser.getIdToken(forceRefresh);
     const sessionResponse = await setBackendSession({ idToken });
     return normalizeAuthUser(firebaseUser, getSessionUser(sessionResponse));
   }, []);
+
+  const currentFirebaseUser = useCallback(() => {
+    const firebaseUser = getFirebaseAuth()?.currentUser;
+    if (!firebaseUser) throw new Error('No authenticated user is available.');
+    return firebaseUser;
+  }, []);
+
+  const refreshCurrentUser = useCallback(async () => {
+    const firebaseUser = currentFirebaseUser();
+    await reload(firebaseUser);
+    const normalizedUser = await establishBackendSession(firebaseUser, { forceRefresh: true });
+    setUser(normalizedUser);
+    return normalizedUser;
+  }, [currentFirebaseUser, establishBackendSession]);
 
   /**
    * Main authentication initialization and listener hook.
@@ -119,7 +195,12 @@ export const AuthProvider = ({ children }) => {
         if (auth) {
           try {
             // Step 2: Retrieve the result of a redirect login (for mobile OAuth login flows)
-            await getRedirectResult(auth);
+            const pendingAction = readSessionValue(PENDING_AUTH_ACTION_KEY);
+            const redirectResult = await getRedirectResult(auth);
+            if (redirectResult) {
+              rememberRedirectReauthentication(redirectResult, pendingAction);
+              sessionStorage.removeItem(PENDING_AUTH_ACTION_KEY);
+            }
           } catch (redirectError) {
             logger.error('Redirect result error:', redirectError);
             if (redirectError.code && redirectError.code !== 'auth/popup-closed-by-user') {
@@ -247,6 +328,152 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  const updateDisplayName = useCallback(async (value) => {
+    setError(null);
+    try {
+      const displayName = normalizeDisplayName(value);
+      const firebaseUser = currentFirebaseUser();
+      await updateProfile(firebaseUser, { displayName });
+      const normalizedUser = await establishBackendSession(firebaseUser, { forceRefresh: true });
+      setUser(normalizedUser);
+      return normalizedUser;
+    } catch (err) {
+      setError(getErrorMessage(err));
+      throw err;
+    }
+  }, [currentFirebaseUser, establishBackendSession]);
+
+  const requestEmailChange = useCallback(async (email) => {
+    setError(null);
+    try {
+      const firebaseUser = currentFirebaseUser();
+      await verifyBeforeUpdateEmail(firebaseUser, String(email || '').trim(), {
+        url: `${window.location.origin}/dashboard/account`,
+      });
+      return true;
+    } catch (err) {
+      setError(getErrorMessage(err));
+      throw err;
+    }
+  }, [currentFirebaseUser]);
+
+  const changePassword = useCallback(async (password) => {
+    setError(null);
+    try {
+      const firebaseUser = currentFirebaseUser();
+      await updatePassword(firebaseUser, password);
+      await establishBackendSession(firebaseUser, { forceRefresh: true });
+      return true;
+    } catch (err) {
+      setError(getErrorMessage(err));
+      throw err;
+    }
+  }, [currentFirebaseUser, establishBackendSession]);
+
+  const sendCurrentUserPasswordReset = useCallback(async () => {
+    const firebaseUser = currentFirebaseUser();
+    if (!firebaseUser.email) throw new Error('This account does not have an email address.');
+    return resetPassword(firebaseUser.email);
+  }, [currentFirebaseUser, resetPassword]);
+
+  const getOAuthProvider = useCallback((providerId) => {
+    if (providerId === 'google.com') return getGoogleProvider();
+    if (providerId === 'github.com') return getGithubProvider();
+    throw new Error('Unsupported sign-in provider.');
+  }, []);
+
+  const linkAuthProvider = useCallback(async (providerId, credentials = {}) => {
+    setError(null);
+    try {
+      const firebaseUser = currentFirebaseUser();
+      if (providerId === 'password') {
+        const email = String(credentials.email || firebaseUser.email || '').trim();
+        if (!email || !credentials.password) throw new Error('Email and password are required.');
+        await linkWithCredential(firebaseUser, EmailAuthProvider.credential(email, credentials.password));
+      } else {
+        const provider = getOAuthProvider(providerId);
+        if (isMobileDevice()) {
+          sessionStorage.setItem(PENDING_AUTH_ACTION_KEY, JSON.stringify({ type: 'link', providerId }));
+          await linkWithRedirect(firebaseUser, provider);
+          return { redirected: true };
+        }
+        await linkWithPopup(firebaseUser, provider);
+      }
+      return refreshCurrentUser();
+    } catch (err) {
+      setError(getErrorMessage(err));
+      throw err;
+    }
+  }, [currentFirebaseUser, getOAuthProvider, refreshCurrentUser]);
+
+  const unlinkAuthProvider = useCallback(async (providerId) => {
+    setError(null);
+    try {
+      if (!canUnlinkProvider(user?.providerIds, providerId)) {
+        throw new Error('The last sign-in method cannot be removed.');
+      }
+      const firebaseUser = currentFirebaseUser();
+      await unlink(firebaseUser, providerId);
+      return refreshCurrentUser();
+    } catch (err) {
+      setError(getErrorMessage(err));
+      throw err;
+    }
+  }, [currentFirebaseUser, refreshCurrentUser, user?.providerIds]);
+
+  const reauthenticateCurrentUser = useCallback(async ({ providerId, password } = {}) => {
+    setError(null);
+    try {
+      const firebaseUser = currentFirebaseUser();
+      const selectedProvider = providerId || user?.providerIds?.[0];
+      if (selectedProvider === 'password') {
+        if (!firebaseUser.email || !password) throw new Error('Current password is required.');
+        await reauthenticateWithCredential(
+          firebaseUser,
+          EmailAuthProvider.credential(firebaseUser.email, password),
+        );
+      } else if (!hasRecentRedirectReauthentication(firebaseUser.uid, selectedProvider)) {
+        const provider = getOAuthProvider(selectedProvider);
+        if (isMobileDevice()) {
+          sessionStorage.setItem(
+            PENDING_AUTH_ACTION_KEY,
+            JSON.stringify({ type: 'reauthenticate', providerId: selectedProvider }),
+          );
+          await reauthenticateWithRedirect(firebaseUser, provider);
+          return { redirected: true };
+        }
+        await reauthenticateWithPopup(firebaseUser, provider);
+      }
+      await establishBackendSession(firebaseUser, { forceRefresh: true });
+      return { redirected: false };
+    } catch (err) {
+      setError(getErrorMessage(err));
+      throw err;
+    }
+  }, [currentFirebaseUser, establishBackendSession, getOAuthProvider, user?.providerIds]);
+
+  const deleteCurrentAccount = useCallback(async () => {
+    setError(null);
+    const userId = user?.uid;
+    try {
+      await deleteAccountBackend();
+      try {
+        await signOut(getFirebaseAuth());
+      } catch (signOutError) {
+        logger.warn('Firebase client was already removed during account deletion:', signOutError);
+      }
+      queryClient.clear();
+      clearAccountStorage(userId);
+      sessionStorage.removeItem(PENDING_AUTH_ACTION_KEY);
+      sessionStorage.removeItem(RECENT_REAUTHENTICATION_KEY);
+      setUser(null);
+      return true;
+    } catch (err) {
+      setError(getErrorMessage(err));
+      throw err;
+    }
+  }, [user?.uid]);
+
   /**
    * Action: Authenticate using Google OAuth.
    * Chooses redirect flow for mobile screens and popup dialog for desktop screens.
@@ -320,6 +547,8 @@ export const AuthProvider = ({ children }) => {
       }
       await logoutBackend();
       queryClient.clear(); // Reset React Query cache to prevent stale user data exposure
+      sessionStorage.removeItem(PENDING_AUTH_ACTION_KEY);
+      sessionStorage.removeItem(RECENT_REAUTHENTICATION_KEY);
       setUser(null);
     } catch (err) {
       logger.error('Logout error:', err);
@@ -342,6 +571,15 @@ export const AuthProvider = ({ children }) => {
       signInWithGoogle,
       signInWithGitHub,
       resetPassword,
+      refreshCurrentUser,
+      updateDisplayName,
+      requestEmailChange,
+      changePassword,
+      sendCurrentUserPasswordReset,
+      linkAuthProvider,
+      unlinkAuthProvider,
+      reauthenticateCurrentUser,
+      deleteCurrentAccount,
       logout,
       clearError,
       isAuthenticated: !!user,
@@ -356,6 +594,15 @@ export const AuthProvider = ({ children }) => {
       signInWithGoogle,
       signInWithGitHub,
       resetPassword,
+      refreshCurrentUser,
+      updateDisplayName,
+      requestEmailChange,
+      changePassword,
+      sendCurrentUserPasswordReset,
+      linkAuthProvider,
+      unlinkAuthProvider,
+      reauthenticateCurrentUser,
+      deleteCurrentAccount,
       logout,
       clearError,
     ],

@@ -13,6 +13,14 @@ export const slideIn = keyframes`
 
 export const TIMELINE_LINE_X = { xs: 12, sm: 14 };
 
+/** Center a timeline node within the padded title row at each breakpoint. */
+export function getTimelineNodeTopSx({ mobileTitleMinHeight, desktopTitleMinHeight, itemPadding }) {
+  return {
+    xs: itemPadding + mobileTitleMinHeight / 2,
+    md: itemPadding + desktopTitleMinHeight / 2,
+  };
+}
+
 /**
  * Interactive reasoning controls share the surrounding timeline surface.
  * Hover and pressed states change ink only; focus retains the accessible ring.

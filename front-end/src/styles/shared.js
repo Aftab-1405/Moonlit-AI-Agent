@@ -19,6 +19,7 @@ import { alpha } from '@mui/material/styles';
 import {
   BACKDROP_FILTER_FALLBACK_QUERY,
   HOVER_CAPABLE_QUERY,
+  REDUCED_MOTION_QUERY,
   TOUCH_DEVICE_QUERY,
 } from './mediaQueries.js';
 
@@ -28,7 +29,7 @@ export const UI_LAYOUT = Object.freeze({
   touchTarget: 44,
   compactTouchTarget: 40,
   controlRowHeight: 36,
-  sidebarExpandedWidth: 260,
+  sidebarExpandedWidth: 344,
   sidebarCollapsedWidth: 52,
   chatInputMaxWidth: 768,
   contentMaxWidth: 800,
@@ -58,7 +59,7 @@ export const UI_Z_INDEX = Object.freeze({
 });
 
 export const UI_POPOVER = Object.freeze({
-  paperRadius: '8px',
+  paperRadius: '16px',
   paperPadding: 0.75,
   rowRadius: '8px',
   // Match the expanded-sidebar action/conversation rows on pointer devices.
@@ -216,12 +217,16 @@ export const getInteractiveControlSx = (
       },
     ),
     [HOVER_CAPABLE_QUERY]: {
-      '&:hover': {
+      '&:hover:not(:disabled):not(.Mui-disabled)': {
         color: interaction.hoverColor,
         backgroundColor: active ? interaction.activeHoverBackground : interaction.hoverBackground,
         borderColor: showBorder ? interaction.hoverBorder : 'transparent',
       },
     },
+    '&:active:not(:disabled):not(.Mui-disabled)': {
+      backgroundColor: interaction.activeBackground,
+    },
+    [REDUCED_MOTION_QUERY]: { transition: 'none' },
     '&:focus-visible': {
       outline: `2px solid ${interaction.focusRing}`,
       outlineOffset: 2,
@@ -421,12 +426,6 @@ export const getUtilityIconButtonSx = (theme, { padding = 0.5, radius = '6px' } 
     borderColor: 'transparent',
     backgroundColor: 'transparent',
     boxShadow: 'none',
-    [HOVER_CAPABLE_QUERY]: {
-      '&:hover': {
-        ...baseSx[HOVER_CAPABLE_QUERY]?.['&:hover'],
-        borderColor: 'transparent',
-      },
-    },
   };
 };
 
@@ -434,7 +433,7 @@ export const getPopoverSectionLabelSx = (theme, { pt = 0.5 } = {}) => ({
   px: UI_POPOVER.rowPaddingX,
   pt,
   pb: 0.375,
-  ...theme.typography.uiSectionLabel,
+  ...theme.typography.uiCaptionMd,
   fontWeight: 400,
   color: 'text.disabled',
   display: 'block',
@@ -551,6 +550,7 @@ export const getSecondaryActionButtonSx = (theme) => {
 
 export const getPopoverPaperSx = (theme, overrides = {}) => ({
   borderRadius: UI_POPOVER.paperRadius,
+  overflowX: 'hidden',
   border: `1px solid ${theme.palette.border.subtle}`,
   color: 'text.primary',
   backgroundColor: theme.palette.background.elevated || theme.palette.background.paper,

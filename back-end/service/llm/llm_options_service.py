@@ -6,11 +6,16 @@ the boundary between HTTP handlers and the concrete LLM provider layer.
 
 from config import get_config
 from llm_provider.model_factory import (
+    ModelSelectionError,
+    ModelSelectionReason,
     get_default_model,
     get_provider_api_key,
     get_provider_models,
     get_supported_providers,
+    resolve_model_selection,
 )
+
+__all__ = ["LLMOptionsService", "ModelSelectionError", "ModelSelectionReason"]
 
 
 class LLMOptionsService:
@@ -53,3 +58,8 @@ class LLMOptionsService:
     def default_model(provider: str) -> str:
         """Return the configured default model id for ``provider``."""
         return get_default_model(provider)
+
+    @staticmethod
+    def resolve_selection(provider: str, model: str | None = None) -> tuple[str, str]:
+        """Normalize and authorize one configured provider/model selection."""
+        return resolve_model_selection(provider, model)

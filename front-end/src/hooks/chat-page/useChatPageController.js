@@ -2,7 +2,7 @@
 //
 // Previously a 750-line god hook, this controller now composes six focused
 // sub-hooks and merges their outputs into the single return value consumed by
-// MainInterface. Each sub-hook owns one cohesive slice of state:
+// ChatWorkspacePage. Each sub-hook owns one cohesive slice of state:
 //
 //   useChatPageSidebar          — sidebar open/collapse, mobile drawer, profile menu
 //   useChatPageOverlays         — modal/snackbar state + mindmap + delete confirmation
@@ -24,6 +24,7 @@ import {
   getActiveConversationId,
   getActiveConversationTitle,
 } from '@/features/chat/chatHeaderModel';
+import { requestDashboardNavigation } from '@/features/dashboard/dashboardModel';
 import { useMindmapSchema } from '@/hooks';
 import {
   planOverlayLaunch,
@@ -65,25 +66,40 @@ export function useChatPageController({ mobileSidebarTriggerRef } = {}) {
 
   // ── Conversations ─────────────────────────────────────────────────────────
   const {
+    activeSession,
+    activeSessionKey,
     messages,
-    setMessages,
+    updateSession,
+    updateSessionMessages,
+    getSession,
+    isSessionActive,
+    startNewChat,
+    selectConversation,
+    bindStreamingConversation,
+    getSessionKeyForConversation,
+    conversationActivity,
     isConversationsLoading,
     conversationListError,
     conversationListFailureRevision,
     isConversationLoading,
     conversations,
-    setConversations,
     currentConversationId,
-    setCurrentConversationId,
     routeConversationId,
     routeConversationLoadState,
     fetchConversations,
     retryConversations,
-    registerStreamingConversation,
     handleDeleteConversation,
     handleRenameConversation,
     navigate,
   } = useConversations();
+  const stopSessionRef = useRef(null);
+  const handleDeleteConversationWithSession = useCallback(
+    (conversationId) => {
+      stopSessionRef.current?.(getSessionKeyForConversation(conversationId));
+      return handleDeleteConversation(conversationId);
+    },
+    [getSessionKeyForConversation, handleDeleteConversation],
+  );
 
   // ── Overlay state (modals + snackbar) ─────────────────────────────────────
   const {
@@ -127,7 +143,7 @@ export function useChatPageController({ mobileSidebarTriggerRef } = {}) {
     handleDeleteConversationDialogClose,
     handleDeleteConversationConfirm,
   } = useConversationDialogs({
-    handleDeleteConversation,
+    handleDeleteConversation: handleDeleteConversationWithSession,
     showSnackbar,
   });
 
@@ -241,6 +257,11 @@ export function useChatPageController({ mobileSidebarTriggerRef } = {}) {
     selectedProvider,
     selectedModel,
     llmOptionsLoading,
+    llmOptionsError,
+    retryLlmOptions,
+    supportsReasoning,
+    reasoningEffort,
+    handleReasoningEffortChange,
     handleLlmSelection,
   } = llmSelection;
 
@@ -258,17 +279,17 @@ export function useChatPageController({ mobileSidebarTriggerRef } = {}) {
     setSidebarMobileOpen(false);
     setSettingsOpen(false);
     setDbModalOpen(false);
-    navigate('/chat');
-  }, [navigate, setDbModalOpen, setSettingsOpen, setSidebarMobileOpen]);
+    startNewChat();
+  }, [setDbModalOpen, setSettingsOpen, setSidebarMobileOpen, startNewChat]);
 
   const handleSidebarSelectConversation = useCallback(
     (id) => {
       setSidebarMobileOpen(false);
       setSettingsOpen(false);
       setDbModalOpen(false);
-      navigate(`/chat/${id}`);
+      selectConversation(id);
     },
-    [navigate, setDbModalOpen, setSettingsOpen, setSidebarMobileOpen],
+    [selectConversation, setDbModalOpen, setSettingsOpen, setSidebarMobileOpen],
   );
 
   const handleSidebarOpenDbModal = useCallback(
@@ -305,15 +326,15 @@ export function useChatPageController({ mobileSidebarTriggerRef } = {}) {
   // still empty at this point) — they'll be populated below before any
   // event handler actually fires.
   const streaming = useChatPageStreaming({
-    messages,
-    setMessages,
-    currentConversationId,
-    setCurrentConversationId,
-    setConversations,
+    activeSession,
+    activeSessionKey,
+    getSession,
+    updateSession,
+    updateSessionMessages,
+    isSessionActive,
     navigate,
     fetchConversations,
-    registerStreamingConversation,
-    routeConversationId,
+    bindStreamingConversation,
     settings,
     selectedProvider,
     selectedModel,
@@ -323,8 +344,26 @@ export function useChatPageController({ mobileSidebarTriggerRef } = {}) {
     showSnackbar,
     handleSidebarNewChat,
   });
+  useEffect(() => {
+    stopSessionRef.current = streaming.stopSession;
+  }, [streaming.stopSession]);
+
+  const { hasActiveStreams, stopAllStreams } = streaming;
+  const handleOpenDashboard = useCallback(() => {
+    closeProfileMenu();
+    requestDashboardNavigation({
+      isStreaming: hasActiveStreams(),
+      navigate,
+      stopStreaming: stopAllStreams,
+      openConfirmation: setGuidedConfirmDialog,
+    });
+  }, [closeProfileMenu, navigate, setGuidedConfirmDialog, hasActiveStreams, stopAllStreams]);
 
   const canvas = useChatPageCanvas({
+    sessionKey: activeSessionKey,
+    conversationId: currentConversationId,
+    currentDatabase,
+    currentSchema,
     sidebarWidth: sidebar.currentSidebarWidth,
     isDbConnected,
     isCurrentlyStreaming: streaming.isCurrentlyStreaming,
@@ -483,8 +522,16 @@ export function useChatPageController({ mobileSidebarTriggerRef } = {}) {
     effectiveTaskMode,
   } = streaming;
   const { handleToggleSqlEditor, isSqlEditorOpen } = canvas;
+  const handleOpenDatabaseContext = useCallback(
+    (event) => {
+      setSettingsInitialSection('database');
+      requestPreferenceOverlay('settings', event);
+    },
+    [requestPreferenceOverlay, setSettingsInitialSection],
+  );
   const chatInputSharedProps = useMemo(
     () => ({
+      sessionKey: activeSessionKey,
       onSend: handleSendMessage,
       onStop: handleStopStreaming,
       isStreaming: isCurrentlyStreaming,
@@ -496,11 +543,18 @@ export function useChatPageController({ mobileSidebarTriggerRef } = {}) {
       currentSchema,
       onSchemaChange: selectSchema,
       onDatabaseSwitch: handleDatabaseSwitch,
+      onOpenDatabase: handleSidebarOpenDbModal,
+      onOpenContext: handleOpenDatabaseContext,
       selectedProvider,
       selectedModel,
       providerOptions,
       llmOptionsLoading,
       onSelectLlm: handleLlmSelection,
+      llmOptionsError,
+      onRetryLlmOptions: retryLlmOptions,
+      supportsReasoning,
+      reasoningEffort,
+      onReasoningEffortChange: handleReasoningEffortChange,
       usageMetrics,
       taskMode: settings.taskMode ?? 'auto',
       onTaskModeChange: (value) => updateSetting('taskMode', value),
@@ -509,6 +563,7 @@ export function useChatPageController({ mobileSidebarTriggerRef } = {}) {
       sqlEditorOpen: isSqlEditorOpen,
     }),
     [
+      activeSessionKey,
       handleSendMessage,
       handleStopStreaming,
       isCurrentlyStreaming,
@@ -520,11 +575,18 @@ export function useChatPageController({ mobileSidebarTriggerRef } = {}) {
       currentSchema,
       selectSchema,
       handleDatabaseSwitch,
+      handleSidebarOpenDbModal,
+      handleOpenDatabaseContext,
       selectedProvider,
       selectedModel,
       providerOptions,
       llmOptionsLoading,
       handleLlmSelection,
+      llmOptionsError,
+      retryLlmOptions,
+      supportsReasoning,
+      reasoningEffort,
+      handleReasoningEffortChange,
       usageMetrics,
       settings.taskMode,
       updateSetting,
@@ -537,6 +599,7 @@ export function useChatPageController({ mobileSidebarTriggerRef } = {}) {
   const commonSidebarProps = useMemo(
     () => ({
       conversations,
+      conversationActivity,
       isConversationsLoading,
       conversationListError,
       onRetryConversations: retryConversations,
@@ -552,6 +615,7 @@ export function useChatPageController({ mobileSidebarTriggerRef } = {}) {
     }),
     [
       conversations,
+      conversationActivity,
       isConversationsLoading,
       conversationListError,
       retryConversations,
@@ -574,6 +638,7 @@ export function useChatPageController({ mobileSidebarTriggerRef } = {}) {
     anchorEl: sidebar.anchorEl,
     user: sidebarUser,
     handleMenuClose: closeProfileMenu,
+    handleOpenDashboard,
     handleOpenSettings: handleProfileOpenSettings,
     handleLogout: sidebar.handleLogout,
     commonSidebarProps,
@@ -604,6 +669,8 @@ export function useChatPageController({ mobileSidebarTriggerRef } = {}) {
     chatInputSharedProps,
     workspaceCanvasOpen: canvas.workspaceCanvasOpen,
     workspaceCanvasArtifact: canvas.workspaceCanvasArtifact,
+    conversationOutputs: canvas.conversationOutputs,
+    onNotify: showSnackbar,
     workspaceCanvasWidth: canvas.workspaceCanvasWidth,
     workspaceCanvasMinWidth: canvas.workspaceCanvasMinWidth,
     workspaceCanvasMaxWidth: canvas.workspaceCanvasMaxWidth,

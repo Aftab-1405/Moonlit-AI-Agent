@@ -38,17 +38,18 @@ function ArtifactActionButton({
   icon,
   onClick,
   disabled = false,
-  active = false,
+  active,
   size = 36,
 }) {
   const theme = useTheme();
 
   return (
     <Tooltip title={label}>
-      <span>
+      <span style={{ display: 'inline-flex' }}>
         <IconButton
           size="small"
           aria-label={label}
+          aria-pressed={active}
           onClick={onClick}
           disabled={disabled}
           sx={getArtifactActionButtonSx(theme, { active, size })}

@@ -135,7 +135,6 @@ class UserQuotaService:
 
         usage_data = {}
         exceeded_timeframe = None
-        incr_results: list[int] = []
 
         # FIX [H16]: Atomic INCR + conditional EXPIRE in a single round-trip
         # per timeframe. Previously the INCR pipeline and the EXPIRE pipeline
@@ -143,17 +142,10 @@ class UserQuotaService:
         # the user was permanently locked out of that quota window.
         for timeframe, (limit, ttl) in self.limits.items():
             key = self._get_key(user_id, timeframe)
-            try:
-                count = await self.redis.eval(_INCR_WITH_EXPIRE, 1, key, ttl)
-            except Exception:
-                # implement eval(); emulate the same atomic semantics inline.
-                count = await self.redis.incr(key)
-                if count == 1:
-                    try:
-                        await self.redis.expire(key, ttl)
-                    except Exception:
-                        pass
-            incr_results.append(int(count))
+            # A failed response may hide a completed INCR. Fail closed rather
+            # than replaying it or splitting INCR from EXPIRE. Earlier windows
+            # may remain debited until expiry when the outcome is uncertain.
+            count = await self.redis.eval(_INCR_WITH_EXPIRE, 1, key, ttl)
             if int(count) > limit:
                 exceeded_timeframe = timeframe
             usage_data[timeframe] = {
@@ -238,30 +230,16 @@ return current
         # FIX [C4]: Quota was incremented before the LLM call but never refunded
         # on failure. Users burned their entire daily quota during transient
         # outages. Now we refund on errors that produce no user-visible output.
-        pipe = self.redis.pipeline()
-        for timeframe in self.limits.keys():
-            key = self._get_key(user_id, timeframe)
-            pipe.eval(decr_with_floor_lua, 1, key)
         try:
-            await pipe.execute()
-        except Exception:
-            # failure. Re-try each key individually with the same Lua
-            # script; if the redis client does not support eval, fall
-            # back to a plain DECR (preserves prior behavior for tests).
-            for timeframe in self.limits.keys():
+            pipe = self.redis.pipeline()
+            for timeframe in self.limits:
                 key = self._get_key(user_id, timeframe)
-                try:
-                    try:
-                        await self.redis.eval(decr_with_floor_lua, 1, key)
-                    except (AttributeError, NotImplementedError):
-                        await self.redis.decr(key)
-                except Exception as exc:
-                    logger.warning(
-                        "Quota refund failed for user %s on %s: %s",
-                        user_id,
-                        timeframe,
-                        exc,
-                    )
+                pipe.eval(decr_with_floor_lua, 1, key)
+            await pipe.execute()
+        except Exception as exc:
+            # The transaction may already have executed. Replaying DECR could
+            # refund another request, even with the zero floor.
+            logger.warning("Quota refund outcome uncertain for user %s: %s", user_id, exc)
 
     async def get_usage(self, user_id: str) -> QuotaUsage:
         """
@@ -306,6 +284,13 @@ return current
             hour=usage_data.get("hour", {}),
             day=usage_data.get("day", {}),
         )
+
+    async def delete_user_usage(self, user_id: str) -> None:
+        """Delete all short-lived quota counters for an erased account."""
+        if not self.redis:
+            return
+        keys = [self._get_key(user_id, timeframe) for timeframe in self.limits]
+        await self.redis.delete(*keys)
 
 
 def create_user_quota_service(redis_client, app_config) -> UserQuotaService:

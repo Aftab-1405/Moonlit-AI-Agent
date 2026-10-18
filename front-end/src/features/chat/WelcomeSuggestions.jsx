@@ -19,6 +19,7 @@ import {
   beginWelcomeStageTransition,
   createWelcomeInteractionGuard,
   getSuggestionNavigationIndex,
+  getWelcomeSuggestionMotion,
   isWelcomeCategoryDisabled,
   isWelcomeEntryDisabled,
   runGuardedWelcomeActivation,
@@ -67,6 +68,10 @@ function WelcomeSuggestions({
   const isSuggestionDisabled = useCallback(
     (entry) => isWelcomeEntryDisabled(entry, availability),
     [availability],
+  );
+  const { containerLayout, stageTransition, panelVariants, itemVariants } = useMemo(
+    () => getWelcomeSuggestionMotion(reduceMotion),
+    [reduceMotion],
   );
 
   const closePanel = useCallback(() => {
@@ -132,24 +137,18 @@ function WelcomeSuggestions({
     [isSuggestionDisabled, onActivate, onCategoryChange],
   );
 
-  const transition = reduceMotion ? { duration: 0.08 } : { duration: 0.22, ease: 'easeOut' };
-
   return (
     <MotionBox
-      layout={reduceMotion ? false : 'size'}
-      transition={{ layout: transition }}
+      layout={containerLayout}
       inert={interactionLocked ? true : undefined}
       aria-busy={interactionLocked || undefined}
-      style={{ originY: 0 }}
       sx={{
-        position: 'absolute',
-        top: '100%',
-        left: 0,
-        right: 0,
+        position: 'relative',
         zIndex: 3,
         maxWidth: COMPOSER_MAX_WIDTH,
         mx: 'auto',
-        mt: 1,
+        mt: 2,
+        mb: 2,
         pointerEvents: interactionLocked ? 'none' : 'auto',
       }}
     >
@@ -162,12 +161,11 @@ function WelcomeSuggestions({
             initial={reduceMotion ? false : { opacity: 0, y: 6 }}
             animate={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
             exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
-            transition={transition}
+            transition={stageTransition}
             sx={{
               display: 'flex',
-              justifyContent: 'center',
-              flexWrap: 'wrap',
-              gap: 1,
+              flexDirection: 'column',
+              gap: 0.5,
               p: 0,
               m: 0,
               listStyle: 'none',
@@ -186,7 +184,16 @@ function WelcomeSuggestions({
                   disabled={isWelcomeCategoryDisabled(category, availability)}
                   onClick={() => openCategory(category.id)}
                   startIcon={<CategoryIcon icon={category.icon} />}
-                  sx={(theme) => getWelcomeCategorySx(theme)}
+                  sx={(theme) => ({
+                    ...getWelcomeCategorySx(theme),
+                    width: '100%',
+                    height: 44,
+                    justifyContent: 'flex-start',
+                    bgcolor: 'transparent',
+                    px: 2.5,
+                    gap: 1.5,
+                    fontSize: '15px',
+                  })}
                 >
                   {category.label}
                 </Button>
@@ -199,10 +206,11 @@ function WelcomeSuggestions({
             role="region"
             aria-label={`${activeCategory.label} suggestions`}
             onKeyDown={handlePanelKeyDown}
-            initial={reduceMotion ? false : { opacity: 0, y: 6 }}
-            animate={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
-            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
-            transition={transition}
+            initial="closed"
+            animate="open"
+            exit="closed"
+            variants={panelVariants}
+            style={{ originY: 'top' }}
             sx={(theme) => getWelcomeSuggestionPanelSx(theme)}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', minHeight: 48, px: 2, gap: 1 }}>
@@ -227,9 +235,10 @@ function WelcomeSuggestions({
             </Box>
             <Box component="ul" sx={{ p: 0, m: 0, listStyle: 'none' }}>
               {activeCategory.entries.map((entry, index) => (
-                <Box
+                <MotionBox
                   component="li"
                   key={entry.id}
+                  variants={itemVariants}
                   sx={{ borderTop: '1px solid', borderColor: 'border.separator' }}
                 >
                   <Button
@@ -281,7 +290,7 @@ function WelcomeSuggestions({
                   >
                     {entry.label}
                   </Button>
-                </Box>
+                </MotionBox>
               ))}
             </Box>
           </MotionBox>

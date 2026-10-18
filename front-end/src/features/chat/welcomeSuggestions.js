@@ -226,6 +226,64 @@ const DISCONNECTED_CATEGORIES = Object.freeze([
 
 const WELCOME_PERIOD_BOUNDARY_HOURS = Object.freeze([5, 12, 17, 21]);
 
+export function getWelcomeSuggestionMotion(reduceMotion = false) {
+  if (reduceMotion) {
+    const instant = { duration: 0 };
+    return {
+      containerLayout: false,
+      stageTransition: instant,
+      panelVariants: {
+        open: { opacity: 1, scaleY: 1, transition: instant },
+        closed: { opacity: 0, scaleY: 1, transition: instant },
+      },
+      itemVariants: {
+        open: { opacity: 1, y: 0, transition: instant },
+        closed: { opacity: 0, y: 0, transition: instant },
+      },
+    };
+  }
+
+  return {
+    containerLayout: false,
+    stageTransition: { duration: 0 },
+    panelVariants: {
+      open: {
+        opacity: 1,
+        scaleY: 1,
+        transition: {
+          duration: 0.16,
+          ease: [0.22, 1, 0.36, 1],
+          when: 'beforeChildren',
+          staggerChildren: 0.055,
+        },
+      },
+      closed: {
+        opacity: 0,
+        scaleY: 0,
+        transition: {
+          duration: 0.14,
+          ease: 'easeIn',
+          when: 'afterChildren',
+          staggerChildren: 0.045,
+          staggerDirection: -1,
+        },
+      },
+    },
+    itemVariants: {
+      open: {
+        opacity: 1,
+        y: 0,
+        transition: { duration: 0.16, ease: [0.22, 1, 0.36, 1] },
+      },
+      closed: {
+        opacity: 0,
+        y: -12,
+        transition: { duration: 0.12, ease: 'easeIn' },
+      },
+    },
+  };
+}
+
 export function getWelcomePeriod(date = new Date()) {
   const hour = date.getHours();
   if (hour >= 5 && hour < 12) return 'this morning';

@@ -18,7 +18,7 @@ const MotionDiv = motion.div;
 /**
  * Notification (toast) — transient status message.
  *
- * Renders into the fixed-position toast stack in MainInterface. Each toast:
+ * Renders into the shared fixed-position ToastStack used by chat and dashboard. Each toast:
  *   - Animates in (spring) and out (fade).
  *   - Shows an icon + title + optional message.
  *   - Auto-dismisses after `duration` ms (if provided) with a thin progress bar.

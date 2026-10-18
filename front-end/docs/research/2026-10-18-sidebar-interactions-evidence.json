@@ -1,0 +1,60 @@
+{
+  "date": "2026-10-18",
+  "scope": "Sidebar menus, hover previews, New chat placement and artifact workspace expansion",
+  "reference": "https://chatgpt.com/c/6ad43b32-40ec-83e8-8e33-fa90bd935572",
+  "rea": {
+    "passive_inspection": "ev_bf20aa8675daf8b982e84afd820774262d754897e06ad7f5ac5e15653fe7fbb3",
+    "script_inspection": "ev_a3b310508c083ae082e127e311340859c5a9b3df75da8a10f8a785ffa04b215c",
+    "sidebar_script": "https://chatgpt.com/cdn/assets/514085.6b70b18cf3.js",
+    "sidebar_script_key": "scr_7087d54a0e3bc6d20b157ac3f535b9d0cec916cbe0beae4165a60e8866ac8be3",
+    "local_search_scenario": "ev_094881c51263f4423672ea5dcd45f40da002055e0212344ab377b68b1cfe7425",
+    "local_expansion_scenario": "ev_ff3264ba9987ca96c1351fe888e911acbd0d9a62924db3a71c78f53b3d9f4d7f"
+  },
+  "source_derived_behavior": {
+    "hover_gate": "Desktop, hover:hover and pointer:fine; ignores dragging/touch",
+    "open_delay_ms": 100,
+    "switch_delay_ms": 300,
+    "leave_delay_ms": 100,
+    "reference_additional_behavior": "Owned-overlay boundary and pointer trajectory grace; reduced-motion handling"
+  },
+  "visible_reference_observations": {
+    "method": "Internal browser interactions and DOM geometry, separate from REA source evidence",
+    "profile": "Compact popover; approximately 228px wide with 16px corners",
+    "search": "Global search opens a modal; it is not inline in the inspected build",
+    "new_chat": "Present in the active conversation header and also within expanded Home, absent as a dedicated rail item",
+    "full_artifact": "At 1280px viewport the relative tab panel began at x52 with width1228, respecting the rail"
+  },
+  "moonlit_adaptation": [
+    "One persistent sidebar section for History, Search, Databases and account actions; replaces the previous extra search/history/database popovers",
+    "Collapsed desktop hover previews overlay the chat without changing the persisted width; clicking a rail choice or interacting inside a preview docks it",
+    "Reuse source-derived 100/300/100ms hover delays, protect focused fields, cancel timers, and restore focus on Escape/close",
+    "Inline profile and local chat search deliberately follow the user's shared-panel request, rather than copying the reference's profile/global-search popovers",
+    "New chat is the primary action beside the active conversation title; the welcome composer starts the initial chat",
+    "AppShell owns artifact expansion and keeps the same renderer in flow beside navigation; Escape restores split view and focus",
+    "Split widths preserve 360px of chat where space permits, sharing the remainder evenly at the desktop breakpoint",
+    "Mobile history has a bounded scrolling area and 44px primary touch controls"
+  ],
+  "verification": {
+    "node_test_files": 29,
+    "component_test_files": 22,
+    "component_tests": 92,
+    "browser": [
+      "Inline search filtering and focus",
+      "Inline profile actions",
+      "Real diagram renderer in split and expanded views",
+      "900 CSS px: expanded navigation344, chat278, artifact278; collapsed navigation52, chat360, artifact488",
+      "1368 CSS px: expanded artifact starts after344px navigation; compact full view starts after52px rail",
+      "390 CSS px mobile artifact fills viewport without left clipping",
+      "23-entry mobile history: final entry visible and selectable after scrolling",
+      "Escape restores split view and fullscreen-button focus",
+      "New chat returns to welcome and removes its header action"
+    ],
+    "review": "All reported portal-menu, mobile-scroll and focus issues fixed and independently re-reviewed",
+    "limitations": [
+      "Screenshots and local scenarios use production components with fictional data; no live database mutation tested",
+      "Hover timings derive from REA-captured shipped code and are covered by component events; this REA version has no pointer-hover scenario action",
+      "Reference behavior is specific to the inspected account/build",
+      "The existing Perspective bundle-size warning and two unrelated Knip unused exports remain"
+    ]
+  }
+}

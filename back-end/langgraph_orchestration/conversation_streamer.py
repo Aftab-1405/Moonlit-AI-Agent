@@ -2,6 +2,7 @@
 
 from typing import AsyncGenerator
 
+from api_contract.run_context import ResolvedRunPolicy
 from langgraph_orchestration.stream_conversation import stream_conversation
 
 
@@ -18,12 +19,10 @@ class LangGraphConversationAgentStreamer:
         response_style: str = "balanced",
         max_rows: int | None = None,
         api_key: str | None = None,
-        provider: str = "bedrock",
-        model: str | None = None,
         enable_reasoning: bool = True,
         reasoning_effort: str = "medium",
         resume: dict | None = None,
-        task_mode: str = "normal",
+        run_policy: ResolvedRunPolicy,
     ) -> AsyncGenerator[str, None]:
         """Stream a conversation turn as SSE lines from the LangGraph agent.
 
@@ -35,12 +34,10 @@ class LangGraphConversationAgentStreamer:
             response_style: One of ``"concise"``, ``"balanced"``, ``"detailed"``.
             max_rows: Row cap passed to ``execute_query`` (``None`` = default).
             api_key: Optional provider API key override.
-            provider: LLM provider name (e.g. ``"bedrock"``).
-            model: Optional model ID override; ``None`` resolves the default.
+            run_policy: Immutable effective mode, model, and run budgets.
             enable_reasoning: Whether to enable reasoning/thinking output.
             reasoning_effort: Reasoning effort level (``"low"|"medium"|"high"``).
             resume: Optional resume payload for an interrupted agent run.
-            task_mode: Agent step-budget mode (``"normal"|"tool_task"|"long_task"``).
 
         Yields:
             SSE-encoded ``data: {...}\\n\\n`` lines for the browser UI.
@@ -53,11 +50,9 @@ class LangGraphConversationAgentStreamer:
             response_style=response_style,
             max_rows=max_rows,
             api_key=api_key,
-            provider=provider,
-            model=model,
+            run_policy=run_policy,
             enable_reasoning=enable_reasoning,
             reasoning_effort=reasoning_effort,
             resume=resume,
-            task_mode=task_mode,
         ):
             yield sse_line

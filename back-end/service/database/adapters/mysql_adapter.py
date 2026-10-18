@@ -12,6 +12,7 @@ import mysql.connector
 from mysql.connector import pooling
 
 from config import get_config
+from core.errors import log_safe_exception, public_database_error
 
 from .base_adapter import BaseDatabaseAdapter
 
@@ -71,18 +72,15 @@ class MySQLAdapter(BaseDatabaseAdapter):
 
             pool = pooling.MySQLConnectionPool(**pool_config)
 
-            host = pool_config.get("host", "unknown")
-            db = pool_config.get("database", "N/A")
-
             if connection_string:
-                logger.info(f"Created MySQL connection pool using connection string for database: {db} at {host}")
+                logger.info("Created remote MySQL connection pool")
             else:
-                logger.info("Created MySQL connection pool for ***@%s", host)
+                logger.info("Created MySQL connection pool")
 
             return pool
 
         except mysql.connector.Error as err:
-            logger.error(f"Failed to create MySQL pool: {err}")
+            log_safe_exception(logger, "create_mysql_pool", err, public_database_error(err))
             raise
 
     def get_connection_from_pool(self, pool: Any) -> Any:
@@ -90,7 +88,7 @@ class MySQLAdapter(BaseDatabaseAdapter):
         try:
             return pool.get_connection()
         except mysql.connector.Error as err:
-            logger.error(f"Failed to get MySQL connection from pool: {err}")
+            log_safe_exception(logger, "acquire_mysql_connection", err, public_database_error(err))
             raise
 
     def close_pool(self, pool: Any) -> bool:
@@ -121,7 +119,13 @@ class MySQLAdapter(BaseDatabaseAdapter):
                 try:
                     close_method()
                 except Exception as exc:
-                    logger.warning("MySQL pool.close() raised: %s", exc)
+                    log_safe_exception(
+                        logger,
+                        "close_mysql_pool",
+                        exc,
+                        public_database_error(exc),
+                        level=logging.WARNING,
+                    )
                 return True
 
             # Fallback: drain the internal queue. We use getattr + a
@@ -146,7 +150,13 @@ class MySQLAdapter(BaseDatabaseAdapter):
                 logger.info("Closed MySQL connection pool (no queue available)")
             return True
         except Exception as err:
-            logger.warning("Failed to close MySQL pool: %s", err)
+            log_safe_exception(
+                logger,
+                "close_mysql_pool",
+                err,
+                public_database_error(err),
+                level=logging.WARNING,
+            )
             return False
 
     def return_connection_to_pool(self, pool: Any, connection: Any) -> None:
@@ -171,7 +181,13 @@ class MySQLAdapter(BaseDatabaseAdapter):
             if connection.is_connected():
                 connection.close()  # Returns to pool for pooled connections
         except Exception as err:
-            logger.warning("Failed to return MySQL connection to pool: %s", err)
+            log_safe_exception(
+                logger,
+                "return_mysql_connection",
+                err,
+                public_database_error(err),
+                level=logging.WARNING,
+            )
             try:
                 connection.close()
             except Exception:
@@ -242,8 +258,14 @@ class MySQLAdapter(BaseDatabaseAdapter):
                 cursor.execute("SELECT 1")
                 cursor.fetchone()
                 return True
-        except Exception as e:
-            logger.debug(f"MySQL connection validation failed: {e}")
+        except Exception as err:
+            log_safe_exception(
+                logger,
+                "validate_mysql_connection",
+                err,
+                public_database_error(err),
+                level=logging.DEBUG,
+            )
         finally:
             # FIX [M11]: always close the cursor, even on the error path.
             if cursor is not None:

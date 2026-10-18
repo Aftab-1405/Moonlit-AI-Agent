@@ -7,7 +7,8 @@ import ProtectedRoute from '@/guards/ProtectedRoute';
 
 const Landing = lazy(() => import('@/pages/Landing'));
 const Auth = lazy(() => import('@/pages/Auth'));
-const Chat = lazy(() => import('@/pages/Chat'));
+const ChatWorkspacePage = lazy(() => import('@/pages/ChatWorkspacePage'));
+const DashboardPage = lazy(() => import('@/pages/DashboardPage'));
 const AdminDashboard = lazy(() => import('@/pages/AdminDashboard'));
 
 /**
@@ -41,18 +42,18 @@ function App() {
           <Route path="/" element={<Landing />} />
           <Route path="/auth" element={<Auth />} />
           <Route
-            path="/chat"
+            path="/chat/:conversationId?"
             element={
               <ProtectedRoute>
-                <Chat />
+                <ChatWorkspacePage />
               </ProtectedRoute>
             }
           />
           <Route
-            path="/chat/:conversationId"
+            path="/dashboard/:section?"
             element={
               <ProtectedRoute>
-                <Chat />
+                <DashboardPage />
               </ProtectedRoute>
             }
           />

@@ -15,12 +15,13 @@ from api_contract.context import (
     SaveUserSettingsRequest,
     SessionActiveRequest,
 )
+from core.errors import log_safe_exception, public_tool_error
 from dependencies import (
     _expire_db_config,
     get_current_user,
     get_session_data,
     require_admin_user,
-    require_db_config,
+    require_authenticated_db_config,
     update_session_data,
 )
 from service.user_settings.user_settings_service import UserSettingsService
@@ -159,7 +160,10 @@ async def get_user_context(user: dict = Depends(get_current_user)):
 
 
 @router.post("/user/context/refresh")
-async def refresh_user_context(db_config: dict = Depends(require_db_config), user: dict = Depends(get_current_user)):
+async def refresh_user_context(
+    db_config: dict = Depends(require_authenticated_db_config),
+    user: dict = Depends(get_current_user),
+):
     """Refresh schema cache for current database."""
     from service.context.context_service import ContextService
 
@@ -249,8 +253,16 @@ async def get_redis_info() -> dict:
             "total_data_size_human": info.get("total_data_size_human"),
         }
     except Exception as e:
-        logger.error("Error fetching redis info: %s", e)
-        return {"connected": False, "error": str(e)}
+        public = public_tool_error(
+            "REDIS_INFO_FAILED",
+            "Redis information is unavailable.",
+        )
+        log_safe_exception(logger, "get_redis_info", e, public)
+        return {
+            "connected": False,
+            "error_code": public.code,
+            "error": public.message,
+        }
 
 
 @router.get("/context/metrics")

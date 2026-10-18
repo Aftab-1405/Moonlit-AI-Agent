@@ -22,8 +22,9 @@ prevent.
 
 Identifier safety (FIX [M14])
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-``get_table_row_count`` builds ``SELECT COUNT(*) FROM <identifiers>`` for
-each DBMS. Identifiers (schema, table, database) are first validated by
+``get_table_row_counts`` builds one ``UNION ALL`` statement containing a
+``SELECT COUNT(*) FROM <identifiers>`` branch per requested table. Identifiers
+(schema, table, database) are first validated by
 ``DatabaseSecurity.validate_*`` against a strict regex; in addition, we
 now reject identifiers containing ``-`` (hyphen) or stray ``.`` outside
 of a single ``schema.table`` pattern, as a defense-in-depth against
@@ -31,18 +32,28 @@ future loosening of the regex.
 """
 
 import logging
-import threading
 import time
 from typing import Dict, List, Optional, Tuple
 
 from config import get_config
-from core.audit import audit_log
-from core.errors import classify_db_error, sanitize_exception
+from core.errors import log_safe_exception, public_database_error, public_tool_error
+from service.database.query_guards import set_query_schema, set_query_timeout
 from service.database.security import DatabaseSecurity
 
 Config = get_config()
 
 logger = logging.getLogger(__name__)
+
+
+def _public_database_failure(operation: str, exc: BaseException) -> Dict:
+    """Return a stable status-style database error and log safe diagnostics."""
+    public = public_database_error(exc)
+    log_safe_exception(logger, operation, exc, public)
+    return {
+        "status": "error",
+        "error_code": public.code,
+        "message": public.message,
+    }
 
 
 # FIX [L10]: unify the query-length limit on a single config constant so
@@ -65,10 +76,6 @@ class DatabaseOperationError(Exception):
 
 class DatabaseOperations:
     """Database operations class - accepts db_config explicitly."""
-
-    # Cache for database and table information
-    _info_cache = {}
-    _cache_lock = threading.Lock()
 
     @staticmethod
     def get_databases(db_config: dict) -> Dict:
@@ -110,11 +117,7 @@ class DatabaseOperations:
             return {"status": "success", "databases": user_databases}
 
         except Exception as err:
-            logger.error(f"Error in get_databases: {err}")
-            return {
-                "status": "error",
-                "message": f"Failed to retrieve databases: {str(err)}",
-            }
+            return _public_database_failure("get_databases", err)
 
     @staticmethod
     def get_tables(db_config: dict, db_name: str, schema: str = "public") -> List[str]:
@@ -148,10 +151,12 @@ class DatabaseOperations:
             return tables
 
         except ValueError as err:
-            logger.warning(f"Validation error in get_tables: {err}")
+            public = public_database_error(err)
+            log_safe_exception(logger, "validate_get_tables", err, public)
             raise err
         except Exception as err:
-            logger.error(f"Database error in get_tables: {err}")
+            public = public_database_error(err)
+            log_safe_exception(logger, "get_tables", err, public)
             raise DatabaseOperationError("Failed to retrieve tables")
 
     @staticmethod
@@ -184,85 +189,116 @@ class DatabaseOperations:
             return columns
 
         except ValueError as err:
-            logger.warning(f"Validation error in get_table_schema: {err}")
+            public = public_database_error(err)
+            log_safe_exception(logger, "validate_get_table_schema", err, public)
             raise err
         except Exception as err:
-            logger.error(f"Database error in get_table_schema: {err}")
+            public = public_database_error(err)
+            log_safe_exception(logger, "get_table_schema", err, public)
             raise DatabaseOperationError("Failed to retrieve table schema")
 
     @staticmethod
-    def get_table_row_count(db_config: dict, table_name: str, db_name: str) -> int:
-        """
-        Get the row count for a single table.
+    def get_table_row_counts(
+        db_config: dict,
+        table_names: List[str],
+        db_name: str,
+        *,
+        timeout_seconds: Optional[int] = None,
+    ) -> List[Dict]:
+        """Get exact row counts for one to ten tables in one statement.
 
         FIX [M14]: the table/schema/db identifiers are first validated by
         ``DatabaseSecurity.validate_*`` (strict regex). We additionally
-        reject identifiers containing ``-`` (hyphen) or stray ``.`` outside
-        of a single ``schema.table`` pattern, as a defense-in-depth against
-        future loosening of the validation regex. The identifiers are then
-        interpolated into DBMS-specific quoting (PostgreSQL double-quotes,
-        SQL Server brackets, MySQL backticks) — never raw into the SQL.
+        reject identifiers containing ``-`` (hyphen) or ``.`` because this
+        operation receives table names within the already-selected database
+        and schema. The identifiers are then interpolated into DBMS-specific
+        quoting (PostgreSQL double-quotes, SQL Server brackets, MySQL
+        backticks) — never raw into the SQL.
         """
         try:
             from service.database.connection_manager import get_connection_manager
 
-            validated_table = DatabaseSecurity.validate_table_name(table_name)
+            if not 1 <= len(table_names) <= 10:
+                raise ValueError("table_names must contain between 1 and 10 names")
+
+            validated_tables = [DatabaseSecurity.validate_table_name(name) for name in table_names]
+            if len({name.casefold() for name in validated_tables}) != len(validated_tables):
+                raise ValueError("table_names must contain unique names")
             validated_db = DatabaseSecurity.validate_database_name(db_name)
 
             # FIX [M14]: tighten the identifier check — reject hyphens and
-            # multi-dot patterns. A single "schema.table" (one dot) is
-            # allowed; anything else (``a.b.c``, ``a-b``, ``a.b-c``) is
-            # refused so the f-string-built SQL below can never end up with
-            # an unexpected identifier shape.
+            # qualified-name patterns. This operation adds the active
+            # database/schema itself, so every input must be one identifier
+            # component rather than ``schema.table``.
             def _tightened_check(name: str, field: str) -> None:
                 if "-" in name:
                     raise ValueError(f"Invalid {field}: hyphen not allowed: {name!r}")
-                if name.count(".") > 1:
-                    raise ValueError(f"Invalid {field}: multiple dots not allowed: {name!r}")
+                if "." in name:
+                    raise ValueError(f"Invalid {field}: qualified names are not allowed: {name!r}")
 
-            _tightened_check(validated_table, "table_name")
+            for validated_table in validated_tables:
+                _tightened_check(validated_table, "table_name")
             _tightened_check(validated_db, "database_name")
 
             db_type = db_config.get("db_type", "mysql") if db_config else "mysql"
             schema = db_config.get("schema", "public") if db_config else "public"
 
+            if db_type == "postgresql":
+                validated_schema = DatabaseSecurity.validate_database_name(schema)
+                _tightened_check(validated_schema, "schema")
+                table_references = [f'"{validated_schema}"."{table}"' for table in validated_tables]
+            elif db_type == "sqlserver":
+                validated_schema = DatabaseSecurity.validate_database_name(schema or "dbo")
+                _tightened_check(validated_schema, "schema")
+                table_references = [f"[{validated_schema}].[{table}]" for table in validated_tables]
+            elif db_type == "oracle":
+                table_references = [f'"{validated_db}"."{table}"' for table in validated_tables]
+            else:
+                table_references = [f"`{validated_db}`.`{table}`" for table in validated_tables]
+
+            query = " UNION ALL ".join(
+                f"SELECT '{table}' AS table_name, COUNT(*) AS row_count FROM {table_reference}"
+                for table, table_reference in zip(validated_tables, table_references)
+            )
+
+            adapter = None
+            if timeout_seconds is not None:
+                if timeout_seconds <= 0:
+                    raise ValueError("timeout_seconds must be positive")
+                from service.database.adapters import get_adapter
+
+                adapter = get_adapter(db_type)
+
             manager = get_connection_manager()
-
             with manager.get_cursor(db_config) as cursor:
-                if db_type == "postgresql":
-                    validated_schema = DatabaseSecurity.validate_database_name(schema)
-                    _tightened_check(validated_schema, "schema")
-                    cursor.execute(f'SELECT COUNT(*) FROM "{validated_schema}"."{validated_table}"')
-                elif db_type == "sqlserver":
-                    schema_name = DatabaseSecurity.validate_database_name(schema or "dbo")
-                    _tightened_check(schema_name, "schema")
-                    cursor.execute(f"SELECT COUNT(*) FROM [{schema_name}].[{validated_table}]")
-                elif db_type == "oracle":
-                    # Oracle schema = owner, use validated_db
-                    cursor.execute(f'SELECT COUNT(*) FROM "{validated_db}"."{validated_table}"')
-                else:
-                    # Default MySQL
-                    cursor.execute(f"SELECT COUNT(*) FROM `{validated_db}`.`{validated_table}`")
-                result = cursor.fetchone()
+                if timeout_seconds is not None and adapter is not None:
+                    set_query_timeout(adapter, cursor, getattr(cursor, "connection", None), timeout_seconds)
+                cursor.execute(query)
+                rows = cursor.fetchall()
 
-                return result[0] if result else 0
+            counts_by_table = {str(row[0]): int(row[1]) for row in rows}
+            if set(counts_by_table) != set(validated_tables):
+                raise DatabaseOperationError("Database returned an incomplete row-count result")
+
+            return [
+                {
+                    "table": table,
+                    "row_count": counts_by_table[table],
+                    "is_estimate": False,
+                }
+                for table in validated_tables
+            ]
 
         except ValueError as err:
-            logger.warning(f"Validation error in get_table_row_count: {err}")
+            public = public_database_error(err)
+            log_safe_exception(logger, "validate_get_table_row_counts", err, public)
             raise err
+        except DatabaseOperationError:
+            raise
         except Exception as err:
-            logger.error(f"Database error in get_table_row_count: {err}")
-            raise DatabaseOperationError("Failed to retrieve row count")
-
-    @staticmethod
-    def clear_cache():
-        """Clear all cached data."""
-        with DatabaseOperations._cache_lock:
-            DatabaseOperations._info_cache.clear()
-        try:
-            DatabaseSecurity.clear_cache()
-        except Exception:
-            pass
+            public = public_database_error(err)
+            log_safe_exception(logger, "get_table_row_counts", err, public)
+            raise DatabaseOperationError("Failed to retrieve row counts")
 
 
 def fetch_database_info(db_config: dict, db_name: str) -> Tuple[Optional[str], Optional[str]]:
@@ -276,27 +312,50 @@ def fetch_database_info(db_config: dict, db_name: str) -> Tuple[Optional[str], O
 
         db_info = f"The database {validated_db} has been selected. It contains {len(tables)} tables:\n"
         detailed_info = ""
+        counts_by_table = {}
+        count_errors = {}
+
+        for batch_start in range(0, len(tables), 10):
+            batch_tables = tables[batch_start : batch_start + 10]
+            try:
+                batch_counts = DatabaseOperations.get_table_row_counts(
+                    db_config,
+                    batch_tables,
+                    validated_db,
+                )
+                counts_by_table.update({item["table"]: item["row_count"] for item in batch_counts})
+            except Exception as err:
+                public = public_database_error(err)
+                log_safe_exception(logger, "fetch_database_row_counts", err, public)
+                count_errors.update({table: public for table in batch_tables})
 
         for table in tables:
             db_info += f"Table {table}:\n"
             try:
                 schema = DatabaseOperations.get_table_schema(db_config, table, validated_db)
-                row_count = DatabaseOperations.get_table_row_count(db_config, table, validated_db)
 
                 for column in schema:
                     detailed_info += f"  {column[0]} {column[1]}\n"
-                detailed_info += f"  count: {row_count}\n"
+                if table in count_errors:
+                    public = count_errors[table]
+                    detailed_info += f"  Error [{public.code}]: {public.message}\n"
+                else:
+                    detailed_info += f"  count: {counts_by_table[table]}\n"
             except Exception as e:
-                detailed_info += f"  Error: {e}\n"
+                public = public_database_error(e)
+                log_safe_exception(logger, "fetch_database_table_info", e, public)
+                detailed_info += f"  Error [{public.code}]: {public.message}\n"
 
         return db_info, detailed_info
 
     except ValueError as err:
-        logger.warning(f"Validation error in fetch_database_info: {err}")
-        return None, str(err)
+        public = public_database_error(err)
+        log_safe_exception(logger, "validate_fetch_database_info", err, public)
+        return None, public.message
     except Exception as err:
-        logger.error(f"Error in fetch_database_info: {err}")
-        return None, str(err)
+        public = public_database_error(err)
+        log_safe_exception(logger, "fetch_database_info", err, public)
+        return None, public.message
 
 
 def execute_sql_query(
@@ -317,8 +376,9 @@ def execute_sql_query(
       5. Execute the user's SQL, fetch up to ``max_rows + 1`` rows (the
          ``+1`` lets us detect truncation without a second COUNT query).
       6. Serialize rows + column types into the response dict.
-      7. Emit a structured audit event (user_id, db, query, row count,
-         execution time) for SOX/PCI traceability.
+      7. Emit a structured audit event (user ID, database resource,
+         statement type, row count, execution time) for traceability.
+         Submitted SQL and its literals are deliberately excluded.
 
     Args:
         db_config: Database configuration dict.
@@ -349,7 +409,8 @@ def execute_sql_query(
                 "status": "error",
                 "message": f"Query too long. Maximum: {MAX_QUERY_LENGTH} characters.",
             }
-        analysis = DatabaseSecurity.analyze_sql_query(sql_query)
+        db_type = db_config.get("db_type", "mysql")
+        analysis = DatabaseSecurity.analyze_sql_query(sql_query, dialect=db_type)
 
         if not analysis["is_safe"]:
             return {
@@ -365,7 +426,6 @@ def execute_sql_query(
 
         start_time = time.time()
 
-        db_type = db_config.get("db_type", "mysql")
         adapter = get_adapter(db_type)
         manager = get_connection_manager()
 
@@ -386,10 +446,12 @@ def execute_sql_query(
                 cursor.execute(adapter.get_health_check_sql())
                 cursor.fetchone()
             except Exception as health_err:
-                logger.warning(
-                    "Pre-query health check failed for %s: %s",
-                    db_type,
+                health_public = public_database_error(health_err)
+                log_safe_exception(
+                    logger,
+                    "database_health_check",
                     health_err,
+                    health_public,
                 )
                 # Mark the underlying connection as failed so
                 # ``ConnectionManager.return_connection`` discards it
@@ -405,44 +467,8 @@ def execute_sql_query(
 
             actual_timeout = timeout_seconds if timeout_seconds else Config.QUERY_TIMEOUT_SECONDS
 
-            # FIX [EC3]: Oracle has no SET TIMEOUT SQL statement — its
-            # timeout is enforced via the oracledb driver's per-connection
-            # ``call_timeout`` attribute. Detect the method via getattr and
-            # apply it directly to the connection exposed by the DB-API
-            # cursor (``cursor.connection`` is part of PEP 249). Other
-            # adapters (MySQL/PostgreSQL/SQL Server) use the SQL-string
-            # path below and do not define ``set_session_timeout``, so
-            # this branch is a no-op for them.
-            set_session_timeout_fn = getattr(adapter, "set_session_timeout", None)
-            if callable(set_session_timeout_fn):
-                try:
-                    underlying_conn = getattr(cursor, "connection", None)
-                    if underlying_conn is not None:
-                        set_session_timeout_fn(underlying_conn, actual_timeout)
-                except Exception as timeout_err:
-                    logger.debug(
-                        "Could not apply adapter.set_session_timeout: %s",
-                        timeout_err,
-                    )
-
-            timeout_sql = adapter.get_set_timeout_sql(actual_timeout)
-            if timeout_sql:
-                try:
-                    cursor.execute(timeout_sql)
-                except Exception as timeout_err:
-                    # FIX [H7]: do NOT silently swallow the timeout-set
-                    # failure. If we cannot set the statement timeout (privilege
-                    # error, syntax unsupported by DB version), the user query
-                    # would run with NO timeout — exactly the scenario the
-                    # timeout was meant to prevent. Abort with RuntimeError
-                    # so the user sees an explicit error instead of a DoS.
-                    logger.warning(
-                        "Could not set statement timeout (%s); aborting query to avoid DoS.",
-                        timeout_err,
-                    )
-                    raise RuntimeError(
-                        "Statement timeout could not be set on this connection; query refused for safety."
-                    )
+            set_query_timeout(adapter, cursor, getattr(cursor, "connection", None), actual_timeout)
+            set_query_schema(cursor, db_config, db_type)
 
             cursor.execute(sql_query)
 
@@ -522,18 +548,6 @@ def execute_sql_query(
                 message += f"{row_count} rows. "
 
             logger.info(f"Query executed: {row_count} rows in {execution_time}ms")
-            audit_log(
-                actor=f"user:{user_id}" if user_id else "user:unknown",
-                action="sql.execute",
-                resource=f"db:{db_config.get('db_type', 'unknown')}/{db_config.get('database', 'unknown')}",
-                outcome="success",
-                details={
-                    "row_count": row_count,
-                    "truncated": truncated,
-                    "execution_time_ms": execution_time,
-                    "query_preview": sql_query[:120],
-                },
-            )
             return {
                 "status": "success",
                 "result": result,
@@ -546,53 +560,34 @@ def execute_sql_query(
             }
 
     except ValueError as err:
-        logger.warning(f"Query validation error: {err}")
-        audit_log(
-            actor=f"user:{user_id}" if user_id else "user:unknown",
-            action="sql.execute",
-            resource=f"db:{db_config.get('db_type', 'unknown')}/{db_config.get('database', 'unknown')}",
-            outcome="denied",
-            details={"reason": "validation_error", "query_preview": sql_query[:120]},
-        )
-        return {"status": "error", "message": str(err)}
+        public = public_database_error(err)
+        log_safe_exception(logger, "validate_sql_query", err, public)
+        return {
+            "status": "error",
+            "error_code": public.code,
+            "message": public.message,
+        }
     except ConnectionError as err:
         # FIX [EC6]: surface the health-check failure as a clear
         # "reconnect" message instead of a generic "Database error".
-        logger.warning(f"Connection health check failed: {err}")
-        audit_log(
-            actor=f"user:{user_id}" if user_id else "user:unknown",
-            action="sql.execute",
-            resource=f"db:{db_config.get('db_type', 'unknown')}/{db_config.get('database', 'unknown')}",
-            outcome="failure",
-            details={"reason": "connection_error"},
+        public = public_tool_error(
+            "DB_CONNECTION_ERROR",
+            "Database connection failed.",
         )
+        log_safe_exception(logger, "execute_sql_query_connection", err, public)
         return {
             "status": "error",
-            "message": "Connection lost, please reconnect to the database.",
+            "error_code": public.code,
+            "message": public.message,
         }
     except Exception as err:
         # FIX [AUDIT-2-B]: raw DB driver errors leak schema / column /
         # connection-string fragments to the API caller. Classify the
         # error into a stable category and emit a sanitized message.
-        logger.error("Database error in execute_sql_query: %s", err)
-        safe_msg = sanitize_exception(err)
-        category = classify_db_error(safe_msg)
-        audit_log(
-            actor=f"user:{user_id}" if user_id else "user:unknown",
-            action="sql.execute",
-            resource=f"db:{db_config.get('db_type', 'unknown')}/{db_config.get('database', 'unknown')}",
-            outcome="failure",
-            details={"reason": category, "query_preview": sql_query[:120]},
-        )
-        friendly = {
-            "table_not_found": "Table not found.",
-            "column_not_found": "Column not found.",
-            "permission_denied": "Permission denied.",
-            "timeout": "Query timed out.",
-            "deadlock": "Query deadlocked, please retry.",
-            "constraint_violation": "Constraint violation.",
-            "syntax_error": "SQL syntax error.",
-            "connection_error": "Connection lost, please reconnect.",
-            "unknown": "Database error.",
-        }.get(category, "Database error.")
-        return {"status": "error", "message": friendly, "error_category": category}
+        public = public_database_error(err)
+        log_safe_exception(logger, "execute_sql_query", err, public)
+        return {
+            "status": "error",
+            "error_code": public.code,
+            "message": public.message,
+        }
