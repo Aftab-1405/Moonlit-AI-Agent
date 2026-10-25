@@ -4,14 +4,14 @@ import logging
 
 from fastapi import APIRouter, Depends, Request
 
-from dependencies import get_current_user
+from dependencies import AuthenticatedUser, get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/quota", tags=["User Quota"])
 
 
 @router.get("/status")
-async def get_quota_status(request: Request, user: dict = Depends(get_current_user)):
+async def get_quota_status(request: Request, user: AuthenticatedUser = Depends(get_current_user)):
     """Return the authenticated user's current rate-limit quota usage across all timeframes.
 
     Returns:
@@ -26,7 +26,7 @@ async def get_quota_status(request: Request, user: dict = Depends(get_current_us
               ``minute``, ``hour``, and ``day`` windows, each with ``limit``,
               ``remaining``, ``used``, and ``resets_at`` fields.
     """
-    user_id = user.get("uid") or user
+    user_id = user["uid"]
     user_quota = request.app.state.user_quota
 
     usage = await user_quota.get_usage(user_id)

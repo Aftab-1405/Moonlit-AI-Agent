@@ -26,7 +26,8 @@ export function requestDashboardNavigation({
   openConfirmation({
     open: true,
     title: 'Stop active responses?',
-    message: 'Moonlit is still generating responses. Leaving will stop all active responses, including other chats.',
+    message:
+      'Moonlit is still generating responses. Leaving will stop all active responses, including other chats.',
     confirmText: 'Stop and open dashboard',
     cancelText: 'Stay in chat',
     onConfirm: async () => {

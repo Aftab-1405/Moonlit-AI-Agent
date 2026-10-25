@@ -8,6 +8,7 @@ from dataclasses import FrozenInstanceError
 from types import SimpleNamespace
 
 import pytest
+from fastapi import FastAPI, Request
 
 
 def _resolve(**overrides):
@@ -167,9 +168,10 @@ async def test_automatic_long_mode_is_resolved_before_any_repository_call(monkey
         "create_streaming_generator",
         stream_boundary,
     )
-    request = SimpleNamespace(
-        app=SimpleNamespace(state=SimpleNamespace(user_quota=Quota(), llm_rate_limiter=Limiter()))
-    )
+    app = FastAPI()
+    app.state.user_quota = Quota()
+    app.state.llm_rate_limiter = Limiter()
+    request = Request({"type": "http", "app": app})
 
     response = await controller._handle_agent_stream(
         request=request,
@@ -290,7 +292,9 @@ def test_resolved_mode_and_budgets_match_stream_prompt_checkpoint_and_history(mo
     stream_events = asyncio.run(collect())
     mode_event = next(event for event in stream_events if event.get("type") == "task_mode")
     checkpoint_config = captured["checkpoint_config"]
+    assert isinstance(checkpoint_config, dict)
     configurable = checkpoint_config["configurable"]
+    assert isinstance(configurable, dict)
     session_state = _build_session_state(configurable)
 
     assert mode_event == {
@@ -300,8 +304,10 @@ def test_resolved_mode_and_budgets_match_stream_prompt_checkpoint_and_history(mo
         "recursion_limit": 200,
         "source": "automatic",
     }
-    assert "active task mode: long_task" in captured["system_prompt"]
-    assert "graph step budget: 200" in captured["system_prompt"]
+    system_prompt = captured["system_prompt"]
+    assert isinstance(system_prompt, str)
+    assert "active task mode: long_task" in system_prompt
+    assert "graph step budget: 200" in system_prompt
     assert "task_mode: long_task (Long Task)" in session_state
     assert "task_mode_step_budget: 200 steps per turn" in session_state
     assert configurable["task_mode"] == conversation["task_mode"] == "long_task"

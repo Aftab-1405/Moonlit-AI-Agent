@@ -33,6 +33,10 @@ and is registered for shutdown in ``main.py``'s lifespan (FIX [M26]).
 import asyncio
 import logging
 import uuid
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from qdrant_client.http.models import Condition
 
 from vamp_memory.protocols import VectorMemoryStore
 
@@ -61,7 +65,7 @@ class QdrantVectorMemoryStore(VectorMemoryStore):
         """
         from qdrant_client import QdrantClient, models
 
-        self.client = QdrantClient(url=url, api_key=api_key or None)
+        self.client: QdrantClient | None = QdrantClient(url=url, api_key=api_key or None)
         self.models = models
         self.collection_name = collection_name
         self.vector_size = vector_size
@@ -82,6 +86,8 @@ class QdrantVectorMemoryStore(VectorMemoryStore):
         the configured vector size matches, and creates payload field indexes.
         Subsequent calls short-circuit on ``self._ready``.
         """
+        if self.client is None:
+            raise RuntimeError("Qdrant memory store is closed")
         if self._ready:
             return
         # FIX [M29]: Create the lock inside the currently-running loop so it
@@ -126,10 +132,13 @@ class QdrantVectorMemoryStore(VectorMemoryStore):
 
     def _ensure_collection_sync(self) -> None:
         """Create the Qdrant collection if missing and validate its vector size + payload indexes."""
-        exists = self.client.collection_exists(self.collection_name)
+        client = self.client
+        if client is None:
+            raise RuntimeError("Qdrant memory store is closed")
+        exists = client.collection_exists(self.collection_name)
         if not exists:
             try:
-                self.client.create_collection(
+                client.create_collection(
                     collection_name=self.collection_name,
                     vectors_config=self.models.VectorParams(
                         size=self.vector_size,
@@ -139,10 +148,10 @@ class QdrantVectorMemoryStore(VectorMemoryStore):
             except Exception:
                 # Another process may have created it between the existence
                 # check and create. Re-check; otherwise preserve the real error.
-                if not self.client.collection_exists(self.collection_name):
+                if not client.collection_exists(self.collection_name):
                     raise
 
-        info = self.client.get_collection(self.collection_name)
+        info = client.get_collection(self.collection_name)
         vectors = info.config.params.vectors
         configured_size = getattr(vectors, "size", None)
         if configured_size is None and isinstance(vectors, dict):
@@ -158,7 +167,7 @@ class QdrantVectorMemoryStore(VectorMemoryStore):
 
         for field_name in ("conversation_id", "user_id", "pointer_type", "summary_id"):
             try:
-                self.client.create_payload_index(
+                client.create_payload_index(
                     collection_name=self.collection_name,
                     field_name=field_name,
                     field_schema=self.models.PayloadSchemaType.KEYWORD,
@@ -188,7 +197,10 @@ class QdrantVectorMemoryStore(VectorMemoryStore):
         point_id = str(uuid.uuid5(uuid.NAMESPACE_URL, seed))
 
         def _upsert():
-            self.client.upsert(
+            client = self.client
+            if client is None:
+                raise RuntimeError("Qdrant memory store is closed")
+            client.upsert(
                 collection_name=self.collection_name,
                 points=[
                     self.models.PointStruct(
@@ -226,7 +238,7 @@ class QdrantVectorMemoryStore(VectorMemoryStore):
             ``pointer_type``), ordered by descending score from Qdrant.
         """
         await self.ensure_ready()
-        must = [
+        must: list[Condition] = [
             self.models.FieldCondition(
                 key="conversation_id",
                 match=self.models.MatchValue(value=conversation_id),
@@ -249,8 +261,11 @@ class QdrantVectorMemoryStore(VectorMemoryStore):
         query_filter = self.models.Filter(must=must)
 
         def _search():
-            if hasattr(self.client, "query_points"):
-                result = self.client.query_points(
+            client = self.client
+            if client is None:
+                raise RuntimeError("Qdrant memory store is closed")
+            if hasattr(client, "query_points"):
+                result = client.query_points(
                     collection_name=self.collection_name,
                     query=query_vector,
                     query_filter=query_filter,
@@ -259,7 +274,7 @@ class QdrantVectorMemoryStore(VectorMemoryStore):
                     score_threshold=score_threshold,
                 )
                 return getattr(result, "points", result)
-            return self.client.search(
+            return client.search(
                 collection_name=self.collection_name,
                 query_vector=query_vector,
                 query_filter=query_filter,
@@ -296,7 +311,7 @@ class QdrantVectorMemoryStore(VectorMemoryStore):
         ``conversation_id`` from another tenant can never delete our points.
         """
         await self.ensure_ready()
-        must = [
+        must: list[Condition] = [
             self.models.FieldCondition(
                 key="conversation_id",
                 match=self.models.MatchValue(value=conversation_id),
@@ -309,7 +324,10 @@ class QdrantVectorMemoryStore(VectorMemoryStore):
         query_filter = self.models.Filter(must=must)
 
         def _delete():
-            self.client.delete(
+            client = self.client
+            if client is None:
+                raise RuntimeError("Qdrant memory store is closed")
+            client.delete(
                 collection_name=self.collection_name,
                 points_selector=self.models.FilterSelector(filter=query_filter),
             )

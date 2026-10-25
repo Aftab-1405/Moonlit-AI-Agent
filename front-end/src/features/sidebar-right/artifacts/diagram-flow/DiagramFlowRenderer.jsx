@@ -1,10 +1,11 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import '@xyflow/react/dist/style.css';
-import { Box, CircularProgress, Typography, useMediaQuery, useTheme } from '@mui/material';
+import { Box, Typography, useMediaQuery, useTheme } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import {
   Background,
   BaseEdge,
+  Controls,
   getBezierPath,
   Handle,
   MarkerType,
@@ -16,7 +17,11 @@ import {
 } from '@xyflow/react';
 import { CheckIcon, CopyIcon, ProcessIcon, TableIcon } from '@/components/icons';
 import { getReadOnlyReactFlowProps } from '@/config/reactFlow';
-import { ArtifactShell } from '@/features/sidebar-right/artifact-loader';
+import {
+  ArtifactCanvasPanel,
+  ArtifactLoadingState,
+  ArtifactShell,
+} from '@/features/sidebar-right/artifact-loader';
 import {
   FLOW_NODE_CARD_CLASS,
   getReactFlowAlphaColor,
@@ -233,13 +238,13 @@ const getNodeTypeOverrides = (theme, nodeType) => {
   if (nodeType === 'entity') {
     return {
       borderRadius: '6px',
-      borderLeft: `3px solid ${theme.palette.primary.main}`,
+      borderLeft: `3px solid ${theme.palette.text.primary}`,
     };
   }
   if (nodeType === 'process') {
     return {
       borderRadius: '8px',
-      borderLeft: `3px solid ${theme.palette.primary.main}`,
+      borderLeft: `3px solid ${theme.palette.text.primary}`,
     };
   }
   if (QUERY_PLAN_NODE_TYPES.has(nodeType)) {
@@ -352,10 +357,22 @@ const DiagramFlowNode = memo(function DiagramFlowNode({ data }) {
           }}
         >
           {isEntity && (
-            <TableIcon sx={{ fontSize: 16, color: theme.palette.primary.main, flexShrink: 0 }} />
+            <TableIcon
+              sx={{
+                fontSize: 16,
+                color: data.customStyle?.color ? 'inherit' : theme.palette.text.primary,
+                flexShrink: 0,
+              }}
+            />
           )}
           {isProcess && (
-            <ProcessIcon sx={{ fontSize: 16, color: theme.palette.primary.main, flexShrink: 0 }} />
+            <ProcessIcon
+              sx={{
+                fontSize: 16,
+                color: data.customStyle?.color ? 'inherit' : theme.palette.text.primary,
+                flexShrink: 0,
+              }}
+            />
           )}
           <Typography
             noWrap={!wrapsTitle}
@@ -382,6 +399,7 @@ const DiagramFlowNode = memo(function DiagramFlowNode({ data }) {
             sx={{
               mt: 0.4,
               ...theme.typography.uiCaption2xs,
+              fontSize: data.customStyle?.fontSize ? 'inherit' : undefined,
               lineHeight: 1.35,
               letterSpacing: 0,
               color: disabled
@@ -390,7 +408,7 @@ const DiagramFlowNode = memo(function DiagramFlowNode({ data }) {
                   ? 'inherit'
                   : 'text.secondary',
               textAlign: 'center',
-              opacity: data.customStyle?.color ? 0.82 : 1,
+              opacity: 1,
             }}
           >
             {data.subtitle}
@@ -431,7 +449,7 @@ const DiagramFlowNode = memo(function DiagramFlowNode({ data }) {
                   whiteSpace: 'nowrap',
                   textAlign: 'left',
                   fontFamily: theme.typography.fontFamilyMono,
-                  fontSize: 10.5,
+                  fontSize: data.customStyle?.fontSize ? 'inherit' : 12,
                   lineHeight: 1.35,
                 }}
               >
@@ -447,8 +465,8 @@ const DiagramFlowNode = memo(function DiagramFlowNode({ data }) {
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
                     fontFamily: theme.typography.fontFamilyMono,
-                    fontSize: 9.5,
-                    opacity: 0.72,
+                    fontSize: data.customStyle?.fontSize ? 'inherit' : 11,
+                    opacity: data.customStyle?.color ? 1 : 0.72,
                   }}
                 >
                   {column.type}
@@ -462,9 +480,9 @@ const DiagramFlowNode = memo(function DiagramFlowNode({ data }) {
                 mt: 0.25,
                 textAlign: 'left',
                 fontFamily: theme.typography.fontFamilyMono,
-                fontSize: 9.5,
+                fontSize: data.customStyle?.fontSize ? 'inherit' : 11,
                 color: data.customStyle?.color ? 'inherit' : 'text.disabled',
-                opacity: data.customStyle?.color ? 0.72 : 1,
+                opacity: 1,
               }}
             >
               +{columns.length - displayedColumns.length} more
@@ -495,7 +513,7 @@ const DiagramFlowNode = memo(function DiagramFlowNode({ data }) {
                 borderRadius: theme.shape.radius?.full ?? '999px',
                 border: '1px solid',
                 fontFamily: theme.typography.fontFamilyMono,
-                fontSize: 10.5,
+                fontSize: data.customStyle?.fontSize ? 'inherit' : 12,
                 fontWeight: 400,
                 lineHeight: 1,
                 letterSpacing: 0,
@@ -636,7 +654,8 @@ const edgeTypes = {
 
 function DiagramFlowRenderer({
   code,
-  _title,
+  title,
+  outputsSlot,
   onClose,
   onRequestClose,
   isFullscreen = false,
@@ -886,7 +905,8 @@ function DiagramFlowRenderer({
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
         <ArtifactShell
-          title="Diagram"
+          outputsSlot={outputsSlot}
+          title={title || 'Diagram'}
           chrome={chrome}
           onClose={onClose}
           onRequestClose={onRequestClose}
@@ -896,11 +916,6 @@ function DiagramFlowRenderer({
           onToggleFullscreen={onToggleFullscreen}
           workspaceContainerRef={workspaceContainerRef}
           bodyScroll="auto"
-          bodySx={{
-            display: 'flex',
-            flexDirection: 'column',
-            minHeight: 0,
-          }}
           actions={[
             {
               key: 'copy',
@@ -914,34 +929,36 @@ function DiagramFlowRenderer({
             },
           ]}
         >
-          <Box
-            sx={{
-              p: isMobile ? 1.5 : 2,
-              borderBottom: '1px solid',
-              borderColor: theme.palette.border.subtle,
-              bgcolor: alpha(theme.palette.error.main, theme.palette.opacity.soft),
-              flexShrink: 0,
-            }}
-          >
-            <Typography sx={{ ...theme.typography.uiCaptionMd, color: 'error.main' }}>
-              {parseResult.error}
-            </Typography>
-          </Box>
-          <Box
-            component="pre"
-            sx={{
-              flex: 1,
-              minHeight: 0,
-              m: 0,
-              p: isMobile ? 1.5 : 2,
-              overflow: 'auto',
-              fontFamily: theme.typography.fontFamilyMono,
-              ...theme.typography.uiBodySm,
-              bgcolor: theme.palette.layer.barely,
-            }}
-          >
-            <code>{code}</code>
-          </Box>
+          <ArtifactCanvasPanel>
+            <Box
+              sx={{
+                p: isMobile ? 1.5 : 2,
+                borderBottom: '1px solid',
+                borderColor: theme.palette.border.subtle,
+                bgcolor: alpha(theme.palette.error.main, theme.palette.opacity.soft),
+                flexShrink: 0,
+              }}
+            >
+              <Typography sx={{ ...theme.typography.uiCaptionMd, color: 'error.main' }}>
+                {parseResult.error}
+              </Typography>
+            </Box>
+            <Box
+              component="pre"
+              sx={{
+                flex: 1,
+                minHeight: 0,
+                m: 0,
+                p: isMobile ? 1.5 : 2,
+                overflow: 'auto',
+                fontFamily: theme.typography.fontFamilyMono,
+                ...theme.typography.uiBodySm,
+                bgcolor: 'background.default',
+              }}
+            >
+              <code>{code}</code>
+            </Box>
+          </ArtifactCanvasPanel>
         </ArtifactShell>
       </Box>
     );
@@ -949,7 +966,8 @@ function DiagramFlowRenderer({
 
   const flowContent = (
     <ArtifactShell
-      title="Diagram"
+      outputsSlot={outputsSlot}
+      title={title || 'Diagram'}
       chrome={chrome}
       onClose={onClose}
       onRequestClose={onRequestClose}
@@ -967,35 +985,9 @@ function DiagramFlowRenderer({
         },
       ]}
     >
-      <Box
-        ref={flowViewportRef}
-        sx={{
-          flex: 1,
-          minHeight: 0,
-          height: '100%',
-          position: 'relative',
-          zIndex: 0,
-          isolation: 'isolate',
-          overflow: 'hidden',
-          bgcolor: theme.palette.layer.barely,
-        }}
-      >
+      <ArtifactCanvasPanel ref={flowViewportRef} sx={{ zIndex: 0 }}>
         {isReceiving ? (
-          <Box
-            sx={{
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexDirection: 'column',
-              gap: 2,
-            }}
-          >
-            <CircularProgress size={32} sx={{ color: 'text.secondary' }} />
-            <Typography sx={{ ...theme.typography.uiCaptionMd, color: 'text.secondary' }}>
-              Receiving diagram data
-            </Typography>
-          </Box>
+          <ArtifactLoadingState title="Receiving diagram data" />
         ) : (
           <Box
             sx={{
@@ -1026,11 +1018,12 @@ function DiagramFlowRenderer({
               zoomOnPinch
               preventScrolling
             >
+              <Controls position="bottom-right" showInteractive={false} />
               <Background gap={24} size={0.9} color={getReactFlowBackgroundColor(theme)} />
             </ReactFlow>
           </Box>
         )}
-      </Box>
+      </ArtifactCanvasPanel>
     </ArtifactShell>
   );
 

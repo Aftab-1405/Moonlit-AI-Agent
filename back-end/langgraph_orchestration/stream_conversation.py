@@ -60,8 +60,9 @@ from typing import AsyncGenerator, Optional
 from uuid import uuid4
 
 from fastapi.concurrency import run_in_threadpool
-from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, RemoveMessage
 from langchain_core.messages.utils import merge_message_runs
+from langchain_core.runnables import RunnableConfig
 from langgraph.errors import GraphRecursionError
 from langgraph.types import Command
 
@@ -403,7 +404,7 @@ from llm_provider.token_budget import get_message_tokens
 async def _stream_graph_with_continuations(
     agent,
     graph_input,
-    config: dict,
+    config: RunnableConfig,
     *,
     total_step_budget: int,
     segment_step_limit: int,
@@ -765,7 +766,7 @@ async def stream_conversation(
             except Exception as hc_trunc_err:
                 _log_stream_exception("truncate_vamp_historical_context", hc_trunc_err)
 
-        config = {
+        config: RunnableConfig = {
             "configurable": {
                 "thread_id": namespaced_thread_id,
                 "conversation_id": conversation_id,
@@ -809,6 +810,12 @@ async def stream_conversation(
             "recursion_limit": segment_step_limit,
         }
 
+        from langgraph_orchestration.tool_evidence import hydrate_tool_cache
+
+        cache, observed = hydrate_tool_cache(conv_data, config["configurable"])
+        config["configurable"]["tool_cache"].update(cache)
+        config["configurable"]["tool_cache_observed_at"] = observed
+
         try:
             tup = await checkpointer.aget_tuple({"configurable": {"thread_id": namespaced_thread_id}})
             if tup and tup.checkpoint:
@@ -829,7 +836,7 @@ async def stream_conversation(
         except Exception as e:
             _log_stream_exception("restore_checkpoint_activated_skills", e)
 
-        graph_input = None
+        graph_input: Command | dict[str, list[BaseMessage]] | None = None
         post_summary_events = []
         # FIX [CTX-SUMMARY]: Pre-call summarization must run for ALL new turns,
         # not just the first one. Previously this block was inside
@@ -1003,7 +1010,9 @@ async def stream_conversation(
                     # A process restart can remove development's in-memory
                     # checkpoint. Reconstruct from durable Firestore history
                     # and the task checkpoint summary rather than failing.
-                    history = await _load_firestore_history(conversation_id, None, hot_history_budget, selected_model)
+                    history = await _load_firestore_history(
+                        conversation_id, None, hot_history_budget, selected_model, configurable=config["configurable"]
+                    )
                     graph_input = {
                         "messages": history
                         + [
@@ -1027,7 +1036,9 @@ async def stream_conversation(
         elif not await _has_checkpoint(checkpointer, namespaced_thread_id):
             # FIX [CTX-SUMMARY]: Summarization now runs above (unconditionally
             # for non-resume turns). This branch just loads history.
-            history = await _load_firestore_history(conversation_id, message, hot_history_budget, selected_model)
+            history = await _load_firestore_history(
+                conversation_id, message, hot_history_budget, selected_model, configurable=config["configurable"]
+            )
             _current_message_text = message or ""
             initial_messages = history + [HumanMessage(content=format_current_user_request(_current_message_text))]
             initial_messages = merge_message_runs(initial_messages)
@@ -1183,7 +1194,11 @@ async def stream_conversation(
         raise
 
     except Exception as e:
-        if _is_rate_limit_error(str(e)) and _can_complete_from_tool(last_completed_query_tool):
+        if (
+            _is_rate_limit_error(str(e))
+            and last_completed_query_tool is not None
+            and _can_complete_from_tool(last_completed_query_tool)
+        ):
             logger.warning(
                 "Model rate limit after successful %s; completing stream from tool result.",
                 last_completed_query_tool.get("name"),
@@ -1333,6 +1348,8 @@ async def _load_firestore_history(
     message: str | None,
     active_context_budget: int,
     model_id: str,
+    *,
+    configurable: dict | None = None,
 ) -> list:
     """Load recent conversation history from Firestore, token-budgeted.
 
@@ -1363,7 +1380,16 @@ async def _load_firestore_history(
         if not conv_data or not conv_data.get("messages"):
             return []
 
-        messages = conv_data.get("messages", [])
+        messages = list(conv_data.get("messages", []))
+        # The outer service already persisted the active prompt. Exclude only
+        # that final entry; earlier intentional identical prompts remain history.
+        if (
+            message is not None
+            and messages
+            and messages[-1].get("sender") == "user"
+            and messages[-1].get("content") == message
+        ):
+            messages.pop()
         try:
             last_summarized_idx = int(conv_data.get("last_summarized_idx", 0) or 0)
         except (TypeError, ValueError):
@@ -1380,7 +1406,7 @@ async def _load_firestore_history(
         if remaining_budget < 0:
             remaining_budget = 0
 
-        selected_turn_indices = []
+        selected_turn_indices: list[list[int]] = []
         accumulated_tokens = 0
         for turn in reversed(recent_turns):
             turn_tokens = sum(get_message_tokens(recent_messages[idx], model_id=model_id) for idx in turn)
@@ -1402,9 +1428,22 @@ async def _load_firestore_history(
 
         selected_messages = [recent_messages[idx] for idx in selected_msg_indices]
 
-        lc_messages = []
+        from langgraph_orchestration.tool_evidence import (
+            MAX_HISTORY_EVIDENCE_BYTES,
+            evidence_text_bytes,
+            history_evidence,
+        )
+
+        evidence_remaining = min(MAX_HISTORY_EVIDENCE_BYTES, max(0, active_context_budget // 4))
+        # Reserve evidence newest-first across the entire retained history.
+        evidence_by_index = {}
+        for index in range(len(selected_messages) - 1, -1, -1):
+            evidence = history_evidence(selected_messages[index], configurable, max_bytes=evidence_remaining)
+            evidence_by_index[index] = evidence
+            evidence_remaining -= evidence_text_bytes(evidence)
+        lc_messages: list[BaseMessage] = []
         turn_index = 0
-        for msg in selected_messages:
+        for index, msg in enumerate(selected_messages):
             sender = msg.get("sender", "user")
             content = msg.get("content", "")
 
@@ -1423,6 +1462,7 @@ async def _load_firestore_history(
                             content,
                             tool_trace=str(tool_trace or ""),
                             tool_calls=serialized_tool_calls,
+                            tool_evidence=evidence_by_index.get(index, ""),
                             turn_index=turn_index,
                         )
                     )

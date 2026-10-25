@@ -91,11 +91,9 @@ function AppShell({
         bgcolor: 'background.shell',
       }}
     >
-      <MotionDiv
-        initial={false}
-        animate={{ width: layout.sidebarWidth }}
-        transition={reduceMotion ? NO_TRANSITION : SPRING_TRANSITION}
+      <Box
         style={{
+          width: layout.sidebarWidth,
           flexShrink: 0,
           height: '100%',
           position: 'relative',
@@ -106,7 +104,7 @@ function AppShell({
         <Box data-column="sidebar" aria-label="Sidebar column" sx={sidebarColumnSx}>
           {sidebarSlot}
         </Box>
-      </MotionDiv>
+      </Box>
 
       <Box
         component="main"
@@ -123,19 +121,19 @@ function AppShell({
         initial={false}
         animate={
           isNarrowLayout
-            ? { width: '100%', y: layout.workspaceY }
-            : {
-                width:
-                  canvasOpen && canvasFullscreen
-                    ? `calc(100% - ${layout.sidebarWidth}px)`
-                    : layout.workspaceWidth,
-                y: 0,
-              }
+            ? { y: layout.workspaceY, opacity: 1 }
+            : { y: 0, opacity: canvasOpen ? 1 : 0 }
         }
         transition={isResizingCanvas || reduceMotion ? NO_TRANSITION : SPRING_TRANSITION}
         aria-hidden={!canvasOpen}
         inert={!canvasOpen ? true : undefined}
         style={{
+          // Commit geometry once; animate only compositor-friendly properties.
+          // This also avoids repeatedly resizing SQL editors and result grids.
+          width:
+            canvasOpen && canvasFullscreen && !isNarrowLayout
+              ? `calc(100% - ${layout.sidebarWidth}px)`
+              : layout.workspaceWidth,
           position: layout.workspacePosition,
           ...(isNarrowLayout ? { inset: 0 } : {}),
           zIndex: isNarrowLayout ? UI_Z_INDEX.artifactFullscreen : 1,

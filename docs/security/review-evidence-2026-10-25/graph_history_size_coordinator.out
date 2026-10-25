@@ -1,0 +1,2 @@
+store_conversation_message failed: exception_type=InvalidArgument error_code=CONVERSATION_WRITE_FAILED request_id=-
+{"F37": {"accepted_messages_before_rejection": 64, "boundary_error": "InvalidArgument", "completed_turns": 32, "document_limit_bytes": 1048576, "last_summarized_idx": 64, "per_message_chars": 16384, "rejected_candidate": {"content_bytes_alone": 1064960, "messages": 65, "protobuf_wire_bytes": 1073645}, "request_validation": "accepted"}}

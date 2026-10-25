@@ -18,7 +18,7 @@
 // Full view is coordinated with AppShell. One in-flow renderer stays mounted
 // while the shell reallocates the space beside navigation.
 
-import { Box, Skeleton } from '@mui/material';
+import { Box } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import {
   Component,
@@ -33,7 +33,11 @@ import {
 } from 'react';
 import { ErrorIcon } from '@/components/icons';
 import ConversationOutputs from '@/features/chat/ConversationOutputs';
-import { ArtifactEmptyState } from '@/features/sidebar-right/artifact-loader/ArtifactLayout';
+import ArtifactShell, {
+  ArtifactCanvasPanel,
+  ArtifactEmptyState,
+  ArtifactLoadingState,
+} from '@/features/sidebar-right/artifact-loader/ArtifactLayout';
 import { getAppSunkenSurfaceSx } from '@/features/styles/interfaceChrome';
 
 // ─── Lazy-loaded renderers ───────────────────────────────────────────────────
@@ -48,65 +52,30 @@ const QueryResultArtifact = lazy(
 
 /**
  * Suspense fallback shown while a renderer chunk downloads. Mimics the
- * structure of an actual artifact panel: a header row (icon + title bar),
- * a toolbar row of action-button slots, and a large body placeholder.
+ * shared header and canvas panel used by rendered artifacts.
  */
-function RendererFallback() {
+function RendererFallback({ shellProps }) {
   return (
-    <Box
-      role="status"
-      aria-live="polite"
-      aria-atomic="true"
-      aria-label="Loading artifact"
-      sx={{
-        flex: 1,
-        minHeight: 0,
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
-      {/* Header row — icon slot + title bar + action-button slots */}
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1,
-          px: 2,
-          py: 1.5,
-          borderBottom: '1px solid',
-          borderColor: 'divider',
-          flexShrink: 0,
-        }}
-      >
-        <Skeleton variant="rounded" width={30} height={30} sx={{ borderRadius: '8px' }} />
-        <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-          <Skeleton variant="rounded" width="55%" height={10} sx={{ borderRadius: 999 }} />
-          <Skeleton variant="rounded" width="32%" height={8} sx={{ borderRadius: 999 }} />
-        </Box>
-        <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }}>
-          {[0, 1, 2].map((i) => (
-            <Skeleton key={i} variant="circular" width={28} height={28} animation="wave" />
-          ))}
-        </Box>
-      </Box>
-
-      {/* Body placeholder — large rounded rectangle fills remaining space */}
-      <Box sx={{ flex: 1, minHeight: 0, p: 2, display: 'flex' }}>
-        <Skeleton
-          variant="rounded"
-          animation="wave"
-          sx={{ width: '100%', height: '100%', borderRadius: 2 }}
-        />
-      </Box>
-    </Box>
+    <ArtifactShell {...shellProps}>
+      <ArtifactCanvasPanel>
+        <ArtifactLoadingState />
+      </ArtifactCanvasPanel>
+    </ArtifactShell>
   );
 }
+
+const ARTIFACT_TITLES = {
+  'sql-editor': 'SQL editor',
+  'query-result': 'Query results',
+  visualization: 'Visualization',
+  results: 'Query results',
+  'react-flow': 'Diagram',
+};
 
 const dataVisualizationRenderer = {
   loader: DataVisualizationPanel,
   getProps: ({ artifact, common }) => ({
     data: artifact.props?.data,
-    title: artifact.title,
     sourceQuery: artifact.props?.sourceQuery,
     sourceType: artifact.props?.sourceType,
     ...common,
@@ -128,7 +97,6 @@ const artifactRegistry = {
     getProps: ({ artifact, common }) => ({
       ...artifact.props,
       ...common,
-      title: artifact.title,
       isConnected: common.isDbConnected,
       currentDatabase: common.currentDatabase,
       isStreaming: artifact.props?.isStreaming ?? false,
@@ -141,7 +109,6 @@ const artifactRegistry = {
     loader: DiagramFlowRenderer,
     getProps: ({ artifact, common }) => ({
       code: artifact.props?.code || '',
-      title: artifact.title,
       ...common,
     }),
   },
@@ -178,15 +145,19 @@ class ArtifactErrorBoundary extends Component {
   render() {
     if (this.state.error) {
       return (
-        <ArtifactEmptyState
-          role="alert"
-          ariaLive="assertive"
-          icon={<ErrorIcon sx={{ fontSize: 44 }} />}
-          title="Artifact failed to render"
-          message={
-            this.state.error?.message || 'Try opening another artifact or rerun the request.'
-          }
-        />
+        <ArtifactShell {...this.props.shellProps}>
+          <ArtifactCanvasPanel>
+            <ArtifactEmptyState
+              role="alert"
+              ariaLive="assertive"
+              icon={<ErrorIcon sx={{ fontSize: 44 }} />}
+              title="Artifact failed to render"
+              message={
+                this.state.error?.message || 'Try opening another artifact or rerun the request.'
+              }
+            />
+          </ArtifactCanvasPanel>
+        </ArtifactShell>
       );
     }
 
@@ -223,11 +194,26 @@ function ArtifactRenderer({
   onExitFullscreen,
   onToggleFullscreen,
   onNotify,
+  shellProps,
 }) {
-  if (!artifact) return null;
+  if (!artifact)
+    return (
+      <ArtifactShell {...shellProps}>
+        <ArtifactCanvasPanel>
+          <ArtifactEmptyState title="Select an output" />
+        </ArtifactCanvasPanel>
+      </ArtifactShell>
+    );
 
   const registryEntry = artifactRegistry[artifact.type];
-  if (!registryEntry) return <UnknownArtifactFallback type={artifact.type} />;
+  if (!registryEntry)
+    return (
+      <ArtifactShell {...shellProps}>
+        <ArtifactCanvasPanel>
+          <UnknownArtifactFallback type={artifact.type} />
+        </ArtifactCanvasPanel>
+      </ArtifactShell>
+    );
 
   const Renderer = registryEntry.loader;
   const rendererProps = registryEntry.getProps({
@@ -245,11 +231,12 @@ function ArtifactRenderer({
       isDbConnected,
       currentDatabase,
       onNotify,
+      ...shellProps,
     },
   });
 
   return (
-    <Suspense fallback={<RendererFallback />}>
+    <Suspense fallback={<RendererFallback shellProps={shellProps} />}>
       <Renderer {...rendererProps} />
     </Suspense>
   );
@@ -378,6 +365,22 @@ function ArtifactLoader({
   // width to 0 (so the layout still transitions smoothly).
   if (!isOpen) return null;
 
+  const shellProps = {
+    title: artifact?.title || ARTIFACT_TITLES[artifact?.type] || 'Outputs',
+    outputsSlot: (
+      <ConversationOutputs
+        variant="compact"
+        outputs={outputs}
+        selectedArtifact={artifact}
+        onSelect={onOpenArtifact}
+      />
+    ),
+    onRequestClose: handleRequestClose,
+    isFullscreen: effectiveFullscreen,
+    onEnterFullscreen: artifact ? handleEnterFullscreen : undefined,
+    onExitFullscreen: artifact ? handleExitFullscreen : undefined,
+  };
+
   // The shell expands this same in-flow renderer to fill the space beside navigation.
   // Keeping its parent stable preserves editor tabs, cursor and viewer configuration.
   return (
@@ -388,6 +391,8 @@ function ArtifactLoader({
       tabIndex={-1}
       onKeyDown={handleFullscreenKeyDown}
       sx={{
+        containerType: 'inline-size',
+        containerName: 'artifact',
         position: 'relative',
         flex: 1,
         minWidth: 0,
@@ -401,11 +406,6 @@ function ArtifactLoader({
         ...(effectiveFullscreen ? getAppSunkenSurfaceSx(theme) : {}),
       }}
     >
-      <ConversationOutputs
-        outputs={outputs}
-        selectedArtifact={artifact}
-        onSelect={onOpenArtifact}
-      />
       <Box
         key={artifactSignature}
         sx={{
@@ -419,8 +419,9 @@ function ArtifactLoader({
           zIndex: 1,
         }}
       >
-        <ArtifactErrorBoundary resetKey={artifactSignature}>
+        <ArtifactErrorBoundary resetKey={artifactSignature} shellProps={shellProps}>
           <ArtifactRenderer
+            shellProps={shellProps}
             artifact={artifact}
             isDbConnected={isDbConnected}
             currentDatabase={currentDatabase}

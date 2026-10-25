@@ -218,9 +218,7 @@ class TaskRunLease:
     async def _renew_loop(self) -> None:
         """Periodically renew the lease until stopped or ownership is lost."""
         store = get_conversation_task_state_store()
-        next_renewal = self._next_renewal_monotonic or (
-            self._monotonic() + self.renew_interval_seconds
-        )
+        next_renewal = self._next_renewal_monotonic or (self._monotonic() + self.renew_interval_seconds)
         while not self._stop_renewal.is_set():
             confirmed_deadline = self.confirmed_deadline_monotonic
             if confirmed_deadline is None:

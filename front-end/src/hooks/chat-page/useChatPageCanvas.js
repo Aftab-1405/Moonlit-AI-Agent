@@ -16,8 +16,8 @@
 // (the controller) so the streaming detection can be computed in one place.
 
 import { useCallback, useEffect, useMemo } from 'react';
+import { createConversationOutputCollector } from '@/features/chat/conversationOutputs';
 import { useWorkspaceCanvas } from '@/hooks/chat-page/useWorkspaceCanvas';
-import { collectConversationOutputs } from '@/features/chat/conversationOutputs';
 
 export function useChatPageCanvas({
   sidebarWidth,
@@ -36,10 +36,11 @@ export function useChatPageCanvas({
     () => (isDbConnected ? { database: currentDatabase, schema: currentSchema } : null),
     [currentDatabase, currentSchema, isDbConnected],
   );
-  const historyOutputs = useMemo(
-    () => collectConversationOutputs(messages, conversationId),
-    [messages, conversationId],
+  const collectOutputs = useMemo(
+    () => createConversationOutputCollector(conversationId),
+    [conversationId],
   );
+  const historyOutputs = useMemo(() => collectOutputs(messages), [collectOutputs, messages]);
   const {
     workspaceCanvasOpen,
     workspaceCanvasArtifact: canvasArtifact,
@@ -54,7 +55,9 @@ export function useChatPageCanvas({
   } = useWorkspaceCanvas({ sidebarWidth, sessionKey, source, historyOutputs });
   const conversationOutputs = useMemo(() => {
     const records = new Map(historyOutputs.map((output) => [output.id, output]));
-    workspaceOutputs.forEach((output) => records.set(output.id, output));
+    workspaceOutputs.forEach((output) => {
+      records.set(output.id, output);
+    });
     return [...records.values()];
   }, [historyOutputs, workspaceOutputs]);
 

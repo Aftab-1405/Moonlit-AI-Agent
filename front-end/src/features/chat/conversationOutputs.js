@@ -1,3 +1,5 @@
+import { normalizeQueryResult } from '../../utils/queryResult.js';
+
 // Output records are derived from completed transcript blocks; result rows remain
 // lazy-loaded. Historical records never inherit the current connection's identity.
 export function getQueryExecutionMeta(step, fallbackConversationId = null) {
@@ -59,25 +61,40 @@ export function collectConversationOutputs(messages = [], conversationId) {
   return [...outputs.values()];
 }
 
-export function normalizeExecutionResult(result) {
-  const data = Array.isArray(result.data)
-    ? result.data
-    : Array.isArray(result.result)
-      ? result.result
-      : [];
-  const columns = result.columns?.length
-    ? result.columns
-    : data[0] && !Array.isArray(data[0])
-      ? Object.keys(data[0])
-      : [];
-  return {
-    columns,
-    rows: data.map((row) => (Array.isArray(row) ? row : columns.map((column) => row[column]))),
-    column_types: result.column_types || [],
-    row_count: result.row_count ?? data.length,
-    ...(Number.isFinite(result.execution_time_ms)
-      ? { execution_time: result.execution_time_ms / 1000 }
-      : {}),
-    ...(result.truncated != null ? { truncated: result.truncated } : {}),
+// Cache by immutable message identity so streaming only reparses changed turns.
+// The collector belongs to one conversation; WeakMap entries do not retain old turns.
+export function createConversationOutputCollector(conversationId) {
+  const cache = new WeakMap();
+  let previous = [];
+  return (messages = []) => {
+    const outputs = new Map();
+    messages.forEach((message, index) => {
+      let cached = cache.get(message);
+      if (!cached || cached.index !== index) {
+        cached = {
+          index,
+          outputs: collectConversationOutputs(
+            [{ ...message, id: message.id || index }],
+            conversationId,
+          ),
+        };
+        cache.set(message, cached);
+      }
+      cached.outputs.forEach((output) => {
+        outputs.set(output.id, output);
+      });
+    });
+    const next = [...outputs.values()];
+    if (
+      next.length !== previous.length ||
+      next.some((output, index) => output !== previous[index])
+    ) {
+      previous = next;
+    }
+    return previous;
   };
+}
+
+export function normalizeExecutionResult(result) {
+  return normalizeQueryResult(result);
 }

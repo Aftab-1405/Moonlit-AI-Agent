@@ -159,7 +159,10 @@ class TestPublicError:
 @pytest.mark.parametrize(
     "raw_message,sentinel",
     [
-        ("firebase token rejected: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+        (
+            "firebase token rejected: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        ),
         ("cannot resolve customerhostsentinel", "customerhostsentinel"),
         ("password authentication failed: correcthorsebatterystaple", "correcthorsebatterystaple"),
         ("connect failed: fd00::1234", "fd00::1234"),
@@ -187,5 +190,5 @@ def test_safe_exception_log_never_renders_exception_message(
     assert "connect_database" in rendered
     assert "RuntimeError" in rendered
     assert "DB_CONNECTION_ERROR" in rendered
-    assert record.request_id == "req_safe_error_test"
+    assert getattr(record, "request_id") == "req_safe_error_test"
     assert record.exc_info is None

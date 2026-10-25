@@ -1,6 +1,6 @@
 import { primitives } from './tokens/primitives.js';
 
-export const moonlitDarkSyntax = primitives.code.draculaSoft;
+export const moonlitDarkSyntax = primitives.code.vercel;
 
 const createShikiTheme = (name, type, palette) => ({
   name,
@@ -8,7 +8,6 @@ const createShikiTheme = (name, type, palette) => ({
   colors: {
     'editor.background': palette.editorBackground,
     'editor.foreground': palette.editorForeground,
-    'editorCursor.foreground': palette.cursorForeground,
     'editor.lineHighlightBackground': palette.lineHighlightBackground,
     'editor.selectionBackground': palette.selectionBackground,
     'editorLineNumber.foreground': palette.lineNumberForeground,
@@ -42,8 +41,10 @@ const createShikiTheme = (name, type, palette) => ({
     { scope: ['keyword.operator', 'punctuation'], settings: { foreground: palette.operator } },
     { scope: ['entity.name.tag'], settings: { foreground: palette.tagName } },
     { scope: ['entity.other.attribute-name'], settings: { foreground: palette.attributeName } },
+    { scope: ['markup.inserted'], settings: { foreground: primitives.workspace.diffAdded } },
+    { scope: ['markup.deleted'], settings: { foreground: primitives.workspace.diffRemoved } },
     { scope: ['invalid'], settings: { foreground: palette.invalid } },
   ],
 });
 
-export const moonlitDarkShikiTheme = createShikiTheme('moonlit-dark', 'dark', moonlitDarkSyntax);
+export const moonlitDarkShikiTheme = createShikiTheme('moonlit-vercel', 'dark', moonlitDarkSyntax);

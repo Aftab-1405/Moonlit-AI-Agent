@@ -7,7 +7,7 @@ import {
   AppPopoverItem,
   AppPopoverSectionLabel,
 } from '@/components';
-import { CodeEditorIcon, SchemaIcon, TableIcon } from '@/components/icons';
+import { CodeEditorIcon, MenuIcon, SchemaIcon, TableIcon } from '@/components/icons';
 import { getResponsivePillControlSx } from '@/features/styles/interfaceChrome';
 
 export default function ConversationOutputs({
@@ -130,8 +130,8 @@ export default function ConversationOutputs({
       sx={{
         display: 'flex',
         justifyContent: 'flex-end',
-        px: 1.5,
-        py: 0.5,
+        px: variant === 'compact' ? 0 : 1.5,
+        py: variant === 'compact' ? 0 : 0.5,
         flexShrink: 0,
         position: 'relative',
         zIndex: 1,
@@ -150,7 +150,20 @@ export default function ConversationOutputs({
           color: 'text.secondary',
         }}
       >
-        Outputs · {outputs.length}
+        {variant === 'compact' ? (
+          <>
+            <MenuIcon sx={{ fontSize: 17, mr: 0.5 }} />
+            <Box
+              component="span"
+              sx={{ '@container artifact (max-width: 479px)': { display: 'none' } }}
+            >
+              Outputs ·&nbsp;
+            </Box>
+            {outputs.length}
+          </>
+        ) : (
+          <>Outputs · {outputs.length}</>
+        )}
       </Button>
       <AppPopover
         anchorEl={anchor}

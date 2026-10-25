@@ -4,6 +4,8 @@ PostgreSQL Database Adapter
 Implements database operations for PostgreSQL using psycopg2.
 """
 
+from __future__ import annotations
+
 import logging
 from contextlib import contextmanager
 from typing import Any, Dict, Optional
@@ -31,7 +33,7 @@ except ImportError:
 class PostgreSQLAdapter(BaseDatabaseAdapter):
     """PostgreSQL database adapter (psycopg2-based)."""
 
-    def _sanitize_schema(self, schema: str) -> str:
+    def _sanitize_schema(self, schema: str | None) -> str:
         if not schema:
             return "public"
         import re
@@ -189,7 +191,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
             ORDER BY schema_name
         """
 
-    def get_tables_query(self, schema: str = "public") -> str:
+    def get_tables_query(self, schema: str = "public") -> _pg_sql.Composed:
         """SQL query to list PostgreSQL tables in a specific schema.
 
         FIX [M15]: the schema name is interpolated using
@@ -206,7 +208,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
             AND table_type = 'BASE TABLE'
         """).format(_pg_sql.Literal(schema))
 
-    def get_table_schema_query(self, schema: str = "public") -> str:
+    def get_table_schema_query(self, schema: str = "public") -> _pg_sql.Composed:
         """SQL query to get PostgreSQL table schema in a specific schema.
 
         FIX [M15]: the schema name is interpolated using
@@ -292,7 +294,9 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
 
     # Schema Caching Methods (for AI context)
 
-    def get_all_tables_for_cache(self, db_name: str, schema: str = "public") -> tuple:
+    def get_all_tables_for_cache(
+        self, db_name: str, schema: str = "public"
+    ) -> tuple[_pg_sql.Composed, tuple[str, ...]]:
         """Return SQL query and params to get all tables for schema caching.
 
         FIX [M15]: the schema name is interpolated using
@@ -375,7 +379,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
 
     # Schema Metadata Methods (for AI tools)
 
-    def get_indexes_query(self, table_name: str, db_name: str = None, schema: str = "public") -> tuple:
+    def get_indexes_query(self, table_name: str, db_name: str | None = None, schema: str = "public") -> tuple:
         """Return SQL query and params to get indexes for a PostgreSQL table.
 
         FIX [M15]: the schema name is interpolated using
@@ -399,7 +403,9 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
         """).format(_pg_sql.Literal(schema))
         return query, (table_name,)
 
-    def get_foreign_keys_query(self, table_name: str = None, db_name: str = None, schema: str = "public") -> tuple:
+    def get_foreign_keys_query(
+        self, table_name: str | None = None, db_name: str | None = None, schema: str = "public"
+    ) -> tuple:
         """Return SQL query and params to get foreign key relationships in PostgreSQL.
 
         FIX [M15]: the schema name is interpolated using
@@ -476,7 +482,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
 
     # Table-details Method (added for the get_table_details AI tool)
 
-    def get_table_details_query(self, table_name: str, db_name: str = None, schema: str = "public") -> tuple:
+    def get_table_details_query(self, table_name: str, db_name: str | None = None, schema: str = "public") -> tuple:
         """Return SQL query and params for a rich per-column PostgreSQL schema dump.
 
         Returns one row per column with positional columns:
@@ -531,7 +537,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
 
     # Views Introspection Methods (added for the list_views AI tool)
 
-    def get_views(self, schema: str = None, db_name: str = None) -> tuple:
+    def get_views(self, schema: str | None = None, db_name: str | None = None) -> tuple:
         """Return SQL query and params to list PostgreSQL views in ``schema``.
 
         FIX [M15]: the schema name is interpolated using
@@ -546,7 +552,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
         """).format(_pg_sql.Literal(schema))
         return query, ()
 
-    def get_materialized_views(self, schema: str = None, db_name: str = None):
+    def get_materialized_views(self, schema: str | None = None, db_name: str | None = None):
         """Return SQL query and params to list PostgreSQL materialized views.
 
         PostgreSQL is the only supported DBMS that has first-class

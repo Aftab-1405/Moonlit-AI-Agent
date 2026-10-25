@@ -16,8 +16,6 @@ import { buildChatRequestPayload } from '@/api/conversationRequestModel';
 import { CONVERSATIONS } from '@/api/endpoints';
 
 const MAX_CONCURRENT_EXECUTION_READS = 4;
-const MAX_CACHED_EXECUTION_READS = 200;
-const executionResultRequests = new Map();
 const executionResultQueue = [];
 let activeExecutionReads = 0;
 
@@ -57,10 +55,15 @@ export async function getAllUserConversations(signal) {
  *
  * @param {string} id - Conversation ID
  * @param {AbortSignal} [signal] - Optional abort signal for cancellation
+ * @param {{limit?: number, before?: string}} [pagination] - Bounded cursor history; omitted for legacy full reads
  * @returns {Promise<{status: string, conversation: Object}>}
  */
-export async function getConversation(id, signal) {
-  return get(CONVERSATIONS.GET(id), { signal });
+export async function getConversation(id, signal, { limit, before } = {}) {
+  const params = new URLSearchParams();
+  if (limit !== undefined) params.set('limit', String(limit));
+  if (before) params.set('before', before);
+  const query = params.size ? `?${params}` : '';
+  return get(`${CONVERSATIONS.GET(id)}${query}`, { signal });
 }
 
 /**
@@ -70,23 +73,22 @@ export async function getConversation(id, signal) {
  * @param {string} executionId - Execution ID
  * @returns {Promise<{status: string, data: Object}>}
  */
-export function getExecutionResult(conversationId, executionId) {
-  const cacheKey = `${conversationId}:${executionId}`;
-  const cached = executionResultRequests.get(cacheKey);
-  if (cached) return cached;
-
-  if (executionResultRequests.size >= MAX_CACHED_EXECUTION_READS) {
-    executionResultRequests.delete(executionResultRequests.keys().next().value);
-  }
-
-  const request = scheduleExecutionResultRead(() =>
-    get(CONVERSATIONS.GET_EXECUTION_RESULT(conversationId, executionId)),
-  ).catch((error) => {
-    executionResultRequests.delete(cacheKey);
-    throw error;
+export function getExecutionResult(conversationId, executionId, signal) {
+  // Result owners control retention. A module cache would outlive both the
+  // artifact's GC window and the authenticated session that fetched its rows.
+  return scheduleExecutionResultRead(async () => {
+    signal?.throwIfAborted();
+    let clientMetrics;
+    const response = await get(CONVERSATIONS.GET_EXECUTION_RESULT(conversationId, executionId), {
+      signal,
+      onMetrics: (metrics) => {
+        clientMetrics = metrics;
+      },
+    });
+    return response?.data
+      ? { ...response, data: { ...response.data, client_metrics: clientMetrics } }
+      : response;
   });
-  executionResultRequests.set(cacheKey, request);
-  return request;
 }
 
 /**

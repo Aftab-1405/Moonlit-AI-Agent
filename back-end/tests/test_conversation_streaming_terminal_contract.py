@@ -619,3 +619,117 @@ async def test_langgraph_stream_cancellation_logs_warning_with_machine_reason(
         and "reason=cancelled" in record.getMessage()
         for record in caplog.records
     )
+
+
+@pytest.mark.asyncio
+async def test_query_rows_are_removed_from_live_and_persisted_timeline(monkeypatch):
+    from service.conversations.conversation_repository import ConversationRepository
+    from service.conversations.conversation_streaming_service import ConversationStreamingService
+
+    lifecycle, stored = [], []
+    result = {
+        "execution_id": "execution-1",
+        "row_count": 2,
+        "data": [{"value": 1}, {"value": 2}],
+        "preview": [{"value": 1}],
+        "tabular_result": {"columns": ["value"], "rows": [[1], [2]], "result_metadata": {"scope": "complete"}},
+    }
+
+    class Streamer:
+        async def stream(self, *_args, **_kwargs):
+            yield "data: " + json.dumps({"type": "tool_start", "name": "execute_query"}) + "\n\n"
+            yield "data: " + json.dumps({"type": "tool_end", "name": "execute_query", "result": result}) + "\n\n"
+            yield 'data: {"type":"token","content":"Two rows"}\n\n'
+
+    _install_terminal_contract_dependencies(monkeypatch, Streamer(), lifecycle)
+    monkeypatch.setattr(
+        ConversationRepository, "store_message", staticmethod(lambda *args, **kwargs: stored.append((args, kwargs)))
+    )
+    lines = [
+        line
+        async for line in ConversationStreamingService.create_streaming_generator(
+            "conversation-1",
+            "hello",
+            "user-1",
+            _resolve(),
+        )
+    ]
+    events = [json.loads(line[6:]) for line in lines if line.startswith("data: {")]
+    published = next(event["result"] for event in events if event["type"] == "tool_end")
+    assert "data" not in published and "preview" not in published
+    assert "rows" not in published["tabular_result"]
+    assert published["execution_id"] == "execution-1"
+    assert published["tabular_result"]["result_metadata"]["scope"] == "complete"
+    assert stored
+    assert '"rows"' not in json.dumps(stored)
+    assert result["data"] == [{"value": 1}, {"value": 2}]
+
+
+@pytest.mark.asyncio
+async def test_query_evidence_survives_persistence_without_reintroducing_rows_into_the_ui_timeline(monkeypatch):
+    from langgraph_orchestration.tool_evidence import history_evidence
+    from service.conversations.conversation_repository import ConversationRepository
+    from service.conversations.conversation_streaming_service import ConversationStreamingService
+
+    class Streamer:
+        async def stream(self, *_args, **_kwargs):
+            yield (
+                "data: "
+                + json.dumps(
+                    {
+                        "type": "tool_start",
+                        "name": "execute_query",
+                        "args": {"query": "select count(*) as total from customers"},
+                    }
+                )
+                + "\n\n"
+            )
+            yield (
+                "data: "
+                + json.dumps(
+                    {
+                        "type": "tool_end",
+                        "name": "execute_query",
+                        "args": {"query": "select count(*) as total from customers"},
+                        "result": {
+                            "success": True,
+                            "execution_id": "saved-count",
+                            "columns": ["total"],
+                            "data": [{"total": 48217}],
+                            "preview": [{"total": 48217}],
+                            "row_count": 1,
+                        },
+                    }
+                )
+                + "\n\n"
+            )
+            yield 'data: {"type":"token","content":"There are 48217 customers."}\n\n'
+
+    _install_terminal_contract_dependencies(monkeypatch, Streamer(), [])
+    saved = []
+    monkeypatch.setattr(ConversationRepository, "store_message", lambda *args, **kwargs: saved.append((args, kwargs)))
+    events = [
+        json.loads(line.removeprefix("data: "))
+        async for line in ConversationStreamingService.create_streaming_generator(
+            "chat",
+            "How many customers?",
+            "owner",
+            run_policy=_resolve(),
+        )
+        if line.startswith("data: ")
+    ]
+    end = next(event for event in events if event["type"] == "tool_end")
+    assert "data" not in end["result"] and "preview" not in end["result"]
+    assert "model_evidence" not in end
+    assistant = next(kwargs for args, kwargs in saved if args[1] == "ai")
+    tool = next(item for item in assistant["timeline"] if item["type"] == "tool")
+    evidence = json.loads(tool["model_evidence"])
+    assert evidence["result"]["preview"] == [{"total": 48217}]
+    assert "data" not in json.loads(tool["result"])
+    assert "48217" in history_evidence({"timeline": [tool]})
+    assert evidence["evidence_complete"] is True
+    from controller.conversations_controller import _sanitize_messages
+
+    ui_history = _sanitize_messages([{"timeline": [tool]}])
+    assert "model_evidence" not in ui_history[0]["timeline"][0]
+    assert "model_evidence" in tool

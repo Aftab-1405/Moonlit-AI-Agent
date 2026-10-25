@@ -1,13 +1,14 @@
-import { Box, IconButton, Stack, Tooltip, Typography, useMediaQuery } from '@mui/material';
+import { Box, CircularProgress, IconButton, MenuList, Tooltip, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { memo } from 'react';
-import { CloseIcon, FullscreenEnterIcon, FullscreenExitIcon } from '@/components/icons';
+import { memo, useEffect, useRef, useState } from 'react';
+import { AppPopover, AppPopoverItem } from '@/components';
+import { CloseIcon, FullscreenEnterIcon, FullscreenExitIcon, MoreIcon } from '@/components/icons';
 import {
   ARTIFACT_ROOT_SX,
   getArtifactActionButtonSx,
   useArtifactActions,
 } from '@/features/sidebar-right/artifact-loader/artifactLayoutUtils';
-import { getAppBarSurfaceSx, getAppDividerColor } from '@/features/styles/interfaceChrome';
+import { getAppDividerColor } from '@/features/styles/interfaceChrome';
 import { getScrollbarStyles } from '@/styles/shared';
 
 /**
@@ -18,19 +19,101 @@ import { getScrollbarStyles } from '@/styles/shared';
  *   - `ArtifactHeader`        — title + subtitle + actions row
  *   - `ArtifactToolbar`       — secondary controls row below the header
  *   - `ArtifactBody`          — scrollable content area
+ *   - `ArtifactCanvasPanel`   — clipped canvas surface
+ *   - `ArtifactUtilityPanel`  — clipped raised utility surface
+ *   - `ArtifactPanelOverlay`  — inherited surface for loading/errors
  *   - `ArtifactFooter`        — optional bottom action bar
  *   - `ArtifactEmptyState`    — centred placeholder for empty / error states
  *
- * All sections share the same divider colour (`getAppDividerColor`) and
- * surface treatment (`getAppBarSurfaceSx`) so the panel reads as one
- * cohesive surface rather than a stack of disconnected cards.
+ * The shared header has no divider. Panel geometry and surface roles live here;
+ * renderers own their content, not independent card treatments.
  */
 
 function getArtifactBarSx(theme) {
   return {
     borderColor: getAppDividerColor(theme),
-    ...getAppBarSurfaceSx(theme),
+    bgcolor: 'background.default',
+    backgroundImage: 'none',
   };
+}
+
+// Panel geometry belongs here; renderers supply only content and sizing.
+function ArtifactPanel({ children, sx = [], ...props }) {
+  return (
+    <Box
+      {...props}
+      sx={[
+        {
+          flex: 1,
+          minHeight: 0,
+          minWidth: 0,
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          position: 'relative',
+          boxSizing: 'border-box',
+          overflow: 'hidden',
+          isolation: 'isolate',
+          borderRadius: (theme) => `${theme.shape.radius.artifactPanel}px`,
+          border: '1px solid',
+          borderColor: 'border.subtle',
+          boxShadow: 'none',
+          backgroundImage: 'none',
+        },
+        ...(Array.isArray(sx) ? sx : [sx]),
+      ]}
+    >
+      {children}
+    </Box>
+  );
+}
+
+export function ArtifactCanvasPanel({ sx = [], ...props }) {
+  return (
+    <ArtifactPanel
+      {...props}
+      sx={[{ bgcolor: 'background.default' }, ...(Array.isArray(sx) ? sx : [sx])]}
+    />
+  );
+}
+
+export function ArtifactUtilityPanel({ sx = [], ...props }) {
+  return (
+    <ArtifactPanel
+      {...props}
+      sx={[{ bgcolor: 'background.paper' }, ...(Array.isArray(sx) ? sx : [sx])]}
+    />
+  );
+}
+
+export function ArtifactPanelOverlay({ children }) {
+  return (
+    <Box
+      sx={{
+        position: 'absolute',
+        inset: 0,
+        zIndex: 2,
+        display: 'flex',
+        flexDirection: 'column',
+        bgcolor: 'inherit',
+        borderRadius: 'inherit',
+        overflow: 'hidden',
+      }}
+    >
+      {children}
+    </Box>
+  );
+}
+
+export function ArtifactLoadingState({ title = 'Loading artifact' }) {
+  return (
+    <ArtifactEmptyState
+      role="status"
+      ariaLive="polite"
+      title={title}
+      icon={<CircularProgress size={28} sx={{ color: 'text.secondary' }} />}
+    />
+  );
 }
 
 function ArtifactActionButton({
@@ -40,6 +123,7 @@ function ArtifactActionButton({
   disabled = false,
   active,
   size = 36,
+  menuOpen,
 }) {
   const theme = useTheme();
 
@@ -50,6 +134,8 @@ function ArtifactActionButton({
           size="small"
           aria-label={label}
           aria-pressed={active}
+          aria-haspopup={menuOpen === undefined ? undefined : 'menu'}
+          aria-expanded={menuOpen}
           onClick={onClick}
           disabled={disabled}
           sx={getArtifactActionButtonSx(theme, { active, size })}
@@ -63,7 +149,6 @@ function ArtifactActionButton({
 
 function ArtifactToolbar({ children, sx = {} }) {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   if (!children) return null;
 
@@ -71,7 +156,7 @@ function ArtifactToolbar({ children, sx = {} }) {
     <Box
       sx={{
         flexShrink: 0,
-        p: isMobile ? 1.5 : 2,
+        p: 1,
         borderBottom: '1px solid',
         ...getArtifactBarSx(theme),
         ...sx,
@@ -82,83 +167,104 @@ function ArtifactToolbar({ children, sx = {} }) {
   );
 }
 
-function ArtifactHeader({ icon, title, subtitle, actions, sx = {} }) {
+function ArtifactHeader({ icon, title, subtitle, actions, outputsSlot }) {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const headerRef = useRef(null);
+  const [compact, setCompact] = useState(false);
+  const [menuAnchor, setMenuAnchor] = useState(null);
   const visibleActions = useArtifactActions(actions);
+  useEffect(() => {
+    const header = headerRef.current;
+    if (!header) return undefined;
+    const measure = () => {
+      const width = header.getBoundingClientRect().width;
+      if (width > 0) setCompact(width < 480);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, []);
+  const isOverflow = (action) =>
+    action.placement === 'overflow' || (compact && action.placement !== 'persistent');
+  const inlineActions = visibleActions.filter((action) => !isOverflow(action));
+  const overflowActions = visibleActions.filter(isOverflow);
 
   return (
     <Box
+      ref={headerRef}
+      component="header"
+      data-artifact-header
       sx={{
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 1.5,
+        gap: 0.5,
         flexShrink: 0,
-        p: isMobile ? 1.5 : 2,
-        borderBottom: '1px solid',
+        minHeight: { xs: 56, md: 52 },
+        px: 1,
         ...getArtifactBarSx(theme),
-        ...sx,
       }}
     >
-      <Stack direction="row" alignItems="center" gap={1} minWidth={0} flex={1}>
-        {icon ? (
-          <Box
-            sx={{
-              width: 30,
-              height: 30,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'text.secondary',
-              flexShrink: 0,
-            }}
-          >
-            {icon}
-          </Box>
-        ) : null}
-        <Box sx={{ minWidth: 0 }}>
-          <Typography
-            noWrap
-            sx={{
-              ...theme.typography.uiBodyMd,
-              fontWeight: 400,
-              color: 'text.primary',
-              lineHeight: 1.35,
-            }}
-          >
-            {title}
-          </Typography>
-          {subtitle ? (
-            <Typography
-              noWrap
-              sx={{
-                ...theme.typography.uiCaptionSm,
-                color: 'text.secondary',
-                mt: 0.25,
-                display: { xs: 'none', sm: 'block' },
-              }}
-            >
-              {subtitle}
-            </Typography>
-          ) : null}
-        </Box>
-      </Stack>
-
-      {visibleActions.length ? (
-        <Stack
-          direction="row"
-          alignItems="center"
-          gap={0.5}
-          flexShrink={0}
-          flexWrap="wrap"
-          justifyContent="flex-end"
-        >
-          {visibleActions.map(({ key, ...actionProps }) => (
-            <ArtifactActionButton key={key || actionProps.label} {...actionProps} />
-          ))}
-        </Stack>
+      {icon ? (
+        <Box sx={{ display: 'flex', color: 'text.secondary', flexShrink: 0 }}>{icon}</Box>
       ) : null}
+      <Box sx={{ flex: 1, minWidth: 0, px: 0.5 }}>
+        <Typography
+          component="h2"
+          title={title}
+          noWrap
+          sx={{ ...theme.typography.uiBodyMd, fontWeight: 400, color: 'text.primary' }}
+        >
+          {title}
+        </Typography>
+        {subtitle ? (
+          <Typography noWrap sx={{ ...theme.typography.uiCaptionSm, color: 'text.secondary' }}>
+            {subtitle}
+          </Typography>
+        ) : null}
+      </Box>
+      {outputsSlot}
+      {inlineActions
+        .filter((action) => action.placement !== 'persistent')
+        .map(({ key, placement: _placement, ...action }) => (
+          <ArtifactActionButton key={key || action.label} {...action} />
+        ))}
+      {overflowActions.length ? (
+        <>
+          <ArtifactActionButton
+            menuOpen={Boolean(menuAnchor)}
+            label="More artifact actions"
+            icon={<MoreIcon />}
+            onClick={(event) => setMenuAnchor(event.currentTarget)}
+          />
+          <AppPopover
+            anchorEl={menuAnchor}
+            open={Boolean(menuAnchor)}
+            onClose={() => setMenuAnchor(null)}
+            width={260}
+          >
+            <MenuList aria-label="Artifact actions" sx={{ p: 0 }}>
+              {overflowActions.map((action) => (
+                <AppPopoverItem
+                  key={action.key || action.label}
+                  label={action.label}
+                  icon={action.icon}
+                  disabled={action.disabled}
+                  onClick={(event) => {
+                    setMenuAnchor(null);
+                    action.onClick?.(event);
+                  }}
+                />
+              ))}
+            </MenuList>
+          </AppPopover>
+        </>
+      ) : null}
+      {inlineActions
+        .filter((action) => action.placement === 'persistent')
+        .map(({ key, placement: _placement, ...action }) => (
+          <ArtifactActionButton key={key || action.label} {...action} />
+        ))}
     </Box>
   );
 }
@@ -174,6 +280,9 @@ function ArtifactBody({ children, component = 'div', scroll = 'auto', sx = {} })
         minHeight: 0,
         minWidth: 0,
         overflow: scroll,
+        p: 1,
+        display: 'flex',
+        flexDirection: 'column',
         ...getScrollbarStyles(theme),
         ...sx,
       }}
@@ -185,7 +294,6 @@ function ArtifactBody({ children, component = 'div', scroll = 'auto', sx = {} })
 
 function ArtifactFooter({ children, sx = {} }) {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   if (!children) return null;
 
@@ -193,8 +301,8 @@ function ArtifactFooter({ children, sx = {} }) {
     <Box
       sx={{
         flexShrink: 0,
-        px: isMobile ? 1.5 : 2,
-        py: 1.5,
+        px: 1,
+        py: 1,
         borderTop: '1px solid',
         ...getArtifactBarSx(theme),
         ...sx,
@@ -259,6 +367,7 @@ function ArtifactShell({
   title,
   subtitle,
   icon,
+  outputsSlot,
   chrome = 'standalone',
   onClose,
   onRequestClose,
@@ -286,6 +395,7 @@ function ArtifactShell({
     isStandalone && fullscreenMode === 'workspace' && handleFullscreenClick
       ? {
           key: 'fullscreen',
+          placement: 'persistent',
           label: isFullscreen ? 'Exit fullscreen' : 'Fullscreen',
           icon: isFullscreen ? (
             <FullscreenExitIcon sx={{ fontSize: 18 }} />
@@ -299,6 +409,7 @@ function ArtifactShell({
     isStandalone && requestClose
       ? {
           key: 'close',
+          placement: 'persistent',
           label: 'Close artifact',
           icon: <CloseIcon sx={{ fontSize: 18 }} />,
           onClick: requestClose,
@@ -320,7 +431,13 @@ function ArtifactShell({
       }}
     >
       {isStandalone ? (
-        <ArtifactHeader icon={icon} title={title} subtitle={subtitle} actions={shellActions} />
+        <ArtifactHeader
+          icon={icon}
+          title={title}
+          subtitle={subtitle}
+          actions={shellActions}
+          outputsSlot={outputsSlot}
+        />
       ) : null}
       {controls ? <ArtifactToolbar>{controls}</ArtifactToolbar> : null}
       <ArtifactBody scroll={bodyScroll} sx={bodySx}>

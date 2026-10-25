@@ -349,7 +349,7 @@ class ConversationRepository:
         sender: str,
         message: str,
         user_id: str,
-        tools: List[Dict] = None,
+        tools: Optional[List[Dict]] = None,
         *,
         thinking: Optional[str] = None,
         timeline: Optional[List[Dict]] = None,

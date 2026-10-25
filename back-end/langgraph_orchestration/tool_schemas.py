@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from api_contract.query_schemas import QueryColumnMetadata, QueryResultData, QueryResultMetadata
 from core.errors import log_safe_exception, public_error_for_code
 
 logger = logging.getLogger(__name__)
@@ -380,6 +381,10 @@ class QueryResult(ToolResultBase):
     """
 
     data: List[Dict[str, Any]] = Field(default_factory=list)
+    tabular_result: QueryResultData | None = None
+    column_metadata: List[QueryColumnMetadata] = Field(default_factory=list)
+    result_metadata: QueryResultMetadata | None = None
+    execution_time_ms: float = 0
     row_count: int = 0  # Actual rows returned (after truncation)
     total_rows: Optional[int] = None  # Exact total only when known
     column_count: int = 0
@@ -767,6 +772,10 @@ def structure_tool_result(tool_name: str, raw_result: Dict[str, Any]) -> Dict[st
 
             return QueryResult(
                 data=data,
+                tabular_result=raw_result.get("tabular_result"),
+                column_metadata=raw_result.get("column_metadata", []),
+                result_metadata=raw_result.get("result_metadata"),
+                execution_time_ms=raw_result.get("execution_time_ms", 0),
                 row_count=row_count,
                 total_rows=total_rows,
                 column_count=len(columns),

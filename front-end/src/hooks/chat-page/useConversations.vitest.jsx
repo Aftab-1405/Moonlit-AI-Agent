@@ -1,8 +1,8 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   deleteConversation,
   getAllUserConversations,
@@ -46,6 +46,10 @@ function ConversationHarness() {
       <output aria-label="Transcript">
         {conversations.messages.map((message) => message.text).join('|')}
       </output>
+      <button type="button" onClick={() => conversations.loadOlderMessages()}>
+        Load history
+      </button>
+      <output aria-label="History state">{JSON.stringify(conversations.history)}</output>
       <output aria-label="Conversation list">
         {conversations.conversations.map((conversation) => conversation.id).join('|')}
       </output>
@@ -225,4 +229,147 @@ describe('conversation session routing', () => {
       expect(screen.getByLabelText('Transcript').textContent).toBe('Message from B');
     });
   });
+});
+
+describe('cursor transcript loading', () => {
+  const response = (messages, before = null) => ({
+    status: 'success',
+    conversation: {
+      messages,
+      pagination: { has_more: Boolean(before), before },
+    },
+  });
+  const message = (id, content) => ({ id, sender: 'user', content });
+
+  it('merges older pages once without losing a concurrently appended live message', async () => {
+    const older = deferred();
+    getConversation
+      .mockResolvedValueOnce(response([message('recent', 'Recent')], 'before-recent'))
+      .mockReturnValueOnce(older.promise);
+    const user = userEvent.setup();
+    renderAt('/chat/conversation-a');
+    await waitFor(() => expect(screen.getByLabelText('Transcript').textContent).toBe('Recent'));
+    const cached = queryClient.getQueryData(['chatSessions', 'conversation:conversation-a']);
+    await user.click(screen.getByRole('button', { name: 'Load history' }));
+    await user.click(screen.getByRole('button', { name: 'Load history' }));
+    expect(getConversation).toHaveBeenCalledTimes(2);
+    expect(getConversation).toHaveBeenLastCalledWith('conversation-a', expect.any(AbortSignal), {
+      limit: 30,
+      before: 'before-recent',
+    });
+    act(() =>
+      queryClient.setQueryData(['chatSessions', 'conversation:conversation-a'], (current) => ({
+        ...current,
+        messages: [
+          ...current.messages,
+          { id: 'live', role: 'assistant', text: 'Streaming', status: 'streaming' },
+        ],
+      })),
+    );
+    await act(async () =>
+      older.resolve(response([message('old', 'Older'), message('recent', 'Duplicate')])),
+    );
+    await waitFor(() =>
+      expect(screen.getByLabelText('Transcript').textContent).toBe('Older|Recent|Streaming'),
+    );
+    expect(
+      queryClient.getQueryData(['chatSessions', 'conversation:conversation-a']).messages[1],
+    ).toEqual(cached.messages[0]);
+    await user.click(screen.getByRole('button', { name: 'Load history' }));
+    expect(getConversation).toHaveBeenCalledTimes(2);
+  });
+
+  it('cancels history on a conversation switch and ignores a response that arrives afterward', async () => {
+    const older = deferred();
+    getConversation
+      .mockResolvedValueOnce(response([message('a', 'A')], 'before-a'))
+      .mockReturnValueOnce(older.promise)
+      .mockResolvedValueOnce(response([message('b', 'B')]));
+    const user = userEvent.setup();
+    renderAt('/chat/conversation-a');
+    await waitFor(() => expect(screen.getByLabelText('Transcript').textContent).toBe('A'));
+    await user.click(screen.getByRole('button', { name: 'Load history' }));
+    const signal = getConversation.mock.calls[1][1];
+    await user.click(screen.getByRole('button', { name: 'Select B' }));
+    await waitFor(() => expect(screen.getByLabelText('Transcript').textContent).toBe('B'));
+    expect(signal.aborted).toBe(true);
+    await act(async () => older.resolve(response([message('old', 'Wrong chat')])));
+    expect(screen.getByLabelText('Transcript').textContent).toBe('B');
+    expect(
+      queryClient.getQueryData(['chatSessions', 'conversation:conversation-a']).history.isLoading,
+    ).toBe(false);
+  });
+
+  it('keeps the cursor after failure and allows retry', async () => {
+    getConversation
+      .mockResolvedValueOnce(response([message('a', 'A')], 'before-a'))
+      .mockRejectedValueOnce(new Error('Offline'))
+      .mockResolvedValueOnce(response([message('old', 'Older')]));
+    const user = userEvent.setup();
+    renderAt('/chat/conversation-a');
+    await waitFor(() => expect(screen.getByLabelText('Transcript').textContent).toBe('A'));
+    await user.click(screen.getByRole('button', { name: 'Load history' }));
+    await waitFor(() =>
+      expect(screen.getByLabelText('History state').textContent).toContain('Couldn’t load'),
+    );
+    expect(screen.getByLabelText('Transcript').textContent).toBe('A');
+    await user.click(screen.getByRole('button', { name: 'Load history' }));
+    await waitFor(() => expect(screen.getByLabelText('Transcript').textContent).toBe('Older|A'));
+  });
+});
+
+it('restores loaded cursor history from the detail cache without refetching or losing the next boundary', async () => {
+  const response = (id, text, before) => ({
+    status: 'success',
+    conversation: {
+      messages: [{ id, sender: 'user', content: text }],
+      pagination: { has_more: true, before },
+    },
+  });
+  getConversation
+    .mockResolvedValueOnce(response('recent', 'Recent', 'page-2'))
+    .mockResolvedValueOnce(response('old', 'Older', 'page-1'));
+  const user = userEvent.setup();
+  const first = renderAt('/chat/conversation-a');
+  await waitFor(() => expect(screen.getByLabelText('Transcript').textContent).toBe('Recent'));
+  await user.click(screen.getByRole('button', { name: 'Load history' }));
+  await waitFor(() => expect(screen.getByLabelText('Transcript').textContent).toBe('Older|Recent'));
+  first.unmount();
+  queryClient.removeQueries({ queryKey: ['chatSessions', 'conversation:conversation-a'] });
+  renderAt('/chat/conversation-a');
+  await waitFor(() => expect(screen.getByLabelText('Transcript').textContent).toBe('Older|Recent'));
+  expect(screen.getByLabelText('History state').textContent).toContain('page-1');
+  expect(getConversation).toHaveBeenCalledTimes(2);
+});
+
+it('does not recreate a deleted conversation when its pending history response arrives', async () => {
+  const older = deferred();
+  getConversation
+    .mockResolvedValueOnce({
+      status: 'success',
+      conversation: {
+        messages: [{ id: 'recent', sender: 'user', content: 'Recent' }],
+        pagination: { has_more: true, before: 'page-2' },
+      },
+    })
+    .mockReturnValueOnce(older.promise);
+  const user = userEvent.setup();
+  renderAt('/chat/conversation-a');
+  await waitFor(() => expect(screen.getByLabelText('Transcript').textContent).toBe('Recent'));
+  await user.click(screen.getByRole('button', { name: 'Load history' }));
+  const signal = getConversation.mock.calls[1][1];
+  await user.click(screen.getByRole('button', { name: 'Delete A' }));
+  await waitFor(() =>
+    expect(screen.getByLabelText('Current conversation').textContent).toBe('new'),
+  );
+  await act(async () =>
+    older.resolve({
+      status: 'success',
+      conversation: { messages: [{ id: 'old', sender: 'user', content: 'Deleted history' }] },
+    }),
+  );
+  expect(signal.aborted).toBe(true);
+  expect(queryClient.getQueryData(['chatSessions', 'conversation:conversation-a'])).toBeUndefined();
+  expect(queryClient.getQueryData(['conversations', 'detail', 'conversation-a'])).toBeUndefined();
+  expect(screen.getByLabelText('Transcript').textContent).toBe('');
 });

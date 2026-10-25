@@ -64,7 +64,7 @@ def dedupe_select_budget_then_sort(
     """
     budget = int(budget_tokens)
 
-    by_id = {}
+    by_id: dict[str, dict] = {}
     for block in blocks:
         unit_id = block.get("unit_id") or block.get("summary_id")
         if not unit_id:

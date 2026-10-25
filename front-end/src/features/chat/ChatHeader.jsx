@@ -123,8 +123,14 @@ const ChatHeader = memo(function ChatHeader({
       component="header"
       aria-label="Conversation header"
       sx={{
-        height: 48,
-        minHeight: 48,
+        height: {
+          xs: 48,
+          md: UI_LAYOUT.workspaceTopRowHeight - 2 * UI_LAYOUT.workspaceFrameBorderWidth,
+        },
+        minHeight: {
+          xs: 48,
+          md: UI_LAYOUT.workspaceTopRowHeight - 2 * UI_LAYOUT.workspaceFrameBorderWidth,
+        },
         flexShrink: 0,
         display: 'flex',
         alignItems: 'center',
@@ -161,7 +167,7 @@ const ChatHeader = memo(function ChatHeader({
           <IconButton
             aria-label="New chat"
             onClick={onNewChat}
-            sx={{ borderRadius: '10px', flexShrink: 0 }}
+            sx={{ borderRadius: '9999px', flexShrink: 0 }}
           >
             <NewChatIcon sx={{ fontSize: 20 }} />
           </IconButton>

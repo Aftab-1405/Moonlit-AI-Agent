@@ -89,11 +89,7 @@ def current_request_id() -> str | None:
 
 def _sanitize_inbound(value: str) -> str:
     """Return ``value`` if it matches the safe charset, else a fresh ID."""
-    if (
-        1 <= len(value) <= 64
-        and value.isascii()
-        and all(c.isalnum() or c in "-_" for c in value)
-    ):
+    if 1 <= len(value) <= 64 and value.isascii() and all(c.isalnum() or c in "-_" for c in value):
         return value
     return _generate_request_id()
 

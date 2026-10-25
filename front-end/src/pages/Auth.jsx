@@ -532,10 +532,31 @@ function Auth() {
               variant="contained"
               onClick={handlePasswordReset}
               disabled={authBusy}
-              startIcon={authOperation === 'reset' ? <ButtonLoadingSpinner size={14} /> : null}
+              loading={authOperation === 'reset'}
               sx={getConfirmActionGeometrySx(theme)}
             >
-              {authOperation === 'reset' ? 'Sending' : 'Send reset link'}
+              <Box component="span" sx={{ display: 'grid' }}>
+                <Box
+                  component="span"
+                  aria-hidden={authOperation === 'reset'}
+                  sx={{
+                    gridArea: '1 / 1',
+                    visibility: authOperation === 'reset' ? 'hidden' : 'visible',
+                  }}
+                >
+                  Send reset link
+                </Box>
+                <Box
+                  component="span"
+                  aria-hidden={authOperation !== 'reset'}
+                  sx={{
+                    gridArea: '1 / 1',
+                    visibility: authOperation === 'reset' ? 'visible' : 'hidden',
+                  }}
+                >
+                  Sending
+                </Box>
+              </Box>
             </Button>
           </>
         }

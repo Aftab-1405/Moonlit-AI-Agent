@@ -1,5 +1,5 @@
-import { useSyncExternalStore } from 'react';
 import { act, renderHook, waitFor } from '@testing-library/react';
+import { useSyncExternalStore } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { resumeAgent, sendMessage } from '@/api';
 import { requestDashboardNavigation } from '@/features/dashboard/dashboardModel';
@@ -47,7 +47,9 @@ function createHarness() {
   };
   const updateSession = (key, updater) => {
     sessions.set(key, updater(getSession(key)));
-    listeners.forEach((listener) => listener());
+    listeners.forEach((listener) => {
+      listener();
+    });
   };
   const props = {
     getSession,

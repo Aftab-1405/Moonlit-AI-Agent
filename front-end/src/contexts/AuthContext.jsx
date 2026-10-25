@@ -33,12 +33,12 @@ import {
   getGoogleProvider,
   initializeFirebase,
 } from '@/config/firebase';
-import { normalizeAuthUser } from '@/utils/authUserProfile';
 import {
   canUnlinkProvider,
   clearAccountStorage,
   normalizeDisplayName,
 } from '@/features/dashboard/accountModel';
+import { normalizeAuthUser } from '@/utils/authUserProfile';
 import logger from '@/utils/logger';
 
 /**
@@ -158,11 +158,14 @@ export const AuthProvider = ({ children }) => {
    * Handshake function: Takes the Firebase user token, passes it to the backend's
    * /set_authenticated_user_session route to establish a secure backend cookie session, and normalizes the output.
    */
-  const establishBackendSession = useCallback(async (firebaseUser, { forceRefresh = false } = {}) => {
-    const idToken = await firebaseUser.getIdToken(forceRefresh);
-    const sessionResponse = await setBackendSession({ idToken });
-    return normalizeAuthUser(firebaseUser, getSessionUser(sessionResponse));
-  }, []);
+  const establishBackendSession = useCallback(
+    async (firebaseUser, { forceRefresh = false } = {}) => {
+      const idToken = await firebaseUser.getIdToken(forceRefresh);
+      const sessionResponse = await setBackendSession({ idToken });
+      return normalizeAuthUser(firebaseUser, getSessionUser(sessionResponse));
+    },
+    [],
+  );
 
   const currentFirebaseUser = useCallback(() => {
     const firebaseUser = getFirebaseAuth()?.currentUser;
@@ -328,47 +331,56 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const updateDisplayName = useCallback(async (value) => {
-    setError(null);
-    try {
-      const displayName = normalizeDisplayName(value);
-      const firebaseUser = currentFirebaseUser();
-      await updateProfile(firebaseUser, { displayName });
-      const normalizedUser = await establishBackendSession(firebaseUser, { forceRefresh: true });
-      setUser(normalizedUser);
-      return normalizedUser;
-    } catch (err) {
-      setError(getErrorMessage(err));
-      throw err;
-    }
-  }, [currentFirebaseUser, establishBackendSession]);
+  const updateDisplayName = useCallback(
+    async (value) => {
+      setError(null);
+      try {
+        const displayName = normalizeDisplayName(value);
+        const firebaseUser = currentFirebaseUser();
+        await updateProfile(firebaseUser, { displayName });
+        const normalizedUser = await establishBackendSession(firebaseUser, { forceRefresh: true });
+        setUser(normalizedUser);
+        return normalizedUser;
+      } catch (err) {
+        setError(getErrorMessage(err));
+        throw err;
+      }
+    },
+    [currentFirebaseUser, establishBackendSession],
+  );
 
-  const requestEmailChange = useCallback(async (email) => {
-    setError(null);
-    try {
-      const firebaseUser = currentFirebaseUser();
-      await verifyBeforeUpdateEmail(firebaseUser, String(email || '').trim(), {
-        url: `${window.location.origin}/dashboard/account`,
-      });
-      return true;
-    } catch (err) {
-      setError(getErrorMessage(err));
-      throw err;
-    }
-  }, [currentFirebaseUser]);
+  const requestEmailChange = useCallback(
+    async (email) => {
+      setError(null);
+      try {
+        const firebaseUser = currentFirebaseUser();
+        await verifyBeforeUpdateEmail(firebaseUser, String(email || '').trim(), {
+          url: `${window.location.origin}/dashboard/account`,
+        });
+        return true;
+      } catch (err) {
+        setError(getErrorMessage(err));
+        throw err;
+      }
+    },
+    [currentFirebaseUser],
+  );
 
-  const changePassword = useCallback(async (password) => {
-    setError(null);
-    try {
-      const firebaseUser = currentFirebaseUser();
-      await updatePassword(firebaseUser, password);
-      await establishBackendSession(firebaseUser, { forceRefresh: true });
-      return true;
-    } catch (err) {
-      setError(getErrorMessage(err));
-      throw err;
-    }
-  }, [currentFirebaseUser, establishBackendSession]);
+  const changePassword = useCallback(
+    async (password) => {
+      setError(null);
+      try {
+        const firebaseUser = currentFirebaseUser();
+        await updatePassword(firebaseUser, password);
+        await establishBackendSession(firebaseUser, { forceRefresh: true });
+        return true;
+      } catch (err) {
+        setError(getErrorMessage(err));
+        throw err;
+      }
+    },
+    [currentFirebaseUser, establishBackendSession],
+  );
 
   const sendCurrentUserPasswordReset = useCallback(async () => {
     const firebaseUser = currentFirebaseUser();
@@ -382,75 +394,90 @@ export const AuthProvider = ({ children }) => {
     throw new Error('Unsupported sign-in provider.');
   }, []);
 
-  const linkAuthProvider = useCallback(async (providerId, credentials = {}) => {
-    setError(null);
-    try {
-      const firebaseUser = currentFirebaseUser();
-      if (providerId === 'password') {
-        const email = String(credentials.email || firebaseUser.email || '').trim();
-        if (!email || !credentials.password) throw new Error('Email and password are required.');
-        await linkWithCredential(firebaseUser, EmailAuthProvider.credential(email, credentials.password));
-      } else {
-        const provider = getOAuthProvider(providerId);
-        if (isMobileDevice()) {
-          sessionStorage.setItem(PENDING_AUTH_ACTION_KEY, JSON.stringify({ type: 'link', providerId }));
-          await linkWithRedirect(firebaseUser, provider);
-          return { redirected: true };
-        }
-        await linkWithPopup(firebaseUser, provider);
-      }
-      return refreshCurrentUser();
-    } catch (err) {
-      setError(getErrorMessage(err));
-      throw err;
-    }
-  }, [currentFirebaseUser, getOAuthProvider, refreshCurrentUser]);
-
-  const unlinkAuthProvider = useCallback(async (providerId) => {
-    setError(null);
-    try {
-      if (!canUnlinkProvider(user?.providerIds, providerId)) {
-        throw new Error('The last sign-in method cannot be removed.');
-      }
-      const firebaseUser = currentFirebaseUser();
-      await unlink(firebaseUser, providerId);
-      return refreshCurrentUser();
-    } catch (err) {
-      setError(getErrorMessage(err));
-      throw err;
-    }
-  }, [currentFirebaseUser, refreshCurrentUser, user?.providerIds]);
-
-  const reauthenticateCurrentUser = useCallback(async ({ providerId, password } = {}) => {
-    setError(null);
-    try {
-      const firebaseUser = currentFirebaseUser();
-      const selectedProvider = providerId || user?.providerIds?.[0];
-      if (selectedProvider === 'password') {
-        if (!firebaseUser.email || !password) throw new Error('Current password is required.');
-        await reauthenticateWithCredential(
-          firebaseUser,
-          EmailAuthProvider.credential(firebaseUser.email, password),
-        );
-      } else if (!hasRecentRedirectReauthentication(firebaseUser.uid, selectedProvider)) {
-        const provider = getOAuthProvider(selectedProvider);
-        if (isMobileDevice()) {
-          sessionStorage.setItem(
-            PENDING_AUTH_ACTION_KEY,
-            JSON.stringify({ type: 'reauthenticate', providerId: selectedProvider }),
+  const linkAuthProvider = useCallback(
+    async (providerId, credentials = {}) => {
+      setError(null);
+      try {
+        const firebaseUser = currentFirebaseUser();
+        if (providerId === 'password') {
+          const email = String(credentials.email || firebaseUser.email || '').trim();
+          if (!email || !credentials.password) throw new Error('Email and password are required.');
+          await linkWithCredential(
+            firebaseUser,
+            EmailAuthProvider.credential(email, credentials.password),
           );
-          await reauthenticateWithRedirect(firebaseUser, provider);
-          return { redirected: true };
+        } else {
+          const provider = getOAuthProvider(providerId);
+          if (isMobileDevice()) {
+            sessionStorage.setItem(
+              PENDING_AUTH_ACTION_KEY,
+              JSON.stringify({ type: 'link', providerId }),
+            );
+            await linkWithRedirect(firebaseUser, provider);
+            return { redirected: true };
+          }
+          await linkWithPopup(firebaseUser, provider);
         }
-        await reauthenticateWithPopup(firebaseUser, provider);
+        return refreshCurrentUser();
+      } catch (err) {
+        setError(getErrorMessage(err));
+        throw err;
       }
-      await establishBackendSession(firebaseUser, { forceRefresh: true });
-      return { redirected: false };
-    } catch (err) {
-      setError(getErrorMessage(err));
-      throw err;
-    }
-  }, [currentFirebaseUser, establishBackendSession, getOAuthProvider, user?.providerIds]);
+    },
+    [currentFirebaseUser, getOAuthProvider, refreshCurrentUser],
+  );
+
+  const unlinkAuthProvider = useCallback(
+    async (providerId) => {
+      setError(null);
+      try {
+        if (!canUnlinkProvider(user?.providerIds, providerId)) {
+          throw new Error('The last sign-in method cannot be removed.');
+        }
+        const firebaseUser = currentFirebaseUser();
+        await unlink(firebaseUser, providerId);
+        return refreshCurrentUser();
+      } catch (err) {
+        setError(getErrorMessage(err));
+        throw err;
+      }
+    },
+    [currentFirebaseUser, refreshCurrentUser, user?.providerIds],
+  );
+
+  const reauthenticateCurrentUser = useCallback(
+    async ({ providerId, password } = {}) => {
+      setError(null);
+      try {
+        const firebaseUser = currentFirebaseUser();
+        const selectedProvider = providerId || user?.providerIds?.[0];
+        if (selectedProvider === 'password') {
+          if (!firebaseUser.email || !password) throw new Error('Current password is required.');
+          await reauthenticateWithCredential(
+            firebaseUser,
+            EmailAuthProvider.credential(firebaseUser.email, password),
+          );
+        } else if (!hasRecentRedirectReauthentication(firebaseUser.uid, selectedProvider)) {
+          const provider = getOAuthProvider(selectedProvider);
+          if (isMobileDevice()) {
+            sessionStorage.setItem(
+              PENDING_AUTH_ACTION_KEY,
+              JSON.stringify({ type: 'reauthenticate', providerId: selectedProvider }),
+            );
+            await reauthenticateWithRedirect(firebaseUser, provider);
+            return { redirected: true };
+          }
+          await reauthenticateWithPopup(firebaseUser, provider);
+        }
+        await establishBackendSession(firebaseUser, { forceRefresh: true });
+        return { redirected: false };
+      } catch (err) {
+        setError(getErrorMessage(err));
+        throw err;
+      }
+    },
+    [currentFirebaseUser, establishBackendSession, getOAuthProvider, user?.providerIds],
+  );
 
   const deleteCurrentAccount = useCallback(async () => {
     setError(null);

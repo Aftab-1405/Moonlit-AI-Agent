@@ -1,5 +1,5 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { useWorkspaceCanvas } from './useWorkspaceCanvas';
 
@@ -114,4 +114,50 @@ it('bounds resizing to the available space and preserves a usable chat column', 
   } finally {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth });
   }
+});
+
+it('keeps output actions stable during streaming while reading the correct session context', async () => {
+  const { result, rerender } = renderHook((props) => useWorkspaceCanvas(props), {
+    wrapper: cacheWrapper(),
+    initialProps: { sessionKey: 'a', source: { database: 'a' }, historyOutputs: [] },
+  });
+  const openA = result.current.handleOpenCanvasArtifact;
+  const historical = {
+    id: 'history-a',
+    type: 'sql-editor',
+    source: null,
+    props: { initialQuery: 'select 1' },
+  };
+  rerender({ sessionKey: 'a', source: { database: 'updated-a' }, historyOutputs: [historical] });
+  expect(result.current.handleOpenCanvasArtifact).toBe(openA);
+  act(() => openA({ type: 'sql-editor', props: { initialQuery: 'select 1' } }));
+  await waitFor(() => expect(result.current.workspaceCanvasArtifact?.id).toBe('history-a'));
+  expect(result.current.workspaceCanvasArtifact.source).toBeNull();
+  rerender({ sessionKey: 'b', source: { database: 'b' }, historyOutputs: [] });
+  act(() => openA({ id: 'late-a', type: 'sql-editor', props: { initialQuery: 'select 2' } }));
+  expect(result.current.workspaceCanvasArtifact).toBeNull();
+  rerender({ sessionKey: 'a', source: { database: 'updated-a' }, historyOutputs: [historical] });
+  expect(result.current.workspaceCanvasArtifact.source.database).toBe('updated-a');
+});
+
+it('releases row payloads on close while retaining query and execution descriptors', async () => {
+  const { result } = renderHook(() => useWorkspaceCanvas({ sessionKey: 'retention' }), {
+    wrapper: cacheWrapper(),
+  });
+  act(() =>
+    result.current.handleOpenCanvasArtifact({
+      type: 'visualization',
+      props: {
+        sourceQuery: 'select 1',
+        data: { columns: ['a'], rows: [[1]], result_metadata: { execution_id: 'e' } },
+      },
+    }),
+  );
+  await waitFor(() => expect(result.current.workspaceCanvasArtifact).not.toBeNull());
+  act(() => result.current.handleCloseWorkspaceCanvas());
+  await waitFor(() => expect(result.current.workspaceCanvasOpen).toBe(false));
+  expect(result.current.workspaceCanvasArtifact.props.data.rows).toEqual([]);
+  expect(result.current.workspaceCanvasArtifact.props.data.expired).toBe(true);
+  expect(result.current.workspaceCanvasArtifact.props.sourceQuery).toBe('select 1');
+  expect(result.current.workspaceOutputs[0].props.data.result_metadata.execution_id).toBe('e');
 });

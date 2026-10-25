@@ -25,10 +25,11 @@ const monoCaption = (fontSize, lineHeight, letterSpacing) => ({
   textTransform: 'uppercase',
 });
 
-/** Typography roles from docs/design.md, with compatibility aliases for existing UI code. */
+/** Typography roles from repository docs/design-system.md, with compatibility aliases for existing UI code. */
 export const createTypography = (H) => ({
   fontFamily: FONTS.sans,
   fontFamilyMono: FONTS.mono,
+  fontFamilyContent: FONTS.content,
   fontWeightLight: 400,
   fontWeightRegular: 400,
   fontWeightMedium: 400,
@@ -77,11 +78,20 @@ export const createTypography = (H) => ({
   uiBodySm: body('0.875rem', 1.4286),
   uiBodyXs: body('0.75rem', 1.3333),
   uiBodyTable: body('0.875rem', 1.4286),
-  uiResponseBody: body({ xs: '0.9375rem', sm: '1rem' }, 1.65),
-  uiResponseCompact: body({ xs: '0.8rem', sm: '0.875rem' }, 1.55),
-  uiResponseHeading1: display({ xs: '1.25rem', sm: '1.5rem' }, 1.3, '-0.4px'),
-  uiResponseHeading2: display({ xs: '1.125rem', sm: '1.25rem' }, 1.35, '-0.3px'),
-  uiResponseHeading3: display({ xs: '1rem', sm: '1.125rem' }, 1.4, '-0.2px'),
+  uiResponseBody: { ...body({ xs: '0.9375rem', sm: '1rem' }, 1.65), fontFamily: FONTS.content },
+  uiResponseCompact: { ...body({ xs: '0.8rem', sm: '0.875rem' }, 1.55), fontFamily: FONTS.content },
+  uiResponseHeading1: {
+    ...display({ xs: '1.25rem', sm: '1.5rem' }, 1.3, '-0.4px'),
+    fontFamily: FONTS.content,
+  },
+  uiResponseHeading2: {
+    ...display({ xs: '1.125rem', sm: '1.25rem' }, 1.35, '-0.3px'),
+    fontFamily: FONTS.content,
+  },
+  uiResponseHeading3: {
+    ...display({ xs: '1rem', sm: '1.125rem' }, 1.4, '-0.2px'),
+    fontFamily: FONTS.content,
+  },
   uiCaptionMd: body({ xs: '0.75rem', sm: '0.8125rem' }, 1.45),
   uiCaptionSm: body({ xs: '0.72rem', sm: '0.8rem' }, 1.45),
   uiCaptionXs: body({ xs: '0.68rem', sm: '0.75rem' }, 1.4),

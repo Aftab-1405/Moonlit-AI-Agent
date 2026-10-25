@@ -1,7 +1,7 @@
 import { Box, Button, Container, Drawer, IconButton, Stack, Typography } from '@mui/material';
 import { alpha } from '@mui/material/styles';
-import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { CloseIcon, MenuIcon } from '@/components/icons';
 import { useAuth } from '@/contexts/AuthContext';
 import AnalysisSection from '@/pages/Landing/AnalysisSection';
@@ -61,8 +61,7 @@ function MoonlitBrand({ onClick, color = 'text.primary' }) {
   );
 }
 
-function LandingNav({ onGetStarted }) {
-  const navigate = useNavigate();
+function LandingNav({ getStartedTo }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [pendingMobileAnchor, setPendingMobileAnchor] = useState(null);
   const scrolled = useScrolled();
@@ -83,14 +82,6 @@ function LandingNav({ onGetStarted }) {
       window.history.pushState(null, '', pendingMobileAnchor);
     }
     setPendingMobileAnchor(null);
-  };
-  const handleMobileSignIn = () => {
-    closeMobile();
-    navigate('/auth');
-  };
-  const handleMobileGetStarted = () => {
-    closeMobile();
-    onGetStarted();
   };
 
   return (
@@ -128,7 +119,8 @@ function LandingNav({ onGetStarted }) {
             ))}
             <Button
               variant="outlined"
-              onClick={() => navigate('/auth')}
+              component={Link}
+              to="/auth"
               sx={(theme) => ({
                 ml: 1,
                 color: theme.palette.common.white,
@@ -143,7 +135,8 @@ function LandingNav({ onGetStarted }) {
             </Button>
             <Button
               variant="contained"
-              onClick={onGetStarted}
+              component={Link}
+              to={getStartedTo}
               sx={(theme) => ({
                 ml: 0.5,
                 color: theme.palette.common.black,
@@ -219,10 +212,22 @@ function LandingNav({ onGetStarted }) {
               {link.label}
             </Button>
           ))}
-          <Button variant="outlined" onClick={handleMobileSignIn} sx={{ minHeight: 44 }}>
+          <Button
+            variant="outlined"
+            component={Link}
+            to="/auth"
+            onClick={closeMobile}
+            sx={{ minHeight: 44 }}
+          >
             Sign in
           </Button>
-          <Button variant="contained" onClick={handleMobileGetStarted} sx={{ minHeight: 44 }}>
+          <Button
+            variant="contained"
+            component={Link}
+            to={getStartedTo}
+            onClick={closeMobile}
+            sx={{ minHeight: 44 }}
+          >
             Get started
           </Button>
         </Stack>
@@ -231,9 +236,7 @@ function LandingNav({ onGetStarted }) {
   );
 }
 
-function LandingFooter({ onGetStarted }) {
-  const navigate = useNavigate();
-
+function LandingFooter({ getStartedTo }) {
   return (
     <Box component="footer" sx={landingPresentationSx.footer}>
       <Container maxWidth="lg">
@@ -271,10 +274,10 @@ function LandingFooter({ onGetStarted }) {
                 {link.label}
               </Button>
             ))}
-            <Button variant="text" onClick={() => navigate('/auth')}>
+            <Button variant="text" component={Link} to="/auth">
               Sign in
             </Button>
-            <Button variant="outlined" onClick={onGetStarted}>
+            <Button variant="outlined" component={Link} to={getStartedTo}>
               Get started
             </Button>
           </Box>
@@ -290,16 +293,13 @@ function LandingFooter({ onGetStarted }) {
 }
 
 export default function Landing() {
-  const navigate = useNavigate();
   const { isAuthenticated, loading } = useAuth();
 
   useEffect(() => {
     document.title = LANDING_COPY.documentTitle;
   }, []);
 
-  const handleGetStarted = useCallback(() => {
-    navigate(getLandingDestination({ loading, isAuthenticated }));
-  }, [navigate, isAuthenticated, loading]);
+  const getStartedTo = getLandingDestination({ loading, isAuthenticated });
 
   return (
     <Box
@@ -315,9 +315,9 @@ export default function Landing() {
       }}
     >
       <Box id="top" aria-hidden="true" sx={{ height: 0 }} />
-      <LandingNav onGetStarted={handleGetStarted} />
+      <LandingNav getStartedTo={getStartedTo} />
       <Box component="main">
-        <Hero onGetStarted={handleGetStarted} />
+        <Hero getStartedTo={getStartedTo} />
         <ProductShowcase />
         <SchemaIntelligenceSection />
         <SqlControlSection />
@@ -327,9 +327,9 @@ export default function Landing() {
         <SecuritySection />
         <DatabaseStrip />
         <FaqSection />
-        <FinalCTA onGetStarted={handleGetStarted} />
+        <FinalCTA getStartedTo={getStartedTo} />
       </Box>
-      <LandingFooter onGetStarted={handleGetStarted} />
+      <LandingFooter getStartedTo={getStartedTo} />
     </Box>
   );
 }

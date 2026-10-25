@@ -2,7 +2,8 @@
 
 Each borrow opens a connection; the pool tracks live connections in a private
 config copy so disconnect can close them. Driver query/login timeouts bound
-network operations, and SET LOCK_TIMEOUT bounds server-side lock waits.
+query execution at the configured fixed duration. Per-request timeout changes
+are rejected because the driver exposes process-wide timeout state.
 """
 
 import logging
@@ -11,7 +12,7 @@ from contextlib import contextmanager
 from typing import Any, Dict, List, Optional
 
 from config import get_config
-from core.errors import log_safe_exception, public_database_error
+from core.errors import UnsupportedQueryTimeout, log_safe_exception, public_database_error
 
 from .base_adapter import BaseDatabaseAdapter
 
@@ -115,7 +116,7 @@ class SQLServerAdapter(BaseDatabaseAdapter):
                 user=user,
                 password=password,
                 database=database,
-                timeout=Config.DB_CONNECT_TIMEOUT_SECONDS,
+                timeout=Config.QUERY_TIMEOUT_SECONDS,
                 login_timeout=Config.DB_LOGIN_TIMEOUT_SECONDS,
             )
             # FIX [L9]: track this connection so close_pool can close it.
@@ -270,7 +271,7 @@ class SQLServerAdapter(BaseDatabaseAdapter):
 
     # Schema Caching Methods (for AI context)
 
-    def get_all_tables_for_cache(self, db_name: str, schema: str = "dbo") -> tuple:
+    def get_all_tables_for_cache(self, db_name: str, schema: str = "dbo") -> tuple[str, tuple[str, ...]]:
         """Return SQL query and params to get all tables for schema caching."""
         query = """
             SELECT TABLE_NAME
@@ -281,40 +282,21 @@ class SQLServerAdapter(BaseDatabaseAdapter):
         return query, (db_name,)
 
     def get_set_timeout_sql(self, timeout_seconds: int) -> Optional[str]:
+        """LOCK_TIMEOUT bounds lock waits only, never statement execution."""
+        return None
+
+    def set_session_timeout(self, conn: Any, seconds: int) -> None:
+        """Use the fixed pymssql execution timeout installed on connect.
+
+        pymssql/FreeTDS exposes a process-wide timeout, not a safe per-request
+        setter. Reject a differing deadline rather than change another user's
+        query timeout or pretend LOCK_TIMEOUT is an execution deadline.
         """
-        Return SQL Server statement-timeout SQL.
-
-        FIX [EC3]: previously this returned ``None`` (the comment claimed
-        "SQL Server handles timeout at connection level, not per query"),
-        which meant the only timeout enforcement was
-        ``asyncio.wait_for(timeout=30)`` in the calling layer. That
-        cancels the Python coroutine but does NOT kill the running DB
-        thread — the orphaned thread keeps the pool connection until
-        SQL Server itself finishes the query (potentially minutes for a
-        cross-join DoS), exhausting the pool for every other user.
-
-        SQL Server has two relevant knobs:
-
-        * ``SET LOCK_TIMEOUT <ms>`` — the milliseconds a statement will
-          wait for a lock before raising error 1222. This is the most
-          reliable server-side timeout and is what we set here.
-
-        * ``SET QUERY_GOVERNOR_COST_LIMIT <units>`` — aborts a query
-          whose estimated cost exceeds the limit (units are roughly
-          10/s). It is *estimated* (not measured), so an under-estimate
-          lets a slow query through. We deliberately do NOT use it here
-          to avoid double-tuning; the lock timeout + the asyncio cancel
-          wall is enough for the realistic DoS scenarios.
-
-        Note: ``SET LOCK_TIMEOUT`` only covers lock-wait time, not
-        execution time once the locks are acquired. A genuinely long
-        CPU-bound query will still run to completion at the server. The
-        ``asyncio.wait_for`` cancel in the caller is the second line of
-        defense — together they cover both the lock-wait and the
-        "Python gave up" cases. The caller executes the returned string
-        verbatim with ``cursor.execute`` before issuing the user query.
-        """
-        return f"SET LOCK_TIMEOUT {timeout_seconds * 1000}"
+        if seconds != Config.QUERY_TIMEOUT_SECONDS:
+            raise UnsupportedQueryTimeout(
+                "SQL Server supports only the configured execution timeout "
+                f"of {Config.QUERY_TIMEOUT_SECONDS} seconds with this driver"
+            )
 
     def get_health_check_sql(self) -> str:
         """
@@ -368,7 +350,7 @@ class SQLServerAdapter(BaseDatabaseAdapter):
 
     # Schema Metadata Methods (for AI tools)
 
-    def get_indexes_query(self, table_name: str, db_name: str = None, schema: str = "dbo") -> tuple:
+    def get_indexes_query(self, table_name: str, db_name: str | None = None, schema: str = "dbo") -> tuple:
         """Return SQL query and params to get indexes for a SQL Server table."""
         query = """
             SELECT
@@ -385,7 +367,9 @@ class SQLServerAdapter(BaseDatabaseAdapter):
         """
         return query, (table_name,)
 
-    def get_foreign_keys_query(self, table_name: str = None, db_name: str = None, schema: str = "dbo") -> tuple:
+    def get_foreign_keys_query(
+        self, table_name: str | None = None, db_name: str | None = None, schema: str = "dbo"
+    ) -> tuple:
         """Return SQL query and params to get foreign key relationships in SQL Server."""
         if table_name:
             query = """
@@ -483,7 +467,7 @@ class SQLServerAdapter(BaseDatabaseAdapter):
 
     # Table-details Method (added for the get_table_details AI tool)
 
-    def get_table_details_query(self, table_name: str, db_name: str = None, schema: str = "dbo") -> tuple:
+    def get_table_details_query(self, table_name: str, db_name: str | None = None, schema: str = "dbo") -> tuple:
         """Return SQL query and params for a rich per-column SQL Server schema dump.
 
         Returns one row per column with positional columns:
@@ -530,7 +514,7 @@ class SQLServerAdapter(BaseDatabaseAdapter):
 
     # Views Introspection Methods (added for the list_views AI tool)
 
-    def get_views(self, schema: str = None, db_name: str = None) -> tuple:
+    def get_views(self, schema: str | None = None, db_name: str | None = None) -> tuple:
         """Return SQL query and params to list SQL Server views.
 
         ``schema`` is the table_schema (typically ``dbo``); ``db_name`` is

@@ -46,10 +46,50 @@ assert.equal(
 assert.deepEqual(normalizeExecutionResult({ data: [{ city: 'Pune', total: 0 }], row_count: 1 }), {
   columns: ['city', 'total'],
   rows: [['Pune', 0]],
-  column_types: [],
+  column_types: {},
+  column_metadata: [],
+  result_metadata: null,
+  client_metrics: null,
+  expired: false,
+  total_rows: null,
+  truncated: false,
+  execution_time: null,
   row_count: 1,
 });
 assert.deepEqual(
   normalizeExecutionResult({ columns: ['total'], result: [], row_count: 0 }).rows,
   [],
 );
+
+const { createConversationOutputCollector } = await import('./conversationOutputs.js');
+const collect = createConversationOutputCollector('chat-a');
+let reads = 0;
+const completed = {
+  id: 'completed',
+  role: 'assistant',
+  get text() {
+    reads += 1;
+    return '```sql\nselect 1\n```';
+  },
+};
+const first = collect([completed, { id: 'live', role: 'assistant', text: 'Starting' }]);
+const readsAfterFirst = reads;
+const second = collect([completed, { id: 'live', role: 'assistant', text: 'Starting now' }]);
+assert.equal(
+  reads,
+  readsAfterFirst,
+  'completed turns must not be parsed again for streaming updates',
+);
+assert.equal(second, first, 'unchanged outputs keep their array identity');
+const third = collect([
+  completed,
+  { id: 'live', role: 'assistant', text: '```sql\nselect 2\n```' },
+]);
+assert.equal(third[0], first[0]);
+assert.equal(third[1].props.initialQuery, 'select 2');
+assert.equal(collect([]).length, 0, 'deleted outputs must disappear');
+const withoutIds = [
+  { role: 'user', text: 'hello' },
+  { role: 'assistant', text: '```sql\nselect 3\n```' },
+];
+assert.deepEqual(collect(withoutIds), collectConversationOutputs(withoutIds, 'chat-a'));

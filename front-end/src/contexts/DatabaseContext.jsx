@@ -66,6 +66,7 @@ function getSessionInstanceId() {
 }
 
 const initialState = {
+  databaseStatus: 'loading',
   isConnected: false,
   isLoading: false,
   error: null,
@@ -87,12 +88,22 @@ const ActionTypes = {
   SELECT_SCHEMA: 'SELECT_SCHEMA',
   SET_AVAILABLE_DATABASES: 'SET_AVAILABLE_DATABASES',
   SYNC_STATUS: 'SYNC_STATUS',
+  STATUS_LOADING: 'STATUS_LOADING',
+  RESET_STATUS: 'RESET_STATUS',
+  STATUS_FAILURE: 'STATUS_FAILURE',
   SET_ERROR: 'SET_ERROR',
   CLEAR_ERROR: 'CLEAR_ERROR',
 };
 
 function databaseReducer(state, action) {
   switch (action.type) {
+    case ActionTypes.RESET_STATUS:
+      return { ...initialState };
+    case ActionTypes.STATUS_LOADING:
+      return { ...state, databaseStatus: state.databaseStatus === 'ready' ? 'ready' : 'loading' };
+    case ActionTypes.STATUS_FAILURE:
+      return { ...state, databaseStatus: state.databaseStatus === 'ready' ? 'ready' : 'error' };
+
     case ActionTypes.CONNECT_START:
       return {
         ...state,
@@ -103,6 +114,7 @@ function databaseReducer(state, action) {
     case ActionTypes.CONNECT_SUCCESS:
       return {
         ...state,
+        databaseStatus: 'ready',
         isConnected: true,
         isLoading: false,
         error: null,
@@ -126,6 +138,7 @@ function databaseReducer(state, action) {
     case ActionTypes.DISCONNECT:
       return {
         ...initialState,
+        databaseStatus: 'ready',
         error: action.payload?.error ?? null,
       };
 
@@ -155,6 +168,7 @@ function databaseReducer(state, action) {
     case ActionTypes.SYNC_STATUS:
       return {
         ...state,
+        databaseStatus: 'ready',
         isConnected: action.payload.connected ?? false,
         currentDatabase: action.payload.current_database ?? action.payload.database ?? null,
         dbType: action.payload.db_type ?? null,
@@ -268,7 +282,8 @@ export function useDatabaseConnection() {
  */
 export function DatabaseProvider({ children }) {
   const [state, dispatch] = useReducer(databaseReducer, initialState);
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
+  const accountId = user?.uid;
   const queryClient = useQueryClient();
 
   const invalidateSchemaTables = useCallback(
@@ -341,7 +356,12 @@ export function DatabaseProvider({ children }) {
   );
 
   useEffect(() => {
+    dispatch({ type: ActionTypes.RESET_STATUS });
     if (!isAuthenticated) return;
+    const cached = queryClient.getQueryData(queryKeys.dbStatus);
+    if (cached?.data) dispatch({ type: ActionTypes.SYNC_STATUS, payload: cached.data });
+    let cancelled = false;
+    dispatch({ type: ActionTypes.STATUS_LOADING });
 
     const checkDbStatus = async () => {
       try {
@@ -356,14 +376,18 @@ export function DatabaseProvider({ children }) {
           queryFn: syncConnectionState,
           staleTime: 30 * 1000,
         });
-        dispatch({ type: ActionTypes.SYNC_STATUS, payload: response.data });
+        if (!cancelled) dispatch({ type: ActionTypes.SYNC_STATUS, payload: response.data });
       } catch (error) {
+        if (!cancelled) dispatch({ type: ActionTypes.STATUS_FAILURE });
         logger.error('Failed to check DB status:', error);
       }
     };
 
     checkDbStatus();
-  }, [isAuthenticated, queryClient]);
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, accountId, queryClient]);
 
   const connect = useCallback(
     (connectionData) => {
@@ -515,6 +539,7 @@ export function DatabaseProvider({ children }) {
   );
 
   const refreshStatus = useCallback(async () => {
+    dispatch({ type: ActionTypes.STATUS_LOADING });
     try {
       await queryClient.invalidateQueries({ queryKey: queryKeys.dbStatus });
       const response = await queryClient.fetchQuery({
@@ -525,6 +550,7 @@ export function DatabaseProvider({ children }) {
       queryClient.setQueryData(queryKeys.dbStatus, response);
       dispatch({ type: ActionTypes.SYNC_STATUS, payload: response.data });
     } catch (error) {
+      dispatch({ type: ActionTypes.STATUS_FAILURE });
       logger.error('Failed to refresh DB status:', error);
     }
   }, [queryClient]);

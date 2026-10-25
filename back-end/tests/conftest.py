@@ -1,13 +1,9 @@
 """Pytest configuration and shared fixtures.
 
-This conftest makes the test suite hermetic:
-
-- ``Config`` is patched to a ``TestingConfig`` so no real Firestore /
-  Redis / Bedrock / Qdrant credentials are required.
-- The FastAPI app is instantiated once per session with the testing
-  config.
-- Common mocks (Redis, Firestore, Bedrock) are exposed as fixtures so
-  individual tests can opt in.
+Select testing configuration and disable dotenv, debug identity bypass, and
+background memory before application imports. Individual tests replace their
+external service boundaries; this file does not globally block networking or
+remove every inherited service credential.
 """
 
 from __future__ import annotations
@@ -23,18 +19,18 @@ _BACKEND_ROOT = Path(__file__).resolve().parent.parent
 if str(_BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(_BACKEND_ROOT))
 
-# Force the testing configuration BEFORE any application module is imported.
-# This prevents ``config.get_config()`` from reading real env vars.
-os.environ.setdefault("APP_ENV", "testing")
-os.environ.setdefault("DEBUG", "true")
-os.environ.setdefault("TESTING", "true")
-os.environ.setdefault("DEV_AUTH_BYPASS", "true")
-os.environ.setdefault("RATELIMIT_ENABLED", "false")
-os.environ.setdefault("VAMP_MEMORY_ENABLED", "false")
-os.environ.setdefault("LLM_RATELIMIT_ENABLED", "false")
-os.environ.setdefault("USER_QUOTA_ENABLED", "false")
-# SECRET_KEY is validated at import time — set a test-only value.
-os.environ.setdefault("SECRET_KEY", "test-only-secret-key-do-not-use-in-production-32chars")
+# Override ambient deployment settings BEFORE importing the application.
+# Tests can explicitly override individual values with monkeypatch afterwards.
+os.environ.update(
+    APP_ENV="testing",
+    PYTHON_DOTENV_DISABLED="1",
+    DEV_AUTH_BYPASS="false",
+    RATELIMIT_ENABLED="false",
+    VAMP_MEMORY_ENABLED="false",
+    LLM_RATELIMIT_ENABLED="false",
+    USER_QUOTA_ENABLED="false",
+    SECRET_KEY="test-only-secret-key-do-not-use-in-production-32chars",
+)
 
 
 @pytest.fixture(scope="session")
@@ -48,7 +44,7 @@ def isolated_account_activity(monkeypatch):
     """Direct dependency tests must not retain admissions in other tests."""
     from core import account_activity
 
-    monkeypatch.setattr(account_activity, '_memory_store', account_activity.AccountActivityStore())
+    monkeypatch.setattr(account_activity, "_memory_store", account_activity.AccountActivityStore())
 
 
 @pytest.fixture

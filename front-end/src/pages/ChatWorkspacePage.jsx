@@ -57,6 +57,8 @@ function ChatWorkspacePage() {
     scrollToBottom,
     showConversationPanel,
     messages,
+    history,
+    loadOlderMessages,
     isConversationLoading,
     conversationLoadState,
     currentConversationId,
@@ -118,6 +120,8 @@ function ChatWorkspacePage() {
       isPinnedToBottom={isPinnedToBottom}
       scrollToBottom={scrollToBottom}
       messages={messages}
+      history={history}
+      onLoadOlder={loadOlderMessages}
       conversationOutputs={conversationOutputs}
       selectedArtifact={workspaceCanvasArtifact}
       workspaceCanvasOpen={workspaceCanvasOpen}

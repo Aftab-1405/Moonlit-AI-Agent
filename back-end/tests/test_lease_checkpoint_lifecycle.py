@@ -798,7 +798,7 @@ async def test_checkpoint_summary_mutation_uses_run_id_and_fence(monkeypatch) ->
 
     class FakeAgent:
         def __init__(self) -> None:
-            self.state_updates = []
+            self.state_updates: list[dict] = []
 
         async def aget_state(self, _config):
             return SimpleNamespace(values={"messages": [{"id": "m1", "type": "human", "content": "old"}]})

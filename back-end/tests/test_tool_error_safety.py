@@ -7,12 +7,13 @@ import json
 import logging
 import socket
 from contextlib import contextmanager
-from types import SimpleNamespace
 from typing import Any
 
 import httpx
 import pytest
-from fastapi import HTTPException, Response
+from fastapi import HTTPException, Request, Response
+from langchain_core.runnables import RunnableConfig
+from langchain_core.tools import StructuredTool
 
 import controller.auth_controller as auth_controller
 import controller.context_controller as context_controller
@@ -36,6 +37,7 @@ import service.redis_service as redis_service_module
 import vamp_memory.vamp_memory_service as vamp_service_module
 from api_contract.conversations import RenameConversationRequest
 from core.security import redact, redact_connection_config
+from dependencies import AuthenticatedUser
 from langgraph_orchestration.stream_lifecycle import ConcurrentTaskRunError
 from langgraph_orchestration.tool_schemas import structure_tool_result, validate_tool_args
 from service.conversations.conversation_compaction_service import (
@@ -177,7 +179,7 @@ class _QueryManager:
         self.cursor = cursor
 
     @contextmanager
-    def get_cursor(self, db_config):
+    def get_cursor(self, db_config, **_options):
         del db_config
         yield self.cursor
 
@@ -203,6 +205,15 @@ class _FailingAdapter:
     """Adapter fake covering query, schema, and EXPLAIN executor paths."""
 
     explain_format = "text"
+    db_type = "mysql"
+
+    @contextmanager
+    def get_cursor(self, connection, **_options):
+        cursor = connection.cursor()
+        try:
+            yield cursor
+        finally:
+            cursor.close()
 
     def get_health_check_sql(self) -> str:
         return "HEALTH CHECK"
@@ -264,7 +275,7 @@ def failing_database_boundaries(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(db_executor_module, "get_tool_connection", failing_connection)
 
 
-def _tool_config() -> dict:
+def _tool_config() -> RunnableConfig:
     return {
         "configurable": {
             "user_id": "user-1",
@@ -393,6 +404,8 @@ async def test_vamp_failure_is_stable_in_sse_and_model_output(
         lambda: FailingVampService(),
     )
 
+    assert isinstance(tool_module.retrieve_memory, StructuredTool)
+    assert tool_module.retrieve_memory.coroutine is not None
     model_summary = await tool_module.retrieve_memory.coroutine(
         query="revenue history",
         config=_tool_config(),
@@ -478,7 +491,7 @@ def test_table_row_counts_accepts_only_the_plural_bounded_contract() -> None:
     )
     assert validated.model_dump() == {"table_names": ["orders", "customers"]}
 
-    invalid_payloads = [
+    invalid_payloads: list[dict[str, object]] = [
         {"table_name": "orders"},
         {"table_names": []},
         {"table_names": ["orders", "orders"]},
@@ -961,6 +974,8 @@ async def test_web_search_timeout_uses_canonical_outputs_and_safe_log(
     config["configurable"]["activated_skills"] = ["web-research"]
 
     with caplog.at_level(logging.WARNING, logger=tool_module.logger.name):
+        assert isinstance(tool_module.web_search, StructuredTool)
+        assert tool_module.web_search.coroutine is not None
         model_summary = await tool_module.web_search.coroutine(query=RAW_SECRET, config=config)
 
     assert events[-1]["result"]["error_code"] == "WEB_SEARCH_TIMEOUT"
@@ -979,9 +994,11 @@ async def test_firebase_session_verification_failure_logs_safely(
 ) -> None:
     """Firebase infrastructure failures retain diagnostics without cookie detail."""
     cookie = "firebase-session-cookie-sentinel"
-    request = SimpleNamespace(
-        cookies={dependencies_module.Config.SESSION_COOKIE_NAME: cookie},
-        state=SimpleNamespace(),
+    request = Request(
+        {
+            "type": "http",
+            "headers": [(b"cookie", f"{dependencies_module.Config.SESSION_COOKIE_NAME}={cookie}".encode())],
+        }
     )
 
     async def thread_boundary(function, *args, **kwargs):
@@ -1010,10 +1027,14 @@ async def test_firebase_id_token_verification_failure_logs_safely(
 ) -> None:
     """The login boundary never logs a submitted Firebase token."""
     csrf = "csrf-sentinel"
-    request = SimpleNamespace(
-        cookies={auth_controller.Config.CSRF_COOKIE_NAME: csrf},
-        headers={auth_controller.Config.CSRF_HEADER_NAME: csrf},
-        state=SimpleNamespace(),
+    request = Request(
+        {
+            "type": "http",
+            "headers": [
+                (b"cookie", f"{auth_controller.Config.CSRF_COOKIE_NAME}={csrf}".encode()),
+                (auth_controller.Config.CSRF_HEADER_NAME.lower().encode(), csrf.encode()),
+            ],
+        }
     )
     token = "firebase-id-token-sentinel"
 
@@ -1044,9 +1065,14 @@ async def test_firebase_revocation_failure_logs_safely(
     """Best-effort logout revocation omits UID and Firebase error detail."""
     csrf = "csrf-sentinel"
     user_id = "firebase-user-sentinel"
-    request = SimpleNamespace(
-        cookies={auth_controller.Config.CSRF_COOKIE_NAME: csrf},
-        headers={auth_controller.Config.CSRF_HEADER_NAME: csrf},
+    request = Request(
+        {
+            "type": "http",
+            "headers": [
+                (b"cookie", f"{auth_controller.Config.CSRF_COOKIE_NAME}={csrf}".encode()),
+                (auth_controller.Config.CSRF_HEADER_NAME.lower().encode(), csrf.encode()),
+            ],
+        }
     )
 
     async def current_user(_request):
@@ -1101,8 +1127,11 @@ async def test_redis_session_read_failure_logs_safely(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Cached-context read failures cannot expose the Redis exception."""
-    request = SimpleNamespace(
-        cookies={dependencies_module.Config.SESSION_COOKIE_NAME: "cookie-sentinel"},
+    request = Request(
+        {
+            "type": "http",
+            "headers": [(b"cookie", f"{dependencies_module.Config.SESSION_COOKIE_NAME}=cookie-sentinel".encode())],
+        }
     )
 
     async def fail_read(_key):
@@ -1420,7 +1449,7 @@ def test_query_value_error_returns_stable_http_contract(
 
     class Cursor:
         connection = object()
-        description = []
+        description: list[tuple] = []
 
         def execute(self, statement, params=None) -> None:
             del statement, params
@@ -1434,7 +1463,7 @@ def test_query_value_error_returns_stable_http_contract(
 
     class Manager:
         @contextmanager
-        def get_cursor(self, db_config):
+        def get_cursor(self, db_config, **_options):
             del db_config
             yield Cursor()
 
@@ -1481,6 +1510,7 @@ def test_database_service_forwards_sql_actor(
         user_id,
         max_rows,
         timeout_seconds,
+        cancellation=None,
     ):
         captured.update(
             db_config=db_config,
@@ -1661,7 +1691,7 @@ def test_agent_sql_emits_one_sanitized_terminal_event(
     monkeypatch.setattr(
         AIToolExecutor,
         "_execute_query_with_db_config",
-        staticmethod(lambda *_args: dict(inner_result)),
+        staticmethod(lambda *_args, **_kwargs: dict(inner_result)),
     )
     query = "SELECT 'private-sql' FROM private_table"
     db_config = {"db_type": "mysql", "database": "private-db"}
@@ -1964,7 +1994,7 @@ async def test_conversation_http_permission_errors_have_one_stable_contract(
         raise PermissionError(RAW_SECRET)
 
     conversation_id = "00000000-0000-4000-8000-000000000001"
-    user = {"uid": "user-1"}
+    user: AuthenticatedUser = {"uid": "user-1"}
 
     with pytest.raises(HTTPException) as caught:
         if operation == "stream":
@@ -1979,7 +2009,7 @@ async def test_conversation_http_permission_errors_have_one_stable_contract(
                 deny,
             )
             await conversations_controller._handle_agent_stream(
-                SimpleNamespace(),
+                Request({"type": "http", "headers": []}),
                 "user-1",
                 conversation_id,
                 "bedrock",
@@ -2118,7 +2148,7 @@ async def test_conversation_http_not_found_errors_have_one_stable_contract(
         raise ValueError(RAW_SECRET)
 
     conversation_id = "00000000-0000-4000-8000-000000000001"
-    user = {"uid": "user-1"}
+    user: AuthenticatedUser = {"uid": "user-1"}
 
     with pytest.raises(HTTPException) as caught:
         if operation == "delete":

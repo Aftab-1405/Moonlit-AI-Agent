@@ -243,7 +243,15 @@ def _build_summary_input(messages: list) -> str:
     suitable for the summarization LLM.
     """
     lines: list[str] = []
-    for msg in messages:
+    from langgraph_orchestration.tool_evidence import MAX_HISTORY_EVIDENCE_BYTES, evidence_text_bytes, history_evidence
+
+    evidence_remaining = MAX_HISTORY_EVIDENCE_BYTES
+    evidence_by_index = {}
+    for index in range(len(messages) - 1, -1, -1):
+        evidence = history_evidence(messages[index], max_bytes=evidence_remaining)
+        evidence_by_index[index] = evidence
+        evidence_remaining -= evidence_text_bytes(evidence)
+    for index, msg in enumerate(messages):
         sender = msg.get("sender", "user").upper()
         content = msg.get("content", "").strip()
 
@@ -265,6 +273,8 @@ def _build_summary_input(messages: list) -> str:
                         result_obj = raw_result
                     result_summary = _summarize_tool_result(name, result_obj, status)
                     lines.append(f"  - {name} → {result_summary}")
+            if evidence_by_index[index]:
+                lines.append("  [Exact bounded tool evidence]\n" + evidence_by_index[index])
         else:
             lines.append(f"USER: {content}")
 
@@ -646,9 +656,11 @@ def _message_countable_text(msg: dict) -> str:
     tool_trace_summary = msg.get("tool_trace_summary")
     if tool_trace_summary:
         parts.append(str(tool_trace_summary))
-    timeline = msg.get("timeline", [])
-    if timeline:
-        parts.append(json.dumps(timeline, default=str))
+    from langgraph_orchestration.tool_evidence import history_evidence
+
+    evidence = history_evidence(msg)
+    if evidence:
+        parts.append(evidence)
     return "\n".join(part for part in parts if part)
 
 
@@ -676,7 +688,7 @@ class ConversationCompactionService:
     async def check_and_summarize(
         conversation_id: str,
         user_id: str,
-        model: str = None,
+        model: str | None = None,
         *,
         pressure_budget_tokens: int | None = None,
     ) -> dict:
@@ -1119,7 +1131,8 @@ class ConversationCompactionService:
                         result["reason"] = "claim_commit_skipped"
                         return result
                 except Exception:
-                    _clear_summary_claim(doc_ref, claim_id)
+                    if claim_id is not None:
+                        _clear_summary_claim(doc_ref, claim_id)
                     raise
                 finally:
                     claim_heartbeat_stop.set()

@@ -12,6 +12,9 @@ Use the fewest calls that produce verified evidence.
 ## Workflow
 
 1. Reuse exact active-context evidence only when it answers the request and freshness is not material.
+   Prior tool evidence includes observed source/time and completeness. Answer referential
+   follow-ups from sufficient evidence without repeating tools. Query previews cannot prove
+   unseen rows. For an explicitly requested fresh schema lookup, use `refresh=true`.
 2. Use `get_schema_overview(target_tables?)` before SQL when relevant tables, columns, or relationships are unknown. Do not chain narrower schema calls when one overview is enough.
 3. Use `get_table_indexes(table_name)` only for index or query-performance work.
 4. Use `execute_query(query, max_rows)` whenever the answer depends on current rows, rankings, counts, totals, revenue, growth, or comparisons.

@@ -4,7 +4,6 @@ import {
   INTERFACE_RADIUS,
 } from '@/features/styles/interfaceChrome';
 import {
-  getInteractiveControlSx,
   getOutlinedFieldStateSx,
   getScrollbarStyles,
   getSegmentedToggleGroupSx,
@@ -126,26 +125,3 @@ export const getPreferenceToggleGroupSx = (theme) =>
     itemMinHeight: PREFERENCE_LAYOUT.responsiveToggleHeight,
     itemRadius: `${theme.shape.radius.pill}px`,
   });
-
-export const getPreferenceButtonSx = (theme, { tone = 'neutral' } = {}) => {
-  const interactionTone = tone === 'danger' ? 'error' : tone;
-  const color =
-    interactionTone === 'neutral'
-      ? theme.palette.text.primary
-      : theme.palette[interactionTone]?.main || theme.palette.text.primary;
-
-  return {
-    ...getInteractiveControlSx(theme, {
-      tone: interactionTone,
-      size: PREFERENCE_LAYOUT.responsiveControlHeight,
-      radius: theme.shape.radius.pill,
-    }),
-    minHeight: PREFERENCE_LAYOUT.responsiveControlHeight,
-    px: 1.5,
-    textTransform: 'none',
-    ...theme.typography.uiNavItem,
-    fontWeight: 400,
-    color: interactionTone === 'neutral' ? 'text.secondary' : color,
-    boxShadow: 'none',
-  };
-};

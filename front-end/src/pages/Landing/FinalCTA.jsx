@@ -1,9 +1,10 @@
 import { Box, Button, Container, Typography } from '@mui/material';
+import { Link } from 'react-router-dom';
 import { ArrowForwardIcon } from '@/components/icons';
 import { LandingSection, Reveal } from './LandingSection';
 import { LANDING_COPY } from './landingContent';
 
-function FinalCTA({ onGetStarted }) {
+function FinalCTA({ getStartedTo }) {
   return (
     <LandingSection sx={{ pt: { xs: 10, md: 18 }, pb: { xs: 10, md: 16 } }}>
       <Container maxWidth="lg">
@@ -53,7 +54,8 @@ function FinalCTA({ onGetStarted }) {
             <Button
               variant="contained"
               size="large"
-              onClick={onGetStarted}
+              component={Link}
+              to={getStartedTo}
               endIcon={<ArrowForwardIcon />}
             >
               Get started

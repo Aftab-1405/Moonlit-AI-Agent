@@ -2,8 +2,8 @@ import { ThemeProvider } from '@mui/material/styles';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import ChatInput from './ChatInput';
 import { createDarkTheme } from '@/theme';
+import ChatInput from './ChatInput';
 
 const theme = createDarkTheme();
 const providers = [
@@ -189,4 +189,16 @@ describe('composer submission', () => {
     expect(onStop).toHaveBeenCalledOnce();
     expect(input.value).toBe('');
   });
+});
+
+it('keeps the same spacious composer height and draft when entering an active chat', () => {
+  const view = setup({ placement: 'welcome' });
+  const input = screen.getByRole('textbox', { name: 'Message Moonlit' });
+  fireEvent.change(input, { target: { value: 'Keep my draft' } });
+  const surface = view.container.querySelector('[data-composer-surface]');
+  expect(getComputedStyle(surface).minHeight).toBe('126px');
+  view.rerenderChat({ placement: 'active' });
+  expect(view.container.querySelector('[data-composer-surface]')).toBe(surface);
+  expect(getComputedStyle(surface).minHeight).toBe('126px');
+  expect(input.value).toBe('Keep my draft');
 });

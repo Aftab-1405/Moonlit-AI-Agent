@@ -7,8 +7,9 @@
  * @module hooks/useQueryExecution
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { runQuery } from '@/api';
+import { normalizeQueryResult } from '@/utils/queryResult';
 
 /**
  * Hook for query execution functionality
@@ -22,6 +23,9 @@ import { runQuery } from '@/api';
  */
 export function useQueryExecution({
   isDbConnected,
+  sourceKey,
+  resultContextKey,
+  sourceChanging = false,
   settings,
   setDbModalOpen,
   showSnackbar,
@@ -36,15 +40,21 @@ export function useQueryExecution({
 
   const queryResolverRef = useRef(null);
   const abortControllerRef = useRef(null);
-  useEffect(() => {
+  const sourceGeneration = useRef(0);
+  useLayoutEffect(() => {
+    sourceGeneration.current += 1;
     return () => {
+      sourceGeneration.current += 1;
+      queryResolverRef.current?.();
+      queryResolverRef.current = null;
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
     };
-  }, []);
+  }, [onQueryResults, sourceKey, resultContextKey, sourceChanging, isDbConnected]);
   const executeQuery = useCallback(
-    async (sql, maxRows, queryTimeout) => {
+    async (sql, maxRows, queryTimeout, generation) => {
+      if (generation !== sourceGeneration.current || !isDbConnected || sourceChanging) return;
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
@@ -53,37 +63,17 @@ export function useQueryExecution({
 
       try {
         const response = await runQuery({ sql, maxRows, timeout: queryTimeout }, signal);
+        if (signal.aborted) return;
         if (response.status === 'success') {
           const queryData = response.data;
-          const columns = queryData.result?.columns || [];
-          // Keep rows as raw arrays — PerspectiveDashboard reads values by
-          // numeric index (row[idx]) via toColumnar() and schema inference.
-          const rows = queryData.result?.rows || [];
-          // Pass column_types through so PerspectiveDashboard can build an
-          // explicit schema instead of falling back to sample-based inference.
-          const column_types = queryData.result?.column_types || {};
-
-          onQueryResults?.(
-            {
-              columns,
-              column_types,
-              rows,
-              row_count: queryData.row_count,
-              total_rows: queryData.total_rows,
-              truncated: queryData.truncated,
-              execution_time: queryData.execution_time_ms
-                ? queryData.execution_time_ms / 1000
-                : null,
-            },
-            sql,
-          );
+          onQueryResults?.(normalizeQueryResult(queryData), sql);
           showSnackbar(`Query returned ${queryData.row_count} rows`, 'success');
         } else {
           // Show the backend's descriptive message when available.
           showSnackbar(response.message || 'Query failed', 'error');
         }
       } catch (error) {
-        if (error.name === 'AbortError') return; // Ignore abort errors
+        if (signal.aborted || error.name === 'AbortError') return; // Ignore abort errors
         // Extract the most descriptive safe message available.
         const message =
           error?.data?.message ||
@@ -93,7 +83,7 @@ export function useQueryExecution({
         showSnackbar(message, 'error');
       }
     },
-    [onQueryResults, showSnackbar],
+    [onQueryResults, showSnackbar, isDbConnected, sourceChanging],
   );
   const handleRunQuery = useCallback(
     (sql) => {
@@ -103,6 +93,11 @@ export function useQueryExecution({
         return Promise.resolve();
       }
 
+      if (sourceChanging) {
+        showSnackbar('Wait for the database connection to finish changing', 'info');
+        return Promise.resolve();
+      }
+      const generation = sourceGeneration.current;
       const confirmBeforeRun = settings.confirmBeforeRun ?? false;
       const maxRows = settings.maxRows ?? 1000;
       const queryTimeout = settings.queryTimeout ?? 30;
@@ -114,7 +109,7 @@ export function useQueryExecution({
             open: true,
             details: sql,
             onConfirm: async () => {
-              await executeQuery(sql, maxRows, queryTimeout);
+              await executeQuery(sql, maxRows, queryTimeout, generation);
               setConfirmDialog({ open: false, details: '', onConfirm: null, onCancel: null });
               queryResolverRef.current?.();
             },
@@ -126,9 +121,9 @@ export function useQueryExecution({
         });
       }
 
-      return executeQuery(sql, maxRows, queryTimeout);
+      return executeQuery(sql, maxRows, queryTimeout, generation);
     },
-    [isDbConnected, settings, executeQuery, setDbModalOpen, showSnackbar],
+    [isDbConnected, sourceChanging, settings, executeQuery, setDbModalOpen, showSnackbar],
   );
   const handleConfirmDialogClose = useCallback(() => {
     confirmDialog.onCancel?.();

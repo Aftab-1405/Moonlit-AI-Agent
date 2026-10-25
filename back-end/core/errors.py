@@ -99,11 +99,19 @@ class PublicError:
     message: str
 
 
+class UnsupportedQueryTimeout(ValueError):
+    """A requested deadline cannot be applied safely by the installed driver."""
+
+
 _PUBLIC_DB_ERRORS = {
     "table_not_found": PublicError("DB_TABLE_NOT_FOUND", "The requested table or view was not found."),
     "column_not_found": PublicError("DB_COLUMN_NOT_FOUND", "The requested column was not found."),
     "permission_denied": PublicError("DB_PERMISSION_DENIED", "Database permission denied."),
     "timeout": PublicError("DB_TIMEOUT", "Database operation timed out."),
+    "timeout_unsupported": PublicError(
+        "DB_TIMEOUT_UNSUPPORTED",
+        "This SQL Server driver supports only the configured query timeout. Use the default timeout.",
+    ),
     "deadlock": PublicError("DB_DEADLOCK", "Database operation could not complete due to a deadlock."),
     "constraint_violation": PublicError(
         "DB_CONSTRAINT_VIOLATION",
@@ -132,7 +140,10 @@ _PUBLIC_ERRORS_BY_CODE = {
         PublicError("TOOL_LOOP_DETECTED", "Repeated tool call stopped."),
         PublicError("TOOL_TIMEOUT", "Tool execution timed out."),
         PublicError("TOOL_RESULT_INVALID", "Tool result could not be structured."),
-        PublicError("TOOL_RESULT_PERSISTENCE_FAILED", "Tool result persistence failed."),
+        PublicError(
+            "TOOL_RESULT_PERSISTENCE_FAILED",
+            "The query ran, but its result could not be saved. Please retry the query.",
+        ),
         PublicError("WEB_SEARCH_TIMEOUT", "Web search timed out."),
         PublicError("WEB_SEARCH_FAILED", "Web search failed."),
         PublicError("MEMORY_CONTEXT_UNAVAILABLE", "Memory context is unavailable."),
@@ -144,6 +155,8 @@ _PUBLIC_ERRORS_BY_CODE = {
 
 def public_database_error(exc: BaseException) -> PublicError:
     """Map a database exception to a stable public error."""
+    if isinstance(exc, UnsupportedQueryTimeout):
+        return _PUBLIC_DB_ERRORS["timeout_unsupported"]
     category = classify_db_error(str(exc))
     return _PUBLIC_DB_ERRORS[category]
 

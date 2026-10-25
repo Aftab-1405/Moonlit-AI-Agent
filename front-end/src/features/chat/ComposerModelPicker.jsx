@@ -12,8 +12,8 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { AppPopover, AppPopoverEmptyState, AppPopoverItem } from '@/components';
 import { CheckIcon, ChevronRightIcon, PerformanceIcon } from '@/components/icons';
-import { REASONING_EFFORT_OPTIONS } from '@/config/userSettings';
 import { getModelDisplayName } from '@/config/llmSelection';
+import { REASONING_EFFORT_OPTIONS } from '@/config/userSettings';
 import { getPopoverSectionLabelSx } from '@/styles/shared';
 
 export default function ComposerModelPicker({
@@ -165,13 +165,22 @@ export default function ComposerModelPicker({
               color: 'text.primary',
               borderRadius: '12px',
               textTransform: 'none',
-              '& .MuiButton-startIcon': { color: 'text.secondary', mr: 'auto' },
-              '& .MuiButton-endIcon': { color: 'text.secondary' },
+              display: 'grid',
+              gridTemplateColumns: '20px minmax(0, 1fr) 20px',
+              '& .MuiButton-startIcon': { color: 'text.secondary', m: 0 },
+              '& .MuiButton-endIcon': { color: 'text.secondary', m: 0 },
             }}
           >
             <Box
               component="span"
-              sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', px: 1 }}
+              sx={{
+                minWidth: 0,
+                textAlign: 'center',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                px: 1,
+              }}
             >
               {getModelDisplayName(selectedModel) || 'Select model'}
               {supportsReasoning ? ` · ${effortLabel}` : ''}
@@ -191,7 +200,6 @@ export default function ComposerModelPicker({
                   onReasoningEffortChange?.(REASONING_EFFORT_OPTIONS[index].value)
                 }
                 sx={{
-                  color: 'text.primary',
                   height: 16,
                   py: 0.75,
                   '& .MuiSlider-rail': { opacity: 0.15 },

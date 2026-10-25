@@ -1,0 +1,8 @@
+index_memory_bullet failed: exception_type=RuntimeError error_code=VAMP_OPERATION_FAILED request_id=-
+index_memory_bullet failed: exception_type=RuntimeError error_code=VAMP_OPERATION_FAILED request_id=-
+Summary block synthetic-conversation/synthetic-summary partially indexed: 1/2 bullets
+index_memory_bullet failed: exception_type=RuntimeError error_code=VAMP_OPERATION_FAILED request_id=-
+Summary block synthetic-conversation/synthetic-summary partially indexed: 1/2 bullets
+index_memory_bullet failed: exception_type=RuntimeError error_code=VAMP_OPERATION_FAILED request_id=-
+Summary block synthetic-conversation/synthetic-summary partially indexed: 1/2 bullets
+{"F24": {"embedding_calls": ["fails"], "mark_vector_failed_calls": 0, "passes": [{"attempts": 0, "next_retry_at": null, "reported_success": true, "retry_selected": 0, "status": "no_bullets"}], "upserts": 0}, "F25": {"embedding_calls": ["works", "fails", "works", "fails", "works", "fails"], "mark_vector_failed_calls": 0, "passes": [{"attempts": 0, "next_retry_at": null, "reported_success": true, "retry_selected": 1, "status": "partial"}, {"attempts": 0, "next_retry_at": null, "reported_success": true, "retry_selected": 1, "status": "partial"}, {"attempts": 0, "next_retry_at": null, "reported_success": true, "retry_selected": 1, "status": "partial"}], "upserts": 3}}

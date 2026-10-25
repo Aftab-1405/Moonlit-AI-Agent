@@ -10,9 +10,11 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import (
     WRITES_IDX_MAP,
     BaseCheckpointSaver,
+    Checkpoint,
     CheckpointTuple,
     empty_checkpoint,
 )
@@ -122,9 +124,7 @@ class BarrierCheckpointSaver(BaseCheckpointSaver):
         return self.inner.get_next_version(current, channel)
 
     async def read_generation(self, generation: CheckpointGeneration):
-        return await self.inner.aget_tuple(
-            {"configurable": {"thread_id": generation.physical_thread_id}}
-        )
+        return await self.inner.aget_tuple({"configurable": {"thread_id": generation.physical_thread_id}})
 
 
 class ProductionShapedRedisSaver(FullCopyAsyncRedisSaver):
@@ -178,9 +178,7 @@ class ProductionShapedRedisSaver(FullCopyAsyncRedisSaver):
                     (
                         raw["task_id"],
                         raw["channel"],
-                        self.serde.loads_typed(
-                            (raw["type"], self._decode_blob(raw["blob"]))
-                        ),
+                        self.serde.loads_typed((raw["type"], self._decode_blob(raw["blob"]))),
                     )
                     for raw in writes
                 ],
@@ -216,9 +214,7 @@ class ProductionShapedRedisSaver(FullCopyAsyncRedisSaver):
             type_, blob = self.serde.dumps_typed(value)
             self.raw_writes.setdefault(thread_id, []).append(
                 {
-                    "checkpoint_ns": to_storage_safe_str(
-                        configurable.get("checkpoint_ns", "")
-                    ),
+                    "checkpoint_ns": to_storage_safe_str(configurable.get("checkpoint_ns", "")),
                     "checkpoint_id": to_storage_safe_id(configurable["checkpoint_id"]),
                     "task_id": task_id,
                     "task_path": task_path,
@@ -306,9 +302,7 @@ def _generation_record(generation: CheckpointGeneration) -> dict[str, Any]:
         "run_id": generation.run_id,
         "fence": generation.fence,
         "source_generation": (
-            _generation_record(generation.source_generation)
-            if generation.source_generation is not None
-            else None
+            _generation_record(generation.source_generation) if generation.source_generation is not None else None
         ),
     }
 
@@ -330,27 +324,25 @@ def _acquisition(
     )
 
 
-def _checkpoint(checkpoint_id: str, value: str) -> dict:
+def _checkpoint(checkpoint_id: str, value: str) -> Checkpoint:
     checkpoint = empty_checkpoint()
     checkpoint["id"] = checkpoint_id
     checkpoint["channel_values"] = {"messages": [value]}
-    checkpoint["channel_versions"] = {
-        "messages": f"{int(checkpoint_id):032}.0"
-    }
+    checkpoint["channel_versions"] = {"messages": f"{int(checkpoint_id):032}.0"}
     checkpoint["updated_channels"] = ["messages"]
     return checkpoint
 
 
 async def _seed_checkpoint(
-    saver: InMemorySaver,
+    saver: BaseCheckpointSaver,
     physical_thread_id: str,
     checkpoint_id: str,
     value: str,
     *,
-    parent_config: dict | None = None,
+    parent_config: RunnableConfig | None = None,
     checkpoint_ns: str = "",
-) -> dict:
-    config = deepcopy(parent_config) if parent_config is not None else {"configurable": {}}
+) -> RunnableConfig:
+    config: RunnableConfig = deepcopy(parent_config) if parent_config is not None else {"configurable": {}}
     config["configurable"]["thread_id"] = physical_thread_id
     config["configurable"]["checkpoint_ns"] = checkpoint_ns
     checkpoint = _checkpoint(checkpoint_id, value)
@@ -394,13 +386,9 @@ async def test_fresh_generation_starts_empty_without_deleting_prior_state() -> N
     )
 
     assert isinstance(checkpointer, GenerationCheckpointer)
-    assert await checkpointer.aget_tuple(
-        {"configurable": {"thread_id": generation.logical_thread_id}}
-    ) is None
+    assert await checkpointer.aget_tuple({"configurable": {"thread_id": generation.logical_thread_id}}) is None
     assert store.active == generation
-    old_state = await saver.aget_tuple(
-        {"configurable": {"thread_id": old_generation.physical_thread_id}}
-    )
+    old_state = await saver.aget_tuple({"configurable": {"thread_id": old_generation.physical_thread_id}})
     assert old_state is not None
     assert old_state.checkpoint["channel_values"]["messages"] == ["old-state"]
 
@@ -418,7 +406,7 @@ async def test_fresh_generation_rewrites_every_async_saver_path() -> None:
         run_control=control,
         monotonic=lambda: 1.0,
     )
-    logical_config = {
+    logical_config: RunnableConfig = {
         "configurable": {
             "thread_id": generation.logical_thread_id,
             "checkpoint_ns": "",
@@ -447,9 +435,7 @@ async def test_fresh_generation_rewrites_every_async_saver_path() -> None:
     assert listed[0].pending_writes == [("task-1", "messages", "pending-state")]
 
     await checkpointer.adelete_thread(generation.logical_thread_id)
-    assert await saver.aget_tuple(
-        {"configurable": {"thread_id": generation.physical_thread_id}}
-    ) is None
+    assert await saver.aget_tuple({"configurable": {"thread_id": generation.physical_thread_id}}) is None
 
 
 def test_fresh_generation_rewrites_every_sync_saver_path() -> None:
@@ -463,7 +449,7 @@ def test_fresh_generation_rewrites_every_sync_saver_path() -> None:
         run_control=RunControl(deadline_monotonic=100.0, tool_limit=20),
         monotonic=lambda: 1.0,
     )
-    logical_config = {
+    logical_config: RunnableConfig = {
         "configurable": {
             "thread_id": generation.logical_thread_id,
             "checkpoint_ns": "subgraph",
@@ -492,9 +478,7 @@ def test_fresh_generation_rewrites_every_sync_saver_path() -> None:
     assert listed[0].pending_writes == [("task-1", "messages", "pending-state")]
 
     checkpointer.delete_thread(generation.logical_thread_id)
-    assert saver.get_tuple(
-        {"configurable": {"thread_id": generation.physical_thread_id}}
-    ) is None
+    assert saver.get_tuple({"configurable": {"thread_id": generation.physical_thread_id}}) is None
 
 
 @pytest.mark.asyncio
@@ -559,12 +543,8 @@ async def test_resume_clone_preserves_checkpoint_and_pending_write_fidelity() ->
         monotonic=lambda: 1.0,
     )
 
-    cloned = await checkpointer.aget_tuple(
-        {"configurable": {"thread_id": generation.logical_thread_id}}
-    )
-    source_state = await saver.aget_tuple(
-        {"configurable": {"thread_id": source.physical_thread_id}}
-    )
+    cloned = await checkpointer.aget_tuple({"configurable": {"thread_id": generation.logical_thread_id}})
+    source_state = await saver.aget_tuple({"configurable": {"thread_id": source.physical_thread_id}})
     assert cloned is not None and source_state is not None
     assert cloned.checkpoint == source_state.checkpoint
     assert cloned.metadata == source_state.metadata
@@ -634,12 +614,7 @@ async def test_resume_clone_preserves_real_multi_namespace_state() -> None:
         monotonic=lambda: 1.0,
     )
 
-    target_items = [
-        item
-        async for item in saver.alist(
-            {"configurable": {"thread_id": generation.physical_thread_id}}
-        )
-    ]
+    target_items = [item async for item in saver.alist({"configurable": {"thread_id": generation.physical_thread_id}})]
     by_identity = {
         (
             item.config["configurable"]["checkpoint_ns"],
@@ -653,8 +628,12 @@ async def test_resume_clone_preserves_real_multi_namespace_state() -> None:
         ("worker", "1001"),
         ("worker", "1002"),
     }
-    assert by_identity[("", "0002")].parent_config["configurable"]["checkpoint_id"] == "0001"
-    assert by_identity[("worker", "1002")].parent_config["configurable"]["checkpoint_id"] == "1001"
+    root_parent = by_identity[("", "0002")].parent_config
+    worker_parent = by_identity[("worker", "1002")].parent_config
+    assert root_parent is not None
+    assert worker_parent is not None
+    assert root_parent["configurable"]["checkpoint_id"] == "0001"
+    assert worker_parent["configurable"]["checkpoint_id"] == "1001"
     assert by_identity[("", "0002")].pending_writes == [
         ("root-task", "messages", "root-pending"),
         ("root-task", "custom", {"root": 2}),
@@ -709,12 +688,8 @@ async def test_in_memory_full_copy_preserves_hidden_task_paths_without_aliasing(
         saver,
         generation.physical_thread_id,
     ) == _memory_write_manifest(saver, source.physical_thread_id)
-    assert saver.storage[generation.physical_thread_id] is not saver.storage[
-        source.physical_thread_id
-    ]
-    assert saver.storage[generation.physical_thread_id][""] is not saver.storage[
-        source.physical_thread_id
-    ][""]
+    assert saver.storage[generation.physical_thread_id] is not saver.storage[source.physical_thread_id]
+    assert saver.storage[generation.physical_thread_id][""] is not saver.storage[source.physical_thread_id][""]
 
 
 @pytest.mark.asyncio
@@ -837,9 +812,7 @@ async def test_redis_full_copy_pages_complete_raw_write_index() -> None:
 
         async def search(self, query):
             self.offsets.append(query._offset)
-            return SimpleNamespace(
-                docs=documents[query._offset : query._offset + query._num]
-            )
+            return SimpleNamespace(docs=documents[query._offset : query._offset + query._num])
 
     saver = object.__new__(FullCopyAsyncRedisSaver)
     saver._COPY_PAGE_SIZE = 2
@@ -963,9 +936,7 @@ async def test_resume_clone_failure_never_activates_reserved_generation_or_enter
     assert graph_entries == []
     assert store.active == source
     assert store.reserved == generation
-    partial = await saver.aget_tuple(
-        {"configurable": {"thread_id": generation.physical_thread_id}}
-    )
+    partial = await saver.aget_tuple({"configurable": {"thread_id": generation.physical_thread_id}})
     assert partial is not None
     assert partial.checkpoint["channel_values"]["messages"] == ["source-state-1"]
 
@@ -996,12 +967,9 @@ def test_takeover_acquisition_reserves_one_generation_without_activating_it(monk
     assert result.reserved_checkpoint_generation.run_id == "run-b"
     assert result.reserved_checkpoint_generation.fence == 5
     assert result.reserved_checkpoint_generation.source_generation == result.active_checkpoint_generation
-    assert ref.data["reserved_checkpoint_generation"] == _generation_record(
-        result.reserved_checkpoint_generation
-    )
-    assert ref.data["active_checkpoint_generation"] == _generation_record(
-        result.active_checkpoint_generation
-    )
+    assert ref.data["reserved_checkpoint_generation"] == _generation_record(result.reserved_checkpoint_generation)
+    assert result.active_checkpoint_generation is not None
+    assert ref.data["active_checkpoint_generation"] == _generation_record(result.active_checkpoint_generation)
 
 
 def test_resume_acquisition_without_active_source_never_reserves_empty_generation(
@@ -1157,12 +1125,15 @@ async def test_stale_blocked_write_cannot_become_active_after_takeover(monkeypat
             "reserved_checkpoint_generation": _generation_record(generation_b),
         }
     )
-    assert store.activate_checkpoint_generation(
-        "conversation-1",
-        generation_b,
-        "run-b",
-        2,
-    ) is True
+    assert (
+        store.activate_checkpoint_generation(
+            "conversation-1",
+            generation_b,
+            "run-b",
+            2,
+        )
+        is True
+    )
     control_a.mark_ownership_lost()
     checkpointer_b = GenerationCheckpointer(
         saver,

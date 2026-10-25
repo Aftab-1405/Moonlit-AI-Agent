@@ -1,4 +1,5 @@
 import { alpha } from '@mui/material/styles';
+import { TOUCH_DEVICE_QUERY } from '@/styles/mediaQueries';
 
 export const FLOW_NODE_CARD_CLASS = 'moonlit-flow-node-card';
 export const HIDDEN_FLOW_HANDLE_STYLE = {
@@ -48,6 +49,25 @@ export const getReactFlowCanvasSx = (theme, { cardClassName = FLOW_NODE_CARD_CLA
     '--xy-node-boxshadow-selected-default': 'none',
     '--xy-selection-background-color-default': theme.palette.action.selected,
     '--xy-selection-border-default': `1px dotted ${theme.palette.border.hover}`,
+  },
+  '& .react-flow__controls': {
+    borderRadius: '12px',
+    overflow: 'hidden',
+    boxShadow: 'none',
+    border: `1px solid ${theme.palette.border.subtle}`,
+    backgroundColor: theme.palette.background.paper,
+  },
+  '& .react-flow__controls-button': {
+    width: 36,
+    height: 36,
+    boxSizing: 'border-box',
+    [TOUCH_DEVICE_QUERY]: { width: 44, height: 44 },
+    backgroundColor: 'transparent',
+    color: theme.palette.text.primary,
+    fill: 'currentColor',
+    borderColor: theme.palette.border.separator,
+    '&:hover': { backgroundColor: theme.palette.action.hover },
+    '&:focus-visible': { outline: `2px solid ${theme.palette.border.focus}`, outlineOffset: -2 },
   },
   '& .react-flow__pane': { cursor: 'grab' },
   '& .react-flow__pane:active': { cursor: 'grabbing' },

@@ -1,13 +1,64 @@
-"""Regression coverage for the backend dependency supply-chain policy."""
+"""Regression coverage for the backend test toolchain and dependency policy."""
 
 from __future__ import annotations
 
+import json
 import re
+import subprocess
+import sys
 import tomllib
 from pathlib import Path
 from typing import Any
 
 _SHA256_PATTERN = re.compile(r"sha256:[0-9a-f]{64}")
+
+
+def test_test_bootstrap_overrides_service_configuration_and_disables_dotenv(tmp_path):
+    """An inherited production shell must not select production test behavior."""
+    dotenv_file = tmp_path / ".env"
+    dotenv_file.write_text("FIREBASE_PROJECT_ID=synthetic-dotenv-project\n")
+    unsafe_environment = {
+        "APP_ENV": "production",
+        "PYTHON_DOTENV_DISABLED": "0",
+        "DEV_AUTH_BYPASS": "true",
+        "VAMP_MEMORY_ENABLED": "true",
+        "RATELIMIT_ENABLED": "true",
+        "LLM_RATELIMIT_ENABLED": "true",
+        "USER_QUOTA_ENABLED": "true",
+        "SECRET_KEY": "synthetic-inherited-secret",
+    }
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import json,os,runpy,sys; runpy.run_path(sys.argv[1]); "
+            "from dotenv import load_dotenv; load_dotenv(sys.argv[2]); "
+            "print(json.dumps({key:os.getenv(key) for key in "
+            "[*json.loads(sys.argv[3]), 'FIREBASE_PROJECT_ID']}))",
+            str(Path(__file__).with_name("conftest.py")),
+            str(dotenv_file),
+            json.dumps(list(unsafe_environment)),
+        ],
+        env=unsafe_environment,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=15,
+    )
+    configured = json.loads(result.stdout)
+    assert configured["APP_ENV"] == "testing"
+    assert configured["PYTHON_DOTENV_DISABLED"] == "1"
+    for name in (
+        "DEV_AUTH_BYPASS",
+        "VAMP_MEMORY_ENABLED",
+        "RATELIMIT_ENABLED",
+        "LLM_RATELIMIT_ENABLED",
+        "USER_QUOTA_ENABLED",
+    ):
+        assert configured[name] == "false"
+    assert configured["SECRET_KEY"] != unsafe_environment["SECRET_KEY"]
+    assert len(configured["SECRET_KEY"]) >= 32
+    assert configured["FIREBASE_PROJECT_ID"] is None
 
 
 def _load_toml(path: Path) -> dict:
@@ -62,12 +113,12 @@ def test_uv_lock_covers_direct_dependencies_with_hashed_artifacts(backend_root: 
     packages = lock["package"]
     project_package = next(package for package in packages if package["name"] == pyproject["project"]["name"])
     locked_metadata = project_package["metadata"]
-    assert {
-        _locked_requirement_signature(requirement) for requirement in locked_metadata["requires-dist"]
-    } == {_declared_requirement_signature(requirement) for requirement in pyproject["project"]["dependencies"]}
-    assert {
-        _locked_requirement_signature(requirement) for requirement in locked_metadata["requires-dev"]["dev"]
-    } == {_declared_requirement_signature(requirement) for requirement in pyproject["dependency-groups"]["dev"]}
+    assert {_locked_requirement_signature(requirement) for requirement in locked_metadata["requires-dist"]} == {
+        _declared_requirement_signature(requirement) for requirement in pyproject["project"]["dependencies"]
+    }
+    assert {_locked_requirement_signature(requirement) for requirement in locked_metadata["requires-dev"]["dev"]} == {
+        _declared_requirement_signature(requirement) for requirement in pyproject["dependency-groups"]["dev"]
+    }
 
     registry_packages = [package for package in packages if "registry" in package.get("source", {})]
     assert registry_packages

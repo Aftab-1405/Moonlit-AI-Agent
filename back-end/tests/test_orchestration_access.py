@@ -108,18 +108,13 @@ def _conversation(**overrides) -> dict:
         "task_run_fence": 0,
         **overrides,
     }
-    if (
-        conversation.get("task_status") == "running"
-        and "reserved_checkpoint_generation" not in conversation
-    ):
+    if conversation.get("task_status") == "running" and "reserved_checkpoint_generation" not in conversation:
         generation = create_checkpoint_generation(
             "user-1:conversation-1",
             conversation["task_run_id"],
             conversation["task_run_fence"],
         )
-        conversation["reserved_checkpoint_generation"] = (
-            orchestration_access._generation_to_record(generation)
-        )
+        conversation["reserved_checkpoint_generation"] = orchestration_access._generation_to_record(generation)
         conversation.setdefault(
             "active_checkpoint_generation",
             orchestration_access._generation_to_record(generation),
@@ -266,9 +261,7 @@ def test_resumed_same_attempt_reentry_preserves_fence_without_second_reservation
             task_lease_expires_at=expiry,
             task_run_previous_status="resumable_interrupt",
             task_run_previous_mode="long_task",
-            reserved_checkpoint_generation=orchestration_access._generation_to_record(
-                generation
-            ),
+            reserved_checkpoint_generation=orchestration_access._generation_to_record(generation),
             active_checkpoint_generation=orchestration_access._generation_to_record(active),
         )
     )
@@ -296,12 +289,8 @@ def test_resume_collision_with_different_live_owner_preserves_owner_state(store)
         task_run_id="run-owner",
         task_run_fence=5,
         task_lease_expires_at=NOW + timedelta(seconds=20),
-        reserved_checkpoint_generation=orchestration_access._generation_to_record(
-            owner_generation
-        ),
-        active_checkpoint_generation=orchestration_access._generation_to_record(
-            owner_generation
-        ),
+        reserved_checkpoint_generation=orchestration_access._generation_to_record(owner_generation),
+        active_checkpoint_generation=orchestration_access._generation_to_record(owner_generation),
     )
     task_store, ref = store(original)
 
@@ -324,12 +313,8 @@ def test_resume_same_attempt_reentry_rejects_invalid_source_lineage(store) -> No
         task_lease_expires_at=NOW + timedelta(seconds=20),
         task_run_previous_status="paused_error",
         task_run_previous_mode="long_task",
-        reserved_checkpoint_generation=orchestration_access._generation_to_record(
-            generation
-        ),
-        active_checkpoint_generation=orchestration_access._generation_to_record(
-            generation
-        ),
+        reserved_checkpoint_generation=orchestration_access._generation_to_record(generation),
+        active_checkpoint_generation=orchestration_access._generation_to_record(generation),
     )
     task_store, ref = store(original)
 
@@ -386,9 +371,7 @@ def test_activation_reconciles_commit_then_timeout(store) -> None:
             task_run_id="run-a",
             task_run_fence=1,
             task_lease_expires_at=NOW + timedelta(seconds=30),
-            reserved_checkpoint_generation=orchestration_access._generation_to_record(
-                generation
-            ),
+            reserved_checkpoint_generation=orchestration_access._generation_to_record(generation),
             active_checkpoint_generation=None,
         ),
         update_script=["commit_then_timeout"],
@@ -402,9 +385,7 @@ def test_activation_reconciles_commit_then_timeout(store) -> None:
     )
 
     assert activated is True
-    assert ref.data["active_checkpoint_generation"] == (
-        orchestration_access._generation_to_record(generation)
-    )
+    assert ref.data["active_checkpoint_generation"] == (orchestration_access._generation_to_record(generation))
     assert len(ref.mutations) == 1
 
 
@@ -416,9 +397,7 @@ def test_activation_timeout_without_commit_rejects_lost_owner(store) -> None:
             task_run_id="run-a",
             task_run_fence=1,
             task_lease_expires_at=NOW + timedelta(seconds=30),
-            reserved_checkpoint_generation=orchestration_access._generation_to_record(
-                generation
-            ),
+            reserved_checkpoint_generation=orchestration_access._generation_to_record(generation),
             active_checkpoint_generation=None,
         ),
         update_script=["timeout_and_lose_owner"],
@@ -445,9 +424,7 @@ def test_activation_propagates_definitive_write_error(store) -> None:
             task_run_id="run-a",
             task_run_fence=1,
             task_lease_expires_at=NOW + timedelta(seconds=30),
-            reserved_checkpoint_generation=orchestration_access._generation_to_record(
-                generation
-            ),
+            reserved_checkpoint_generation=orchestration_access._generation_to_record(generation),
             active_checkpoint_generation=None,
         ),
         update_script=["definitive_error"],
@@ -474,12 +451,8 @@ def test_pause_publishes_only_canonical_resumable_interrupt_status(store) -> Non
             task_run_id="run-a",
             task_run_fence=1,
             task_lease_expires_at=NOW + timedelta(seconds=30),
-            reserved_checkpoint_generation=orchestration_access._generation_to_record(
-                generation
-            ),
-            active_checkpoint_generation=orchestration_access._generation_to_record(
-                generation
-            ),
+            reserved_checkpoint_generation=orchestration_access._generation_to_record(generation),
+            active_checkpoint_generation=orchestration_access._generation_to_record(generation),
         )
     )
 
@@ -506,12 +479,8 @@ def test_pause_reconciles_commit_then_timeout(store) -> None:
             task_run_id="run-a",
             task_run_fence=1,
             task_lease_expires_at=NOW + timedelta(seconds=30),
-            reserved_checkpoint_generation=orchestration_access._generation_to_record(
-                generation
-            ),
-            active_checkpoint_generation=orchestration_access._generation_to_record(
-                generation
-            ),
+            reserved_checkpoint_generation=orchestration_access._generation_to_record(generation),
+            active_checkpoint_generation=orchestration_access._generation_to_record(generation),
         ),
         update_script=["commit_then_timeout"],
     )
@@ -580,6 +549,7 @@ def test_renew_cas_retry_rechecks_expiry_at_each_snapshot(monkeypatch) -> None:
     renewed = task_store.renew_task_run("conversation-1", "run-a", 3, 30)
 
     assert renewed is False
+    assert ref.data is not None
     assert ref.data["task_lease_expires_at"] == NOW + timedelta(seconds=1)
     assert ref.mutations == []
 
@@ -619,6 +589,7 @@ def test_renewal_uses_post_read_time_and_cannot_revive_expired_lease(monkeypatch
     renewed = task_store.renew_task_run("conversation-1", "run-a", 3, 30)
 
     assert renewed is False
+    assert ref.data is not None
     assert ref.data["task_lease_expires_at"] == NOW + timedelta(seconds=1)
     assert ref.mutations == []
 

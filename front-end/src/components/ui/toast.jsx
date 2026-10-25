@@ -2,7 +2,7 @@
 import { IconButton } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { motion, useReducedMotion } from 'framer-motion';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useEffectEvent, useMemo } from 'react';
 import {
   CloseIcon,
   ErrorIcon,
@@ -45,12 +45,15 @@ const Notification = ({ type, title, message, showIcon = true, duration, onClose
   const theme = useTheme();
   const reduceMotion = useReducedMotion();
   const isError = type === 'error';
+  const hasDuration = Number.isFinite(duration) && duration > 0;
+  const dismissOnExpiry = useEffectEvent(() => onClose());
 
   useEffect(() => {
-    if (!Number.isFinite(duration) || duration <= 0) return undefined;
-    const timer = setTimeout(onClose, duration);
+    if (!hasDuration) return undefined;
+    // Callback changes must not restart this toast's lifetime.
+    const timer = setTimeout(() => dismissOnExpiry(), duration);
     return () => clearTimeout(timer);
-  }, [duration, onClose]);
+  }, [duration, hasDuration]);
 
   // Resolve config styling and icons dynamically based on theme palette
   const config = useMemo(() => {
@@ -178,7 +181,7 @@ const Notification = ({ type, title, message, showIcon = true, duration, onClose
         </IconButton>
       </div>
 
-      {duration && (
+      {hasDuration && (
         <div
           style={{
             position: 'absolute',
@@ -191,11 +194,13 @@ const Notification = ({ type, title, message, showIcon = true, duration, onClose
           }}
         >
           <MotionDiv
-            initial={reduceMotion ? false : { width: 0 }}
-            animate={{ width: '100%' }}
+            initial={reduceMotion ? false : { scaleX: 0 }}
+            animate={{ scaleX: 1 }}
             transition={{ duration: reduceMotion ? 0 : duration / 1000, ease: 'linear' }}
             style={{
               height: '100%',
+              width: '100%',
+              transformOrigin: 'left',
               backgroundColor: config.iconColor,
             }}
           />

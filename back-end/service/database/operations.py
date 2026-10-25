@@ -170,7 +170,6 @@ class DatabaseOperations:
             validated_db = DatabaseSecurity.validate_database_name(db_name)
 
             db_type = db_config.get("db_type", "mysql") if db_config else "mysql"
-            adapter = get_adapter(db_type)
             schema = db_config.get("schema", "public") if db_config else "public"
 
             manager = get_connection_manager()
@@ -178,10 +177,10 @@ class DatabaseOperations:
             with manager.get_cursor(db_config) as cursor:
                 if db_type == "postgresql":
                     validated_schema = DatabaseSecurity.validate_database_name(schema)
-                    query = adapter.get_table_schema_query(validated_schema)
+                    query = get_adapter("postgresql").get_table_schema_query(validated_schema)
                     cursor.execute(query, (validated_table, validated_table))
                 else:
-                    query = adapter.get_table_schema_query()
+                    query = get_adapter(db_type).get_table_schema_query()
                     cursor.execute(query, (validated_db, validated_table))
                 columns = cursor.fetchall()
 
@@ -361,9 +360,10 @@ def fetch_database_info(db_config: dict, db_name: str) -> Tuple[Optional[str], O
 def execute_sql_query(
     db_config: dict,
     sql_query: str,
-    max_rows: int = None,
-    timeout_seconds: int = None,
+    max_rows: int | None = None,
+    timeout_seconds: int | None = None,
     user_id: str | None = None,
+    cancellation=None,
 ) -> Dict:
     """
     Execute a SQL query securely — READ-ONLY.
@@ -429,7 +429,7 @@ def execute_sql_query(
         adapter = get_adapter(db_type)
         manager = get_connection_manager()
 
-        with manager.get_cursor(db_config) as cursor:
+        with manager.get_cursor(db_config, buffered=False, cancellation=cancellation) as cursor:
             # FIX [EC6]: lightweight pre-query health check. A pooled
             # connection that the DB server dropped (idle-timeout,
             # restart, network blip) is only discovered when the user's
@@ -467,9 +467,11 @@ def execute_sql_query(
 
             actual_timeout = timeout_seconds if timeout_seconds else Config.QUERY_TIMEOUT_SECONDS
 
-            set_query_timeout(adapter, cursor, getattr(cursor, "connection", None), actual_timeout)
+            timeout_metadata = set_query_timeout(adapter, cursor, getattr(cursor, "connection", None), actual_timeout)
             set_query_schema(cursor, db_config, db_type)
 
+            if cancellation:
+                cancellation.raise_if_cancelled()
             cursor.execute(sql_query)
 
             actual_max_rows = max_rows if max_rows else Config.MAX_QUERY_RESULTS
@@ -492,54 +494,21 @@ def execute_sql_query(
             execution_time = round((end_time - start_time) * 1000, 2)
 
             column_names = adapter.get_column_names_from_cursor(cursor)
-            import datetime
-            import decimal
+            from service.database.query_result import build_query_result
 
-            column_types = {}
-            for col_idx, col_name in enumerate(column_names):
-                detected_type = None
-                for row in rows:
-                    if col_idx < len(row):
-                        val = row[col_idx]
-                        if val is not None:
-                            if isinstance(val, bool):
-                                detected_type = "boolean"
-                            elif isinstance(val, int):
-                                detected_type = "integer"
-                            elif isinstance(val, (float, decimal.Decimal)):
-                                detected_type = "float"
-                            elif isinstance(val, datetime.datetime):
-                                detected_type = "datetime"
-                            elif isinstance(val, datetime.date):
-                                detected_type = "date"
-                            else:
-                                detected_type = "string"
-                            break
-                if detected_type is None and cursor.description and col_idx < len(cursor.description):
-                    desc = cursor.description[col_idx]
-                    type_code = desc[1]
-                    type_name = str(type_code).lower()
-                    if "date" in type_name or "time" in type_name:
-                        detected_type = "datetime"
-                    elif "int" in type_name or "long" in type_name:
-                        detected_type = "integer"
-                    elif "num" in type_name or "float" in type_name or "decimal" in type_name or "double" in type_name:
-                        detected_type = "float"
-                    elif "bool" in type_name:
-                        detected_type = "boolean"
-                    else:
-                        detected_type = "string"
-
-                column_types[col_name] = detected_type or "string"
-
+            result = build_query_result(
+                column_names,
+                rows,
+                description=cursor.description,
+                db_config={**db_config, "db_type": db_type},
+                query=sql_query,
+                effective_limit=actual_max_rows,
+                truncated=truncated,
+                execution_time_ms=execution_time,
+            )
+            result["result_metadata"].update(timeout_metadata)
             row_count = len(rows)
             total_rows = None if truncated else row_count
-
-            result = {
-                "fields": column_names,
-                "column_types": column_types,
-                "rows": rows,
-            }
 
             message = f"Query executed in {execution_time}ms. "
             if truncated:

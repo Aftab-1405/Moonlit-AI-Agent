@@ -68,22 +68,8 @@ function CopyErrorButton({ report }) {
         startIcon={
           copied ? <CheckIcon sx={{ fontSize: 15 }} /> : <CopyIcon sx={{ fontSize: 15 }} />
         }
-        sx={(theme) => ({
-          color: copied ? 'success.main' : 'text.secondary',
-          textTransform: 'none',
-          fontWeight: 400,
-          fontSize: '0.78rem',
-          borderRadius: '8px',
-          border: `1px solid ${theme.palette.border.default}`,
-          backgroundColor: theme.palette.layer.surfaceTranslucent,
-          px: 1.25,
-          py: 0.4,
-          minWidth: 0,
-          '&:hover': {
-            color: copied ? 'success.main' : 'text.primary',
-            backgroundColor: theme.palette.action.hover,
-          },
-        })}
+        variant="outlined"
+        color={copied ? 'success' : 'primary'}
       >
         {copied ? 'Copied' : 'Copy'}
       </Button>
@@ -124,29 +110,8 @@ function DevErrorDetails({ error, errorInfo }) {
           aria-expanded={expanded}
           aria-controls="error-stack-trace"
           startIcon={
-            <ExpandMoreIcon
-              sx={{
-                fontSize: 18,
-                transition: theme.transitions.create('transform', {
-                  duration: theme.transitions.duration.shorter,
-                }),
-                transform: expanded ? 'rotate(0deg)' : 'rotate(-90deg)',
-              }}
-            />
+            <ExpandMoreIcon sx={{ transform: expanded ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
           }
-          sx={{
-            color: 'text.secondary',
-            textTransform: 'none',
-            fontWeight: 400,
-            fontSize: '0.78rem',
-            letterSpacing: '0.04em',
-            minWidth: 0,
-            p: 0,
-            '&:hover': {
-              color: 'text.primary',
-              backgroundColor: 'transparent',
-            },
-          }}
         >
           Development details
         </Button>
@@ -224,7 +189,6 @@ function MinimalErrorFallback({ onRetry }) {
         variant="outlined"
         onClick={onRetry}
         startIcon={<RefreshIcon sx={{ fontSize: 17 }} />}
-        sx={{ px: 1.75 }}
       >
         Try again
       </Button>
@@ -373,32 +337,10 @@ function FullPageErrorFallback({ error, errorInfo, onReload, onGoHome }) {
             color="primary"
             startIcon={<RefreshIcon />}
             onClick={onReload}
-            sx={{
-              borderRadius: '9999px',
-              px: 2.25,
-              py: 1,
-              fontSize: '0.9rem',
-              fontWeight: 400,
-              minWidth: 150,
-              boxShadow: 'none',
-            }}
           >
             Reload page
           </Button>
-          <Button
-            variant="outlined"
-            color="inherit"
-            startIcon={<HomeIcon />}
-            onClick={onGoHome}
-            sx={{
-              borderRadius: '9999px',
-              px: 2.25,
-              py: 1,
-              fontSize: '0.9rem',
-              fontWeight: 400,
-              minWidth: 150,
-            }}
-          >
+          <Button variant="outlined" color="inherit" startIcon={<HomeIcon />} onClick={onGoHome}>
             Go home
           </Button>
         </Box>

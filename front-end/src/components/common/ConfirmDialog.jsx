@@ -1,23 +1,13 @@
 import { Box, Button, Typography, useMediaQuery, useTheme, Zoom } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { memo, useCallback, useId, useState } from 'react';
-import ButtonLoadingSpinner from '@/components/common/ButtonLoadingSpinner';
 import DialogShell from '@/components/common/DialogShell';
-import {
-  CONFIRM_ACTION_HEIGHT,
-  getConfirmActionGeometrySx,
-} from '@/components/common/dialogActionStyles';
 import { ErrorIcon, HelpIcon, InfoIcon, SuccessIcon, WarningIcon } from '@/components/icons';
-import {
-  getInsetPanelSx,
-  getInteractiveControlSx,
-  getScrollbarStyles,
-  UI_Z_INDEX,
-} from '@/styles/shared';
+import { getInsetPanelSx, getScrollbarStyles, UI_Z_INDEX } from '@/styles/shared';
 
 const INTENT_CONFIG = {
   default: {
-    color: 'primary',
+    color: 'accent',
     icon: HelpIcon,
   },
   info: {
@@ -125,7 +115,10 @@ function ConfirmDialog({
     description !== undefined ? description : message !== undefined ? message : DEFAULT_DESCRIPTION;
 
   const intentConfig = getIntentConfig(intent);
-  const accentColor = theme.palette[intentConfig.color]?.main || theme.palette.primary.main;
+  const intentIconColor =
+    intentConfig.color === 'accent'
+      ? theme.palette.text.secondary
+      : theme.palette[intentConfig.color].main;
   const resolvedConfirmColor = confirmColor || (intent === 'danger' ? 'error' : intentConfig.color);
   const IconComponent = intentConfig.icon;
   const isControlledLoading = loading !== undefined;
@@ -190,23 +183,12 @@ function ConfirmDialog({
         <>
           <Button
             {...restSecondaryActionProps}
-            size="small"
             variant="text"
             onClick={handleClose}
             color="inherit"
             disabled={isCloseDisabled}
             fullWidth={isCompactMobile}
             sx={{
-              minWidth: { xs: '100%', sm: 72 },
-              px: 1.25,
-              py: 0,
-              ...theme.typography.uiNavItem,
-              fontWeight: 400,
-              ...getInteractiveControlSx(theme, {
-                size: CONFIRM_ACTION_HEIGHT,
-                radius: theme.shape.radius.pill,
-              }),
-              ...getConfirmActionGeometrySx(theme),
               ...secondaryActionSx,
             }}
           >
@@ -214,32 +196,31 @@ function ConfirmDialog({
           </Button>
           <Button
             {...restPrimaryActionProps}
-            size="small"
             variant="contained"
             onClick={handleConfirm}
             disabled={isActionDisabled}
             color={resolvedConfirmColor}
             fullWidth={isCompactMobile}
-            startIcon={isLoading ? <ButtonLoadingSpinner /> : null}
+            loading={isLoading}
             sx={{
-              minWidth: { xs: '100%', sm: 78 },
-              ...getConfirmActionGeometrySx(theme),
-              px: 1.5,
-              py: 0,
-              ...theme.typography.uiNavItem,
-              fontWeight: 400,
-              boxShadow: 'none',
-              '&:hover': {
-                boxShadow: 'none',
-              },
-              '& .MuiButton-startIcon': {
-                ml: 0,
-                mr: 0.75,
-              },
               ...primaryActionSx,
             }}
           >
-            {isLoading ? loadingText : confirmText}
+            <Box component="span" sx={{ display: 'grid' }}>
+              <Box
+                component="span"
+                sx={{ gridArea: '1 / 1', visibility: isLoading ? 'hidden' : 'visible' }}
+              >
+                {confirmText}
+              </Box>
+              <Box
+                component="span"
+                aria-hidden={!isLoading}
+                sx={{ gridArea: '1 / 1', visibility: isLoading ? 'visible' : 'hidden' }}
+              >
+                {loadingText}
+              </Box>
+            </Box>
           </Button>
         </>
       }
@@ -282,8 +263,8 @@ function ConfirmDialog({
                 display: 'grid',
                 placeItems: 'center',
                 flexShrink: 0,
-                color: accentColor,
-                backgroundColor: alpha(accentColor, theme.palette.opacity.medium),
+                color: intentIconColor,
+                backgroundColor: alpha(intentIconColor, theme.palette.opacity.medium),
                 border: 0,
                 boxShadow: 'none',
               }}

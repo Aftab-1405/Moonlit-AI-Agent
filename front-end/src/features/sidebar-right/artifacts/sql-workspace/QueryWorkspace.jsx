@@ -7,6 +7,7 @@
 import { Box, Skeleton } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { lazy, memo, Suspense } from 'react';
+import { ArtifactUtilityPanel } from '@/features/sidebar-right/artifact-loader';
 import QueryTabs from '@/features/sidebar-right/artifacts/sql-workspace/QueryTabs';
 
 const SqlEditorSurface = lazy(
@@ -77,22 +78,11 @@ function QueryWorkspace({
   isStreaming = false,
 }) {
   return (
-    <Box
+    <ArtifactUtilityPanel
       id={`sql-query-panel-${activeTabId}`}
       role="tabpanel"
       aria-labelledby={`sql-query-tab-${activeTabId}`}
-      sx={(theme) => ({
-        flex: '1 1 0',
-        display: 'flex',
-        flexDirection: 'column',
-        minWidth: 0,
-        minHeight: 0,
-        overflow: 'hidden',
-        borderRadius: '8px',
-        bgcolor: 'background.paper',
-        border: `1px solid ${theme.palette.border.subtle}`,
-        isolation: 'isolate',
-      })}
+      sx={{ flex: '1 1 0' }}
     >
       {/* Query Tabs */}
       <QueryTabs
@@ -118,7 +108,7 @@ function QueryWorkspace({
           onClearError={onClearError}
         />
       </Suspense>
-    </Box>
+    </ArtifactUtilityPanel>
   );
 }
 

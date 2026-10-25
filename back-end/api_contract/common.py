@@ -1,6 +1,7 @@
 """Shared API contract models."""
 
 import re
+from collections.abc import Mapping, Sequence
 from typing import Any, Generic, Literal, TypeVar
 
 from fastapi.responses import JSONResponse
@@ -8,9 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 DataT = TypeVar("DataT")
 
-_SAFE_VALIDATION_LOCATION_ROOTS = frozenset(
-    {"body", "cookie", "header", "path", "query"}
-)
+_SAFE_VALIDATION_LOCATION_ROOTS = frozenset({"body", "cookie", "header", "path", "query"})
 _SAFE_VALIDATION_TYPE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 
 
@@ -43,7 +42,7 @@ def api_error_response(
     error: str,
     message: str,
     details: dict[str, Any] | None = None,
-    headers: dict[str, str] | None = None,
+    headers: Mapping[str, str] | None = None,
 ) -> JSONResponse:
     """Build the single JSON envelope used for public HTTP errors."""
     return JSONResponse(
@@ -58,7 +57,7 @@ def api_error_response(
 
 
 def serialize_validation_errors(
-    errors: list[dict[str, Any]],
+    errors: Sequence[Mapping[str, Any]],
 ) -> list[dict[str, Any]]:
     """Project Pydantic validation details into a caller-data-free shape."""
     serialized: list[dict[str, Any]] = []
@@ -67,11 +66,7 @@ def serialize_validation_errors(
         location: list[str] = []
         if isinstance(raw_location, (list, tuple)):
             for index, segment in enumerate(raw_location):
-                if (
-                    index == 0
-                    and isinstance(segment, str)
-                    and segment in _SAFE_VALIDATION_LOCATION_ROOTS
-                ):
+                if index == 0 and isinstance(segment, str) and segment in _SAFE_VALIDATION_LOCATION_ROOTS:
                     location.append(segment)
                 elif isinstance(segment, int):
                     location.append("item")
@@ -82,15 +77,13 @@ def serialize_validation_errors(
 
         raw_type = error.get("type")
         error_type = (
-            raw_type
-            if isinstance(raw_type, str) and _SAFE_VALIDATION_TYPE.fullmatch(raw_type)
-            else "validation_error"
+            raw_type if isinstance(raw_type, str) and _SAFE_VALIDATION_TYPE.fullmatch(raw_type) else "validation_error"
         )
         serialized.append({"loc": location, "type": error_type})
     return serialized
 
 
-COMMON_ERROR_RESPONSES = {
+COMMON_ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     400: {"model": ApiError, "description": "Bad request."},
     401: {"model": ApiError, "description": "Authentication required."},
     403: {"model": ApiError, "description": "Forbidden."},

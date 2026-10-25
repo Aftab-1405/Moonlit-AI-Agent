@@ -3,7 +3,7 @@
  *
  * ── Why this file exists ──────────────────────────────────────────────────
  * The app uses Shiki for all code blocks in chat messages (CodeViewer.jsx)
- * with the dark `dracula-soft` palette.
+ * with the local Vercel-style dark palette.
  * The SQL editor uses CodeMirror 6 — which has its own theming system.
  *
  * This file maps Shiki's exact token colors to CodeMirror's highlight tags
@@ -44,11 +44,16 @@ export function getCodeMirrorTheme(transparent = false) {
       color: p.editorForeground,
       backgroundColor: bg,
     },
+    '&.cm-focused': {
+      // Override CodeMirror's default focus outline; the caret and active line
+      // identify the editing position without framing the entire surface.
+      outline: 'none',
+    },
     '.cm-content': {
-      caretColor: p.cursorForeground,
+      caretColor: 'var(--color-border-focus)',
     },
     '.cm-cursor, .cm-dropCursor': {
-      borderLeftColor: p.cursorForeground,
+      borderLeftColor: 'var(--color-border-focus)',
     },
     '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
       backgroundColor: p.selectionBackground,
@@ -69,7 +74,7 @@ export function getCodeMirrorTheme(transparent = false) {
       color: p.whitespaceForeground,
     },
     '&.cm-focused .cm-matchingBracket, &.cm-focused .cm-nonmatchingBracket': {
-      backgroundColor: p.bracketMatchBackground,
+      backgroundColor: p.selectionBackground,
     },
     '.cm-placeholder': {
       color: p.lineNumberForeground,

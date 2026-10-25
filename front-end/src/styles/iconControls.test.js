@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { HOVER_CAPABLE_QUERY, TOUCH_DEVICE_QUERY } from './mediaQueries.js';
-import { getUtilityIconButtonSx } from './shared.js';
 import { getResponsivePillIconButtonSx } from '../features/styles/interfaceChrome.js';
+import { BUTTON_TOUCH_QUERY, HOVER_CAPABLE_QUERY } from './mediaQueries.js';
+import { getUtilityIconButtonSx } from './shared.js';
 
 const theme = {
   palette: {
@@ -26,6 +26,6 @@ test('utility icon controls retain hover feedback and exclude disabled controls'
 test('compact chat buttons keep a touch-sized hit area on wide touch displays', () => {
   const sx = getResponsivePillIconButtonSx(theme, { desktopSize: 30 });
   assert.equal(sx.width.md, 30);
-  assert.equal(sx[TOUCH_DEVICE_QUERY].minWidth, 44);
-  assert.equal(sx[TOUCH_DEVICE_QUERY].minHeight, 44);
+  assert.equal(sx[BUTTON_TOUCH_QUERY].minWidth, 44);
+  assert.equal(sx[BUTTON_TOUCH_QUERY].minHeight, 44);
 });

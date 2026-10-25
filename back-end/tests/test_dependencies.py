@@ -205,11 +205,7 @@ class TestMergeStateInMemoryFallback:
         dependencies._memory_state["test:key:ttl"] = ({"existing": True}, 101.0)
         monkeypatch.setattr(dependencies.time, "time", lambda: 100.0)
 
-        asyncio.run(
-            dependencies._merge_state(
-                "test:key:ttl", {"updated": True}, expire_seconds=60
-            )
-        )
+        asyncio.run(dependencies._merge_state("test:key:ttl", {"updated": True}, expire_seconds=60))
 
         data, expires_at = dependencies._memory_state["test:key:ttl"]
         assert data == {"existing": True, "updated": True}
@@ -265,9 +261,7 @@ def test_update_session_data_preserves_concurrent_partial_updates(monkeypatch) -
     async def scenario() -> None:
         results = await asyncio.gather(
             *(
-                dependencies.update_session_data(
-                    request, {f"setting_{index}": index}, expire_seconds=75
-                )
+                dependencies.update_session_data(request, {f"setting_{index}": index}, expire_seconds=75)
                 for index in range(concurrent_updates)
             )
         )
@@ -294,11 +288,7 @@ def test_replace_session_data_removes_stale_fields(monkeypatch) -> None:
     monkeypatch.setattr(redis_service, "_redis_client", fake)
     monkeypatch.setattr(dependencies.time, "time", lambda: 456.0)
 
-    asyncio.run(
-        dependencies.replace_session_data_for_cookie(
-            session_cookie, {"db_config": None}, expire_seconds=80
-        )
-    )
+    asyncio.run(dependencies.replace_session_data_for_cookie(session_cookie, {"db_config": None}, expire_seconds=80))
 
     assert json.loads(fake.store[key]) == {"db_config": None, "session_active_at": 456.0}
     assert fake.expiries[key] == 80
@@ -426,9 +416,7 @@ async def test_account_deletion_retains_state_when_database_disconnect_fails(mon
     monkeypatch.setattr(
         DatabaseService,
         "disconnect",
-        staticmethod(
-            lambda _config, _user_id: {"status": "error", "message": "close failed"}
-        ),
+        staticmethod(lambda _config, _user_id: {"status": "error", "message": "close failed"}),
     )
     monkeypatch.setattr(AccountDeletionService, "delete_user", staticmethod(delete_user))
 
@@ -444,9 +432,7 @@ async def test_account_deletion_retains_state_when_database_disconnect_fails(mon
         )
 
     assert exc_info.value.status_code == 503
-    assert exc_info.value.detail == (
-        "Could not close all database connections. Please retry account deletion."
-    )
+    assert exc_info.value.detail == ("Could not close all database connections. Please retry account deletion.")
     assert cleared == []
     assert quota_cleared == []
     assert deleted == []

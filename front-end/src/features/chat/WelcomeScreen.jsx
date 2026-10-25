@@ -25,7 +25,7 @@ function WelcomeScreen({ visible }) {
           alignItems: 'flex-end',
           justifyContent: 'center',
           px: { xs: 1, md: 3 },
-          pb: { xs: 2, sm: 2.5, md: 3 },
+          pb: { xs: 2, sm: 2.5, md: 2.5 },
           textAlign: 'center',
           pointerEvents: 'none',
           animation: visible ? `${softReveal} 200ms ease-out both` : 'none',

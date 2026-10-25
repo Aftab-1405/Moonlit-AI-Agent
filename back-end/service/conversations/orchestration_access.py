@@ -197,34 +197,25 @@ class FirestoreConversationTaskStateStore:
             previous_task_mode = data.get("task_mode", "normal") or "normal"
             current_fence = max(0, int(data.get("task_run_fence", 0) or 0))
             current_expiry = data.get("task_lease_expires_at")
-            active_generation = _generation_from_record(
-                data.get("active_checkpoint_generation")
-            )
-            running_with_active_lease = (
-                data.get("task_status") == "running"
-                and self._lease_is_active(data, now)
-            )
+            active_generation = _generation_from_record(data.get("active_checkpoint_generation"))
+            running_with_active_lease = data.get("task_status") == "running" and self._lease_is_active(data, now)
             reserved_generation = None
             if resume_checkpoint or running_with_active_lease:
-                reserved_generation = _generation_from_record(
-                    data.get("reserved_checkpoint_generation")
-                )
+                reserved_generation = _generation_from_record(data.get("reserved_checkpoint_generation"))
             if running_with_active_lease:
+                assert current_expiry is not None
                 if reserved_generation is None:
                     raise RuntimeError("Active task run has no reserved checkpoint generation.")
                 if data.get("task_run_id") == run_id:
                     if resume_checkpoint:
                         source_generation = reserved_generation.source_generation
                         valid_resume_reentry = (
-                            data.get("task_run_previous_status")
-                            == "resumable_interrupt"
-                            and reserved_generation.logical_thread_id
-                            == logical_thread_id
+                            data.get("task_run_previous_status") == "resumable_interrupt"
+                            and reserved_generation.logical_thread_id == logical_thread_id
                             and reserved_generation.run_id == run_id
                             and reserved_generation.fence == current_fence
                             and source_generation is not None
-                            and source_generation.logical_thread_id
-                            == logical_thread_id
+                            and source_generation.logical_thread_id == logical_thread_id
                             and source_generation.run_id != run_id
                             and source_generation.fence < current_fence
                             and (
@@ -236,9 +227,7 @@ class FirestoreConversationTaskStateStore:
                             )
                         )
                         if not valid_resume_reentry:
-                            raise RuntimeError(
-                                "Resume requires a quiesced resumable checkpoint source generation."
-                            )
+                            raise RuntimeError("Resume requires a quiesced resumable checkpoint source generation.")
                     return TaskRunAcquisition(
                         acquired=True,
                         run_id=run_id,
@@ -272,9 +261,7 @@ class FirestoreConversationTaskStateStore:
                     and active_generation.fence == current_fence
                 )
                 if not resumable_source_matches:
-                    raise RuntimeError(
-                        "Resume requires a quiesced resumable checkpoint source generation."
-                    )
+                    raise RuntimeError("Resume requires a quiesced resumable checkpoint source generation.")
             next_fence = current_fence + 1
             lease_expires_at = now + timedelta(seconds=max(1, lease_seconds))
             source_generation = None
@@ -409,10 +396,7 @@ class FirestoreConversationTaskStateStore:
                     continue
                 reconciled_at = datetime.now(timezone.utc)
                 reconciled = reconciliation.to_dict() if reconciliation.exists else {}
-                owner_matches = (
-                    reconciled.get("task_run_id") == run_id
-                    and reconciled.get("task_run_fence") == fence
-                )
+                owner_matches = reconciled.get("task_run_id") == run_id and reconciled.get("task_run_fence") == fence
                 if not owner_matches:
                     return False
                 if (
@@ -486,8 +470,7 @@ class FirestoreConversationTaskStateStore:
                 return False
             if require_active_reserved_match and (
                 data.get("active_checkpoint_generation") is None
-                or data.get("active_checkpoint_generation")
-                != data.get("reserved_checkpoint_generation")
+                or data.get("active_checkpoint_generation") != data.get("reserved_checkpoint_generation")
             ):
                 return False
             resolved_updates = updates(checked_at) if callable(updates) else updates

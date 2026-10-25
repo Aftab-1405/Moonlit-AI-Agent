@@ -17,6 +17,7 @@ from api_contract.context import (
 )
 from core.errors import log_safe_exception, public_tool_error
 from dependencies import (
+    AuthenticatedUser,
     _expire_db_config,
     get_current_user,
     get_session_data,
@@ -30,9 +31,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["User Context & Settings"])
 
 
-def _user_id(user: dict) -> str:
-    """Extract the user identifier from a user dict (falling back to the raw value if already a string)."""
-    return user.get("uid") or user
+def _user_id(user: AuthenticatedUser) -> str:
+    """Return the verified Firebase UID from the authenticated user."""
+    return user["uid"]
 
 
 def _parse_cache_time(cached_at):
@@ -110,7 +111,7 @@ async def _sync_persistence_to_session(request: Request, prefs: dict) -> None:
 
 async def _resolve_connection_persistence_minutes(
     request: Request,
-    user: dict,
+    user: AuthenticatedUser,
     explicit: int | None = None,
 ) -> int:
     """Resolve the effective connection-persistence-minutes value, preferring the explicit arg, then session, then user prefs."""
@@ -133,11 +134,11 @@ async def _resolve_connection_persistence_minutes(
 
 
 @router.get("/user/context")
-async def get_user_context(user: dict = Depends(get_current_user)):
+async def get_user_context(user: AuthenticatedUser = Depends(get_current_user)):
     """Get full user context including connection state and cached schemas."""
     from service.context.context_service import ContextService
 
-    user_id = user.get("uid") or user
+    user_id = user["uid"]
     context = await run_in_threadpool(ContextService.get_full_context, user_id)
     schemas_dict = context.get("schemas", {})
     schemas_list = []
@@ -162,12 +163,12 @@ async def get_user_context(user: dict = Depends(get_current_user)):
 @router.post("/user/context/refresh")
 async def refresh_user_context(
     db_config: dict = Depends(require_authenticated_db_config),
-    user: dict = Depends(get_current_user),
+    user: AuthenticatedUser = Depends(get_current_user),
 ):
     """Refresh schema cache for current database."""
     from service.context.context_service import ContextService
 
-    user_id = user.get("uid") or user
+    user_id = user["uid"]
     refreshed = await run_in_threadpool(
         ContextService.refresh_schema_context_from_database,
         user_id,
@@ -178,11 +179,11 @@ async def refresh_user_context(
 
 
 @router.delete("/user/context/schema/{database}")
-async def delete_schema_context(database: str, user: dict = Depends(get_current_user)):
+async def delete_schema_context(database: str, user: AuthenticatedUser = Depends(get_current_user)):
     """Delete stored schema context for a specific database."""
     from service.context.context_service import ContextService
 
-    user_id = user.get("uid") or user
+    user_id = user["uid"]
     success = await run_in_threadpool(ContextService.clear_schema_context, user_id, database)
 
     if success:
@@ -194,11 +195,11 @@ async def delete_schema_context(database: str, user: dict = Depends(get_current_
 
 
 @router.delete("/user/context/schemas")
-async def delete_all_schema_contexts(user: dict = Depends(get_current_user)):
+async def delete_all_schema_contexts(user: AuthenticatedUser = Depends(get_current_user)):
     """Delete all stored schema contexts for user."""
     from service.context.context_service import ContextService
 
-    user_id = user.get("uid") or user
+    user_id = user["uid"]
     context = await run_in_threadpool(ContextService.get_full_context, user_id)
     schemas = context.get("schemas", {})
     for db_name in schemas.keys():
@@ -208,11 +209,11 @@ async def delete_all_schema_contexts(user: dict = Depends(get_current_user)):
 
 
 @router.delete("/user/context/queries")
-async def clear_query_history(user: dict = Depends(get_current_user)):
+async def clear_query_history(user: AuthenticatedUser = Depends(get_current_user)):
     """Clear query history for user."""
     from service.context.context_service import ContextService
 
-    user_id = user.get("uid") or user
+    user_id = user["uid"]
     success = await run_in_threadpool(ContextService.clear_query_history, user_id)
 
     if success:
@@ -235,7 +236,9 @@ async def get_redis_info() -> dict:
         total_keys = info.get("total_keys")
         if total_keys is None:
             total_keys = sum(
-                details.get("keys", 0) for key, details in info.items() if key.startswith("db") and isinstance(details, dict)
+                details.get("keys", 0)
+                for key, details in info.items()
+                if key.startswith("db") and isinstance(details, dict)
             )
 
         maxmemory = info.get("maxmemory_human")
@@ -266,7 +269,7 @@ async def get_redis_info() -> dict:
 
 
 @router.get("/context/metrics")
-async def get_context_metrics(user: dict = Depends(require_admin_user)):
+async def get_context_metrics(user: AuthenticatedUser = Depends(require_admin_user)):
     """
     Get context hit/miss metrics for monitoring effectiveness.
 
@@ -291,7 +294,7 @@ async def get_context_metrics(user: dict = Depends(require_admin_user)):
 
 
 @router.get("/context/metrics/stream")
-async def stream_context_metrics(request: Request, user: dict = Depends(require_admin_user)):
+async def stream_context_metrics(request: Request, user: AuthenticatedUser = Depends(require_admin_user)):
     """Stream per-user context metrics whenever the Firestore context document changes."""
     from service.context.context_service import ContextService
 
@@ -348,7 +351,7 @@ async def stream_context_metrics(request: Request, user: dict = Depends(require_
 
 
 @router.post("/context/metrics/reset")
-async def reset_context_metrics(user: dict = Depends(require_admin_user)):
+async def reset_context_metrics(user: AuthenticatedUser = Depends(require_admin_user)):
     """Reset context metrics counters (for testing/monitoring)."""
     from config import get_config
     from service.context.context_service import ContextMetrics
@@ -371,7 +374,7 @@ async def reset_context_metrics(user: dict = Depends(require_admin_user)):
 @router.get("/user/settings")
 async def get_user_settings(
     request: Request,
-    user: dict = Depends(get_current_user),
+    user: AuthenticatedUser = Depends(get_current_user),
 ):
     """Get per-user preferences (Firestore) and mirror persistence into the session."""
     uid = _user_id(user)
@@ -395,7 +398,7 @@ async def get_user_settings(
 async def save_user_settings(
     request: Request,
     data: SaveUserSettingsRequest,
-    user: dict = Depends(get_current_user),
+    user: AuthenticatedUser = Depends(get_current_user),
 ):
     """Save per-user preferences to Firestore and mirror persistence into the session."""
     patch = data.model_dump(exclude_unset=True)
@@ -418,7 +421,9 @@ async def save_user_settings(
 
 
 @router.post("/user/session/close")
-async def close_user_session(request: Request, data: CloseSessionRequest, user: dict = Depends(get_current_user)):
+async def close_user_session(
+    request: Request, data: CloseSessionRequest, user: AuthenticatedUser = Depends(get_current_user)
+):
     """Mark session as closed to enforce connection persistence window."""
     now = time.time()
     if data.connectionPersistenceMinutes is not None:
@@ -452,7 +457,7 @@ async def close_user_session(request: Request, data: CloseSessionRequest, user: 
 
 @router.post("/user/session/active")
 async def mark_user_session_active(
-    request: Request, data: SessionActiveRequest, user: dict = Depends(get_current_user)
+    request: Request, data: SessionActiveRequest, user: AuthenticatedUser = Depends(get_current_user)
 ):
     """Heartbeat to mark session as active."""
     session = await get_session_data(request) or {}

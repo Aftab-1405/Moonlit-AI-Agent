@@ -10,10 +10,11 @@ test('normalizes missing and unknown dashboard sections to overview', () => {
 });
 
 test('preserves every supported dashboard section', () => {
-  assert.deepEqual(
-    ['overview', 'usage', 'account'].map(dashboardModel.normalizeDashboardSection),
-    ['overview', 'usage', 'account'],
-  );
+  assert.deepEqual(['overview', 'usage', 'account'].map(dashboardModel.normalizeDashboardSection), [
+    'overview',
+    'usage',
+    'account',
+  ]);
 });
 
 test('plans immediate dashboard navigation while chat is idle', () => {
@@ -61,9 +62,5 @@ test('stops an active stream only after dashboard navigation is confirmed', asyn
 
   assert.deepEqual(events, [['confirm']]);
   await confirm();
-  assert.deepEqual(events, [
-    ['confirm'],
-    ['stop'],
-    ['navigate', '/dashboard/overview'],
-  ]);
+  assert.deepEqual(events, [['confirm'], ['stop'], ['navigate', '/dashboard/overview']]);
 });

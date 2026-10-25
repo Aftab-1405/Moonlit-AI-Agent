@@ -30,14 +30,12 @@ class TestSaveUserSettingsRequest:
     def test_accepts_complete_frontend_default_payload(self) -> None:
         from api_contract.context import SaveUserSettingsRequest
 
-        request = SaveUserSettingsRequest(**FRONTEND_DEFAULT_PAYLOAD)
+        request = SaveUserSettingsRequest.model_validate(FRONTEND_DEFAULT_PAYLOAD)
 
         assert request.model_dump(exclude_unset=True) == FRONTEND_DEFAULT_PAYLOAD
 
     @pytest.mark.asyncio
-    async def test_complete_frontend_payload_reaches_settings_handler(
-        self, monkeypatch
-    ) -> None:
+    async def test_complete_frontend_payload_reaches_settings_handler(self, monkeypatch) -> None:
         from controller import context_controller as controller
 
         captured = {}
@@ -88,7 +86,7 @@ class TestSaveUserSettingsRequest:
     def test_accepts_supported_task_modes(self, task_mode: str) -> None:
         from api_contract.context import SaveUserSettingsRequest
 
-        request = SaveUserSettingsRequest(taskMode=task_mode)
+        request = SaveUserSettingsRequest.model_validate({"taskMode": task_mode})
 
         assert request.taskMode == task_mode
 
@@ -99,7 +97,7 @@ class TestSaveUserSettingsRequest:
         from api_contract.context import SaveUserSettingsRequest
 
         with pytest.raises(ValidationError):
-            SaveUserSettingsRequest(taskMode=task_mode)
+            SaveUserSettingsRequest.model_validate({"taskMode": task_mode})
 
     def test_keeps_extra_fields_forbidden(self) -> None:
         from pydantic import ValidationError
@@ -107,11 +105,9 @@ class TestSaveUserSettingsRequest:
         from api_contract.context import SaveUserSettingsRequest
 
         with pytest.raises(ValidationError) as exc_info:
-            SaveUserSettingsRequest(taskMode="auto", undeclared_client_field=True)
+            SaveUserSettingsRequest.model_validate({"taskMode": "auto", "undeclared_client_field": True})
 
-        assert any(
-            error["type"] == "extra_forbidden" for error in exc_info.value.errors()
-        )
+        assert any(error["type"] == "extra_forbidden" for error in exc_info.value.errors())
 
 
 class TestUserSettingsTaskMode:
@@ -155,9 +151,7 @@ class TestUserSettingsTaskMode:
         monkeypatch.setattr(
             ContextRepository,
             "get",
-            staticmethod(
-                lambda _user_id: {"preferences": {"taskMode": "tool_task"}}
-            ),
+            staticmethod(lambda _user_id: {"preferences": {"taskMode": "tool_task"}}),
         )
         monkeypatch.setattr(
             ContextRepository,
@@ -180,11 +174,7 @@ class TestUserSettingsTaskMode:
         monkeypatch.setattr(
             ContextRepository,
             "get",
-            staticmethod(
-                lambda _user_id: {
-                    "preferences": {"taskMode": "approved_autonomous"}
-                }
-            ),
+            staticmethod(lambda _user_id: {"preferences": {"taskMode": "approved_autonomous"}}),
         )
 
         settings = UserSettingsService.get_merged("user-with-invalid-preferences")

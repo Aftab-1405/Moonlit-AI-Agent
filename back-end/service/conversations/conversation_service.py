@@ -100,19 +100,18 @@ class ConversationService:
 
         return ConversationRepository.get_by_user(user_id)
 
-
     @staticmethod
     def create_streaming_generator(
         conversation_id: str,
         prompt: str | None,
         user_id: str,
         run_policy: ResolvedRunPolicy,
-        db_config: dict = None,
+        db_config: dict | None = None,
         enable_reasoning: bool = True,
         reasoning_effort: str = "medium",
         response_style: str = "balanced",
-        max_rows: int = None,
-        api_key: str = None,
+        max_rows: int | None = None,
+        api_key: str | None = None,
         resume: dict | None = None,
     ) -> AsyncGenerator[str, None]:
         """Facade over ConversationStreamingService.create_streaming_generator."""
@@ -140,12 +139,11 @@ class ConversationService:
         """Return True if the error message indicates a quota/rate-limit failure."""
         return ConversationStreamingService.check_quota_error(error_message)
 
-
     @staticmethod
     async def check_and_summarize(
         conversation_id: str,
         user_id: str,
-        model: str = None,
+        model: str | None = None,
         *,
         pressure_budget_tokens: int | None = None,
     ) -> dict:

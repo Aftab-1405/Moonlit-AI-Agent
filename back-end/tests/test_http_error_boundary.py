@@ -192,10 +192,7 @@ async def test_oversized_firebase_token_is_absent_from_validation_response(bound
     )
     assert sentinel not in response.text
     assert token not in response.text
-    assert all(
-        set(error) == {"loc", "type"}
-        for error in response.json()["details"]["errors"]
-    )
+    assert all(set(error) == {"loc", "type"} for error in response.json()["details"]["errors"])
 
 
 @pytest.mark.asyncio
@@ -221,9 +218,7 @@ async def test_database_credentials_are_absent_from_validation_response(boundary
     password_sentinel = "database-password-sentinel-never-reflect"
     password = password_sentinel + "p" * (257 - len(password_sentinel))
     dsn_sentinel = "database-dsn-sentinel-never-reflect"
-    connection_string = dsn_sentinel + "d" * (
-        Config.DB_CONNECTION_STRING_MAX_LENGTH + 1 - len(dsn_sentinel)
-    )
+    connection_string = dsn_sentinel + "d" * (Config.DB_CONNECTION_STRING_MAX_LENGTH + 1 - len(dsn_sentinel))
 
     response = await _request(
         boundary_app,
@@ -346,10 +341,7 @@ async def test_unhandled_exception_returns_safe_correlated_common_error(boundary
     ]
     assert error_records
     assert all("sensitive exception text" not in record.getMessage() for record in error_records)
-    assert any(
-        getattr(record, "request_id", None) == response.headers["x-request-id"]
-        for record in error_records
-    )
+    assert any(getattr(record, "request_id", None) == response.headers["x-request-id"] for record in error_records)
 
 
 @pytest.mark.asyncio

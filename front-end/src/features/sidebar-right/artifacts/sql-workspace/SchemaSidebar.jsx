@@ -1,4 +1,13 @@
-import { Box, Collapse, Fade, IconButton, Skeleton, Tooltip, Typography } from '@mui/material';
+import {
+  Box,
+  Collapse,
+  Fade,
+  IconButton,
+  Pagination,
+  Skeleton,
+  Tooltip,
+  Typography,
+} from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { ButtonLoadingSpinner } from '@/components';
@@ -11,11 +20,22 @@ import {
   TableIcon,
 } from '@/components/icons';
 import { useDatabaseConnection } from '@/contexts/DatabaseContext';
-import { getArtifactActionButtonSx } from '@/features/sidebar-right/artifact-loader';
+import {
+  ArtifactUtilityPanel,
+  getArtifactActionButtonSx,
+} from '@/features/sidebar-right/artifact-loader';
 import { getInteractionColors, getScrollbarStyles } from '@/styles/shared';
 
 const TREE_ROW_HEIGHT = 32;
 const ICON_SLOT = 24;
+const TABLES_PER_PAGE = 25;
+const EMPTY_TABLE_STATE = {
+  expanded: false,
+  columns: [],
+  columnsLoading: false,
+  columnsError: '',
+  loaded: false,
+};
 
 function getColumnMeta(column) {
   if (typeof column === 'string') return { name: column, dataType: '' };
@@ -153,38 +173,10 @@ function ColumnItem({ column }) {
   );
 }
 
-function TableItem({ table, currentDatabase, fetchTableSchema }) {
+function TableItem({ table, state, onToggle }) {
   const theme = useTheme();
   const interaction = getInteractionColors(theme);
-  const [expanded, setExpanded] = useState(false);
-  const [columns, setColumns] = useState([]);
-  const [columnsLoading, setColumnsLoading] = useState(false);
-  const [columnsError, setColumnsError] = useState('');
-
-  const handleToggle = useCallback(async () => {
-    const nextExpanded = !expanded;
-    setExpanded(nextExpanded);
-
-    if (!nextExpanded || columns.length > 0 || columnsLoading) return;
-
-    setColumnsLoading(true);
-    setColumnsError('');
-    try {
-      const response = await fetchTableSchema({
-        database: currentDatabase,
-        tableName: table.name,
-      });
-      if (response.status === 'success') {
-        setColumns(response.data?.columns || []);
-      } else {
-        setColumnsError(response.message || 'Columns unavailable');
-      }
-    } catch (error) {
-      setColumnsError(error.message || 'Columns unavailable');
-    } finally {
-      setColumnsLoading(false);
-    }
-  }, [columns.length, columnsLoading, currentDatabase, expanded, fetchTableSchema, table.name]);
+  const { expanded, columns, columnsLoading, columnsError } = state;
 
   return (
     <Box>
@@ -192,7 +184,7 @@ function TableItem({ table, currentDatabase, fetchTableSchema }) {
         component="button"
         type="button"
         aria-expanded={expanded}
-        onClick={handleToggle}
+        onClick={() => onToggle(table.name)}
         sx={{
           ...getTreeRowSx(theme, interaction),
           px: 0.75,
@@ -209,7 +201,7 @@ function TableItem({ table, currentDatabase, fetchTableSchema }) {
             }}
           />
         </TreeIconSlot>
-        <TreeIconSlot color={expanded ? 'primary.main' : 'text.secondary'}>
+        <TreeIconSlot color={expanded ? 'text.primary' : 'text.secondary'}>
           <TableIcon sx={{ fontSize: 16 }} />
         </TreeIconSlot>
         <Typography
@@ -250,6 +242,43 @@ function SchemaItem({ schema, currentDatabase, fetchTableSchema }) {
   const theme = useTheme();
   const interaction = getInteractionColors(theme);
   const [expanded, setExpanded] = useState(true);
+  const [page, setPage] = useState(1);
+  const [tableStates, setTableStates] = useState(() => new Map());
+  const pageCount = Math.max(1, Math.ceil(schema.tables.length / TABLES_PER_PAGE));
+  const currentPage = Math.min(page, pageCount);
+  const visibleTables = schema.tables.slice(
+    (currentPage - 1) * TABLES_PER_PAGE,
+    currentPage * TABLES_PER_PAGE,
+  );
+
+  const updateTable = (name, patch) => {
+    setTableStates((states) =>
+      new Map(states).set(name, {
+        ...(states.get(name) || EMPTY_TABLE_STATE),
+        ...patch,
+      }),
+    );
+  };
+
+  const handleToggleTable = async (name) => {
+    const state = tableStates.get(name) || EMPTY_TABLE_STATE;
+    const nextExpanded = !state.expanded;
+    updateTable(name, { expanded: nextExpanded });
+    if (!nextExpanded || state.loaded || state.columnsLoading) return;
+    updateTable(name, { columnsLoading: true, columnsError: '' });
+    try {
+      const response = await fetchTableSchema({ database: currentDatabase, tableName: name });
+      if (response.status === 'success') {
+        updateTable(name, { columns: response.data?.columns || [], loaded: true });
+      } else {
+        updateTable(name, { columnsError: response.message || 'Columns unavailable' });
+      }
+    } catch (error) {
+      updateTable(name, { columnsError: error.message || 'Columns unavailable' });
+    } finally {
+      updateTable(name, { columnsLoading: false });
+    }
+  };
 
   return (
     <Box>
@@ -275,7 +304,7 @@ function SchemaItem({ schema, currentDatabase, fetchTableSchema }) {
             }}
           />
         </TreeIconSlot>
-        <TreeIconSlot color="primary.main">
+        <TreeIconSlot color="text.secondary">
           <SchemaIcon sx={{ width: 16, height: 16 }} />
         </TreeIconSlot>
         <Typography
@@ -307,14 +336,25 @@ function SchemaItem({ schema, currentDatabase, fetchTableSchema }) {
       </Box>
       <Collapse in={expanded} timeout={180}>
         <Box sx={{ pl: 1 }}>
-          {schema.tables.map((table) => (
+          {visibleTables.map((table) => (
             <TableItem
               key={`${currentDatabase || 'db'}-${table.name}`}
               table={table}
-              currentDatabase={currentDatabase}
-              fetchTableSchema={fetchTableSchema}
+              state={tableStates.get(table.name) || EMPTY_TABLE_STATE}
+              onToggle={handleToggleTable}
             />
           ))}
+          {pageCount > 1 && (
+            <Pagination
+              aria-label="Schema table pages"
+              count={pageCount}
+              page={currentPage}
+              onChange={(_, nextPage) => setPage(nextPage)}
+              size="small"
+              siblingCount={0}
+              sx={{ mt: 1 }}
+            />
+          )}
         </Box>
       </Collapse>
     </Box>
@@ -362,7 +402,7 @@ function SchemaEmptyState({ message, tone }) {
             height: 38,
             display: 'grid',
             placeItems: 'center',
-            borderRadius: '8px',
+            borderRadius: '12px',
             color: tone === 'error' ? 'error.main' : 'text.disabled',
             bgcolor: alpha(
               tone === 'error' ? theme.palette.error.main : theme.palette.text.primary,
@@ -460,21 +500,7 @@ function SchemaSidebar({
   }, [isConnected, schemaError, schemaInfo]);
 
   return (
-    <Box
-      sx={{
-        width,
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        flexShrink: 0,
-        minHeight: 0,
-        position: 'relative',
-        overflow: 'hidden',
-        borderRadius: '8px',
-        bgcolor: 'background.paper',
-        border: `1px solid ${theme.palette.border.subtle}`,
-      }}
-    >
+    <ArtifactUtilityPanel sx={{ width, flex: '0 0 auto' }}>
       <Box
         sx={{
           minHeight: 48,
@@ -554,6 +580,7 @@ function SchemaSidebar({
           <SchemaEmptyState message={schemaContent.message} tone={schemaContent.tone} />
         ) : (
           <SchemaItem
+            key={JSON.stringify([currentDatabase, schemaInfo.name])}
             schema={schemaInfo}
             currentDatabase={currentDatabase}
             fetchTableSchema={fetchTableSchema}
@@ -583,19 +610,23 @@ function SchemaSidebar({
             width: 2,
             height: 34,
             borderRadius: 999,
-            bgcolor: resizing ? 'primary.main' : 'transparent',
+            bgcolor: resizing ? 'accent.foreground' : 'transparent',
             transform: 'translateY(-50%)',
             transition: theme.transitions.create('background-color', {
               duration: theme.transitions.duration.shorter,
             }),
           },
-          '&:hover::after, &:active::after': {
-            bgcolor: 'primary.main',
+          '&:hover::after': {
+            bgcolor: resizing ? 'accent.foreground' : 'text.primary',
           },
         }}
       />
-    </Box>
+    </ArtifactUtilityPanel>
   );
 }
 
-export default memo(SchemaSidebar);
+export default memo(function ScopedSchemaSidebar(props) {
+  return (
+    <SchemaSidebar key={JSON.stringify([props.currentDatabase, props.isConnected])} {...props} />
+  );
+});

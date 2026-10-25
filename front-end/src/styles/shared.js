@@ -18,6 +18,7 @@
 import { alpha } from '@mui/material/styles';
 import {
   BACKDROP_FILTER_FALLBACK_QUERY,
+  BUTTON_TOUCH_QUERY,
   HOVER_CAPABLE_QUERY,
   REDUCED_MOTION_QUERY,
   TOUCH_DEVICE_QUERY,
@@ -29,6 +30,9 @@ export const UI_LAYOUT = Object.freeze({
   touchTarget: 44,
   compactTouchTarget: 40,
   controlRowHeight: 36,
+  workspaceTopRowHeight: 60,
+  workspaceFrameBorderWidth: 1,
+  navigationRailInset: 4,
   sidebarExpandedWidth: 344,
   sidebarCollapsedWidth: 52,
   chatInputMaxWidth: 768,
@@ -98,7 +102,7 @@ export const getScrollbarStyles = (theme, { compact = false } = {}) => ({
 });
 
 const getPaletteInteractionColors = (palette, { active = false, tone = 'neutral' } = {}) => {
-  const semanticColor = palette[tone]?.main;
+  const semanticColor = tone === 'accent' ? palette.accent.foreground : palette[tone]?.main;
   const color = tone === 'neutral' ? palette.text.primary : semanticColor || palette.text.primary;
   const textColor = tone === 'neutral' ? palette.text.primary : color;
   const restingTextColor = tone === 'neutral' ? palette.text.secondary : color;
@@ -169,14 +173,14 @@ export const getOutlinedFieldStateSx = (
       boxShadow: 'none',
     },
     '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-      borderColor: theme.palette.border.idle,
+      borderColor: theme.palette.border.focus,
       borderWidth: 1,
     },
     '&.Mui-focused:hover': {
       backgroundColor,
     },
     '&.Mui-focused:hover .MuiOutlinedInput-notchedOutline': {
-      borderColor: theme.palette.border.hover,
+      borderColor: theme.palette.border.focus,
       borderWidth: 1,
     },
     '&.Mui-error .MuiOutlinedInput-notchedOutline': {
@@ -240,7 +244,7 @@ export const getInteractiveIconButtonSx = (
     active = false,
     tone = 'neutral',
     size = 36,
-    radius = '8px',
+    radius = theme.shape.radius.pill,
     showBorder = tone !== 'neutral',
   } = {},
 ) => ({
@@ -255,6 +259,7 @@ export const getInteractiveIconButtonSx = (
   justifyContent: 'center',
   border: '1px solid transparent',
   boxShadow: 'none',
+  [BUTTON_TOUCH_QUERY]: { minWidth: 44, minHeight: 44 },
 });
 
 export const getSegmentedToggleGroupSx = (
@@ -417,12 +422,15 @@ export const getInsetPanelSx = (
     : {}),
 });
 
-export const getUtilityIconButtonSx = (theme, { padding = 0.5, radius = '6px' } = {}) => {
+export const getUtilityIconButtonSx = (
+  theme,
+  { padding = 0, radius = theme.shape.radius.pill } = {},
+) => {
   const baseSx = getInteractiveControlSx(theme, { radius });
   return {
     ...baseSx,
     p: padding,
-    minHeight: 'auto',
+    [BUTTON_TOUCH_QUERY]: { minWidth: 44, minHeight: 44 },
     borderColor: 'transparent',
     backgroundColor: 'transparent',
     boxShadow: 'none',
@@ -504,49 +512,8 @@ export const getDialogFooterSx = (theme) => ({
  * @param {object} theme     — MUI theme
  * @param {object} overrides — extra sx merged last (e.g. width, mt, p overrides)
  */
-/**
- * Shared secondary action button sx.
- *
- * Used for small action buttons that appear inside content areas —
- * "View diagram", "Filter to selection", "Copy row", "Load older messages",
- * etc. Keeps every small action button in the app visually identical:
- *   - borderRadius: 8px
- *   - typography: uiBodySm
- *   - color: text.secondary → text.primary on hover
- *   - border: hairline at low alpha
- *   - padding: px 1.75, py 0.625
- *
- * Usage:
- *   <Button size="small" variant="outlined" sx={getSecondaryActionButtonSx(theme)}>...</Button>
- */
-export const getSecondaryActionButtonSx = (theme) => {
-  return {
-    borderRadius: 9999,
-    textTransform: 'none',
-    ...theme.typography.uiBodySm,
-    fontWeight: 400,
-    px: 1.75,
-    py: 0.5,
-    minHeight: 30,
-    color: 'text.secondary',
-    borderColor: theme.palette.border.idle,
-    backgroundColor: 'transparent',
-    transition: theme.transitions.create(['background-color', 'border-color', 'color'], {
-      duration: theme.transitions.duration.shorter,
-    }),
-    [HOVER_CAPABLE_QUERY]: {
-      '&:hover': {
-        color: 'text.primary',
-        borderColor: theme.palette.border.hover,
-        backgroundColor: theme.palette.action.hover,
-      },
-    },
-    '&.Mui-focusVisible': {
-      outline: `2px solid ${theme.palette.border.focus}`,
-      outlineOffset: 2,
-    },
-  };
-};
+/** Content actions inherit outlined/small geometry from the MUI theme. */
+export const getSecondaryActionButtonSx = () => ({ color: 'text.secondary' });
 
 export const getPopoverPaperSx = (theme, overrides = {}) => ({
   borderRadius: UI_POPOVER.paperRadius,

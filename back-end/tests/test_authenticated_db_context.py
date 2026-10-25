@@ -363,6 +363,7 @@ async def test_verified_cookie_receives_cached_database_metadata(
 
     monkeypatch.setattr(dependencies, "verify_session_cookie_value", verify_cookie)
     state_before_active = session_boundary.state[session_boundary.key]["session_active_at"]
+    assert isinstance(state_before_active, (int, float))
 
     response = await _request(
         metadata_app,
@@ -378,11 +379,19 @@ async def test_verified_cookie_receives_cached_database_metadata(
     assert verification_calls == [SESSION_COOKIE]
     assert session_boundary.read_keys == [session_boundary.key]
     assert len(session_boundary.merge_calls) == 1
-    assert session_boundary.state[session_boundary.key]["session_active_at"] >= state_before_active
-    assert session_boundary.state[session_boundary.key]["db_config_last_used_at"] > 100.0
+    session_active_at = session_boundary.state[session_boundary.key]["session_active_at"]
+    db_config_last_used_at = session_boundary.state[session_boundary.key]["db_config_last_used_at"]
+    assert isinstance(session_active_at, (int, float))
+    assert isinstance(db_config_last_used_at, (int, float))
+    assert session_active_at >= state_before_active
+    assert db_config_last_used_at > 100.0
     assert database.calls
-    assert all(config == {**DB_CONFIG, "_pool_owner": "metadata-owner"} for _, config in database.calls)
+    assert all(
+        config == {**DB_CONFIG, "_pool_owner": "metadata-owner", "_context_generation": session_boundary.key}
+        for _, config in database.calls
+    )
     assert "_pool_owner" not in response.text
+    assert "_context_generation" not in response.text
 
 
 @pytest.mark.asyncio
@@ -421,5 +430,7 @@ async def test_fastapi_reuses_verified_identity_for_route_and_database_context(
         "message": "Database disconnected successfully",
     }
     assert verification_calls == [SESSION_COOKIE]
-    assert database.calls == [("disconnect", {**DB_CONFIG, "_pool_owner": "metadata-owner"})]
+    assert database.calls == [
+        ("disconnect", {**DB_CONFIG, "_pool_owner": "metadata-owner", "_context_generation": session_boundary.key})
+    ]
     assert session_boundary.state[session_boundary.key]["db_config"] is None

@@ -1,6 +1,6 @@
 import { Box, Button, Typography } from '@mui/material';
-import { alpha, useTheme } from '@mui/material/styles';
-import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import { useTheme } from '@mui/material/styles';
+import { memo, useCallback, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   AnalyticsIcon,
   CodeEditorIcon,
@@ -10,19 +10,30 @@ import {
   ImageIcon,
   ResetIcon,
   SaveIcon,
-  WarningIcon,
 } from '@/components/icons';
-import { ArtifactEmptyState, ArtifactShell } from '@/features/sidebar-right/artifact-loader';
 import { useAuth } from '@/contexts/AuthContext';
+import {
+  ArtifactCanvasPanel,
+  ArtifactEmptyState,
+  ArtifactShell,
+} from '@/features/sidebar-right/artifact-loader';
 import PerspectiveDashboard from '@/features/sidebar-right/artifacts/data-visualization/PerspectiveDashboard';
 import { createAnalysisStorageKey } from '@/features/sidebar-right/artifacts/data-visualization/perspectiveAnalysis';
 import { getSecondaryActionButtonSx } from '@/styles/shared';
 import { copyToClipboard } from '@/utils/clipboard';
+import { downloadFile } from '@/utils/downloadFile';
+import {
+  describeResultScope,
+  normalizeQueryResult,
+  resultExportMetadata,
+  resultToCsv,
+} from '@/utils/queryResult';
 
 function DataVisualizationPanel({
   data,
   chrome = 'standalone',
-  _title = 'Data Analysis',
+  title,
+  outputsSlot,
   onClose,
   onOpenArtifact,
   onRequestClose,
@@ -32,7 +43,7 @@ function DataVisualizationPanel({
   onExitFullscreen,
   onToggleFullscreen,
   sourceQuery,
-  currentDatabase,
+
   workspaceContainerRef,
   onNotify,
 }) {
@@ -41,29 +52,138 @@ function DataVisualizationPanel({
   const dashboardRef = useRef(null);
   const [viewerReady, setViewerReady] = useState(false);
   const [selection, setSelection] = useState(null);
-  const columns = useMemo(() => data?.columns || [], [data?.columns]);
-  const rows = useMemo(() => data?.rows || [], [data?.rows]);
-  // Preserve column_types so PerspectiveDashboard can build an explicit schema
-  // instead of falling back to sample-based inference. Without this, every
-  // query result loses its type information at this boundary.
-  const column_types = useMemo(() => data?.column_types || {}, [data?.column_types]);
-  const memoizedData = useMemo(
-    () => ({ columns, rows, column_types }),
-    [columns, rows, column_types],
-  );
-
+  const memoizedData = useMemo(() => normalizeQueryResult(data), [data]);
+  const { rows, result_metadata: metadata } = memoizedData;
+  const [notices, setNotices] = useState([]);
+  const [expandedResult, setExpandedResult] = useState(null);
+  const detailsId = useId();
+  const detailsOpen = expandedResult === memoizedData;
   const storageKey = useMemo(
     () =>
       createAnalysisStorageKey({
         userId: user?.uid,
-        sourceQuery,
-        columns,
-        database: currentDatabase,
+        sourceId: metadata?.source_id,
+        queryId: metadata?.query_id,
+        columnMetadata: memoizedData.column_metadata,
       }),
-    [columns, currentDatabase, sourceQuery, user?.uid],
+    [metadata, memoizedData.column_metadata, user?.uid],
   );
-  const isTruncated = Boolean(data?.truncated);
-  const displayedRowCount = data?.row_count ?? rows.length;
+  const metrics = useRef({});
+  useLayoutEffect(() => {
+    metrics.current = {
+      ...memoizedData.client_metrics,
+      execution_time_ms: metadata?.execution_time_ms,
+      rows: memoizedData.rows.length,
+      columns: memoizedData.columns.length,
+    };
+  }, [memoizedData, metadata]);
+  const recordMetrics = useCallback((values) => {
+    Object.assign(metrics.current, values);
+    // Keep one numeric-only diagnostic entry, never queries, source identifiers or rows.
+    if (typeof performance.measure === 'function') {
+      performance.clearMeasures('moonlit:analysis');
+      performance.measure('moonlit:analysis', {
+        start: 0,
+        duration: metrics.current.visualization_usable_ms || 0,
+        detail: { ...metrics.current },
+      });
+    }
+  }, []);
+  const isTruncated = memoizedData.truncated;
+  const scopeLabel = memoizedData.expired
+    ? 'Released'
+    : isTruncated
+      ? 'Truncated'
+      : metadata?.completeness === 'complete'
+        ? 'Complete'
+        : 'Scope unknown';
+  const hasApproximateValues = memoizedData.column_metadata.some(
+    (column) => column.encoding === 'decimal-string' || column.encoding === 'integer-string',
+  );
+  const scope = (
+    <Box sx={{ px: 1.5, py: 0.5, flexShrink: 0, minWidth: 0 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+        <Typography
+          role={isTruncated ? 'alert' : 'status'}
+          sx={{
+            ...theme.typography.uiCaptionMd,
+            color: isTruncated ? 'warning.main' : 'text.secondary',
+          }}
+        >
+          {rows.length.toLocaleString()} {rows.length === 1 ? 'row' : 'rows'} · {scopeLabel}
+        </Typography>
+        {hasApproximateValues ? (
+          <Typography sx={{ ...theme.typography.uiCaptionSm, color: 'text.secondary' }}>
+            Approximate values
+          </Typography>
+        ) : null}
+        <Button
+          size="small"
+          color="inherit"
+          aria-expanded={detailsOpen}
+          aria-controls={detailsId}
+          onClick={() => setExpandedResult(detailsOpen ? null : memoizedData)}
+          sx={{ ml: 'auto' }}
+        >
+          Result details
+        </Button>
+      </Box>
+      {detailsOpen ? (
+        <Box id={detailsId} sx={{ py: 1 }}>
+          <Typography sx={{ ...theme.typography.uiCaptionSm, color: 'text.secondary' }}>
+            {describeResultScope(memoizedData)}
+          </Typography>
+          <Typography sx={{ ...theme.typography.uiCaptionSm, color: 'text.secondary' }}>
+            Filters, pivots, totals, charts and exports cover these loaded rows. A complete SQL
+            result may summarize more database rows.
+          </Typography>
+          {metadata?.executed_at ? (
+            <Typography
+              sx={{
+                ...theme.typography.uiCaptionSm,
+                color: 'text.secondary',
+                overflowWrap: 'anywhere',
+              }}
+            >
+              Snapshot {metadata.executed_at} · Execution {metadata.execution_id}
+            </Typography>
+          ) : null}
+          {metadata?.timeout_scope === 'driver-configured' ? (
+            <Typography sx={{ ...theme.typography.uiCaptionSm, color: 'text.secondary' }}>
+              SQL Server uses its configured {metadata.effective_timeout_seconds}s execution timeout
+              (requested {metadata.requested_timeout_seconds}s).
+            </Typography>
+          ) : metadata?.timeout_scope === 'driver-round-trip' ? (
+            <Typography sx={{ ...theme.typography.uiCaptionSm, color: 'text.secondary' }}>
+              Timeout: {metadata.effective_timeout_seconds}s per database round trip, not a total
+              query deadline.
+            </Typography>
+          ) : null}
+          {notices.map((notice) => (
+            <Typography
+              key={notice}
+              sx={{ ...theme.typography.uiCaptionSm, color: 'text.secondary' }}
+            >
+              {notice}
+            </Typography>
+          ))}
+        </Box>
+      ) : null}
+    </Box>
+  );
+  const downloadSource = useCallback(() => {
+    try {
+      const filename = `query-${metadata?.execution_id || 'legacy'}-${isTruncated ? 'truncated' : metadata?.completeness || 'unknown'}`;
+      downloadFile(resultToCsv(memoizedData), `${filename}.csv`, 'text/csv;charset=utf-8');
+      downloadFile(
+        JSON.stringify(resultExportMetadata(memoizedData), null, 2),
+        `${filename}.metadata.json`,
+        'application/json',
+      );
+    } catch (error) {
+      onNotify?.(error.message || 'Source export could not be downloaded.', 'error');
+    }
+  }, [memoizedData, metadata, isTruncated, onNotify]);
 
   const requestOpenArtifact = onRequestOpenArtifact || onOpenArtifact;
 
@@ -81,7 +201,9 @@ function DataVisualizationPanel({
   const runDashboardAction = useCallback(
     async (action, successMessage, ...args) => {
       try {
-        await dashboardRef.current?.[action]?.(...args);
+        if (!dashboardRef.current?.[action]) throw new Error('Analysis is not ready.');
+        const result = await dashboardRef.current[action](...args);
+        if (result === false) throw new Error('The analysis action could not be completed.');
         onNotify?.(successMessage, 'success');
       } catch (actionError) {
         const errMsg = actionError?.message || 'The analysis action could not be completed.';
@@ -105,7 +227,8 @@ function DataVisualizationPanel({
   if (!rows.length) {
     return (
       <ArtifactShell
-        title="Query results"
+        outputsSlot={outputsSlot}
+        title={title || 'Query results'}
         chrome={chrome}
         onClose={onClose}
         onRequestClose={onRequestClose}
@@ -119,13 +242,20 @@ function DataVisualizationPanel({
             : []
         }
       >
-        <ArtifactEmptyState
-          role="status"
-          ariaLive="polite"
-          icon={<AnalyticsIcon sx={{ fontSize: 48 }} />}
-          title="No rows returned"
-          message="The query completed without returning data."
-        />
+        {scope}
+        <ArtifactCanvasPanel>
+          <ArtifactEmptyState
+            role="status"
+            ariaLive="polite"
+            icon={<AnalyticsIcon sx={{ fontSize: 48 }} />}
+            title={memoizedData.expired ? 'Cached result released' : 'No rows returned'}
+            message={
+              memoizedData.expired
+                ? 'Open the SQL editor and rerun this query to analyse a new snapshot.'
+                : 'The query completed without returning data.'
+            }
+          />
+        </ArtifactCanvasPanel>
       </ArtifactShell>
     );
   }
@@ -142,7 +272,8 @@ function DataVisualizationPanel({
       }}
     >
       <ArtifactShell
-        title="Perspective"
+        outputsSlot={outputsSlot}
+        title={title || 'Visualization'}
         chrome={chrome}
         onClose={onClose}
         onRequestClose={onRequestClose}
@@ -151,7 +282,6 @@ function DataVisualizationPanel({
         onExitFullscreen={onExitFullscreen}
         onToggleFullscreen={onToggleFullscreen}
         workspaceContainerRef={workspaceContainerRef}
-        bodySx={{ p: 2, display: 'flex', flexDirection: 'column' }}
         actions={[
           sourceQuery && requestOpenArtifact
             ? {
@@ -170,13 +300,22 @@ function DataVisualizationPanel({
           },
           {
             key: 'copy-view',
-            label: 'Copy current view as CSV',
+            placement: 'overflow',
+            label: 'Copy current view with metadata',
             icon: <CopyIcon sx={{ fontSize: 18 }} />,
             onClick: () => runDashboardAction('copy', 'Current view copied.'),
             disabled: !viewerReady,
           },
           {
+            key: 'download-source',
+            placement: 'overflow',
+            label: 'Download source CSV and metadata',
+            icon: <DownloadIcon />,
+            onClick: downloadSource,
+          },
+          {
             key: 'download-csv',
+            placement: 'overflow',
             label: 'Download current view as CSV',
             icon: <DownloadIcon sx={{ fontSize: 18 }} />,
             onClick: () => runDashboardAction('download', 'CSV download started.'),
@@ -184,6 +323,7 @@ function DataVisualizationPanel({
           },
           {
             key: 'export-visualization',
+            placement: 'overflow',
             label: 'Export visualization',
             icon: <ImageIcon sx={{ fontSize: 18 }} />,
             onClick: () =>
@@ -192,6 +332,7 @@ function DataVisualizationPanel({
           },
           {
             key: 'reset-analysis',
+            placement: 'overflow',
             label: 'Reset analysis',
             icon: <ResetIcon sx={{ fontSize: 18 }} />,
             onClick: () => runDashboardAction('reset', 'Analysis reset.'),
@@ -242,29 +383,7 @@ function DataVisualizationPanel({
           ) : null
         }
       >
-        {isTruncated ? (
-          <Box
-            role="alert"
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1,
-              mb: 1.5,
-              px: 1.5,
-              py: 1,
-              borderRadius: '8px',
-              color: 'warning.main',
-              bgcolor: alpha(theme.palette.warning.main, theme.palette.opacity.medium),
-              border: `1px solid ${alpha(theme.palette.warning.main, 0.24)}`,
-            }}
-          >
-            <WarningIcon sx={{ fontSize: 18, flexShrink: 0 }} />
-            <Typography sx={{ ...theme.typography.uiCaptionMd, color: 'text.secondary' }}>
-              Analysis only includes the first {displayedRowCount.toLocaleString()} rows. Increase
-              the query row limit or aggregate in SQL before drawing conclusions.
-            </Typography>
-          </Box>
-        ) : null}
+        {scope}
         <Box sx={{ flex: 1, minHeight: 0, minWidth: 0 }}>
           <PerspectiveDashboard
             ref={dashboardRef}
@@ -272,6 +391,9 @@ function DataVisualizationPanel({
             storageKey={storageKey}
             onReadyChange={setViewerReady}
             onSelectionChange={setSelection}
+            onNotices={setNotices}
+            onMetrics={recordMetrics}
+            onNotify={onNotify}
           />
         </Box>
       </ArtifactShell>

@@ -10,18 +10,17 @@ import {
   useMediaQuery,
 } from '@mui/material';
 import { useTheme as useMuiTheme } from '@mui/material/styles';
+import { useQuery } from '@tanstack/react-query';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { queryClient, queryKeys } from '@/api/queryClient';
-import { useQuery } from '@tanstack/react-query';
-import { resolveLlmSelection } from '@/config/llmSelection';
-import { getEffectiveReasoningEffort, REASONING_EFFORT_OPTIONS } from '@/config/userSettings';
 import { DialogShell } from '@/components';
 import { AiContextIcon, AiSparkleIcon, DatabaseIcon } from '@/components/icons';
+import { resolveLlmSelection } from '@/config/llmSelection';
+import { getEffectiveReasoningEffort, REASONING_EFFORT_OPTIONS } from '@/config/userSettings';
 import { useTheme as useAppTheme } from '@/contexts/ThemeContext';
 import {
   getPreferenceBackdropSx,
   getPreferenceBodySx,
-  getPreferenceButtonSx,
   getPreferenceControlSx,
   getPreferencePaperSx,
   getPreferenceRootSx,
@@ -94,7 +93,6 @@ function SettingsModal({ open, onClose, initialSection = null }) {
   const settingsSurfaceWidth = '100vw';
   const mainContentDialogRootSx = useMemo(() => getPreferenceRootSx(), []);
   const controlSx = useMemo(() => getPreferenceControlSx(theme), [theme]);
-  const subtleButtonSx = useMemo(() => getPreferenceButtonSx(theme), [theme]);
 
   const NavContent = (
     <PreferenceNavList ariaLabel="Settings">
@@ -245,7 +243,7 @@ function SettingsModal({ open, onClose, initialSection = null }) {
                   label="Max Rows"
                   description={
                     settings.maxRows === 0
-                      ? 'No limit — may slow down on large tables'
+                      ? 'Use the server-defined row cap'
                       : 'Limit results to prevent slowdown'
                   }
                   htmlFor="setting-max-rows"
@@ -269,7 +267,7 @@ function SettingsModal({ open, onClose, initialSection = null }) {
                           fontWeight: 400,
                         }}
                       >
-                        No Limit
+                        Server default
                       </MenuItem>
                     </Select>
                   </FormControl>
@@ -411,7 +409,7 @@ function SettingsModal({ open, onClose, initialSection = null }) {
 
         {canResetSettingsSection(activeSection) && (
           <PreferenceFooterActions sx={{ justifyContent: 'flex-start' }}>
-            <Button color="secondary" onClick={resetSettings} size="small" sx={subtleButtonSx}>
+            <Button variant="outlined" onClick={resetSettings}>
               Reset to defaults
             </Button>
           </PreferenceFooterActions>
@@ -421,4 +419,4 @@ function SettingsModal({ open, onClose, initialSection = null }) {
   );
 }
 
-export default memo(SettingsModal, (prevProps, nextProps) => prevProps.open === nextProps.open);
+export default memo(SettingsModal);

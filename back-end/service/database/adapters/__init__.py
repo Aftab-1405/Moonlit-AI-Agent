@@ -5,6 +5,8 @@ Provides abstraction layer for different database types (MySQL, PostgreSQL,
 SQL Server, Oracle) using the Adapter Pattern.
 """
 
+from typing import Callable, Literal, overload
+
 from .base_adapter import BaseDatabaseAdapter
 from .mysql_adapter import MySQLAdapter
 from .oracle_adapter import OracleAdapter
@@ -20,6 +22,26 @@ __all__ = [
 ]
 
 
+@overload
+def get_adapter(db_type: Literal["mysql"]) -> MySQLAdapter: ...
+
+
+@overload
+def get_adapter(db_type: Literal["postgresql"]) -> PostgreSQLAdapter: ...
+
+
+@overload
+def get_adapter(db_type: Literal["sqlserver"]) -> SQLServerAdapter: ...
+
+
+@overload
+def get_adapter(db_type: Literal["oracle"]) -> OracleAdapter: ...
+
+
+@overload
+def get_adapter(db_type: str) -> BaseDatabaseAdapter: ...
+
+
 def get_adapter(db_type: str) -> BaseDatabaseAdapter:
     """
     Factory function to get the appropriate database adapter.
@@ -33,7 +55,7 @@ def get_adapter(db_type: str) -> BaseDatabaseAdapter:
     Raises:
         ValueError: If database type is not supported
     """
-    adapters = {
+    adapters: dict[str, Callable[[], BaseDatabaseAdapter]] = {
         "mysql": MySQLAdapter,
         "postgresql": PostgreSQLAdapter,
         "sqlserver": SQLServerAdapter,

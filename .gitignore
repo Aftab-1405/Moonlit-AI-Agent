@@ -158,6 +158,29 @@ agent/
 !/back-end/tests/test_dependency_management.py
 !/back-end/tests/test_skill_registry.py
 !/back-end/tests/test_startup_diagnostics.py
+!/back-end/tests/test_authentication_boundary.py
 security-audit/
 .superpowers/
 /docs/superpowers/
+
+# SQL/Perspective contract and lifecycle regression coverage
+!/back-end/tests/test_query_result_contract.py
+!/back-end/tests/test_query_execution_controls.py
+!/back-end/tests/test_conversation_history.py
+!/back-end/tests/test_tool_evidence.py
+
+# Private historical module findings; never include in ordinary documentation commits.
+/docs/security/module-findings.local.md
+
+# Maintained typing and runtime-boundary regression coverage.
+!/back-end/tests/test_conversation_recency.py
+!/back-end/tests/test_database_context_sync_usage.py
+!/back-end/tests/test_database_typing_regressions.py
+!/back-end/tests/test_orchestration_typing_regressions.py
+!/back-end/tests/test_tool_result_contracts.py
+
+# Lossless result analysis regression coverage.
+!/back-end/tests/test_result_analysis_encoding.py
+
+# Generated backend coverage report.
+/back-end/coverage.json

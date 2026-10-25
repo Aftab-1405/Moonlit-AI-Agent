@@ -90,7 +90,9 @@ function renderDashboard(section) {
 
 describe('DashboardPage', () => {
   beforeEach(() => {
-    Object.values(authActions).forEach((action) => action.mockClear());
+    Object.values(authActions).forEach((action) => {
+      action.mockClear();
+    });
     authUser.email = 'ada@example.com';
     api.getDashboardOverview.mockResolvedValue({
       status: 'success',
@@ -98,7 +100,11 @@ describe('DashboardPage', () => {
         conversation_count: 12,
         last_activity_at: '2026-08-31T10:00:00.000Z',
         recent_conversations: [
-          { id: 'conversation-1', title: 'Quarterly analysis', updated_at: '2026-08-31T10:00:00.000Z' },
+          {
+            id: 'conversation-1',
+            title: 'Quarterly analysis',
+            updated_at: '2026-08-31T10:00:00.000Z',
+          },
         ],
         cached_database_count: 2,
         cached_table_count: 18,
@@ -208,13 +214,19 @@ describe('DashboardPage', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     const notification = await screen.findByRole('status');
     expect(notification.textContent).toContain('Display name updated.');
-    await browserUser.click(within(notification).getByRole('button', { name: 'Dismiss notification' }));
+    await browserUser.click(
+      within(notification).getByRole('button', { name: 'Dismiss notification' }),
+    );
     await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
   });
 
   it('keeps email confirmation open and prevents duplicate submission while working', async () => {
     let resolveRequest;
-    authActions.requestEmailChange.mockReturnValueOnce(new Promise((resolve) => { resolveRequest = resolve; }));
+    authActions.requestEmailChange.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveRequest = resolve;
+      }),
+    );
     const browserUser = userEvent.setup();
     renderDashboard('account');
 
@@ -250,7 +262,9 @@ describe('DashboardPage', () => {
     await browserUser.click(screen.getByRole('button', { name: 'Send password reset' }));
     const notification = await screen.findByRole('alert');
     expect(notification.textContent).toContain('Reset unavailable.');
-    expect(within(notification).getByRole('button', { name: 'Dismiss notification' })).not.toBeNull();
+    expect(
+      within(notification).getByRole('button', { name: 'Dismiss notification' }),
+    ).not.toBeNull();
   });
 
   it('announces linked sign-in methods while their management dialog remains open', async () => {
@@ -272,7 +286,10 @@ describe('DashboardPage', () => {
     await browserUser.click(screen.getByRole('button', { name: /delete account/i }));
     const confirmButton = screen.getByRole('button', { name: /permanently delete/i });
     expect(confirmButton.disabled).toBe(true);
-    await browserUser.type(screen.getByRole('textbox', { name: /type your email/i }), 'ada@example.com');
+    await browserUser.type(
+      screen.getByRole('textbox', { name: /type your email/i }),
+      'ada@example.com',
+    );
     await browserUser.click(confirmButton);
 
     expect(authActions.reauthenticateCurrentUser).toHaveBeenCalledWith({

@@ -50,7 +50,7 @@ def _resolve_public_host(host: str) -> list[str]:
     clean_host = (host or "").strip().strip("[]")
     if not clean_host or clean_host.lower() in _LOOPBACK or clean_host.startswith(("/", "@")):
         raise ValueError("Invalid database host")
-    addresses = [entry[4][0] for entry in socket.getaddrinfo(clean_host, None)]
+    addresses = [str(entry[4][0]) for entry in socket.getaddrinfo(clean_host, None)]
     if not addresses or any(not ipaddress.ip_address(address).is_global for address in addresses):
         raise ValueError("Database host must resolve to public addresses")
     return addresses
@@ -155,7 +155,7 @@ def connect_mysql(
     port: int,
     user: str,
     password: str,
-    database: str = None,
+    database: str | None = None,
     *,
     pool_owner: str | None = None,
 ) -> dict:
@@ -221,8 +221,8 @@ def connect_mysql(
             "db_type": "mysql",
             "db_config": db_config,
         }
-    except Exception as err:
-        return _database_connection_failure("connect_mysql", err)
+    except Exception as exc:
+        return _database_connection_failure("connect_mysql", exc)
 
 
 def connect_postgresql(
@@ -230,7 +230,7 @@ def connect_postgresql(
     port: int,
     user: str,
     password: str,
-    database: str = None,
+    database: str | None = None,
     *,
     pool_owner: str | None = None,
 ) -> dict:
@@ -290,8 +290,8 @@ def connect_postgresql(
             "db_type": "postgresql",
             "db_config": db_config,
         }
-    except Exception as err:
-        return _database_connection_failure("connect_postgresql", err)
+    except Exception as exc:
+        return _database_connection_failure("connect_postgresql", exc)
 
 
 def connect_sqlserver(
@@ -299,7 +299,7 @@ def connect_sqlserver(
     port: int,
     user: str,
     password: str,
-    database: str = None,
+    database: str | None = None,
     *,
     pool_owner: str | None = None,
 ) -> dict:
@@ -361,8 +361,8 @@ def connect_sqlserver(
             "db_config": db_config,
             "selectedDatabase": database,
         }
-    except Exception as err:
-        return _database_connection_failure("connect_sqlserver", err)
+    except Exception as exc:
+        return _database_connection_failure("connect_sqlserver", exc)
 
 
 def connect_oracle(
@@ -370,7 +370,7 @@ def connect_oracle(
     port: int,
     user: str,
     password: str,
-    service_name: str = None,
+    service_name: str | None = None,
     *,
     pool_owner: str | None = None,
 ) -> dict:
@@ -438,8 +438,8 @@ def connect_oracle(
             "db_config": db_config,
             "selectedDatabase": schema_name,
         }
-    except Exception as err:
-        return _database_connection_failure("connect_oracle", err)
+    except Exception as exc:
+        return _database_connection_failure("connect_oracle", exc)
 
 
 # CONNECTION STRING FUNCTIONS (remote only)
@@ -542,8 +542,8 @@ def connect_remote_postgresql(connection_string: str, *, pool_owner: str | None 
             "db_type": "postgresql",
             "db_config": db_config,
         }
-    except Exception as err:
-        return _database_connection_failure("connect_remote_postgresql", err)
+    except Exception as exc:
+        return _database_connection_failure("connect_remote_postgresql", exc)
 
 
 def connect_remote_mysql(connection_string: str, *, pool_owner: str | None = None) -> dict:
@@ -630,8 +630,8 @@ def connect_remote_mysql(connection_string: str, *, pool_owner: str | None = Non
             "db_type": "mysql",
             "db_config": db_config,
         }
-    except Exception as err:
-        return _database_connection_failure("connect_remote_mysql", err)
+    except Exception as exc:
+        return _database_connection_failure("connect_remote_mysql", exc)
 
 
 def connect_remote_oracle(connection_string: str, *, pool_owner: str | None = None) -> dict:
@@ -748,8 +748,8 @@ def connect_remote_oracle(connection_string: str, *, pool_owner: str | None = No
             "db_type": "oracle",
             "db_config": db_config,
         }
-    except Exception as err:
-        return _database_connection_failure("connect_remote_oracle", err)
+    except Exception as exc:
+        return _database_connection_failure("connect_remote_oracle", exc)
 
 
 def connect_remote_sqlserver(connection_string: str, *, pool_owner: str | None = None) -> dict:
@@ -836,8 +836,8 @@ def connect_remote_sqlserver(connection_string: str, *, pool_owner: str | None =
             "db_type": "sqlserver",
             "db_config": db_config,
         }
-    except Exception as err:
-        return _database_connection_failure("connect_remote_sqlserver", err)
+    except Exception as exc:
+        return _database_connection_failure("connect_remote_sqlserver", exc)
 
 
 # DATABASE SELECTION
@@ -873,5 +873,5 @@ def select_database(db_config: dict, db_name: str) -> dict:
             "message": f"Connected to database {db_name}",
             "db_config": new_config,
         }
-    except Exception as err:
-        return _database_connection_failure("select_database", err)
+    except Exception as exc:
+        return _database_connection_failure("select_database", exc)

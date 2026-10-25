@@ -1,4 +1,5 @@
 import { Box, Button, Container, Stack, Typography } from '@mui/material';
+import { Link } from 'react-router-dom';
 import { ArrowForwardIcon } from '@/components/icons';
 import AgentTrace from './AgentTrace';
 import { Reveal } from './LandingSection';
@@ -8,7 +9,7 @@ import { getLandingPresentationSx } from './landingPresentation';
 
 const landingPresentationSx = getLandingPresentationSx();
 
-function Hero({ onGetStarted }) {
+function Hero({ getStartedTo }) {
   return (
     <Box
       component="section"
@@ -68,7 +69,8 @@ function Hero({ onGetStarted }) {
               <Button
                 variant="contained"
                 size="large"
-                onClick={onGetStarted}
+                component={Link}
+                to={getStartedTo}
                 endIcon={<ArrowForwardIcon />}
               >
                 Get started

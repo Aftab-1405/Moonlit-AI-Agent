@@ -2,8 +2,8 @@ import { ThemeProvider } from '@mui/material/styles';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import ComposerContextBar from './ComposerContextBar';
 import { createDarkTheme } from '@/theme';
+import ComposerContextBar from './ComposerContextBar';
 
 describe('composer database context', () => {
   it('filters choices and switches only the selected database', async () => {

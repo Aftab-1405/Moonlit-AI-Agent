@@ -1,0 +1,32 @@
+{
+  "python": "3.14.4 (main, Aug 20 2026, 10:41:58) [GCC 15.2.0]",
+  "executable": "/home/aftab-1405/Desktop/Moonlit-AI-Agent/back-end/.venv/bin/python",
+  "versions": {
+    "fastapi": "0.141.1",
+    "starlette": "1.6.0",
+    "pydantic": "2.13.5",
+    "pytest": "9.1.1",
+    "pytest-asyncio": "1.4.0",
+    "anyio": "4.14.2",
+    "uvicorn": "0.52.4",
+    "slowapi": "0.1.10",
+    "limits": "5.8.0",
+    "langgraph": "1.2.11",
+    "langgraph-checkpoint": "4.2.0",
+    "langgraph-checkpoint-redis": "0.5.2",
+    "langchain-core": "1.6.1",
+    "langchain-aws": "1.7.4",
+    "redis": "5.3.1",
+    "redisvl": "0.26.0",
+    "google-cloud-firestore": "2.29.0",
+    "firebase-admin": "6.9.0",
+    "qdrant-client": "1.19.0",
+    "oracledb": "4.0.2",
+    "mysql-connector-python": "9.7.0",
+    "psycopg2-binary": "2.9.12",
+    "pymssql": "2.3.13",
+    "boto3": "1.43.82",
+    "sqlglot": "30.17.0",
+    "httpx": "0.28.1"
+  }
+}

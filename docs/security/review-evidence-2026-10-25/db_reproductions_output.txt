@@ -1,0 +1,6 @@
+Database connection failed: error_code=DB_HOST_VALIDATION_FAILED
+{"case": "oracle_failover_destination_bypass", "http_status": 200, "validated_hosts": ["8.8.8.8"], "actual_driver_parsed_hosts": ["8.8.8.8", "127.0.0.1"], "unauthenticated_control_status": 401, "private_only_control_status": 400}
+fetch_database_info failed: exception_type=DatabaseOperationError error_code=DB_OPERATION_FAILED request_id=-
+{"case": "failed_database_selection_accepted", "http_status": 200, "selected": "inaccessible", "saved_database": "inaccessible"}
+{"case": "dsn_overrides_selected_database", "displayed_database": "target", "mysql_driver_database": "source", "sqlserver_driver_database": "source", "postgresql_control": "target"}
+{"case": "sqlserver_default_count_schema", "query": "SELECT 'orders' AS table_name, COUNT(*) AS row_count FROM [public].[orders]", "returned": [{"table": "orders", "row_count": 7, "is_estimate": false}], "intended_dbo_rows": 3, "limit": "actual generated query executed SQLite attached dbo/public schemas; no SQLServer service"}

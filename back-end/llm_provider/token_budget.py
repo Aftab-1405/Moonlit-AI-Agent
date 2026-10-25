@@ -28,7 +28,7 @@ import math
 import os
 from collections import OrderedDict
 from time import perf_counter
-from typing import Sequence, TypedDict
+from typing import Callable, Sequence, TypedDict
 
 # ENH [LOG]: Suppress transformers "PyTorch was not found" warning and
 # HuggingFace Hub "unauthenticated requests" warning. We only use
@@ -49,7 +49,7 @@ Config = get_config()
 logger = logging.getLogger(__name__)
 
 _TOOL_SPEC_CACHE: "OrderedDict[tuple, dict]" = OrderedDict()
-_TOKEN_COUNT_RESULT_CACHE: "LRUCache[tuple, dict]" = LRUCache(maxsize=1000)
+_TOKEN_COUNT_RESULT_CACHE: "LRUCache[tuple, TokenCountResult]" = LRUCache(maxsize=1000)
 _RUNTIME_COUNT_TOKENS_UNSUPPORTED: set[str] = set()
 
 # ENH [TOK]: Model-native tokenizer registry.
@@ -59,13 +59,13 @@ _RUNTIME_COUNT_TOKENS_UNSUPPORTED: set[str] = set()
 # - tiktoken (GPT-OSS, GPT-4o)
 # - mistral-common (Devstral, Mistral Large)
 # - transformers (Kimi K2/K2.5, tokenizer-only, no PyTorch)
-_TOKENIZER_CACHE: dict[str, object] = {}
+_TOKENIZER_CACHE: dict[str, Callable[[str], list[int]] | None] = {}
 # ENH [LOG]: Track which models we've already warned about so we don't
 # spam the logs with the same warning on every token count call.
 _TOKENIZER_WARNED: set[str] = set()
 
 
-def _get_model_tokenizer(model_id: str | None):
+def _get_model_tokenizer(model_id: str | None) -> Callable[[str], list[int]] | None:
     """Return a model-native tokenizer encode function, or None if unavailable.
 
     ENH [TOK]: Model-native tokenizers give EXACT pre-call token counts,
@@ -88,7 +88,7 @@ def _get_model_tokenizer(model_id: str | None):
     if cache_key in _TOKENIZER_CACHE:
         return _TOKENIZER_CACHE[cache_key]
 
-    tokenizer = None
+    tokenizer: Callable[[str], list[int]] | None = None
 
     # GPT-OSS / OpenAI models → tiktoken (o200k_base for gpt-4o/gpt-oss, cl100k for gpt-4)
     if any(k in model_lower for k in ("gpt-oss", "gpt-4o", "gpt-4", "o1-", "o3-")):
@@ -149,9 +149,10 @@ def _get_model_tokenizer(model_id: str | None):
                 trust_remote_code=True,
             )
 
-            def tokenizer(text):
+            def _huggingface_encode(text: str) -> list[int]:
                 return hf_tok.encode(text)
 
+            tokenizer = _huggingface_encode
             logger.info(
                 "Startup tokenizer: model=%s repository=%s revision=%s class=%s "
                 "transformers=%s authenticated=%s load_ms=%.1f",
@@ -184,6 +185,7 @@ class TokenCountingError(RuntimeError):
 
 class TokenCountResult(TypedDict):
     """Result of a token-count operation (count, mode, and reason)."""
+
     tokens: int
     mode: str
     reason: str | None
@@ -622,7 +624,7 @@ def count_converse_tokens_cached(
     full_key = (model_id, cache_key)
     cached = _TOKEN_COUNT_RESULT_CACHE.get(full_key)
     if cached is not None:
-        return dict(cached)
+        return cached.copy()
     result = count_converse_tokens_with_fallback(
         model_id,
         system=system,
@@ -631,7 +633,7 @@ def count_converse_tokens_cached(
     )
     # FIX [L8]: LRUCache(maxsize=1000) handles eviction automatically — no
     # need to manually `clear()` on overflow.
-    _TOKEN_COUNT_RESULT_CACHE[full_key] = dict(result)
+    _TOKEN_COUNT_RESULT_CACHE[full_key] = result.copy()
     return result
 
 
@@ -744,17 +746,14 @@ def truncate_messages_to_budget(
 
 
 def get_message_tokens(msg: dict, *, model_id: str | None = None) -> int:
-    """Get message token size, prioritizing Bedrock usage if available."""
-    usage = msg.get("usage")
-    if isinstance(usage, dict):
-        out = usage.get("outputTokens") or usage.get("output_tokens") or 0
-        if out > 0:
-            return out
+    """Count restored content/evidence; output usage excludes retained tool results."""
     content = msg.get("content", "")
     tokens = estimate_model_tokens(content, model_id)
-    timeline = msg.get("timeline", [])
-    if timeline:
-        tokens += estimate_model_tokens(json.dumps(timeline), model_id)
+    from langgraph_orchestration.tool_evidence import history_evidence
+
+    evidence = history_evidence(msg)
+    if evidence:
+        tokens += estimate_model_tokens(evidence, model_id)
     return tokens
 
 

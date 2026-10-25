@@ -114,13 +114,9 @@ def _load_skills() -> list[SkillDefinition]:
             if not avoid_when:
                 raise SkillRegistryError(f"{path} is missing frontmatter field: avoid_when")
             if not SKILL_NAME_PATTERN.match(name):
-                raise SkillRegistryError(
-                    f"{path} has invalid skill name '{name}'. Use kebab-case."
-                )
+                raise SkillRegistryError(f"{path} has invalid skill name '{name}'. Use kebab-case.")
             if path.parent.name != name:
-                raise SkillRegistryError(
-                    f"{path} folder name must match skill name '{name}'"
-                )
+                raise SkillRegistryError(f"{path} folder name must match skill name '{name}'")
             if name in seen_names:
                 raise SkillRegistryError(f"Duplicate skill name: {name}")
             if not body:
@@ -155,9 +151,7 @@ class SkillRegistry:
         self._skills = _load_skills()
         self._skill_map = {skill.name: skill for skill in self._skills}
 
-    def build_available_skills_context(
-        self, *, db_connected: bool = True
-    ) -> str:
+    def build_available_skills_context(self, *, db_connected: bool = True) -> str:
         """Render the ``<available_skills>`` block injected into the base prompt.
 
         ENH [5]: ``db_connected`` (default ``True`` for backward compat)
@@ -175,26 +169,20 @@ class SkillRegistry:
         if not self._skills:
             return ""
 
-        visible_skills = [
-            skill
-            for skill in self._skills
-            if db_connected or skill.name not in DB_DEPENDENT_SKILLS
-        ]
+        visible_skills = [skill for skill in self._skills if db_connected or skill.name not in DB_DEPENDENT_SKILLS]
         if not visible_skills:
             return ""
 
         lines = [
             "<available_skills>",
             "Choose the smallest set whose routing notes match the task; never read skills just to inspect them.",
-            "For a matching non-trivial task, call read_skill before related tools or artifacts. Specialized tools enforce this prerequisite.",
+            "For a matching non-trivial task, call read_skill only when its full instructions are not already present. Specialized tools require an activated matching skill.",
             "Use multiple skills only for genuinely cross-domain work. Use none for small talk or simple clarification.",
         ]
+        if db_connected:
+            lines.append("database-querying is preloaded below; do not read it again.")
         lines.extend(
-            (
-                f"- {skill.name}: {skill.description} "
-                f"When to use: {skill.when_to_use} "
-                f"Avoid when: {skill.avoid_when}"
-            )
+            (f"- {skill.name}: {skill.description} When to use: {skill.when_to_use} Avoid when: {skill.avoid_when}")
             for skill in visible_skills
         )
         lines.append("</available_skills>")

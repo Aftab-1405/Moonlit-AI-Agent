@@ -40,14 +40,21 @@ describe('saved execution viewer', () => {
     const user = userEvent.setup();
     showResult({ onRequestClose, onRequestOpenArtifact });
     await screen.findByText('No rows returned');
-    expect(getExecutionResult).toHaveBeenCalledWith('c1', 'e1');
+    expect(getExecutionResult).toHaveBeenCalledWith('c1', 'e1', expect.any(AbortSignal));
     await user.click(screen.getByRole('button', { name: 'View SQL' }));
     expect(onRequestOpenArtifact).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'sql-editor',
         props: {
           initialQuery: 'select 1 where false',
-          initialResults: { columns: ['total'], rows: [], column_types: [], row_count: 0 },
+          initialResults: expect.objectContaining({
+            columns: ['total'],
+            rows: [],
+            column_types: {},
+            row_count: 0,
+            result_metadata: null,
+            truncated: false,
+          }),
         },
       }),
       { preserveFullscreen: false },

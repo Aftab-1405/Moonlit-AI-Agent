@@ -32,8 +32,7 @@ class ResponseSecurityMiddleware:
     ) -> None:
         self.app = app
         self.response_headers = {
-            name.lower().encode("latin-1"): value.encode("latin-1")
-            for name, value in security_headers.items()
+            name.lower().encode("latin-1"): value.encode("latin-1") for name, value in security_headers.items()
         }
         self.response_headers[b"server"] = server_header.encode("latin-1")
 

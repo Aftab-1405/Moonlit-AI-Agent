@@ -38,7 +38,8 @@ import json
 import logging
 import threading
 import time
-from typing import Optional
+from typing import NotRequired, Optional, TypedDict
+from uuid import uuid4
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.concurrency import run_in_threadpool
@@ -89,10 +90,23 @@ def state_key_from_session_cookie(session_cookie: str) -> str:
     return f"session_state:{digest}"
 
 
-def _user_from_decoded_session(decoded: dict) -> dict:
+class AuthenticatedUser(TypedDict):
+    """Authenticated identity plus optional Firebase profile metadata."""
+
+    uid: str
+    email: NotRequired[str | None]
+    name: NotRequired[str | None]
+    picture: NotRequired[str | None]
+    verified: NotRequired[bool]
+
+
+def _user_from_decoded_session(decoded: dict) -> AuthenticatedUser:
     """Project a decoded Firebase session cookie into the internal user payload dict."""
+    uid = decoded.get("uid")
+    if not isinstance(uid, str) or not uid:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authenticated identity")
     return {
-        "uid": decoded["uid"],
+        "uid": uid,
         "email": decoded.get("email"),
         "name": decoded.get("name"),
         "picture": decoded.get("picture"),
@@ -100,7 +114,7 @@ def _user_from_decoded_session(decoded: dict) -> dict:
     }
 
 
-def verify_session_cookie_value(session_cookie: str) -> dict:
+def verify_session_cookie_value(session_cookie: str) -> AuthenticatedUser:
     """Verify a Firebase session cookie and return the app user payload.
 
     Protected sessions always check revocation. Disabling this lookup would
@@ -211,7 +225,7 @@ return merged
 """
 
 
-async def _merge_state(key: str, updates: dict, expire_seconds: int) -> dict:
+async def _merge_state(key: str, updates: object, expire_seconds: int) -> dict:
     """Atomically merge top-level session fields and refresh the state TTL."""
     if expire_seconds <= 0:
         raise ValueError("Session state TTL must be positive")
@@ -323,7 +337,7 @@ async def _expire_db_config(request: Request, db_config: dict, reason: str) -> N
         log_safe_exception(logger, "clear_expired_db_config", e, _DB_CONFIG_EXPIRY_ERROR)
 
 
-async def get_current_user(request: Request) -> dict:
+async def get_current_user(request: Request) -> AuthenticatedUser:
     """Authenticate the request via Firebase Admin session cookie.
 
     Args:
@@ -333,8 +347,8 @@ async def get_current_user(request: Request) -> dict:
         User dict with uid, email, name, picture, verified flag.
 
     Raises:
-        HTTPException 401: No cookie present (or the cookie is expired/invalid/revoked)
-            and dev-bypass is disabled.
+        HTTPException 401: An expired/invalid/revoked cookie is presented, or
+            no cookie is present and the debug identity bypass is unavailable.
         HTTPException 503: A cookie IS present but Firebase raised an infrastructure
             error (network, backend down, malformed JWT). FIX [M17] prevents a Firebase
             outage from silently authenticating callers as the dev user.
@@ -359,8 +373,8 @@ async def get_current_user(request: Request) -> dict:
             RevokedSessionCookieError,
         ) as e:
             # FIX [M17]: These typed exceptions indicate the cookie itself is
-            # bad (expired, malformed, or revoked). They are safe to fall
-            # through to the 401 / dev-bypass path below.
+            # bad (expired, malformed, or revoked). They must reach the 401
+            # below without being replaced by the debug identity.
             log_safe_exception(logger, "verify_firebase_session", e, _AUTH_SESSION_INVALID_ERROR)
         except Exception as e:
             # FIX [M17]: Any OTHER exception (network error, Firebase backend
@@ -378,7 +392,7 @@ async def get_current_user(request: Request) -> dict:
     # FIX [M17]: Only fall through to dev bypass when NO cookie was
     # presented. A presented-but-invalid cookie must NOT be silently
     # replaced with the dev identity.
-    if Config.DEBUG and Config.DEV_AUTH_BYPASS:
+    if session_cookie is None and Config.DEBUG and Config.DEV_AUTH_BYPASS:
         user = {
             "uid": Config.DEV_AUTH_USER_ID,
             "email": Config.DEV_AUTH_EMAIL,
@@ -397,18 +411,20 @@ async def get_current_user(request: Request) -> dict:
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
 
 
-async def get_current_user_optional(request: Request) -> Optional[dict]:
-    """Like :func:`get_current_user` but returns None instead of raising on no-auth.
+async def get_current_user_optional(request: Request) -> AuthenticatedUser | None:
+    """Return None for a 401; preserve infrastructure and account-erasure errors.
 
     Useful for routes that work with or without authentication (e.g. health checks).
     """
     try:
         return await get_current_user(request)
-    except HTTPException:
-        return None
+    except HTTPException as exc:
+        if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+            return None
+        raise
 
 
-async def require_admin_user(user: dict = Depends(get_current_user)) -> dict:
+async def require_admin_user(user: AuthenticatedUser = Depends(get_current_user)) -> AuthenticatedUser:
     """Require the server-configured administrator identity, failing closed."""
     decision = get_admin_authorization_decision(user, Config.ADMIN_UID)
     if decision.allowed:
@@ -419,7 +435,7 @@ async def require_admin_user(user: dict = Depends(get_current_user)) -> dict:
         if decision.reason == "missing_configuration"
         else "Administrative access required"
     )
-    raise HTTPException(status_code=decision.status_code, detail=detail)
+    raise HTTPException(status_code=decision.status_code or status.HTTP_403_FORBIDDEN, detail=detail)
 
 
 async def _get_cached_db_config(request: Request) -> Optional[dict]:
@@ -459,6 +475,9 @@ async def _get_cached_db_config(request: Request) -> Optional[dict]:
 
     session_data = await get_session_data(request)
     if session_data and "db_config" in session_data:
+        request.state.db_context_generation = session_data.get("db_context_generation") or _state_key_from_cookie(
+            request
+        )
         db_config = session_data["db_config"]
         if not db_config:
             return None
@@ -540,7 +559,11 @@ async def get_authenticated_db_config(
     """Authenticate the request before reading or refreshing cached database state."""
     db_config = await _get_cached_db_config(request)
     if db_config:
-        db_config = {**db_config, "_pool_owner": user["uid"]}
+        db_config = {
+            **db_config,
+            "_pool_owner": user["uid"],
+            "_context_generation": getattr(request.state, "db_context_generation", None),
+        }
         request.state.db_config = db_config
     return db_config
 
@@ -577,6 +600,8 @@ async def update_session_data(request: Request, updates: dict, expire_seconds: i
 
     expire_seconds = expire_seconds or Config.SESSION_EXPIRE_SECONDS
     merged_updates = dict(updates)
+    if "db_config" in merged_updates:
+        merged_updates["db_context_generation"] = uuid4().hex if merged_updates["db_config"] else None
     user = getattr(request.state, "user", None)
     user_id = user.get("uid") if isinstance(user, dict) else None
     if user_id:

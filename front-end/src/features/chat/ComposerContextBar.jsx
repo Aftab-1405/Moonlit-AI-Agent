@@ -3,7 +3,10 @@ import { useTheme } from '@mui/material/styles';
 import { useState } from 'react';
 import { AppPopover, AppPopoverEmptyState, AppPopoverItem } from '@/components';
 import { CheckIcon, DatabaseIcon, SchemaIcon } from '@/components/icons';
-import { COMPOSER_MAX_WIDTH, getResponsivePillControlSx } from '@/features/styles/interfaceChrome';
+import {
+  getComposerContextSurfaceSx,
+  getResponsivePillControlSx,
+} from '@/features/styles/interfaceChrome';
 
 export default function ComposerContextBar({
   isConnected,
@@ -17,7 +20,6 @@ export default function ComposerContextBar({
   onDatabaseSwitch,
   onSchemaChange,
   onOpenDatabase,
-  onOpenContext,
 }) {
   const theme = useTheme();
   const [picker, setPicker] = useState(null);
@@ -56,23 +58,11 @@ export default function ComposerContextBar({
     }
   };
   return (
-    <Box
-      sx={{
-        maxWidth: COMPOSER_MAX_WIDTH - 24,
-        mx: 'auto',
-        mt: '-1px',
-        width: 'calc(100% - 24px)',
-        px: 1,
-        pt: 0.75,
-        pb: 0.25,
-        bgcolor: 'background.sunken',
-        borderRadius: '0 0 18px 18px',
-      }}
-    >
+    <Box sx={getComposerContextSurfaceSx(theme)}>
       <Box
         role="group"
         aria-label="Database context"
-        sx={{ display: 'flex', gap: 0.5, overflowX: 'auto', alignItems: 'center', pb: 0.5 }}
+        sx={{ display: 'flex', gap: 0.5, overflowX: 'auto', alignItems: 'center' }}
       >
         <Button
           type="button"
@@ -112,11 +102,6 @@ export default function ComposerContextBar({
             >
               {currentSchema || 'Select schema'}
             </Box>
-          </Button>
-        )}
-        {onOpenContext && (
-          <Button type="button" onClick={onOpenContext} disabled={locked} sx={controlSx}>
-            Context
           </Button>
         )}
       </Box>

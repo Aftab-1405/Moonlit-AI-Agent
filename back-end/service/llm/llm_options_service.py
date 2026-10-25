@@ -4,6 +4,8 @@ Controllers should not depend on provider factories directly. This service is
 the boundary between HTTP handlers and the concrete LLM provider layer.
 """
 
+from typing import TypedDict
+
 from config import get_config
 from llm_provider.model_factory import (
     ModelSelectionError,
@@ -18,6 +20,14 @@ from llm_provider.model_factory import (
 __all__ = ["LLMOptionsService", "ModelSelectionError", "ModelSelectionReason"]
 
 
+class ProviderOption(TypedDict):
+    name: str
+    label: str
+    models: list[str]
+    default_model: str | None
+    has_api_key: bool
+
+
 class LLMOptionsService:
     """Read-only service for provider/model selection metadata."""
 
@@ -27,10 +37,10 @@ class LLMOptionsService:
         return set(get_supported_providers())
 
     @staticmethod
-    def build_provider_options() -> tuple[list[dict], str]:
+    def build_provider_options() -> tuple[list[ProviderOption], str]:
         """Build the list of provider option dicts and the default provider name."""
         config = get_config()
-        options = []
+        options: list[ProviderOption] = []
         for provider_name in get_supported_providers():
             models = get_provider_models(provider_name)
             options.append(

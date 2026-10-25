@@ -9,7 +9,8 @@ from uuid import UUID
 
 import httpx
 import pytest
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from langchain_core.runnables import RunnableConfig
 from pydantic import TypeAdapter, ValidationError
 
 CONVERSATION_ID = "123e4567-e89b-42d3-a456-426614174000"
@@ -26,6 +27,14 @@ INVALID_CONVERSATION_IDS = [
     "",
     "not-a-uuid",
 ]
+
+
+@pytest.fixture(autouse=True)
+def configured_model_catalog(monkeypatch):
+    """Identity tests authorize a synthetic model without ambient credentials."""
+    from config import get_config
+
+    monkeypatch.setattr(get_config(), "BEDROCK_MODELS", ["test-model"])
 
 
 class _QuotaBoundary:
@@ -52,15 +61,11 @@ class _RateLimiterBoundary:
         self.events.append(("release", provider, user_id))
 
 
-def _request_with_resource_boundaries(events: list[tuple[object, ...]]):
-    return SimpleNamespace(
-        app=SimpleNamespace(
-            state=SimpleNamespace(
-                user_quota=_QuotaBoundary(events),
-                llm_rate_limiter=_RateLimiterBoundary(events),
-            )
-        )
-    )
+def _request_with_resource_boundaries(events: list[tuple[object, ...]]) -> Request:
+    app = FastAPI()
+    app.state.user_quota = _QuotaBoundary(events)
+    app.state.llm_rate_limiter = _RateLimiterBoundary(events)
+    return Request({"type": "http", "app": app})
 
 
 def _install_stream_boundary(monkeypatch, controller, events: list[tuple[object, ...]]) -> None:
@@ -155,6 +160,7 @@ def path_validation_app(monkeypatch):
         "rename_user_conversation",
         rename_user_conversation,
     )
+
     async def current_user():
         return {"uid": USER_ID}
 
@@ -242,7 +248,7 @@ async def test_new_chat_mints_canonical_uuid4_and_skips_owner_lookup(
     response = await _call_chat(
         controller,
         _request_with_resource_boundaries(events),
-        ChatRequest(prompt="Start a new conversation"),
+        ChatRequest.model_validate({"prompt": "Start a new conversation"}),
     )
     body = await _consume_stream(response)
     minted_id = response.headers["X-Conversation-Id"]
@@ -378,7 +384,7 @@ async def test_unowned_continuation_returns_403_before_quota(monkeypatch) -> Non
     assert events == [("owner", CONVERSATION_ID, USER_ID)]
 
 
-def _artifact_config() -> dict:
+def _artifact_config() -> RunnableConfig:
     return {
         "configurable": {
             "thread_id": f"account:region:{OTHER_CONVERSATION_ID}",
@@ -404,11 +410,12 @@ async def test_query_result_persistence_uses_direct_conversation_config(
 
     stored: list[tuple[str, str, dict]] = []
 
-    def execute_query(user_id, query, max_rows, db_config=None):
+    def execute_query(user_id, query, max_rows, db_config=None, cancellation=None):
         assert user_id == USER_ID
         assert query == "SELECT 1"
         assert max_rows == 10
         assert db_config == {"db_type": "postgresql"}
+        assert cancellation is not None
         return {
             "success": True,
             "columns": ["value"],
@@ -489,9 +496,7 @@ async def test_vamp_retrieval_uses_direct_conversation_config(monkeypatch) -> No
             *,
             model_id: str | None = None,
         ) -> str:
-            retrievals.append(
-                (conversation_id, user_id, query, model_id)
-            )
+            retrievals.append((conversation_id, user_id, query, model_id))
             return "Remembered context"
 
     monkeypatch.setattr(
@@ -505,6 +510,84 @@ async def test_vamp_retrieval_uses_direct_conversation_config(monkeypatch) -> No
         config=_artifact_config(),
     )
 
-    assert retrievals == [
-        (CONVERSATION_ID, USER_ID, "revenue targets", "test-model")
-    ]
+    assert retrievals == [(CONVERSATION_ID, USER_ID, "revenue targets", "test-model")]
+
+
+@pytest.mark.asyncio
+async def test_query_result_persistence_failure_does_not_publish_artifact_id(monkeypatch):
+    from langgraph_orchestration import tools as tool_module
+    from service.firestore import firestore_service
+
+    events = []
+    monkeypatch.setattr(tool_module, "_try_writer", lambda: events.append)
+    monkeypatch.setattr(
+        tool_module.DBTools,
+        "_execute_query",
+        lambda *args, **kwargs: {
+            "success": True,
+            "columns": ["value"],
+            "data": [{"value": 1}],
+            "row_count": 1,
+        },
+    )
+
+    def failed_store(*args):
+        raise RuntimeError("private datastore details")
+
+    monkeypatch.setattr(firestore_service, "store_execution_result", failed_store)
+    result = await tool_module.execute_query.ainvoke(
+        {"query": "SELECT 1", "max_rows": 10},
+        config=_artifact_config(),
+    )
+    ended = [event for event in events if event["type"] == "tool_end"]
+    assert len(ended) == 1
+    assert ended[0]["result"]["success"] is False
+    assert ended[0]["result"]["error_code"] == "TOOL_RESULT_PERSISTENCE_FAILED"
+    assert not ended[0]["result"].get("execution_id")
+    assert "private datastore details" not in result
+
+
+@pytest.mark.asyncio
+async def test_query_tool_publishes_metadata_without_retaining_result_rows(monkeypatch):
+    from langgraph_orchestration import tools as tool_module
+    from service.database.query_result import build_query_result
+    from service.firestore import firestore_service
+
+    events, stored = [], []
+    result = build_query_result(
+        ["value"],
+        [[n] for n in range(1000)],
+        db_config={"db_type": "postgresql"},
+        query="SELECT fixture",
+        effective_limit=1000,
+        truncated=False,
+    )
+    raw = {
+        "success": True,
+        "columns": result["columns"],
+        "data": [{"value": n} for n in range(1000)],
+        "tabular_result": result,
+        "column_metadata": result["column_metadata"],
+        "result_metadata": result["result_metadata"],
+        "row_count": 1000,
+        "total_rows": 1000,
+        "truncated": False,
+    }
+    monkeypatch.setattr(tool_module, "_try_writer", lambda: events.append)
+    monkeypatch.setattr(tool_module.DBTools, "_execute_query", lambda *args, **kwargs: raw)
+    monkeypatch.setattr(firestore_service, "store_execution_result", lambda *args: stored.append(args[-1]))
+    summary = await tool_module.execute_query.ainvoke(
+        {"query": "SELECT fixture", "max_rows": 1000},
+        config=_artifact_config(),
+    )
+    published = next(event["result"] for event in events if event["type"] == "tool_end")
+    assert published["execution_id"] == stored[0]["execution_id"]
+    assert published["row_count"] == 1000
+    assert "data" not in published
+    assert "preview" not in published
+    assert "rows" not in published.get("tabular_result", {})
+    assert len(stored[0]["data"]) == 1000
+    assert len(stored[0]["tabular_result"]["rows"]) == 1000
+    assert "<query_result_preview_json>" in summary
+    assert '"value": 19' in summary
+    assert '"value": 999' not in summary

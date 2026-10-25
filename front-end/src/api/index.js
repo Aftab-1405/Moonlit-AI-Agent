@@ -42,12 +42,12 @@ export { getLlmOptions } from '@/api/llm';
 export { runQuery } from '@/api/query';
 
 export {
+  deleteAccount,
   getContext as getUserContext,
   getDashboardOverview,
   getDashboardUsage,
   getQuotaStatus,
   getSettings as getUserSettings,
-  deleteAccount,
   saveSettings as saveUserSettings,
   sessionActive,
 } from '@/api/user';

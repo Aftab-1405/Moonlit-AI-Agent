@@ -79,6 +79,8 @@ class ConnectionManager:
         prevents delimiter collisions between credential fields.
         """
         identity = {**config, "db_type": config.get("db_type", "mysql").lower()}
+        # Evidence generations invalidate schema reuse, not database pools.
+        identity.pop("_context_generation", None)
         # PostgreSQL schema is applied per query, not when opening the pool.
         # Schema switches must retain the pool reachable by disconnect/erasure.
         if identity["db_type"] == "postgresql":
@@ -279,7 +281,7 @@ class ConnectionManager:
                 self._pool_in_use[pool_key] = max(0, self._pool_in_use.get(pool_key, 0) - 1)
 
     @contextmanager
-    def get_cursor(self, config: dict, dictionary=False, buffered=True):
+    def get_cursor(self, config: dict, dictionary=False, buffered=True, cancellation=None):
         """
         Context manager for getting a cursor with automatic cleanup.
         IMPORTANT: Also returns connection to pool after cursor is closed.
@@ -311,7 +313,11 @@ class ConnectionManager:
         conn = self.get_connection(config)
 
         try:
-            with adapter.get_cursor(conn, dictionary=dictionary, buffered=buffered) as cursor:
+            from service.database.query_guards import query_execution_cursor
+
+            with query_execution_cursor(
+                adapter, conn, dictionary=dictionary, buffered=buffered, cancellation=cancellation
+            ) as cursor:
                 yield cursor
         except Exception:
             # FIX [EC6]: mark the conn as failed so the finally-block

@@ -1,0 +1,13 @@
+{
+  "checked_at_utc": "2026-10-25T14:40:45.249305+00:00",
+  "commit": "c139e11c8fc2c07b36d5525646c46117ab4c131c",
+  "hashed_backend_files_checked": 185,
+  "source_drift": [],
+  "original_git_status_entries_changed_or_removed": [],
+  "new_git_status_entries": [
+    "?? docs/security/backend-verified-review-2026-10-25.md",
+    "?? docs/security/review-evidence-2026-10-25/"
+  ],
+  "all_original_status_entries_preserved": true,
+  "all_backend_hashes_match": true
+}

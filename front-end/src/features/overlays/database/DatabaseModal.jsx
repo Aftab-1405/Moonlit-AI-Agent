@@ -18,7 +18,7 @@ import { useTheme } from '@mui/material/styles';
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { connectDb, disconnectDb, getDatabases } from '@/api';
 import { queryClient, queryKeys } from '@/api/queryClient';
-import { ButtonLoadingSpinner, DialogShell } from '@/components';
+import { DialogShell } from '@/components';
 import {
   CredentialIcon,
   DatabaseIcon,
@@ -34,7 +34,6 @@ import { getAccountStorageKey } from '@/features/dashboard/accountModel';
 import {
   getPreferenceBackdropSx,
   getPreferenceBodySx,
-  getPreferenceButtonSx,
   getPreferencePaperSx,
   getPreferenceRootSx,
   getPreferenceToggleGroupSx,
@@ -95,26 +94,7 @@ const VisibilityToggleAdornment = memo(({ show, onToggle }) => (
         edge="end"
         aria-label={show ? 'Hide password' : 'Show password'}
         disableRipple
-        sx={{
-          width: 32,
-          height: 32,
-          mr: -0.5,
-          color: 'text.secondary',
-          backgroundColor: 'transparent',
-          border: 'none',
-          boxShadow: 'none',
-          '&:hover': {
-            color: 'text.primary',
-            backgroundColor: 'transparent',
-            border: 'none',
-            boxShadow: 'none',
-          },
-          '&:focus-visible': {
-            outline: '2px solid',
-            outlineColor: (theme) => theme.palette.border.focus,
-            outlineOffset: 2,
-          },
-        }}
+        sx={{ mr: -0.5 }}
       >
         {show ? <VisibilityOffIcon fontSize="small" /> : <VisibilityOnIcon fontSize="small" />}
       </IconButton>
@@ -202,6 +182,7 @@ const DatabaseList = memo(({ databases, currentDatabase, onSelect, loading }) =>
               }
             }}
             aria-pressed={isSelected}
+            aria-disabled={loading}
             sx={{
               px: { xs: 0.5, sm: 0.75 },
               py: { xs: 1.25, sm: 1.125 },
@@ -557,17 +538,11 @@ function DatabaseModal({
   }, [onConnect]);
 
   const toggleGroupSx = useMemo(() => getPreferenceToggleGroupSx(theme), [theme]);
-  const dangerButtonSx = useMemo(() => getPreferenceButtonSx(theme, { tone: 'danger' }), [theme]);
   const connectionActionState = getConnectionActionState({ loading, connected: connectionActive });
-  const connectionButtonSx = useMemo(() => {
-    const sx = getPreferenceButtonSx(theme, { tone: connectionActionState.tone });
-    if (connectionActionState.tone !== 'success') return sx;
-
-    return {
-      ...sx,
-      ...getConnectedActionDisabledSx(theme),
-    };
-  }, [connectionActionState.tone, theme]);
+  const connectionButtonSx = useMemo(
+    () => (connectionActionState.tone === 'success' ? getConnectedActionDisabledSx(theme) : {}),
+    [connectionActionState.tone, theme],
+  );
 
   const navContent = (
     <PreferenceNavList ariaLabel="Database type">
@@ -811,14 +786,7 @@ function DatabaseModal({
 
         <PreferenceFooterActions>
           {connectionActive ? (
-            <Button
-              variant="outlined"
-              color="error"
-              onClick={handleDisconnect}
-              disabled={loading}
-              size="small"
-              sx={dangerButtonSx}
-            >
+            <Button variant="outlined" color="error" onClick={handleDisconnect} disabled={loading}>
               Disconnect
             </Button>
           ) : (
@@ -830,11 +798,17 @@ function DatabaseModal({
             disableElevation
             onClick={handleConnect}
             disabled={connectionActionState.disabled}
-            startIcon={loading ? <ButtonLoadingSpinner /> : null}
-            size="small"
+            loading={loading}
             sx={connectionButtonSx}
           >
-            {connectionActionState.label}
+            <Box component="span" sx={{ display: 'grid' }}>
+              <Box component="span" aria-hidden sx={{ gridArea: '1 / 1', visibility: 'hidden' }}>
+                Connecting
+              </Box>
+              <Box component="span" sx={{ gridArea: '1 / 1' }}>
+                {connectionActionState.label}
+              </Box>
+            </Box>
           </Button>
         </PreferenceFooterActions>
       </PreferenceLayout>

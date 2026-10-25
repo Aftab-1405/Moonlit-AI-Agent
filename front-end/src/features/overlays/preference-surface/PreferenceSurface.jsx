@@ -1,7 +1,6 @@
 import { Box, Button, Typography } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import {
-  getPreferenceButtonSx,
   getPreferenceSectionSurfaceSx,
   PREFERENCE_LAYOUT,
 } from '@/features/overlays/preference-surface/preferenceSurfaceStyles';
@@ -39,15 +38,7 @@ export function PreferencePageHeader({ title, onClose, headingRef }) {
       >
         {title}
       </Typography>
-      <Button
-        onClick={onClose}
-        color="secondary"
-        size="small"
-        sx={(theme) => ({
-          mb: { xs: 0, md: 1.5 },
-          ...getPreferenceButtonSx(theme),
-        })}
-      >
+      <Button onClick={onClose} variant="outlined" sx={{ mb: { xs: 0, md: 1.5 } }}>
         Close
       </Button>
     </Box>

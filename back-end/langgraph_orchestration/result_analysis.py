@@ -18,7 +18,8 @@ from __future__ import annotations
 import json
 import math
 import statistics
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
+from fractions import Fraction
 from typing import Any
 
 # FIX [M9]: Guard against unbounded memory usage. Previously, _column_profile
@@ -34,15 +35,38 @@ def _hashable(value: Any) -> str:
     return json.dumps(value, sort_keys=True, default=str, separators=(",", ":"))
 
 
-def _numeric(value: Any) -> float | None:
-    """Coerce a value to float, returning None for non-numeric or non-finite values."""
-    if isinstance(value, bool) or not isinstance(value, (int, float, Decimal)):
+def _numeric(value: Any, encoding: str | None = None) -> Fraction | None:
+    """Decode declared numeric text; retain exact variation before statistics."""
+    try:
+        if isinstance(value, str):
+            if encoding not in {"decimal-string", "integer-string"}:
+                return None
+            value = Decimal(value)
+            if not value.is_finite():
+                return None
+            if encoding == "integer-string" and value != value.to_integral_value():
+                return None
+        if isinstance(value, bool) or not isinstance(value, (int, float, Decimal)):
+            return None
+        # Statistics are ultimately JSON numbers. Exclude non-finite/out-of-range
+        # inputs before constructing a potentially enormous rational number.
+        number = float(value)
+        if not math.isfinite(number) or (number == 0 and value != 0):
+            return None
+        return Fraction(value)
+    except (ValueError, OverflowError, InvalidOperation):
         return None
-    number = float(value)
-    return number if math.isfinite(number) else None
 
 
-def _column_profile(rows: list[dict], column: str) -> dict:
+def _finite_float(value) -> float | None:
+    try:
+        number = float(value)
+        return number if math.isfinite(number) else None
+    except OverflowError:
+        return None
+
+
+def _column_profile(rows: list[dict], column: str, encoding: str | None = None) -> dict:
     """Compute per-column statistics in a single pass over the rows.
 
     FIX [M9]: Previously this function built three intermediate lists (values,
@@ -53,7 +77,7 @@ def _column_profile(rows: list[dict], column: str) -> dict:
     count = 0
     non_null_count = 0
     distinct: set[str] = set()
-    numeric_values: list[float] = []
+    numeric_values: list[Fraction] = []
 
     for row in rows:
         count += 1
@@ -61,11 +85,11 @@ def _column_profile(rows: list[dict], column: str) -> dict:
         if value is not None:
             non_null_count += 1
             distinct.add(_hashable(value))
-            number = _numeric(value)
+            number = _numeric(value, encoding)
             if number is not None:
                 numeric_values.append(number)
 
-    result = {
+    result: dict[str, int | dict[str, float | None]] = {
         "count": count,
         "non_null_count": non_null_count,
         "null_count": count - non_null_count,
@@ -73,12 +97,16 @@ def _column_profile(rows: list[dict], column: str) -> dict:
         "numeric_count": len(numeric_values),
     }
     if numeric_values:
+        try:
+            stddev = _finite_float(statistics.stdev(numeric_values)) if len(numeric_values) > 1 else None
+        except OverflowError:
+            stddev = None
         result["numeric"] = {
-            "min": min(numeric_values),
-            "max": max(numeric_values),
-            "mean": statistics.fmean(numeric_values),
-            "median": statistics.median(numeric_values),
-            "sample_stddev": statistics.stdev(numeric_values) if len(numeric_values) > 1 else None,
+            "min": _finite_float(min(numeric_values)),
+            "max": _finite_float(max(numeric_values)),
+            "mean": _finite_float(statistics.mean(numeric_values)),
+            "median": _finite_float(statistics.median(numeric_values)),
+            "sample_stddev": stddev,
         }
     return result
 
@@ -132,14 +160,27 @@ def analyze_execution_result(
             "available_columns": available,
         }
 
+    tabular = execution.get("tabular_result")
+    metadata = execution.get("column_metadata") or (tabular.get("column_metadata") if isinstance(tabular, dict) else [])
+    encodings = {
+        item["key"]: item["encoding"]
+        for item in (metadata if isinstance(metadata, list) else [])
+        if isinstance(item, dict) and isinstance(item.get("key"), str) and isinstance(item.get("encoding"), str)
+    }
+    scope_note = (
+        "Statistics cover only the bounded query result, not all database rows."
+        if execution.get("truncated")
+        else "Statistics cover every row returned by the source query."
+    )
+    if operation in {"profile", "correlation"}:
+        scope_note += (
+            " Statistics are approximate JSON numbers. Non-finite/out-of-range inputs "
+            "are excluded; unrepresentable statistics are null."
+        )
     scope = {
         "analyzed_rows": len(rows),
         "source_truncated": bool(execution.get("truncated")),
-        "scope_note": (
-            "Statistics cover only the bounded query result, not all database rows."
-            if execution.get("truncated")
-            else "Statistics cover every row returned by the source query."
-        ),
+        "scope_note": scope_note,
     }
 
     if operation == "profile":
@@ -149,7 +190,7 @@ def analyze_execution_result(
             "success": True,
             "operation": operation,
             **scope,
-            "columns": {column: _column_profile(rows, column) for column in selected},
+            "columns": {column: _column_profile(rows, column, encodings.get(column)) for column in selected},
         }
 
     if operation == "data_quality":
@@ -162,7 +203,7 @@ def analyze_execution_result(
             "columns": {
                 column: {
                     key: value
-                    for key, value in _column_profile(rows, column).items()
+                    for key, value in _column_profile(rows, column, encodings.get(column)).items()
                     if key in {"count", "non_null_count", "null_count", "distinct_count"}
                 }
                 for column in selected
@@ -178,7 +219,7 @@ def analyze_execution_result(
         left, right = selected
         pairs = []
         for row in rows:
-            x, y = _numeric(row.get(left)), _numeric(row.get(right))
+            x, y = _numeric(row.get(left), encodings.get(left)), _numeric(row.get(right), encodings.get(right))
             if x is not None and y is not None:
                 pairs.append((x, y))
         if len(pairs) < 2:
@@ -187,21 +228,28 @@ def analyze_execution_result(
                 "error": "At least two numeric pairs are required",
             }
         xs, ys = zip(*pairs)
-        mean_x, mean_y = statistics.fmean(xs), statistics.fmean(ys)
-        numerator = sum((x - mean_x) * (y - mean_y) for x, y in pairs)
-        denominator = math.sqrt(sum((x - mean_x) ** 2 for x in xs) * sum((y - mean_y) ** 2 for y in ys))
-        if denominator == 0:
+        mean_x, mean_y = statistics.mean(xs), statistics.mean(ys)
+        centered_x = [x - mean_x for x in xs]
+        centered_y = [y - mean_y for y in ys]
+        scale_x, scale_y = max(map(abs, centered_x)), max(map(abs, centered_y))
+        if not scale_x or not scale_y:
             return {
                 "success": False,
                 "error": "Correlation is undefined for a constant column",
             }
+        # Center exactly before conversion, then scale to avoid overflow in
+        # products. Adjacent int64 values must not collapse to a constant.
+        correlation = statistics.correlation(
+            [float(x / scale_x) for x in centered_x],
+            [float(y / scale_y) for y in centered_y],
+        )
         return {
             "success": True,
             "operation": operation,
             **scope,
             "columns": selected,
             "paired_numeric_rows": len(pairs),
-            "pearson_correlation": numerator / denominator,
+            "pearson_correlation": max(-1.0, min(1.0, correlation)),
         }
 
     return {"success": False, "error": f"Unsupported analysis operation: {operation}"}

@@ -164,10 +164,14 @@ function WelcomeSuggestions({
             transition={stageTransition}
             sx={{
               display: 'flex',
-              flexDirection: 'column',
-              gap: 0.5,
+              flexWrap: 'wrap',
+              justifyContent: 'center',
+              gap: 1,
+              width: '100%',
+              maxWidth: COMPOSER_MAX_WIDTH,
               p: 0,
               m: 0,
+              mx: 'auto',
               listStyle: 'none',
             }}
           >
@@ -184,16 +188,8 @@ function WelcomeSuggestions({
                   disabled={isWelcomeCategoryDisabled(category, availability)}
                   onClick={() => openCategory(category.id)}
                   startIcon={<CategoryIcon icon={category.icon} />}
-                  sx={(theme) => ({
-                    ...getWelcomeCategorySx(theme),
-                    width: '100%',
-                    height: 44,
-                    justifyContent: 'flex-start',
-                    bgcolor: 'transparent',
-                    px: 2.5,
-                    gap: 1.5,
-                    fontSize: '15px',
-                  })}
+                  aria-expanded={false}
+                  sx={getWelcomeCategorySx}
                 >
                   {category.label}
                 </Button>

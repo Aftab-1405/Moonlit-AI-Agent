@@ -11,7 +11,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException, Request
 
 
 @pytest.fixture
@@ -64,9 +64,7 @@ def test_resolver_rejects_with_typed_selection_reason(
     assert str(caught.value) == "Model selection rejected."
 
 
-def test_resolver_rejects_empty_allowlist_even_with_configured_default(
-    monkeypatch, configured_models
-) -> None:
+def test_resolver_rejects_empty_allowlist_even_with_configured_default(monkeypatch, configured_models) -> None:
     """Catch a default-model fallback that re-enables a disabled provider."""
     empty_config = SimpleNamespace(BEDROCK_MODELS=[], BEDROCK_MODEL="allowed.model-v1")
     monkeypatch.setattr(configured_models, "get_config", lambda: empty_config)
@@ -75,9 +73,7 @@ def test_resolver_rejects_empty_allowlist_even_with_configured_default(
         configured_models.resolve_model_selection("bedrock", None)
 
 
-def test_factory_rejects_unknown_model_before_cached_client_construction(
-    monkeypatch, configured_models
-) -> None:
+def test_factory_rejects_unknown_model_before_cached_client_construction(monkeypatch, configured_models) -> None:
     """Catch a factory path that constructs a client for a disabled model ID."""
     cache_calls: list[tuple[object, ...]] = []
 
@@ -139,9 +135,7 @@ async def test_controller_uses_typed_selection_reason_not_exception_text(
     """Both selection errors share text, so only the typed reason can route them."""
     from controller import conversations_controller as controller
 
-    selection_error = configured_models.ModelSelectionError(
-        configured_models.ModelSelectionReason(reason)
-    )
+    selection_error = configured_models.ModelSelectionError(configured_models.ModelSelectionReason(reason))
 
     def reject_selection(*_args):
         raise selection_error
@@ -150,7 +144,7 @@ async def test_controller_uses_typed_selection_reason_not_exception_text(
 
     with pytest.raises(HTTPException) as caught:
         await controller._handle_agent_stream(
-            request=SimpleNamespace(),
+            request=Request({"type": "http", "app": FastAPI()}),
             user_id="user-1",
             conversation_id="conversation-1",
             provider="ignored",
@@ -163,9 +157,7 @@ async def test_controller_uses_typed_selection_reason_not_exception_text(
 
 
 @pytest.mark.asyncio
-async def test_controller_rejects_unknown_model_before_any_resource_activity(
-    monkeypatch, configured_models
-) -> None:
+async def test_controller_rejects_unknown_model_before_any_resource_activity(monkeypatch, configured_models) -> None:
     """Catch ordering changes that debit or construct work before authorization."""
     from controller import conversations_controller as controller
 
@@ -173,14 +165,10 @@ async def test_controller_rejects_unknown_model_before_any_resource_activity(
     quota_check = _AsyncRecorder((True, SimpleNamespace(to_dict=lambda: {})))
     rate_limiter_acquire = _AsyncRecorder((True, "test-api-key"))
     model_construction = _Recorder()
-    request = SimpleNamespace(
-        app=SimpleNamespace(
-            state=SimpleNamespace(
-                user_quota=SimpleNamespace(check_and_increment=quota_check),
-                llm_rate_limiter=SimpleNamespace(acquire=rate_limiter_acquire),
-            )
-        )
-    )
+    app = FastAPI()
+    app.state.user_quota = SimpleNamespace(check_and_increment=quota_check)
+    app.state.llm_rate_limiter = SimpleNamespace(acquire=rate_limiter_acquire)
+    request = Request({"type": "http", "app": app})
 
     async def run_owner_check(check, *args):
         """Keep the ownership recorder local; sandboxed tests cannot start worker threads."""
@@ -209,6 +197,7 @@ async def test_controller_rejects_unknown_model_before_any_resource_activity(
         )
 
     assert exc_info.value.status_code == 400
+    assert isinstance(exc_info.value.detail, dict)
     assert exc_info.value.detail["error"] == "invalid_model"
     assert ownership.calls == []
     assert quota_check.calls == []

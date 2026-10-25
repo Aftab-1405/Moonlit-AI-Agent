@@ -38,7 +38,7 @@ class ConversationSummaryMemoryWriter(Protocol):
 class ConversationAgentStreamer(Protocol):
     """Port for streaming agent events into a conversation."""
 
-    async def stream(
+    def stream(
         self,
         conversation_id: str,
         prompt: str | None,

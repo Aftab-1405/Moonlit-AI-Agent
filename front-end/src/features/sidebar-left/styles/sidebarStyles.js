@@ -28,19 +28,6 @@ export const ICON_COL = 36; // px — fixed icon column width only (not height)
 const ROW_HEIGHT = UI_LAYOUT.controlRowHeight; // shared with popover action rows
 const focusRing = (theme) => `0 0 0 3px ${theme.palette.border.focus}`;
 
-export function getSidebarRailTooltipSlotProps(_theme) {
-  return {
-    popper: {
-      modifiers: [
-        {
-          name: 'offset',
-          options: { offset: [0, 8] },
-        },
-      ],
-    },
-  };
-}
-
 export function getCollapsingLabelSx(_theme, collapsed, maxWidth = 200) {
   return {
     flex: '1 1 auto',
@@ -87,7 +74,7 @@ export function buildNavRowSx(
     [HOVER_CAPABLE_QUERY]: {
       '&:hover:not(:disabled)': {
         backgroundColor: isActive ? interaction.activeHoverBackground : interaction.hoverBackground,
-        color: theme.palette.text.primary,
+        color: isActive ? theme.palette.text.primary : theme.palette.text.primary,
       },
     },
     '&:active:not(:disabled)': { backgroundColor: interaction.activeBackground },

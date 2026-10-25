@@ -78,21 +78,35 @@ describe('AuthContext account actions', () => {
 
   it('updates the Firebase display name and refreshes the secure backend session', async () => {
     const user = userEvent.setup();
-    render(<AuthProvider><Probe /></AuthProvider>);
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    );
     await waitFor(() => expect(latestAuth.user?.uid).toBe('user-1'));
 
     await user.click(screen.getByRole('button', { name: 'Update name' }));
 
-    await waitFor(() => expect(firebase.updateProfile).toHaveBeenCalledWith(firebaseUser, { displayName: 'Grace Hopper' }));
+    await waitFor(() =>
+      expect(firebase.updateProfile).toHaveBeenCalledWith(firebaseUser, {
+        displayName: 'Grace Hopper',
+      }),
+    );
     expect(firebaseUser.getIdToken).toHaveBeenLastCalledWith(true);
     expect(api.setAuthenticatedUserSession).toHaveBeenLastCalledWith({ idToken: 'id-token' });
   });
 
   it('refuses to unlink the final authentication provider', async () => {
-    render(<AuthProvider><Probe /></AuthProvider>);
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    );
     await waitFor(() => expect(latestAuth.user?.uid).toBe('user-1'));
 
-    await expect(latestAuth.unlinkAuthProvider('google.com')).rejects.toThrow(/last sign-in method/i);
+    await expect(latestAuth.unlinkAuthProvider('google.com')).rejects.toThrow(
+      /last sign-in method/i,
+    );
     expect(firebase.unlink).not.toHaveBeenCalled();
   });
 
@@ -103,7 +117,11 @@ describe('AuthContext account actions', () => {
       JSON.stringify({ type: 'reauthenticate', providerId: 'google.com' }),
     );
     firebase.getRedirectResult.mockResolvedValueOnce({ user: firebaseUser });
-    render(<AuthProvider><Probe /></AuthProvider>);
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    );
     await waitFor(() => expect(latestAuth.user?.uid).toBe('user-1'));
 
     await expect(

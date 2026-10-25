@@ -1,11 +1,11 @@
-import { useState } from 'react';
 import { ThemeProvider } from '@mui/material/styles';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import { expect, it, vi } from 'vitest';
-import AppShell from './AppShell';
 import ArtifactLoader from '@/features/sidebar-right/artifact-loader/ArtifactLoader';
 import { createDarkTheme } from '@/theme';
+import AppShell from './AppShell';
 
 vi.mock('@/features/sidebar-right/artifacts/sql-workspace', () => ({
   default: function Editor({ isFullscreen, onToggleFullscreen }) {
@@ -13,7 +13,9 @@ vi.mock('@/features/sidebar-right/artifacts/sql-workspace', () => ({
     return (
       <>
         <input aria-label="SQL draft" value={draft} onChange={(e) => setDraft(e.target.value)} />
-        <button onClick={onToggleFullscreen}>{isFullscreen ? 'Restore' : 'Expand'}</button>
+        <button type="button" onClick={onToggleFullscreen}>
+          {isFullscreen ? 'Restore' : 'Expand'}
+        </button>
       </>
     );
   },
@@ -28,7 +30,7 @@ function Workspace() {
         canvasOpen
         canvasWidth={520}
         canvasFullscreen={expanded}
-        sidebarSlot={<button>Navigation</button>}
+        sidebarSlot={<button type="button">Navigation</button>}
         chatSlot={<input aria-label="Chat draft" defaultValue="Preserved chat" />}
         workspaceSlot={
           <ArtifactLoader

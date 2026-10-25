@@ -602,7 +602,7 @@ class VampMemoryService:
             summary_ids,
         )
 
-        hits_by_summary = {}
+        hits_by_summary: dict[str, list[dict]] = {}
         for rank, hit in enumerate(vector_hits):
             sid = hit.get("summary_id")
             if not sid:

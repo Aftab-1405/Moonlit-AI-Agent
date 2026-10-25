@@ -4,20 +4,16 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import Awaitable, Callable
 
 import pytest
-
-ASGIMessage = dict[str, object]
-Receive = Callable[[], Awaitable[ASGIMessage]]
-Send = Callable[[ASGIMessage], Awaitable[None]]
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 
 async def receive_chunks(chunks: list[bytes]) -> Receive:
     """Return an ASGI receive callable that emits the supplied body frames."""
     queue = list(chunks)
 
-    async def receive() -> ASGIMessage:
+    async def receive() -> Message:
         body = queue.pop(0)
         return {
             "type": "http.request",
@@ -28,17 +24,17 @@ async def receive_chunks(chunks: list[bytes]) -> Receive:
     return receive
 
 
-async def receive_messages(messages: list[ASGIMessage]) -> Receive:
+async def receive_messages(messages: list[Message]) -> Receive:
     """Return an ASGI receive callable that emits explicit request/disconnect frames."""
     queue = list(messages)
 
-    async def receive() -> ASGIMessage:
+    async def receive() -> Message:
         return queue.pop(0)
 
     return receive
 
 
-def http_scope(headers: list[tuple[bytes, bytes]] | None = None) -> ASGIMessage:
+def http_scope(headers: list[tuple[bytes, bytes]] | None = None) -> Scope:
     """Build a minimal HTTP ASGI scope for direct middleware tests."""
     return {
         "type": "http",
@@ -55,10 +51,10 @@ def http_scope(headers: list[tuple[bytes, bytes]] | None = None) -> ASGIMessage:
     }
 
 
-def recording_app(markers: list[str], received_bodies: list[bytes]):
+def recording_app(markers: list[str], received_bodies: list[bytes]) -> ASGIApp:
     """Build a child app that records whether request parsing could run."""
 
-    async def app(scope: ASGIMessage, receive: Receive, send: Send) -> None:
+    async def app(scope: Scope, receive: Receive, send: Send) -> None:
         body = bytearray()
         while True:
             message = await receive()
@@ -75,10 +71,10 @@ def recording_app(markers: list[str], received_bodies: list[bytes]):
     return app
 
 
-def recording_frame_app(markers: list[str], received_frames: list[ASGIMessage]):
+def recording_frame_app(markers: list[str], received_frames: list[Message]) -> ASGIApp:
     """Build a child app that records the replay sequence as well as its body."""
 
-    async def app(scope: ASGIMessage, receive: Receive, send: Send) -> None:
+    async def app(scope: Scope, receive: Receive, send: Send) -> None:
         del scope
         while True:
             message = await receive()
@@ -94,31 +90,31 @@ def recording_frame_app(markers: list[str], received_frames: list[ASGIMessage]):
 
 
 async def invoke(
-    app,
-    scope: ASGIMessage,
+    app: ASGIApp,
+    scope: Scope,
     receive: Receive,
-) -> list[ASGIMessage]:
+) -> list[Message]:
     """Run a raw ASGI app and collect its response messages."""
-    sent: list[ASGIMessage] = []
+    sent: list[Message] = []
 
-    async def send(message: ASGIMessage) -> None:
+    async def send(message: Message) -> None:
         sent.append(message)
 
     await app(scope, receive, send)
     return sent
 
 
-def response_status(sent: list[ASGIMessage]) -> int:
+def response_status(sent: list[Message]) -> int:
     """Return the response status from collected ASGI response messages."""
     return sent[0]["status"]
 
 
-def response_json(sent: list[ASGIMessage]) -> dict[str, object]:
+def response_json(sent: list[Message]) -> dict[str, object]:
     """Decode the single JSON response body from collected ASGI messages."""
     return json.loads(sent[1]["body"])
 
 
-def assert_api_error(sent: list[ASGIMessage], *, status_code: int, error: str) -> None:
+def assert_api_error(sent: list[Message], *, status_code: int, error: str) -> None:
     """Assert a rejection uses the standard public error envelope."""
     assert response_status(sent) == status_code
     payload = response_json(sent)
@@ -265,7 +261,7 @@ async def test_many_small_frames_are_aggregated_into_one_downstream_request() ->
     from core.http_boundary import RequestBodyLimitMiddleware
 
     markers: list[str] = []
-    received_frames: list[ASGIMessage] = []
+    received_frames: list[Message] = []
     app = RequestBodyLimitMiddleware(
         recording_frame_app(markers, received_frames),
         max_body_bytes=256,
@@ -275,9 +271,7 @@ async def test_many_small_frames_are_aggregated_into_one_downstream_request() ->
 
     assert response_status(sent) == 204
     assert markers == ["endpoint"]
-    assert received_frames == [
-        {"type": "http.request", "body": b"x" * 128, "more_body": False}
-    ]
+    assert received_frames == [{"type": "http.request", "body": b"x" * 128, "more_body": False}]
 
 
 @pytest.mark.asyncio
@@ -325,7 +319,7 @@ async def test_disconnect_during_incomplete_body_never_calls_downstream_app() ->
 
     markers: list[str] = []
 
-    async def downstream_app(scope: ASGIMessage, receive: Receive, send: Send) -> None:
+    async def downstream_app(scope: Scope, receive: Receive, send: Send) -> None:
         del scope, receive, send
         markers.append("endpoint")
 
@@ -349,7 +343,7 @@ async def test_exact_declared_byte_boundary_replays_one_complete_frame() -> None
     from core.http_boundary import RequestBodyLimitMiddleware
 
     markers: list[str] = []
-    received_frames: list[ASGIMessage] = []
+    received_frames: list[Message] = []
     app = RequestBodyLimitMiddleware(
         recording_frame_app(markers, received_frames),
         max_body_bytes=4,
@@ -363,9 +357,7 @@ async def test_exact_declared_byte_boundary_replays_one_complete_frame() -> None
 
     assert response_status(sent) == 204
     assert markers == ["endpoint"]
-    assert received_frames == [
-        {"type": "http.request", "body": b"1234", "more_body": False}
-    ]
+    assert received_frames == [{"type": "http.request", "body": b"1234", "more_body": False}]
 
 
 @pytest.mark.asyncio
@@ -374,7 +366,7 @@ async def test_ordinary_chunked_body_replays_one_complete_frame() -> None:
     from core.http_boundary import RequestBodyLimitMiddleware
 
     markers: list[str] = []
-    received_frames: list[ASGIMessage] = []
+    received_frames: list[Message] = []
     app = RequestBodyLimitMiddleware(
         recording_frame_app(markers, received_frames),
         max_body_bytes=16,
@@ -388,9 +380,7 @@ async def test_ordinary_chunked_body_replays_one_complete_frame() -> None:
 
     assert response_status(sent) == 204
     assert markers == ["endpoint"]
-    assert received_frames == [
-        {"type": "http.request", "body": b"ordinary-body", "more_body": False}
-    ]
+    assert received_frames == [{"type": "http.request", "body": b"ordinary-body", "more_body": False}]
 
 
 @pytest.mark.asyncio
@@ -403,7 +393,7 @@ async def test_streaming_response_waits_for_real_disconnect_after_body_replay() 
     request_sent = False
     disconnect = asyncio.Event()
 
-    async def receive() -> ASGIMessage:
+    async def receive() -> Message:
         nonlocal request_sent
         if not request_sent:
             request_sent = True
@@ -415,7 +405,7 @@ async def test_streaming_response_waits_for_real_disconnect_after_body_replay() 
         await disconnect.wait()
         return {"type": "http.disconnect"}
 
-    async def downstream_app(scope: ASGIMessage, receive: Receive, send: Send) -> None:
+    async def downstream_app(scope: Scope, receive: Receive, send: Send) -> None:
         request = await receive()
         assert request["type"] == "http.request"
 

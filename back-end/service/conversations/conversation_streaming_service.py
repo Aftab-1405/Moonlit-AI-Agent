@@ -48,6 +48,8 @@ from fastapi.concurrency import run_in_threadpool
 
 from api_contract.run_context import ResolvedRunPolicy
 from core.errors import log_safe_exception, public_tool_error
+from langgraph_orchestration.tool_evidence import build_evidence
+from service.database.query_result import query_timeline_result
 
 logger = logging.getLogger(__name__)
 
@@ -116,12 +118,12 @@ class ConversationStreamingService:
         prompt: str | None,
         user_id: str,
         run_policy: ResolvedRunPolicy,
-        db_config: dict = None,
+        db_config: dict | None = None,
         enable_reasoning: bool = True,
         reasoning_effort: str = "medium",
         response_style: str = "balanced",
-        max_rows: int = None,
-        api_key: str = None,
+        max_rows: int | None = None,
+        api_key: str | None = None,
         resume: dict | None = None,
     ) -> AsyncGenerator[str, None]:
         """Consume SSE events from the LangGraph agent, persist them, and pass them through to the client.
@@ -243,6 +245,23 @@ class ConversationStreamingService:
                         continue
 
                     event_type = event.get("type")
+                    model_evidence = None
+                    if event_type == "tool_end":
+                        model_evidence = event.pop("model_evidence", None)
+                        if event.get("name") not in {"read_skill", "load_skill", "retrieve_memory"}:
+                            model_evidence = model_evidence or build_evidence(
+                                event.get("name", ""),
+                                event.get("args") or {},
+                                event.get("result") or {},
+                                {"user_id": user_id, "conversation_id": conversation_id, "db_config": db_config},
+                            )
+                        # Model evidence is server-side history, not a second UI dataset.
+                        sse_line = "data: " + json.dumps(event, default=str) + "\n\n"
+                    if event_type == "tool_end" and event.get("name") == "execute_query":
+                        # Apply the same projection to live SSE and persisted history,
+                        # including events from alternate agent streamers.
+                        event["result"] = query_timeline_result(event.get("result"))
+                        sse_line = "data: " + json.dumps(event, default=str) + "\n\n"
                     if event_type == "done":
                         # The outer stream owns completion, after inner cleanup and storage.
                         continue
@@ -296,12 +315,9 @@ class ConversationStreamingService:
                                 item["status"] = "done"
                                 item["args"] = json.dumps(event.get("args", {}), default=str)
                                 res_val = event.get("result") or {}
-                                if name == "execute_query" and isinstance(res_val, dict):
-                                    # Strip large query rows and preview arrays
-                                    res_val = dict(res_val)
-                                    res_val.pop("data", None)
-                                    res_val.pop("preview", None)
                                 item["result"] = json.dumps(res_val, default=str)
+                                if model_evidence is not None:
+                                    item["model_evidence"] = json.dumps(model_evidence, default=str)
                                 break
 
                     elif event_type == "thinking_token":

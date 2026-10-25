@@ -21,6 +21,7 @@ from api_contract.database_schemas import (
     TableSchemaData,
 )
 from dependencies import (
+    AuthenticatedUser,
     get_current_user,
     require_authenticated_db_config,
     update_session_data,
@@ -124,15 +125,17 @@ def _normalize_select_schema_response(
     return SelectSchemaData(
         schema_name=result.get("schema", ""),
         tables=result.get("tables") or [],
-        db_config=DatabaseConfigPublic(
-            db_type=db_config.get("db_type"),
-            database=db_config.get("database"),
-            host=db_config.get("host"),
-            port=db_config.get("port"),
-            username=db_config.get("username") or db_config.get("user"),
-            is_remote=bool(db_config.get("is_remote") or db_config.get("connection_string")),
-            schema_name=db_config.get("schema"),
-            service_name=db_config.get("service_name"),
+        db_config=DatabaseConfigPublic.model_validate(
+            {
+                "db_type": db_config.get("db_type"),
+                "database": db_config.get("database"),
+                "host": db_config.get("host"),
+                "port": db_config.get("port"),
+                "username": db_config.get("username") or db_config.get("user"),
+                "is_remote": bool(db_config.get("is_remote") or db_config.get("connection_string")),
+                "schema_name": db_config.get("schema"),
+                "service_name": db_config.get("service_name"),
+            }
         ),
         schemas=metadata.get("schemas") or [],
         current_schema=metadata.get("current_schema") or result.get("schema"),
@@ -169,10 +172,10 @@ async def select_schema(
     request: Request,
     data: SelectSchemaRequest,
     db_config: dict = Depends(require_authenticated_db_config),
-    user: dict = Depends(get_current_user),
+    user: AuthenticatedUser = Depends(get_current_user),
 ):
     """Select a PostgreSQL schema."""
-    user_id = user.get("uid") or user
+    user_id = user["uid"]
 
     result = await run_in_threadpool(DatabaseService.select_schema, db_config, data.schema_name, user_id)
     if result.get("status") == "success" and "db_config" in result:
@@ -186,7 +189,7 @@ async def select_schema(
         )
 
     _raise_service_error(result)
-    schema_metadata = {"schemas": [], "current_schema": result.get("schema")}
+    schema_metadata: dict[str, Any] = {"schemas": [], "current_schema": result.get("schema")}
     if result.get("status") == "success" and "db_config" in result:
         try:
             schema_result = await run_in_threadpool(

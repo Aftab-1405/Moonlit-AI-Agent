@@ -11,7 +11,7 @@ import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterator, Sequence
 from contextlib import AbstractAsyncContextManager
 from copy import deepcopy
-from typing import Any, Optional, TypeVar
+from typing import Any, Optional, Protocol, TypeVar, overload
 
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import (
@@ -21,11 +21,9 @@ from langgraph.checkpoint.base import (
     CheckpointMetadata,
     CheckpointTuple,
 )
+from langgraph.checkpoint.redis.aio import AsyncRedisSaver
 
-from api_contract.orchestration_protocols import (
-    ConversationTaskStateStore,
-    TaskRunAcquisition,
-)
+from api_contract.orchestration_protocols import TaskRunAcquisition
 from api_contract.run_context import CheckpointGeneration, RunControl
 from config import get_config
 from core.account_activity import current_account_user_id, run_account_work
@@ -39,7 +37,7 @@ from langgraph_orchestration.checkpoint_savers import (
 logger = logging.getLogger(__name__)
 
 _checkpointer: Optional[BaseCheckpointSaver] = None
-_redis_saver: AbstractAsyncContextManager[FullCopyAsyncRedisSaver] | None = None
+_redis_saver: AbstractAsyncContextManager[AsyncRedisSaver] | None = None
 _MutationResult = TypeVar("_MutationResult")
 
 
@@ -48,6 +46,18 @@ async def _await_account_mutation(operation: Callable[[], Awaitable[_MutationRes
     if user_id is None:
         return await operation()
     return await run_account_work(user_id, operation)
+
+
+class CheckpointGenerationActivator(Protocol):
+    """Owner-fenced generation selection needed while preparing a checkpoint."""
+
+    def activate_checkpoint_generation(
+        self,
+        conversation_id: str,
+        generation: CheckpointGeneration,
+        run_id: str,
+        fence: int,
+    ) -> bool: ...
 
 
 class GenerationCheckpointer(BaseCheckpointSaver):
@@ -80,16 +90,22 @@ class GenerationCheckpointer(BaseCheckpointSaver):
         self._run_control.ensure_mutation_allowed(now=self._monotonic())
 
     def _physical_config(self, config: RunnableConfig | None) -> RunnableConfig:
-        rewritten: RunnableConfig = dict(config or {})
+        rewritten: RunnableConfig = config.copy() if config is not None else {}
         configurable = dict(rewritten.get("configurable", {}))
         configurable["thread_id"] = self.generation.physical_thread_id
         rewritten["configurable"] = configurable
         return rewritten
 
+    @overload
+    def _logical_config(self, config: RunnableConfig) -> RunnableConfig: ...
+
+    @overload
+    def _logical_config(self, config: None) -> None: ...
+
     def _logical_config(self, config: RunnableConfig | None) -> RunnableConfig | None:
         if config is None:
             return None
-        rewritten: RunnableConfig = dict(config)
+        rewritten = config.copy()
         configurable = dict(rewritten.get("configurable", {}))
         configurable["thread_id"] = self.generation.logical_thread_id
         rewritten["configurable"] = configurable
@@ -251,7 +267,7 @@ async def prepare_checkpoint_generation(
     *,
     conversation_id: str,
     acquisition: TaskRunAcquisition,
-    task_state_store: ConversationTaskStateStore,
+    task_state_store: CheckpointGenerationActivator,
     run_control: RunControl,
     monotonic: Callable[[], float] = time.monotonic,
 ) -> GenerationCheckpointer:
@@ -271,7 +287,7 @@ async def prepare_checkpoint_generation(
             monotonic=monotonic,
         )
 
-    target_config = {"configurable": {"thread_id": generation.physical_thread_id}}
+    target_config: RunnableConfig = {"configurable": {"thread_id": generation.physical_thread_id}}
     async for _item in saver.alist(target_config, limit=1):
         raise RuntimeError("Reserved checkpoint generation is not empty before preparation.")
 
@@ -314,9 +330,7 @@ async def _clone_generation(
             )
         )
     except NotImplementedError as exc:
-        raise RuntimeError(
-            "Checkpoint saver does not support full-thread copy."
-        ) from exc
+        raise RuntimeError("Checkpoint saver does not support full-thread copy.") from exc
 
 
 async def _verify_generation_clone(
@@ -334,7 +348,7 @@ async def _generation_snapshot(
     saver: BaseCheckpointSaver,
     thread_id: str,
 ) -> dict[tuple[str, str], tuple]:
-    config = {"configurable": {"thread_id": thread_id}}
+    config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
     snapshot = {}
     for identity, item in (await generation_items(saver, config)).items():
         snapshot[identity] = (

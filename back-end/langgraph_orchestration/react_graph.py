@@ -73,6 +73,7 @@ def format_previous_assistant_turn(
     *,
     tool_trace: str = "",
     tool_calls: str = "",
+    tool_evidence: str = "",
     turn_index: int | None = None,
 ) -> str:
     """Envelope a restored assistant response and its summarized tool activity.
@@ -94,6 +95,8 @@ def format_previous_assistant_turn(
         tool_activity.append(f"Calls: {tool_calls}")
     if tool_activity:
         sections.append("<previous_tool_activity>\n" + escape("\n".join(tool_activity)) + "\n</previous_tool_activity>")
+    if tool_evidence:
+        sections.append("<previous_tool_evidence>\n" + escape(tool_evidence) + "\n</previous_tool_evidence>")
 
     if not sections:
         sections.append("<assistant_response>Prior response used tools.</assistant_response>")
@@ -351,6 +354,13 @@ def prepare_model_messages(
     # reasoning_effort / model — eliminating the wasted get_connection_status
     # round-trip on cold turns.
     prefix = [SystemMessage(content=system_prompt)]
+    # Config activation must correspond to instructions actually visible to the model.
+    if configurable and "database-querying" in configurable.get("activated_skills", []):
+        from skills.skill_registry import get_skill_registry
+
+        skill = get_skill_registry().get_skill("database-querying")
+        if skill and '<loaded_skill name="database-querying">' not in system_prompt:
+            prefix.append(SystemMessage(content=skill.build_agent_context()))
     if configurable is not None:
         prefix.append(SystemMessage(content=_build_session_state(configurable)))
     prefix.append(
@@ -363,7 +373,7 @@ def prepare_model_messages(
         )
     )
 
-    if has_vamp:
+    if has_vamp and historical_context is not None:
         # FIX [M5]: `historical_context` is truncated to the per-stream
         # VAMP token budget in `stream_conversation` BEFORE being stored
         # in `config["configurable"]["historical_context"]`, so the value

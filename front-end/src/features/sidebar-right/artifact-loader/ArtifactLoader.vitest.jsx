@@ -65,3 +65,48 @@ it('keeps different executions distinct when they have the same unknown source',
     'execution-b:sql',
   ]);
 });
+
+it.each([
+  'visualization',
+  'results',
+])('keeps a single actionable header for empty %s artifacts', async (type) => {
+  const onClose = vi.fn();
+  const user = userEvent.setup();
+  const { container } = render(
+    <ThemeProvider theme={createDarkTheme()}>
+      <ArtifactLoader
+        artifact={{
+          id: 'empty',
+          type,
+          title: 'Customer spending',
+          props: { data: { columns: [], rows: [] } },
+        }}
+        onClose={onClose}
+      />
+    </ThemeProvider>,
+  );
+  await screen.findByText('No rows returned');
+  expect(screen.getByRole('heading', { name: 'Customer spending' })).toBeTruthy();
+  expect(container.querySelectorAll('[data-artifact-header]')).toHaveLength(1);
+  expect(screen.getAllByRole('button', { name: /Outputs and sources/ })).toHaveLength(1);
+  await user.click(screen.getByRole('button', { name: 'Close artifact' }));
+  expect(onClose).toHaveBeenCalledOnce();
+});
+
+it('keeps output selection and close available for unsupported artifacts', async () => {
+  const onClose = vi.fn();
+  const user = userEvent.setup();
+  const { container } = render(
+    <ThemeProvider theme={createDarkTheme()}>
+      <ArtifactLoader
+        artifact={{ id: 'unknown', type: 'unknown', title: 'Unknown output' }}
+        onClose={onClose}
+      />
+    </ThemeProvider>,
+  );
+  expect(screen.getByRole('alert')).toBeTruthy();
+  expect(container.querySelectorAll('[data-artifact-header]')).toHaveLength(1);
+  expect(screen.getByRole('button', { name: /Outputs and sources/ })).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: 'Close artifact' }));
+  expect(onClose).toHaveBeenCalledOnce();
+});

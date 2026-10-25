@@ -1,0 +1,222 @@
+{
+  "reviewed_commit": "c139e11c8fc2c07b36d5525646c46117ab4c131c",
+  "root_cause_finding_count": 37,
+  "severity_counts": {
+    "High_P1": 1,
+    "Medium_P2": 33,
+    "Low_P3": 3
+  },
+  "legacy_id_aliases": {
+    "F25": "F24"
+  },
+  "commands": {
+    "api_reproduce.py": {
+      "ids": [
+        "F01",
+        "F02",
+        "F03",
+        "F04",
+        "F05",
+        "F06",
+        "F07",
+        "F08",
+        "F09",
+        "F10",
+        "F11",
+        "F34",
+        "F35",
+        "F36"
+      ],
+      "log": "api_coordinator_rerun.out",
+      "exit_code": 0,
+      "limits": "synthetic service boundaries; ASGI2.3 real disconnect; local5ms scheduler polling; synthetic120ms latency and burst workloads",
+      "command": "back-end/.venv/bin/python docs/security/review-evidence-2026-10-25/api_reproduce.py",
+      "script_sha256": "3ca210268275e614811cd6eeca98168e1517244264297fc7e46d487fd6b615dd",
+      "output_sha256": "3344b90cdb2287ebff149762121fdf0e092d6fc4a1d744c31e7aba45eee673cd",
+      "canonical_finding_ids": [
+        "F01",
+        "F02",
+        "F03",
+        "F04",
+        "F05",
+        "F06",
+        "F07",
+        "F08",
+        "F09",
+        "F10",
+        "F11",
+        "F34",
+        "F35",
+        "F36"
+      ]
+    },
+    "api_stream_persistence_probe.py": {
+      "ids": [
+        "N01"
+      ],
+      "log": "api_stream_persistence_coordinator.out",
+      "exit_code": 0,
+      "limits": "repository write observer; synthetic agent; real service and ASGI disconnect with normal completion control",
+      "command": "back-end/.venv/bin/python docs/security/review-evidence-2026-10-25/api_stream_persistence_probe.py",
+      "script_sha256": "18ecebff55dda58d58474b3206188d10230f0ed68cb79df904cdac8ce8ac5f37",
+      "output_sha256": "e118acf60c001851764863b03ebb0e407c9b449b7acae1517b916923a197bf7b",
+      "canonical_finding_ids": [
+        "N01"
+      ]
+    },
+    "db_reproductions.py": {
+      "ids": [
+        "F12",
+        "F13",
+        "F14",
+        "F15"
+      ],
+      "log": "db_coordinator.out",
+      "exit_code": 0,
+      "limits": "offline driver/parser/pool boundaries; inline threadpool dispatch for route functional assertions; no real DB",
+      "command": "back-end/.venv/bin/python docs/security/review-evidence-2026-10-25/db_reproductions.py",
+      "script_sha256": "a99f212888b1b8acd42f4c7e82d6d789464b4716b2c10416f6fc7abce42aa28e",
+      "output_sha256": "25301b1f4a805997c956e32501c6035b2031520a89737ca845b2cf39f0aca955",
+      "canonical_finding_ids": [
+        "F12",
+        "F13",
+        "F14",
+        "F15"
+      ]
+    },
+    "db_metadata_reproductions.py": {
+      "ids": [
+        "F17",
+        "F18",
+        "F19",
+        "F20",
+        "F21",
+        "F22"
+      ],
+      "log": "db_metadata_coordinator.out",
+      "exit_code": 0,
+      "limits": "real driver LOB over synthetic storage; Oracle/SQLServer SQL executed in SQLite catalog fixtures; stateful PostgreSQL cursor double; no optimizer or cross-user disclosure proved",
+      "command": "back-end/.venv/bin/python docs/security/review-evidence-2026-10-25/db_metadata_reproductions.py",
+      "script_sha256": "4ea71ecbd85801f9b9abd7ae23970bee7fc7071ebca53ae490551d1175085dc3",
+      "output_sha256": "cbd51ff5dfbb850965f074cc0ddaa7f47f98fa65504d8bb95ed48e1660a5af5b",
+      "canonical_finding_ids": [
+        "F17",
+        "F18",
+        "F19",
+        "F20",
+        "F21",
+        "F22"
+      ]
+    },
+    "db_pool_reproductions.py": {
+      "ids": [
+        "F16",
+        "F23"
+      ],
+      "log": "db_pool_coordinator.out",
+      "exit_code": 0,
+      "limits": "real connector pool/wrapper with offline transport;5second actual drain; Oracle driver args and commands captured, no live table resolution",
+      "command": "back-end/.venv/bin/python docs/security/review-evidence-2026-10-25/db_pool_reproductions.py",
+      "script_sha256": "0da88e69ff85fd7aeb8f5c2586b5164679e6d855e72d9489efa80d5754b9af29",
+      "output_sha256": "7dff1ed1972aee6e46cd7f957ac29407601609e11c46366cd6876354ec9113e2",
+      "canonical_finding_ids": [
+        "F16",
+        "F23"
+      ]
+    },
+    "graph_index_retry.py": {
+      "ids": [
+        "F24",
+        "F25"
+      ],
+      "log": "graph_index_retry_coordinator.out",
+      "exit_code": 0,
+      "limits": "actual indexing/retry selection on local Firestore command double; synthetic embed/upsert; async port avoids threads",
+      "command": "back-end/.venv/bin/python docs/security/review-evidence-2026-10-25/graph_index_retry.py",
+      "script_sha256": "bb074336fc3c7671f292cc6bf3457f57e79fc002192d59c4be07a22efef2569f",
+      "output_sha256": "d100c4662350c574df826bf81126af99936d5f6e580f6cb34c0ceabaec522a2e",
+      "canonical_finding_ids": [
+        "F24"
+      ]
+    },
+    "graph_limiter.py": {
+      "ids": [
+        "F27",
+        "F28"
+      ],
+      "log": "graph_limiter_coordinator.out",
+      "exit_code": 0,
+      "limits": "real acquire/release; deterministic Redis command effects and expiry clock double, not real Redis server",
+      "command": "back-end/.venv/bin/python docs/security/review-evidence-2026-10-25/graph_limiter.py",
+      "script_sha256": "7b08c42db4ebbd6f67c13318c6bf4bf65981aa91749b537d58179c535e9c9f50",
+      "output_sha256": "d0280a8caa25d90a213344121793a0a806d205dc68a22bd6d660f7925cce212b",
+      "canonical_finding_ids": [
+        "F27",
+        "F28"
+      ]
+    },
+    "graph_compaction.py": {
+      "ids": [
+        "F26",
+        "F31",
+        "F32",
+        "F33"
+      ],
+      "log": "graph_compaction_coordinator.out",
+      "exit_code": 0,
+      "limits": "real compaction/service/repositories, local document transactions, real InMemorySaver, synthetic model/embed/vector;5x80ms workload",
+      "command": "back-end/.venv/bin/python docs/security/review-evidence-2026-10-25/graph_compaction.py",
+      "script_sha256": "01cf0a310119cd77874a7afa8f5bee661f89b94275770ebdc2cdd7dc39126dc2",
+      "output_sha256": "127bc994ec127c338fd612a4959f08f12d1fdafd092c1080a819817ad76ffedb",
+      "canonical_finding_ids": [
+        "F26",
+        "F31",
+        "F32",
+        "F33"
+      ]
+    },
+    "graph_history_size.py": {
+      "ids": [
+        "F37"
+      ],
+      "log": "graph_history_size_coordinator.out",
+      "exit_code": 0,
+      "limits": "real request validation/store and protobuf; synthetic conservative content-only limit, actual Firestore may reject sooner",
+      "command": "back-end/.venv/bin/python docs/security/review-evidence-2026-10-25/graph_history_size.py",
+      "script_sha256": "a9a3c16982e17bd7a625ac4ddf3135291e3634120be14a9b7dd4d9a49796848b",
+      "output_sha256": "2d89490d45a2e317a25c7b3f73ec099eefadd637a887aba06880987916b92c9f",
+      "canonical_finding_ids": [
+        "F37"
+      ]
+    },
+    "graph_react_budget.py": {
+      "ids": [
+        "F29"
+      ],
+      "log": "graph_react_budget_coordinator.out",
+      "exit_code": 0,
+      "limits": "real production ReAct builder, policy resolver, continuation wrapper; synthetic chat model/tool; normal50 resume checkpoint39to129; no claim65 successful production tool calls; N02 early termination remains unverified",
+      "command": "back-end/.venv/bin/python docs/security/review-evidence-2026-10-25/graph_react_budget.py",
+      "script_sha256": "bdca09e5b55d784b786f68718689bed48cb95ecf5b86be6d017d5ce3d6ae8c83",
+      "output_sha256": "ba081761227fb5a39844bc69f0d75ad3dbcc1ae3ab05dfa4c80923be7973d638",
+      "canonical_finding_ids": [
+        "F29"
+      ]
+    },
+    "graph_budget.py": {
+      "ids": [
+        "F30"
+      ],
+      "log": "graph_budget_coordinator.out",
+      "exit_code": 0,
+      "limits": "actual guard, synthetic config and unique query args; generic graph figures in same script are diagnostic only and excluded from ordinary ReAct impact",
+      "command": "back-end/.venv/bin/python docs/security/review-evidence-2026-10-25/graph_budget.py",
+      "script_sha256": "00a8579bc4b9fffc09c61f10f19c4ab14f773319a57987d340b0afa144adc5f4",
+      "output_sha256": "09f855b93e320bc8b944258e9604545a101463595295a00cfc55fa4081648e1e",
+      "canonical_finding_ids": [
+        "F30"
+      ]
+    }
+  },
+  "note": "Exit0 means actual defect reproduction succeeded. Remediations are proposed and untested. N02 is unverified. Generic graph budget figures are diagnostic only."
+}

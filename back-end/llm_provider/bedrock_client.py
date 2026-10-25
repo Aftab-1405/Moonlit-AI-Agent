@@ -167,7 +167,7 @@ def _list_inference_profiles(region: str) -> tuple[dict, ...]:
             return cached
     client = get_bedrock_control_client(region)
     profiles: list[dict] = []
-    kwargs = {}
+    kwargs: dict[str, str] = {}
 
     while True:
         response = client.list_inference_profiles(**kwargs)
@@ -200,7 +200,7 @@ def _profile_matches_model(profile: dict, requested_model: str) -> bool:
 
     for model in profile.get("models") or []:
         model_arn = model.get("modelArn") if isinstance(model, dict) else str(model)
-        if _model_match_key(model_arn) == requested_key:
+        if isinstance(model_arn, str) and _model_match_key(model_arn) == requested_key:
             return True
 
     return False

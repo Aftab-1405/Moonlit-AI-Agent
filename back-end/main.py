@@ -2,8 +2,11 @@
 
 import asyncio
 import logging
+from collections.abc import Awaitable
 from contextlib import asynccontextmanager
+from inspect import isawaitable
 from time import perf_counter
+from typing import Any, Protocol
 
 import redis.asyncio as redis
 from fastapi import FastAPI, HTTPException, Request, status
@@ -64,8 +67,14 @@ for noisy_logger in AppConfig.NOISY_LOGGER_NAMES:
 from service.redis_service import get_redis_client, set_redis_client
 
 
+class _RedisPingClient(Protocol):
+    """Redis startup probes only require the PING operation."""
+
+    def ping(self) -> Awaitable[bool] | bool: ...
+
+
 async def _run_startup_dependency_probes(
-    redis_client: redis.Redis | None,
+    redis_client: _RedisPingClient | None,
     *,
     timeout_seconds: float,
 ) -> list[StartupProbeResult]:
@@ -82,7 +91,10 @@ async def _run_startup_dependency_probes(
     else:
 
         async def ping_redis() -> None:
-            if not await redis_client.ping():
+            response = redis_client.ping()
+            if not isawaitable(response):
+                raise TypeError("Redis PING did not return an awaitable response")
+            if not await response:
                 raise ConnectionError("Redis PING returned a false response")
 
         redis_result = await run_startup_probe(
@@ -491,7 +503,7 @@ def _register_error_handlers(app: FastAPI):
         detail = exc.detail
         error = error_code_for_status(exc.status_code)
         message = str(detail) if detail else error.replace("_", " ").title()
-        details = {}
+        details: dict[str, Any] = {}
 
         if isinstance(detail, dict):
             error = str(detail.get("error") or detail.get("error_type") or error)
@@ -519,10 +531,9 @@ def _register_error_handlers(app: FastAPI):
         )
 
 
-
 async def _rate_limit_exception_handler(
     request: Request,
-    exc: RateLimitExceeded,
+    exc: Exception,
 ):
     """Return the stable public error contract for SlowAPI rejections."""
     return api_error_response(

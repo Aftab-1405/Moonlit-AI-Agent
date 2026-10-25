@@ -34,6 +34,9 @@ import { alpha, useTheme } from '@mui/material/styles';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { CodeEditorIcon, ExpandMoreIcon, SendIcon, StopIcon } from '@/components/icons';
+import { REASONING_EFFORT_OPTIONS } from '@/config/userSettings';
+import ComposerContextBar from '@/features/chat/ComposerContextBar';
+import ComposerModelPicker from '@/features/chat/ComposerModelPicker';
 import { createChatDraftStore } from '@/features/chat/chatDraftStore';
 import { CHAT_MOTION } from '@/features/chat/chatMotion';
 import { getContextUsage } from '@/features/chat/contextUsage';
@@ -48,9 +51,6 @@ import {
 } from '@/features/styles/interfaceChrome';
 import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
 import { getInteractionColors, UI_LAYOUT } from '@/styles/shared';
-import ComposerContextBar from '@/features/chat/ComposerContextBar';
-import ComposerModelPicker from '@/features/chat/ComposerModelPicker';
-import { REASONING_EFFORT_OPTIONS } from '@/config/userSettings';
 
 const MotionSpan = motion.span;
 
@@ -147,7 +147,7 @@ const getUsageColor = (value) => {
   return 'primary';
 };
 
-const ContextUsageTooltip = ({ contextUsage, selectedModel }) => (
+const ContextUsageDetails = ({ contextUsage, selectedModel }) => (
   <Box sx={{ width: 252, p: 0.5 }}>
     <Typography variant="body2" sx={{ fontWeight: 400, color: 'inherit', mb: 0.5 }}>
       {selectedModel || 'Select model'}
@@ -211,7 +211,6 @@ function ChatInput({
   onToggleSqlEditor = null,
   sqlEditorOpen = false,
   onOpenDatabase,
-  onOpenContext,
   children,
 }) {
   const [draftStore] = useState(createChatDraftStore);
@@ -331,6 +330,7 @@ function ChatInput({
       '& .MuiInputBase-input': {
         py: 0.25,
         ...theme.typography.uiInput,
+        fontSize: 16,
         lineHeight: 1.55,
         '&::placeholder': {
           color: 'text.secondary',
@@ -361,23 +361,23 @@ function ChatInput({
         mobileSize: UI_LAYOUT.touchTarget,
       }),
       flexShrink: 0,
-      // The ready-to-send state is a high-contrast monochrome action. Streaming
+      // The ready-to-send state uses the interaction accent. Streaming
       // switches to the semantic error tone because the action becomes "stop".
       color: isStreaming
         ? theme.palette.error.main
         : hasText
-          ? theme.palette.primary.contrastText
+          ? theme.palette.accent.contrastText
           : theme.palette.text.disabled,
       backgroundColor: isStreaming
         ? errorInteraction.activeBackground
         : hasText
-          ? theme.palette.primary.main
+          ? theme.palette.accent.main
           : theme.palette.action.hover,
       border: '1px solid',
       borderColor: isStreaming
         ? errorInteraction.border
         : hasText
-          ? 'transparent'
+          ? theme.palette.accent.foreground
           : theme.palette.border.idle,
       boxShadow: 'none',
       transition: theme.transitions.create(
@@ -390,22 +390,25 @@ function ChatInput({
           backgroundColor: isStreaming
             ? errorInteraction.activeHoverBackground
             : hasText
-              ? theme.palette.primary.dark
+              ? theme.palette.accent.hover
               : theme.palette.action.selected,
           color: isStreaming
             ? theme.palette.error.main
             : hasText
-              ? theme.palette.primary.contrastText
+              ? theme.palette.accent.contrastText
               : theme.palette.text.secondary,
           borderColor: isStreaming
             ? errorInteraction.hoverBorder
             : hasText
-              ? 'transparent'
+              ? theme.palette.accent.foreground
               : theme.palette.border.hover,
           boxShadow: 'none',
         },
       },
-      '&:active': { transform: 'translateY(0) scale(0.97)' },
+      '&:active:not(.Mui-disabled)': {
+        transform: 'translateY(0) scale(0.97)',
+        ...(!isStreaming && hasText && { backgroundColor: theme.palette.accent.pressed }),
+      },
       '&.Mui-focusVisible': {
         outline: `2px solid ${theme.palette.border.focus}`,
         outlineOffset: 2,
@@ -423,10 +426,6 @@ function ChatInput({
   const composerLayoutSx = useMemo(() => getComposerLayoutSx(theme), [theme]);
   const inputPlaceholder = isStreaming ? 'Draft your next message' : 'Work with Moonlit';
 
-  const selectedProviderOption = useMemo(() => {
-    return providerOptions.find((provider) => provider.name === selectedProvider) || null;
-  }, [providerOptions, selectedProvider]);
-  const activeProviderLabel = selectedProviderOption?.label || selectedProvider || '';
   const effortLabel = supportsReasoning
     ? REASONING_EFFORT_OPTIONS.find((option) => option.value === reasoningEffort)?.label
     : null;
@@ -583,7 +582,7 @@ function ChatInput({
           effectiveTaskMode={effectiveTaskMode}
           usageContent={
             contextUsage ? (
-              <ContextUsageTooltip contextUsage={contextUsage} selectedModel={selectedModel} />
+              <ContextUsageDetails contextUsage={contextUsage} selectedModel={selectedModel} />
             ) : null
           }
         />
@@ -591,13 +590,14 @@ function ChatInput({
 
       <Box
         ref={setComposerElement}
+        data-composer-surface=""
         sx={{
           maxWidth: COMPOSER_MAX_WIDTH,
           ...composerLayoutSx.surface,
-          ...(placement === 'welcome' && { minHeight: { xs: 126, md: 126 } }),
           mx: 'auto',
           position: 'relative',
           ...composerSurfaceSx,
+          zIndex: 1,
           cursor: 'text',
         }}
       >
@@ -666,6 +666,8 @@ function ChatInput({
                   aria-pressed={sqlEditorOpen}
                   sx={{
                     ...toolbarActionButtonStyles,
+                    color: 'text.secondary',
+                    '& .MuiButton-startIcon': { color: 'inherit' },
                     width: 'auto',
                     px: { xs: 1, md: 1.5 },
                   }}
@@ -685,72 +687,56 @@ function ChatInput({
                 flexShrink: 1,
               }}
             >
-              <Tooltip
-                title={
-                  contextUsage ? (
-                    <ContextUsageTooltip
-                      contextUsage={contextUsage}
-                      selectedModel={selectedModel}
+              <Box component="span" sx={{ minWidth: 0, display: 'flex', flexShrink: 1 }}>
+                <Button
+                  variant="text"
+                  size="small"
+                  onClick={handleOpenLlmPopover}
+                  aria-expanded={Boolean(llmAnchor)}
+                  aria-label={`Select model: ${selectedModel || 'Choose model'}${effortLabel ? `, ${effortLabel} reasoning` : ''}`}
+                  aria-haspopup="dialog"
+                  startIcon={
+                    contextUsage ? (
+                      <ContextProgressRing value={contextUsage.activePercent} theme={theme} />
+                    ) : undefined
+                  }
+                  endIcon={
+                    <ExpandMoreIcon
+                      sx={{
+                        transform: llmAnchor ? 'rotate(180deg)' : 'rotate(0deg)',
+                        transition: theme.transitions.create('transform', {
+                          duration: 150,
+                        }),
+                      }}
                     />
-                  ) : activeProviderLabel ? (
-                    `${selectedModel || 'Select model'} - ${activeProviderLabel}${effortLabel ? ` · ${effortLabel} reasoning` : ''}`
-                  ) : (
-                    'Select model'
-                  )
-                }
-              >
-                <Box component="span" sx={{ minWidth: 0, display: 'flex', flexShrink: 1 }}>
-                  <Button
-                    variant="text"
-                    size="small"
-                    onClick={handleOpenLlmPopover}
-                    aria-expanded={Boolean(llmAnchor)}
-                    aria-label={`Select model: ${selectedModel || 'Choose model'}${effortLabel ? `, ${effortLabel} reasoning` : ''}`}
-                    aria-haspopup="dialog"
-                    startIcon={
-                      contextUsage ? (
-                        <ContextProgressRing value={contextUsage.activePercent} theme={theme} />
-                      ) : undefined
-                    }
-                    endIcon={
-                      <ExpandMoreIcon
-                        sx={{
-                          transform: llmAnchor ? 'rotate(180deg)' : 'rotate(0deg)',
-                          transition: theme.transitions.create('transform', {
-                            duration: 150,
-                          }),
-                        }}
-                      />
-                    }
+                  }
+                  sx={{
+                    ...toolbarActionButtonStyles,
+                    minWidth: 0,
+                    maxWidth: '100%',
+                    flexShrink: 1,
+                    bgcolor: llmAnchor ? 'action.selected' : 'transparent',
+                  }}
+                >
+                  <Box
+                    component="span"
                     sx={{
-                      ...toolbarActionButtonStyles,
                       minWidth: 0,
-                      maxWidth: '100%',
-                      flexShrink: 1,
-                      bgcolor:
-                        placement === 'welcome' || llmAnchor ? 'action.selected' : 'transparent',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
                     }}
                   >
-                    <Box
-                      component="span"
-                      sx={{
-                        minWidth: 0,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {getModelDisplayName(selectedModel) ||
-                        (llmOptionsLoading ? 'Loading' : 'Choose model')}
+                    {getModelDisplayName(selectedModel) ||
+                      (llmOptionsLoading ? 'Loading' : 'Choose model')}
+                  </Box>
+                  {effortLabel && (
+                    <Box component="span" sx={{ flexShrink: 0, color: 'text.secondary' }}>
+                      {effortLabel}
                     </Box>
-                    {effortLabel && (
-                      <Box component="span" sx={{ flexShrink: 0 }}>
-                        · {effortLabel}
-                      </Box>
-                    )}
-                  </Button>
-                </Box>
-              </Tooltip>
+                  )}
+                </Button>
+              </Box>
 
               <Tooltip
                 title={
@@ -841,7 +827,6 @@ function ChatInput({
           onDatabaseSwitch,
           onSchemaChange,
           onOpenDatabase,
-          onOpenContext,
         }}
       />
       {children}
@@ -874,7 +859,6 @@ function arePropsEqual(prevProps, nextProps) {
   if (prevProps.currentSchema !== nextProps.currentSchema) return false;
   if (prevProps.availableSchemas !== nextProps.availableSchemas) return false;
   if (prevProps.onOpenDatabase !== nextProps.onOpenDatabase) return false;
-  if (prevProps.onOpenContext !== nextProps.onOpenContext) return false;
   if (prevProps.usageMetrics !== nextProps.usageMetrics) return false;
   // ENH [AUTO-TASK-MODE]: Re-render when the task-mode setting or the
   // backend-reported effective mode changes.

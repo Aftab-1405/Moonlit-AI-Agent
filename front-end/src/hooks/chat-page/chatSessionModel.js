@@ -27,6 +27,7 @@ export function createChatSession({
   pendingInteraction = null,
   usageMetrics = null,
   effectiveTaskMode = null,
+  history = { before: null, hasMore: false, isLoading: false, error: null },
 } = {}) {
   if (!sessionKey) throw new Error('A chat session requires a sessionKey.');
 
@@ -41,6 +42,7 @@ export function createChatSession({
     pendingInteraction,
     usageMetrics,
     effectiveTaskMode,
+    history,
   };
 }
 

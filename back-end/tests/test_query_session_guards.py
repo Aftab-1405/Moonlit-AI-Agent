@@ -27,8 +27,14 @@ class Connection:
             raise RuntimeError("driver cannot install timeout")
         self._call_timeout = value
 
-    def cursor(self):
+    def cursor(self, **_kwargs):
         return self.cursor_instance
+
+    def commit(self):
+        pass
+
+    def rollback(self):
+        pass
 
 
 class Cursor:
@@ -62,8 +68,12 @@ def database_boundary(monkeypatch):
 
     class Manager:
         @contextmanager
-        def get_cursor(self, _config):
-            yield connection.cursor_instance
+        def get_cursor(self, config, **options):
+            from service.database.adapters import get_adapter
+            from service.database.query_guards import query_execution_cursor
+
+            with query_execution_cursor(get_adapter(config.get("db_type", "mysql")), connection, **options) as cursor:
+                yield cursor
 
     @contextmanager
     def tool_connection(_config):
@@ -82,10 +92,16 @@ def execute(path, config):
 
 @pytest.mark.parametrize("path", ["manual", "ai"])
 @pytest.mark.parametrize("db_type", ["mysql", "postgresql", "sqlserver", "oracle"])
-def test_timeout_install_failure_prevents_user_query(database_boundary, path, db_type):
+def test_timeout_install_failure_prevents_user_query(database_boundary, monkeypatch, path, db_type):
     connection = database_boundary
     connection.reject_timeout = True
     connection.cursor_instance.reject_sql_timeout = True
+    if db_type == "sqlserver":
+
+        def reject(*_args):
+            raise RuntimeError("driver cannot install timeout")
+
+        monkeypatch.setattr("service.database.adapters.sqlserver_adapter.SQLServerAdapter.set_session_timeout", reject)
 
     result = execute(path, {"db_type": db_type, "database": "sales"})
 
@@ -126,16 +142,21 @@ def test_each_postgres_borrow_uses_selected_schema(database_boundary, path):
         result = execute(path, {"db_type": "postgresql", "schema": schema})
 
         assert result["status"] == "success"
-        assert cursor.statements[-2:] == [Composed([SQL("SET search_path TO "), Identifier(schema)]), QUERY]
+        assert cursor.statements[-3:] == [
+            Composed([SQL("SET search_path TO "), Identifier(schema)]),
+            QUERY,
+            "RESET statement_timeout",
+        ]
 
 
 def test_ai_default_dialect_resets_schema_to_public(database_boundary):
     result = execute("ai", {"database": "sales"})
 
     assert result["status"] == "success"
-    assert database_boundary.cursor_instance.statements[-2:] == [
+    assert database_boundary.cursor_instance.statements[-3:] == [
         Composed([SQL("SET search_path TO "), Identifier("public")]),
         QUERY,
+        "RESET statement_timeout",
     ]
 
 
@@ -153,5 +174,25 @@ def test_oracle_timeout_installed_on_success(database_boundary, path):
     result = execute(path, {"db_type": "oracle", "database": "sales"})
 
     assert result["status"] == "success"
-    assert database_boundary.call_timeout == 30000
+    assert database_boundary.call_timeout == 0  # Reset before returning the pooled connection.
     assert database_boundary.cursor_instance.statements[-1] == QUERY
+
+
+def test_ai_cancelled_during_setup_never_starts_user_query(database_boundary, monkeypatch):
+    from service.database.query_guards import QueryCancellation
+
+    cancellation = QueryCancellation()
+    monkeypatch.setattr(
+        "service.database.ai_tool_executor.set_query_schema",
+        lambda *_args: cancellation.cancel(),
+    )
+    result = AIToolExecutor._execute_query_with_db_config(
+        {"db_type": "postgresql"},
+        {},
+        QUERY,
+        10,
+        cancellation=cancellation,
+    )
+    assert QUERY not in database_boundary.cursor_instance.statements
+    assert result["status"] == "error"
+    assert database_boundary.cursor_instance.closed

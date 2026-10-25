@@ -310,7 +310,7 @@ class OracleAdapter(BaseDatabaseAdapter):
 
     # Schema Caching Methods (for AI context)
 
-    def get_all_tables_for_cache(self, db_name: str, schema: str = None) -> tuple:
+    def get_all_tables_for_cache(self, db_name: str, schema: str | None = None) -> tuple[str, tuple[str, ...]]:
         """Return SQL query and params to get all tables for schema caching."""
         # In Oracle, db_name is actually the schema/owner
         query = """
@@ -389,7 +389,7 @@ class OracleAdapter(BaseDatabaseAdapter):
         """Return SQL query and params to get all schemas for caching."""
         return self.get_databases_query(), ()
 
-    def get_batch_columns_for_tables(self, db_name: str, tables: List[str], schema: str = None) -> tuple:
+    def get_batch_columns_for_tables(self, db_name: str, tables: List[str], schema: str | None = None) -> tuple:
         """Return SQL query and params to batch fetch columns for multiple tables.
 
         Returns (table_name, column_name, column_key) where column_key is 'PRI' for primary keys.
@@ -423,7 +423,7 @@ class OracleAdapter(BaseDatabaseAdapter):
 
     # Schema Metadata Methods (for AI tools)
 
-    def get_indexes_query(self, table_name: str, db_name: str = None, schema: str = None) -> tuple:
+    def get_indexes_query(self, table_name: str, db_name: str | None = None, schema: str | None = None) -> tuple:
         """Return SQL query and params to get indexes for an Oracle table."""
         query = """
             SELECT
@@ -439,7 +439,9 @@ class OracleAdapter(BaseDatabaseAdapter):
         owner = db_name.upper() if db_name else schema.upper() if schema else "PUBLIC"
         return query, (table_name.upper(), owner)
 
-    def get_foreign_keys_query(self, table_name: str = None, db_name: str = None, schema: str = None) -> tuple:
+    def get_foreign_keys_query(
+        self, table_name: str | None = None, db_name: str | None = None, schema: str | None = None
+    ) -> tuple:
         """Return SQL query and params to get foreign key relationships in Oracle."""
         owner = db_name.upper() if db_name else schema.upper() if schema else "PUBLIC"
 
@@ -527,7 +529,7 @@ class OracleAdapter(BaseDatabaseAdapter):
 
     # Table-details Method (added for the get_table_details AI tool)
 
-    def get_table_details_query(self, table_name: str, db_name: str = None, schema: str = None) -> tuple:
+    def get_table_details_query(self, table_name: str, db_name: str | None = None, schema: str | None = None) -> tuple:
         """Return SQL query and params for a rich per-column Oracle schema dump.
 
         Returns one row per column with positional columns:
@@ -581,7 +583,7 @@ class OracleAdapter(BaseDatabaseAdapter):
 
     # Views Introspection Methods (added for the list_views AI tool)
 
-    def get_views(self, schema: str = None, db_name: str = None) -> tuple:
+    def get_views(self, schema: str | None = None, db_name: str | None = None) -> tuple:
         """Return SQL query and params to list Oracle views owned by ``db_name``.
 
         ``db_name`` is interpreted as the owner (Oracle schema); ``schema``
@@ -599,7 +601,7 @@ class OracleAdapter(BaseDatabaseAdapter):
         """
         return query, (owner,)
 
-    def get_materialized_views(self, schema: str = None, db_name: str = None):
+    def get_materialized_views(self, schema: str | None = None, db_name: str | None = None):
         """Return SQL query and params to list Oracle materialized views.
 
         Oracle exposes materialized views via ``all_mviews``. The

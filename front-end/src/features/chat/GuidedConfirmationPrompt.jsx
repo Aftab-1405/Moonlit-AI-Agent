@@ -19,10 +19,7 @@
 import { Box, Button, Collapse, Fade, Typography } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { memo } from 'react';
-import {
-  getAppPanelSurfaceSx,
-  getResponsivePillControlSx,
-} from '@/features/styles/interfaceChrome';
+import { getAppPanelSurfaceSx } from '@/features/styles/interfaceChrome';
 import { UI_LAYOUT } from '@/styles/shared';
 
 const GuidedConfirmationPrompt = memo(function GuidedConfirmationPrompt({
@@ -129,52 +126,10 @@ const GuidedConfirmationPrompt = memo(function GuidedConfirmationPrompt({
                 alignSelf: { xs: 'flex-end', md: 'center' },
               }}
             >
-              <Button
-                size="small"
-                onClick={onCancel}
-                sx={{
-                  ...getResponsivePillControlSx(theme, { desktopHeight: 32 }),
-                  textTransform: 'none',
-                  color: 'text.secondary',
-                  px: 1.5,
-                  ...theme.typography.uiCaptionMd,
-                  fontWeight: 400,
-                  '&:hover': {
-                    bgcolor: theme.palette.action.hover,
-                  },
-                  '&.Mui-focusVisible': {
-                    boxShadow: 'none',
-                    outline: `2px solid ${theme.palette.border.focus}`,
-                    outlineOffset: 2,
-                  },
-                }}
-              >
+              <Button size="small" onClick={onCancel}>
                 {cancelText || 'Stop'}
               </Button>
-              <Button
-                size="small"
-                variant="contained"
-                onClick={onConfirm}
-                sx={{
-                  ...getResponsivePillControlSx(theme, { desktopHeight: 32 }),
-                  textTransform: 'none',
-                  px: 1.5,
-                  ...theme.typography.uiCaptionMd,
-                  fontWeight: 400,
-                  bgcolor: 'primary.main',
-                  color: 'primary.contrastText',
-                  boxShadow: 'none',
-                  '&:hover': {
-                    bgcolor: 'primary.dark',
-                    boxShadow: 'none',
-                  },
-                  '&.Mui-focusVisible': {
-                    boxShadow: 'none',
-                    outline: `2px solid ${theme.palette.border.focus}`,
-                    outlineOffset: 2,
-                  },
-                }}
-              >
+              <Button size="small" variant="contained" color="accent" onClick={onConfirm}>
                 {confirmText || 'Continue'}
               </Button>
             </Box>
