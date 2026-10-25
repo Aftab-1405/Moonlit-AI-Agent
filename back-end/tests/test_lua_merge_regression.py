@@ -66,7 +66,6 @@ class _NonObjectEvalRedis(_FailingEvalRedis):
         return json.dumps(["not", "an", "object"])
 
 
-
 def test_redis_merge_uses_one_eval_and_refreshes_ttl(monkeypatch) -> None:
     from dependencies import _merge_state
     from service import redis_service
@@ -130,12 +129,7 @@ def test_concurrent_redis_merges_preserve_every_field(monkeypatch) -> None:
     async def scenario() -> tuple[dict, _AtomicRedisFake]:
         fake = _AtomicRedisFake()
         monkeypatch.setattr(redis_service, "_redis_client", fake)
-        await asyncio.gather(
-            *(
-                _merge_state("session:2", {f"key_{index}": index}, 60)
-                for index in range(20)
-            )
-        )
+        await asyncio.gather(*(_merge_state("session:2", {f"key_{index}": index}, 60) for index in range(20)))
         return json.loads(fake.store["session:2"]), fake
 
     merged, fake = asyncio.run(scenario())
@@ -167,13 +161,13 @@ def test_stored_array_state_fails_closed_before_mutation(monkeypatch) -> None:
     from service import redis_service
 
     fake = _AtomicRedisFake()
-    fake.store["session:stored-array"] = "  [\"not\", \"an\", \"object\"]"
+    fake.store["session:stored-array"] = '  ["not", "an", "object"]'
     monkeypatch.setattr(redis_service, "_redis_client", fake)
 
     with pytest.raises(RuntimeError, match="Atomic Redis session update failed"):
         asyncio.run(_merge_state("session:stored-array", {"updated": True}, 60))
 
-    assert fake.store["session:stored-array"] == "  [\"not\", \"an\", \"object\"]"
+    assert fake.store["session:stored-array"] == '  ["not", "an", "object"]'
     assert fake.expiries == {}
     assert len(fake.eval_calls) == 1
     assert fake.get_called is False
@@ -181,9 +175,7 @@ def test_stored_array_state_fails_closed_before_mutation(monkeypatch) -> None:
 
 
 @pytest.mark.parametrize("fake", [_FailingEvalRedis(), _NonObjectEvalRedis()])
-def test_redis_merge_failures_fail_closed_without_get_set_fallback(
-    monkeypatch, fake: _FailingEvalRedis
-) -> None:
+def test_redis_merge_failures_fail_closed_without_get_set_fallback(monkeypatch, fake: _FailingEvalRedis) -> None:
     from dependencies import _merge_state
     from service import redis_service
 

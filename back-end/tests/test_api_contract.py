@@ -45,7 +45,7 @@ def test_external_request_models_reject_undeclared_fields(
     payload: dict[str, object],
 ) -> None:
     """Reject extra public JSON keys instead of silently discarding client input."""
-    from pydantic import ValidationError
+    from pydantic import BaseModel, ValidationError
 
     from api_contract.context import (
         CloseSessionRequest,
@@ -66,7 +66,7 @@ def test_external_request_models_reject_undeclared_fields(
     )
     from controller.auth_controller import SetSessionRequest
 
-    models = {
+    models: dict[str, type[BaseModel]] = {
         "ChatRequest": ChatRequest,
         "AgentResumeRequest": AgentResumeRequest,
         "RenameConversationRequest": RenameConversationRequest,
@@ -82,7 +82,7 @@ def test_external_request_models_reject_undeclared_fields(
     }
 
     with pytest.raises(ValidationError) as exc_info:
-        models[request_model](**payload, undeclared_client_field=True)
+        models[request_model].model_validate({**payload, "undeclared_client_field": True})
 
     assert any(error["type"] == "extra_forbidden" for error in exc_info.value.errors())
 
@@ -156,7 +156,7 @@ class TestAgentResumeRequest:
         from api_contract.conversations import AgentResumeRequest
 
         with pytest.raises(ValidationError):
-            AgentResumeRequest(resume={"action": "continue"})
+            AgentResumeRequest.model_validate({"resume": {"action": "continue"}})
 
 
 @pytest.mark.parametrize(
@@ -214,13 +214,15 @@ class TestConnectDBRequest:
         """Accept a fully populated DB-connect request."""
         from api_contract.database import ConnectDBRequest
 
-        req = ConnectDBRequest(
-            db_type="postgresql",
-            host="db.example.com",
-            port=5432,
-            user="alice",
-            password="secret",
-            database="customers",
+        req = ConnectDBRequest.model_validate(
+            {
+                "db_type": "postgresql",
+                "host": "db.example.com",
+                "port": 5432,
+                "user": "alice",
+                "password": "secret",
+                "database": "customers",
+            }
         )
         assert req.db_type == "postgresql"
         assert req.host == "db.example.com"
@@ -232,28 +234,35 @@ class TestConnectDBRequest:
         from api_contract.database import ConnectDBRequest
 
         with pytest.raises(ValidationError):
-            ConnectDBRequest(
-                db_type="postgresql",
-                password="x" * 257,  # exceeds max_length=256
+            ConnectDBRequest.model_validate(
+                {
+                    "db_type": "postgresql",
+                    "password": "x" * 257,  # exceeds max_length=256
+                }
             )
 
     def test_accepts_max_length_password(self) -> None:
         """Accept a password exactly 256 characters long."""
         from api_contract.database import ConnectDBRequest
 
-        req = ConnectDBRequest(
-            db_type="postgresql",
-            password="x" * 256,
+        req = ConnectDBRequest.model_validate(
+            {
+                "db_type": "postgresql",
+                "password": "x" * 256,
+            }
         )
+        assert req.password is not None
         assert len(req.password) == 256
 
     def test_strips_connection_string_whitespace(self) -> None:
         """Strip surrounding whitespace from a quoted connection string."""
         from api_contract.database import ConnectDBRequest
 
-        req = ConnectDBRequest(
-            db_type="mysql",
-            connection_string='  "mysql://user:pw@host/db"  ',
+        req = ConnectDBRequest.model_validate(
+            {
+                "db_type": "mysql",
+                "connection_string": '  "mysql://user:pw@host/db"  ',
+            }
         )
         assert req.connection_string == "mysql://user:pw@host/db"
 
@@ -265,14 +274,14 @@ class TestChatRequest:
         """Accept a chat request with a non-empty prompt."""
         from api_contract.conversations import ChatRequest
 
-        req = ChatRequest(prompt="Hello, world")
+        req = ChatRequest.model_validate({"prompt": "Hello, world"})
         assert req.prompt == "Hello, world"
 
     def test_accepts_omitted_conversation_id_for_new_chat(self) -> None:
         """Allow creation only when the conversation-id field is absent."""
         from api_contract.conversations import ChatRequest
 
-        req = ChatRequest(prompt="Start a new conversation")
+        req = ChatRequest.model_validate({"prompt": "Start a new conversation"})
 
         assert req.conversation_id is None
         assert "conversation_id" not in req.model_fields_set
@@ -286,16 +295,13 @@ class TestChatRequest:
         with pytest.raises(ValidationError) as exc_info:
             ChatRequest(prompt="Start a new conversation", conversation_id=None)
 
-        assert any(
-            error["loc"] == ("conversation_id",)
-            for error in exc_info.value.errors()
-        )
+        assert any(error["loc"] == ("conversation_id",) for error in exc_info.value.errors())
 
     def test_strips_prompt_whitespace(self) -> None:
         """Strip surrounding whitespace from the prompt field."""
         from api_contract.conversations import ChatRequest
 
-        req = ChatRequest(prompt="  hello  ")
+        req = ChatRequest.model_validate({"prompt": "  hello  "})
         assert req.prompt == "hello"
 
     def test_rejects_empty_prompt(self) -> None:
@@ -305,20 +311,20 @@ class TestChatRequest:
         from api_contract.conversations import ChatRequest
 
         with pytest.raises(ValidationError):
-            ChatRequest(prompt="   ")
+            ChatRequest.model_validate({"prompt": "   "})
 
     def test_sanitizes_provider(self) -> None:
         """Lower-case and trim the provider field."""
         from api_contract.conversations import ChatRequest
 
-        req = ChatRequest(prompt="hi", provider="  Bedrock  ")
+        req = ChatRequest.model_validate({"prompt": "hi", "provider": "  Bedrock  "})
         assert req.provider == "bedrock"
 
     def test_sanitizes_model(self) -> None:
         """Trim whitespace from the model field."""
         from api_contract.conversations import ChatRequest
 
-        req = ChatRequest(prompt="hi", model="  claude-3.5-sonnet  ")
+        req = ChatRequest.model_validate({"prompt": "hi", "model": "  claude-3.5-sonnet  "})
         assert req.model == "claude-3.5-sonnet"
 
 

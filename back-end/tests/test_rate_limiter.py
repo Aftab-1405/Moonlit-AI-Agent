@@ -18,10 +18,7 @@ def _request(peer: str | None, **headers: str) -> Request:
         "path": "/",
         "raw_path": b"/",
         "query_string": b"",
-        "headers": [
-            (name.lower().encode("latin-1"), value.encode("latin-1"))
-            for name, value in headers.items()
-        ],
+        "headers": [(name.lower().encode("latin-1"), value.encode("latin-1")) for name, value in headers.items()],
     }
     if peer is not None:
         scope["client"] = (peer, 12345)
@@ -107,9 +104,7 @@ def test_all_forwarded_hops_trusted_falls_back_to_peer(
 ) -> None:
     """Use the immediate peer when a trusted chain provides no client hop."""
     _trust(monkeypatch, "127.0.0.1/32", "10.0.0.0/8")
-    request = _request(
-        "127.0.0.1", **{"x-forwarded-for": "10.0.0.8, 10.0.0.9"}
-    )
+    request = _request("127.0.0.1", **{"x-forwarded-for": "10.0.0.8, 10.0.0.9"})
     assert rate_limiter._proxy_aware_remote_address(request) == "127.0.0.1"
 
 
@@ -139,9 +134,7 @@ def test_malformed_x_real_ip_rejects_the_header(header: str) -> None:
 def test_ipv6_proxy_chain_is_normalized(monkeypatch: pytest.MonkeyPatch) -> None:
     """Normalize a valid IPv6 client while skipping configured IPv6 proxies."""
     _trust(monkeypatch, "::1/128", "fd00::/8")
-    request = _request(
-        "::1", **{"x-forwarded-for": "2001:0db8:0:0:0:0:0:1234, fd00::10"}
-    )
+    request = _request("::1", **{"x-forwarded-for": "2001:0db8:0:0:0:0:0:1234, fd00::10"})
     assert rate_limiter._proxy_aware_remote_address(request) == "2001:db8::1234"
 
 

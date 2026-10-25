@@ -17,7 +17,7 @@
 // single place where those wires cross.
 
 import { useTheme as useMuiTheme } from '@mui/material/styles';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDatabaseConnection } from '@/contexts/DatabaseContext';
 import { useTheme as useAppTheme } from '@/contexts/ThemeContext';
 import {
@@ -52,11 +52,14 @@ export function useChatPageController({ mobileSidebarTriggerRef } = {}) {
   const { settings, updateSetting, updateSettings } = useAppTheme();
   const {
     isConnected: isDbConnected,
+    databaseStatus,
     currentDatabase,
     dbType,
     availableDatabases,
     availableSchemas,
     currentSchema,
+    lastConnectedAt,
+    isLoading: sourceChanging,
     connect: connectDb,
     resetConnectionState,
     switchDatabase,
@@ -69,6 +72,8 @@ export function useChatPageController({ mobileSidebarTriggerRef } = {}) {
     activeSession,
     activeSessionKey,
     messages,
+    history,
+    loadOlderMessages,
     updateSession,
     updateSessionMessages,
     getSession,
@@ -426,6 +431,13 @@ export function useChatPageController({ mobileSidebarTriggerRef } = {}) {
     setDbModalOpen,
     showSnackbar,
     onQueryResults: handleQueryResults,
+    sourceKey: JSON.stringify([dbType, currentDatabase, currentSchema, lastConnectedAt]),
+    resultContextKey: JSON.stringify([
+      activeSessionKey,
+      canvas.workspaceCanvasOpen,
+      canvas.workspaceCanvasArtifact?.id,
+    ]),
+    sourceChanging,
   });
 
   // ── Session lifecycle ─────────────────────────────────────────────────────
@@ -454,16 +466,28 @@ export function useChatPageController({ mobileSidebarTriggerRef } = {}) {
     [connectDb, resetConnectionState, showSnackbar],
   );
 
+  const databaseSwitchLock = useRef(false);
+  const [isDatabaseBusy, setIsDatabaseBusy] = useState(false);
   const handleDatabaseSwitch = useCallback(
     async (dbName) => {
-      const result = await switchDatabase(dbName);
-      if (result.success) {
-        showSnackbar(`Switched to ${dbName}`, 'success');
-      } else {
-        showSnackbar(result.error || 'Failed to switch', 'error');
+      if (databaseSwitchLock.current || hasActiveStreams()) {
+        return { success: false, error: 'Wait for the current operation to finish.' };
+      }
+      databaseSwitchLock.current = true;
+      setIsDatabaseBusy(true);
+      try {
+        const result = await switchDatabase(dbName);
+        showSnackbar(
+          result.success ? `Switched to ${dbName}` : result.error || 'Failed to switch',
+          result.success ? 'success' : 'error',
+        );
+        return result;
+      } finally {
+        databaseSwitchLock.current = false;
+        setIsDatabaseBusy(false);
       }
     },
-    [switchDatabase, showSnackbar],
+    [switchDatabase, showSnackbar, hasActiveStreams],
   );
 
   const handleDbModalSelectDatabase = useCallback(
@@ -497,15 +521,29 @@ export function useChatPageController({ mobileSidebarTriggerRef } = {}) {
     if (!lastMessage) return 'empty';
     const textLen = (lastMessage.text || '').length;
     const stepsLen = (lastMessage.steps || []).length;
-    return `${lastMessage.id}|${lastMessage.status}|${textLen}|${stepsLen}|${messages.length}`;
+    return `${lastMessage.id}|${lastMessage.status}|${textLen}|${stepsLen}`;
   }, [messages]);
 
-  const { setScrollContainerRef, isPinnedToBottom, scrollToBottom } = useAutoScroll({
-    messageCount: messages.length,
-    isStreaming: streaming.isCurrentlyStreaming,
-    isConversationLoading,
-    activityKey: streamActivityKey,
-  });
+  const { setScrollContainerRef, isPinnedToBottom, scrollToBottom, pauseFollowing } = useAutoScroll(
+    {
+      messageCount: messages.length,
+      lastMessageId: messages.at(-1)?.id,
+      sessionKey: activeSessionKey,
+      isStreaming: streaming.isCurrentlyStreaming,
+      isConversationLoading,
+      activityKey: streamActivityKey,
+    },
+  );
+  const handleLoadOlderMessages = useCallback(
+    ({ beforePrepend } = {}) =>
+      loadOlderMessages({
+        beforePrepend: () => {
+          pauseFollowing();
+          beforePrepend?.();
+        },
+      }),
+    [loadOlderMessages, pauseFollowing],
+  );
 
   // ── Aggregated props for chat input + sidebar ─────────────────────────────
   // Destructure `streaming` and `canvas` into their individual values for the
@@ -522,13 +560,6 @@ export function useChatPageController({ mobileSidebarTriggerRef } = {}) {
     effectiveTaskMode,
   } = streaming;
   const { handleToggleSqlEditor, isSqlEditorOpen } = canvas;
-  const handleOpenDatabaseContext = useCallback(
-    (event) => {
-      setSettingsInitialSection('database');
-      requestPreferenceOverlay('settings', event);
-    },
-    [requestPreferenceOverlay, setSettingsInitialSection],
-  );
   const chatInputSharedProps = useMemo(
     () => ({
       sessionKey: activeSessionKey,
@@ -544,7 +575,6 @@ export function useChatPageController({ mobileSidebarTriggerRef } = {}) {
       onSchemaChange: selectSchema,
       onDatabaseSwitch: handleDatabaseSwitch,
       onOpenDatabase: handleSidebarOpenDbModal,
-      onOpenContext: handleOpenDatabaseContext,
       selectedProvider,
       selectedModel,
       providerOptions,
@@ -576,7 +606,6 @@ export function useChatPageController({ mobileSidebarTriggerRef } = {}) {
       selectSchema,
       handleDatabaseSwitch,
       handleSidebarOpenDbModal,
-      handleOpenDatabaseContext,
       selectedProvider,
       selectedModel,
       providerOptions,
@@ -596,6 +625,7 @@ export function useChatPageController({ mobileSidebarTriggerRef } = {}) {
     ],
   );
 
+  const isAnyResponseStreaming = hasActiveStreams();
   const commonSidebarProps = useMemo(
     () => ({
       conversations,
@@ -609,8 +639,13 @@ export function useChatPageController({ mobileSidebarTriggerRef } = {}) {
       isConnected: isDbConnected,
       currentDatabase,
       dbType,
+      currentSchema,
+      isDatabaseBusy,
+      databaseStatus,
+      onRetryDatabaseStatus: refreshStatus,
       availableDatabases,
       onDatabaseSwitch: handleDatabaseSwitch,
+      isStreaming: isAnyResponseStreaming,
       user: sidebarUser,
     }),
     [
@@ -625,8 +660,13 @@ export function useChatPageController({ mobileSidebarTriggerRef } = {}) {
       isDbConnected,
       currentDatabase,
       dbType,
+      currentSchema,
+      isDatabaseBusy,
+      databaseStatus,
+      refreshStatus,
       availableDatabases,
       handleDatabaseSwitch,
+      isAnyResponseStreaming,
       sidebarUser,
     ],
   );
@@ -663,6 +703,8 @@ export function useChatPageController({ mobileSidebarTriggerRef } = {}) {
     handleConversationHeaderRename: handleSidebarRenameConversation,
     messages,
     isConversationLoading: isConversationViewLoading,
+    history,
+    loadOlderMessages: handleLoadOlderMessages,
     conversationLoadState: routeConversationLoadState,
     handleRunQuery,
     handleOpenCanvasArtifact: canvas.handleOpenCanvasArtifact,

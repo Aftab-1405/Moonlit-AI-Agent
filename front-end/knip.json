@@ -1,5 +1,11 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "entry": ["src/**/*.test.js"],
+  "entry": [
+    "src/**/*.test.js",
+    "scripts/verify-history-scroll.mjs",
+    "scripts/verify-perspective.mjs",
+    "tests/fixtures/history-scroll.jsx",
+    "tests/fixtures/perspective-component.jsx"
+  ],
   "ignore": ["dist/**"]
 }

@@ -75,13 +75,14 @@ class AccountDeletionService:
             deleted_conversations += 1
 
         retries = await sync_runner(
-            conversation_repository.get_memory_cleanup_retries_for_user, user_id,
+            conversation_repository.get_memory_cleanup_retries_for_user,
+            user_id,
         )
         for retry in retries:
-            conversation_id = retry.get('conversation_id')
-            retry_id = retry.get('id')
+            conversation_id = retry.get("conversation_id")
+            retry_id = retry.get("id")
             if not conversation_id or not retry_id:
-                raise RuntimeError('Memory cleanup retry is missing its identifier')
+                raise RuntimeError("Memory cleanup retry is missing its identifier")
             await memory_cleaner.delete_conversation_pointers(conversation_id, user_id)
             await sync_runner(conversation_repository.delete_memory_cleanup_retry, retry_id)
 

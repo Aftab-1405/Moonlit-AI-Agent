@@ -79,7 +79,7 @@ export function normalizeConversationMessage(message, index = 0) {
       : timestamp?.seconds
         ? String(timestamp.seconds)
         : String(index);
-  const id = `${sender}-${timestampPart}-${index}`;
+  const id = message?.id || `${sender}-${timestampPart}-${index}`;
 
   if (sender === 'user') {
     return createUserMessage(message?.content || '', { id });
@@ -116,11 +116,6 @@ function normalizeTimelineItem(item) {
     delete out.is_complete;
   }
   return out;
-}
-
-export function isMessageActive(message) {
-  if (!message) return false;
-  return message.status === MESSAGE_STATUS.WAITING || message.status === MESSAGE_STATUS.STREAMING;
 }
 
 /**

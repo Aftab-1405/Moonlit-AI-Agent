@@ -186,13 +186,27 @@ class ToolExecutor:
             return ui_structured, policy + "\n" + evidence
 
         llm_structured = dict(ui_structured)
+        from langgraph_orchestration.tool_evidence import build_evidence
+
+        if ui_structured.get("success") is not False:
+            bounded = build_evidence(tool_name, {}, llm_structured)
+            llm_structured = {
+                **bounded["result"],
+                "evidence_complete": bounded["evidence_complete"],
+                "omitted": bounded["omitted"],
+            }
 
         # Full rows stay in the UI payload. A bounded preview is necessary for
         # the model to interpret aggregates and plan multi-step analysis.
         if tool_name == "execute_query":
             llm_structured.pop("data", None)
+            llm_structured.pop("tabular_result", None)
             if not include_query_preview:
                 llm_structured.pop("preview", None)
+                if ui_structured.get("success") is not False:
+                    llm_structured["evidence_complete"] = False
+                    llm_structured["preview_row_count"] = 0
+                    llm_structured["preview_is_partial"] = bool(llm_structured.get("row_count"))
             policy = (
                 "<required_query_result_response_policy>\n"
                 "The full available query result is already visible in chat as an interactive Material React Table. "

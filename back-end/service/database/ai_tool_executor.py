@@ -27,7 +27,7 @@ from typing import Dict, List, Optional
 
 from core.audit import audit_log
 from core.errors import log_safe_exception, public_database_error, public_tool_error
-from service.database.query_guards import set_query_schema, set_query_timeout
+from service.database.query_guards import query_execution_cursor, set_query_schema, set_query_timeout
 
 logger = logging.getLogger(__name__)
 
@@ -141,7 +141,7 @@ class AIToolExecutor:
         return get_default_context_sync().get_recent_queries(user_id)
 
     @staticmethod
-    def _get_database_list(user_id: str, db_config: dict = None) -> Dict:
+    def _get_database_list(user_id: str, db_config: dict | None = None) -> Dict:
         """
         Get list of databases using db_config if available.
 
@@ -202,7 +202,7 @@ class AIToolExecutor:
                         pass
 
     @staticmethod
-    def _fetch_tables_with_config(db_config: dict, db_type: str, db_name: str = None) -> List[str]:
+    def _fetch_tables_with_config(db_config: dict, db_type: str, db_name: str | None = None) -> List[str]:
         """Fetch table names using db_config directly (DBMS-agnostic)."""
         from service.database.adapters import get_adapter
 
@@ -233,7 +233,7 @@ class AIToolExecutor:
         return tables
 
     @staticmethod
-    def _fetch_tables_and_columns(db_config: dict, db_type: str, db_name: str = None) -> tuple:
+    def _fetch_tables_and_columns(db_config: dict, db_type: str, db_name: str | None = None) -> tuple:
         """
         Fetch tables and columns with primary key info.
 
@@ -248,7 +248,9 @@ class AIToolExecutor:
         return tables, columns
 
     @staticmethod
-    def _batch_fetch_columns(db_config: dict, tables: List[str], db_type: str, db_name: str = None) -> Dict[str, List]:
+    def _batch_fetch_columns(
+        db_config: dict, tables: List[str], db_type: str, db_name: str | None = None
+    ) -> Dict[str, List]:
         """
         Batch fetch columns for all tables in a single query (DBMS-agnostic).
 
@@ -260,7 +262,7 @@ class AIToolExecutor:
         """
         from service.database.adapters import get_adapter
 
-        columns = {}
+        columns: dict[str, list[dict]] = {}
 
         if not tables:
             return columns
@@ -304,7 +306,9 @@ class AIToolExecutor:
         return columns
 
     @staticmethod
-    def _execute_query(user_id: str, query: str, max_rows: int = 100, db_config: dict = None) -> Dict:
+    def _execute_query(
+        user_id: str, query: str, max_rows: int = 100, db_config: dict | None = None, cancellation=None
+    ) -> Dict:
         """Execute a SQL query using provided db_config."""
         from service.database.context_sync import (
             get_default_context_sync,
@@ -332,7 +336,9 @@ class AIToolExecutor:
         try:
             if db_config:
                 logger.debug("Executing query with explicit db_config")
-                result = AIToolExecutor._execute_query_with_db_config(db_config, connection, query, max_rows)
+                result = AIToolExecutor._execute_query_with_db_config(
+                    db_config, connection, query, max_rows, cancellation=cancellation
+                )
             else:
                 return _audited_agent_query_result(
                     user_id,
@@ -357,6 +363,10 @@ class AIToolExecutor:
                         "success": True,
                         "columns": result.get("columns", []),
                         "data": result_data,
+                        "tabular_result": result.get("tabular_result"),
+                        "column_metadata": result.get("column_metadata", []),
+                        "result_metadata": result.get("result_metadata"),
+                        "execution_time_ms": result.get("execution_time_ms", 0),
                         "row_count": len(result_data),
                         "total_rows": total_rows,
                         "truncated": result.get("truncated", False),
@@ -437,7 +447,9 @@ class AIToolExecutor:
             )
 
     @staticmethod
-    def _execute_query_with_db_config(db_config: Dict, connection: Dict, query: str, max_rows: int) -> Dict:
+    def _execute_query_with_db_config(
+        db_config: Dict, connection: Dict, query: str, max_rows: int, cancellation=None
+    ) -> Dict:
         """
         Execute a (read-only) query using an explicitly passed db_config.
 
@@ -503,10 +515,7 @@ class AIToolExecutor:
             adapter = get_adapter(db_type)
 
             with get_tool_connection(db_config) as conn:
-                cursor = None
-                try:
-                    cursor = conn.cursor()
-
+                with query_execution_cursor(adapter, conn, cancellation=cancellation) as cursor:
                     # FIX [EC6]: lightweight pre-query health check. A
                     # pooled connection that the DB server dropped
                     # (idle-timeout, restart, network blip) is only
@@ -538,26 +547,36 @@ class AIToolExecutor:
                             pass
                         raise ConnectionError("Connection lost, please reconnect") from health_err
 
-                    set_query_timeout(adapter, cursor, conn, 30)
+                    timeout_metadata = set_query_timeout(adapter, cursor, conn, Config.QUERY_TIMEOUT_SECONDS)
                     set_query_schema(cursor, db_config, db_type)
+                    if cancellation:
+                        cancellation.raise_if_cancelled()
                     cursor.execute(query)
                     rows = cursor.fetchmany(actual_max_rows + 1)
 
                     end_time = time.time()
                     execution_time = round((end_time - start_time) * 1000, 2)
                     column_names = adapter.get_column_names_from_cursor(cursor)
-                finally:
-                    # FIX [H5]: close the cursor even when execute/fetch raises.
-                    if cursor is not None:
-                        try:
-                            cursor.close()
-                        except Exception:
-                            pass
+                    description = cursor.description
             fetched_count = len(rows)
             truncated = fetched_count > actual_max_rows
             if truncated:
                 rows = rows[:actual_max_rows]
-            result_data = AIToolExecutor._serialize_rows(rows, column_names)
+            from service.database.query_result import build_query_result
+
+            tabular = build_query_result(
+                column_names,
+                rows,
+                description=description,
+                db_config={**db_config, "db_type": db_type},
+                query=query,
+                effective_limit=actual_max_rows,
+                truncated=truncated,
+                execution_time_ms=execution_time,
+            )
+            tabular["result_metadata"].update(timeout_metadata)
+            column_names = tabular["columns"]
+            result_data = [dict(zip(column_names, row)) for row in tabular["rows"]]
             row_count = len(result_data)
 
             logger.debug("AI tool executed query: %d rows in %.2fms", row_count, execution_time)
@@ -566,6 +585,9 @@ class AIToolExecutor:
                 "status": "success",
                 "columns": column_names,
                 "result": result_data,
+                "tabular_result": tabular,
+                "column_metadata": tabular["column_metadata"],
+                "result_metadata": tabular["result_metadata"],
                 "row_count": row_count,
                 "truncated": truncated,
                 "execution_time_ms": execution_time,
@@ -633,134 +655,14 @@ class AIToolExecutor:
 
     @staticmethod
     def _serialize_rows(rows: List, column_names: List[str]) -> List[Dict]:
-        """
-        Convert database rows to JSON-serializable dictionaries.
+        """Compatibility object projection using the shared lossless encoder."""
+        from service.database.query_result import encode_value, unique_column_keys
 
-        Handles special types: datetime, date, time, timedelta, Decimal,
-        bytes/bytearray, UUID, Enum, IP addresses, and falls back to
-        ``str(value)`` (with a debug log) for any other non-JSON-serializable
-        type encountered.
-
-        FIX [EC1]: previously only ``datetime`` (via ``isoformat``), ``bytes``,
-        and ``Decimal`` were handled. PostgreSQL UUIDs came back as
-        ``uuid.UUID`` objects, Enums/IPs/ranges came back as their native
-        Python types, and ``json.dumps`` later raised ``TypeError``. That
-        ``TypeError`` was caught at the LangGraph ``tool_executor`` layer
-        and the LLM only saw a generic ``<tool_execution_error>`` even
-        though the query had succeeded and its rows had been persisted to
-        Firestore. We now serialize all common PostgreSQL/MySQL/Oracle
-        custom types so the rows round-trip cleanly through ``json.dumps``.
-
-        FIX [EC2]: previously all ``bytes`` values were decoded as UTF-8
-        with ``errors="replace"``, silently corrupting binary BLOBs
-        (images, PDFs, encrypted data) by replacing every non-UTF-8 byte
-        with U+FFFD. We now first attempt a strict UTF-8 decode; if that
-        fails OR the original bytes contain a NUL byte (a strong signal
-        of binary content), we return a ``0x``-prefixed hex string
-        (truncated to 256 hex chars / 128 bytes) so the LLM can at least
-        see the value's shape and length without payload corruption.
-        """
-        # FIX [EC1]: import all custom-type modules up-front (cheap — these
-        # are all stdlib and idempotent).
-        import datetime as _dt
-        import decimal as _decimal
-        import enum as _enum
-        import ipaddress as _ip
-        import uuid as _uuid
-
-        Decimal = _decimal.Decimal
-
-        result_data = []
-        for row in rows:
-            row_dict = {}
-            for i, col in enumerate(column_names):
-                value = row[i]
-                # Handle non-serializable types
-                if value is None:
-                    pass  # None is JSON serializable
-                elif isinstance(value, bool):
-                    # bool is a subclass of int; keep it as-is (JSON-native).
-                    pass
-                elif isinstance(value, (str, int, float)):
-                    pass  # JSON-native
-                elif isinstance(value, Decimal):
-                    # FIX [EC1]: keep existing Decimal handling.
-                    value = float(value)
-                elif isinstance(value, _uuid.UUID):
-                    # FIX [EC1]: PostgreSQL UUID columns come back as
-                    # uuid.UUID objects — str() yields the canonical form.
-                    value = str(value)
-                elif isinstance(value, _enum.Enum):
-                    # FIX [EC1]: Enum columns (e.g. Postgres enums) — use
-                    # ``.value`` so the LLM sees the raw stored value, not
-                    # ``MyEnum.NAME``.
-                    value = value.value
-                elif isinstance(value, (_ip.IPv4Address, _ip.IPv6Address)):
-                    # FIX [EC1]: inet/cidr columns.
-                    value = str(value)
-                elif isinstance(value, _dt.timedelta):
-                    # FIX [EC1]: PostgreSQL interval columns come back as
-                    # datetime.timedelta; isoformat() does not exist on
-                    # timedelta. Serialize as total seconds (float).
-                    value = value.total_seconds()
-                elif isinstance(value, _dt.time):
-                    # FIX [EC1]: time columns — must come BEFORE the
-                    # ``hasattr(value, "isoformat")`` branch below because
-                    # datetime.datetime also has isoformat; ordering by
-                    # specificity avoids mis-classification.
-                    value = value.isoformat()
-                elif isinstance(value, _dt.date):
-                    # FIX [EC1]: date columns (datetime.date is the parent
-                    # of datetime.datetime, so check date AFTER datetime).
-                    value = value.isoformat()
-                elif isinstance(value, _dt.datetime):
-                    value = value.isoformat()
-                elif isinstance(value, (bytes, bytearray)):
-                    # FIX [EC2]: detect binary BLOBs vs. text. A NUL byte
-                    # is a strong indicator of binary content; a strict
-                    # UTF-8 decode failure is the other. Either way we
-                    # hex-encode the bytes (truncated) instead of silently
-                    # corrupting them with errors="replace".
-                    raw = bytes(value)
-                    is_binary = b"\x00" in raw
-                    if not is_binary:
-                        try:
-                            value = raw.decode("utf-8")
-                        except UnicodeDecodeError:
-                            is_binary = True
-                    if is_binary:
-                        hex_str = raw.hex()
-                        # Truncate to 256 hex chars (128 bytes) so a 50MB
-                        # BLOB cannot blow up the LLM context window.
-                        if len(hex_str) > 256:
-                            hex_str = hex_str[:256] + f"...<truncated, {len(raw)} bytes total>"
-                        logger.debug(
-                            "Binary BLOB column %r hex-encoded (%d bytes)",
-                            col,
-                            len(raw),
-                        )
-                        value = f"0x{hex_str}"
-                elif hasattr(value, "isoformat"):  # leftover datetime-likes
-                    value = value.isoformat()
-                else:
-                    # FIX [EC1]: catch-all for any other non-JSON-serializable
-                    # type (e.g. numpy scalars, custom ORM types, range
-                    # types). ``str()`` is the safest universal fallback;
-                    # we log at debug so a noisy type shows up in dev logs
-                    # without spamming production.
-                    logger.debug(
-                        "Falling back to str() for non-serializable value of type %r in column %r",
-                        type(value).__name__,
-                        col,
-                    )
-                    value = str(value)
-                row_dict[col] = value
-            result_data.append(row_dict)
-
-        return result_data
+        keys = unique_column_keys(column_names)
+        return [{key: encode_value(row[i]) for i, key in enumerate(keys)} for row in rows]
 
     @staticmethod
-    def _get_table_indexes(user_id: str, table_name: str, db_config: dict = None) -> Dict:
+    def _get_table_indexes(user_id: str, table_name: str, db_config: dict | None = None) -> Dict:
         """Get indexes for a specific table."""
         from service.database.context_sync import (
             get_default_context_sync,
@@ -775,6 +677,9 @@ class AIToolExecutor:
         connection = context_sync.get_connection(user_id)
         if not connection.get("connected"):
             return {"error": "Not connected to any database"}
+
+        if not db_config:
+            return {"error": "No database config available. Please re-connect to the database."}
 
         db_type = connection.get("db_type", "postgresql")
         database = connection.get("database")
@@ -816,7 +721,9 @@ class AIToolExecutor:
             return _database_failure("get_table_indexes", e)
 
     @staticmethod
-    def _get_schema_overview(user_id: str, target_tables: Optional[List[str]] = None, db_config: dict = None) -> Dict:
+    def _get_schema_overview(
+        user_id: str, target_tables: Optional[List[str]] = None, db_config: dict | None = None
+    ) -> Dict:
         """
         Get an overview of the schema including columns and foreign keys for
         specific or all tables.
@@ -841,6 +748,8 @@ class AIToolExecutor:
             return {"error": "Not connected to any database"}
 
         database = connection.get("database")
+        if not isinstance(database, str) or not database:
+            return {"error": "No database selected"}
         db_type = connection.get("db_type", "postgresql")
 
         try:
@@ -954,6 +863,8 @@ class AIToolExecutor:
                     response["unrefreshed_missing_tables"] = unrefreshed_missing
                     response["schema_partial"] = bool(unrefreshed_missing)
                 return response
+            if not db_config:
+                return {"error": "No database config available. Please re-connect to the database."}
             all_tables = AIToolExecutor._fetch_tables_with_config(db_config, db_type, db_name=database)
 
             if not all_tables:
@@ -1070,7 +981,7 @@ class AIToolExecutor:
             return _database_failure("get_schema_overview", e)
 
     @staticmethod
-    def _get_foreign_keys(user_id: str, table_name: str = None, db_config: dict = None) -> Dict:
+    def _get_foreign_keys(user_id: str, table_name: str | None = None, db_config: dict | None = None) -> Dict:
         """Get foreign key relationships."""
         from service.database.context_sync import (
             get_default_context_sync,
@@ -1082,6 +993,9 @@ class AIToolExecutor:
         connection = context_sync.get_connection(user_id)
         if not connection.get("connected"):
             return {"error": "Not connected to any database"}
+
+        if not db_config:
+            return {"error": "No database config available. Please re-connect to the database."}
 
         db_type = connection.get("db_type", "postgresql")
         database = connection.get("database")

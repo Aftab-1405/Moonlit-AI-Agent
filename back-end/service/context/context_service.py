@@ -356,6 +356,8 @@ class ContextService:
         from service.database.ai_tool_executor import AIToolExecutor
 
         database = db_config.get("database")
+        if not isinstance(database, str) or not database:
+            raise ValueError("A database must be selected before refreshing schema context")
         db_type = db_config.get("db_type", "postgresql")
         tables, columns = AIToolExecutor._fetch_tables_and_columns(db_config, db_type, database)
         ContextService.store_schema_context(user_id, database, tables, columns)
@@ -378,7 +380,7 @@ class ContextService:
     def add_query(
         user_id: str,
         query: str,
-        database: str,
+        database: str | None,
         row_count: int = 0,
         status: str = "success",
     ) -> bool:

@@ -114,7 +114,7 @@ class SingleKeyRateLimiter:
         self.config = config
         self.semaphore = asyncio.BoundedSemaphore(config.max_concurrent)
         self.lock = asyncio.Lock()
-        self.timestamps = deque()
+        self.timestamps: deque[float] = deque()
 
         if config.enabled:
             logger.info(

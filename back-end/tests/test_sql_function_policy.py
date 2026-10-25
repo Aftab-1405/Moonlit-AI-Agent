@@ -249,9 +249,7 @@ def test_unknown_anonymous_functions_fail_closed(dialect: str, query: str) -> No
     result = DatabaseSecurity.analyze_sql_query(query, dialect=dialect)
 
     assert result["is_safe"] is False
-    assert result["warnings"] == [
-        "Function custom_side_effect is not allowed: unapproved anonymous function"
-    ]
+    assert result["warnings"] == ["Function custom_side_effect is not allowed: unapproved anonymous function"]
 
 
 @pytest.mark.parametrize("dialect", ["mysql", "postgresql", "sqlserver", "oracle"])
@@ -322,9 +320,7 @@ def test_oracle_unquoted_qualifier_does_not_bind_quoted_lowercase_alias() -> Non
         dialect="oracle",
     )
     assert result["is_safe"] is False
-    assert result["warnings"] == [
-        "Sequence advancement is prohibited by read-only policy"
-    ]
+    assert result["warnings"] == ["Sequence advancement is prohibited by read-only policy"]
 
 
 def test_oracle_quoted_qualifier_does_not_bind_unquoted_alias() -> None:
@@ -333,23 +329,15 @@ def test_oracle_quoted_qualifier_does_not_bind_unquoted_alias() -> None:
         dialect="oracle",
     )
     assert result["is_safe"] is False
-    assert result["warnings"] == [
-        "Sequence advancement is prohibited by read-only policy"
-    ]
+    assert result["warnings"] == ["Sequence advancement is prohibited by read-only policy"]
 
 
 @pytest.mark.parametrize(
     "query",
     [
         "SELECT d.x FROM employees e, (SELECT e.NEXTVAL AS x FROM dual) d",
-        (
-            "WITH c AS (SELECT e.NEXTVAL AS x FROM dual) "
-            "SELECT c.x FROM c JOIN employees e ON 1 = 1"
-        ),
-        (
-            "SELECT (SELECT e.NEXTVAL FROM dual), "
-            "(SELECT 1 FROM employees e) FROM dual"
-        ),
+        ("WITH c AS (SELECT e.NEXTVAL AS x FROM dual) SELECT c.x FROM c JOIN employees e ON 1 = 1"),
+        ("SELECT (SELECT e.NEXTVAL FROM dual), (SELECT 1 FROM employees e) FROM dual"),
     ],
 )
 def test_oracle_nextval_does_not_bind_relations_outside_visible_scope(
@@ -357,9 +345,7 @@ def test_oracle_nextval_does_not_bind_relations_outside_visible_scope(
 ) -> None:
     result = DatabaseSecurity.analyze_sql_query(query, dialect="oracle")
     assert result["is_safe"] is False
-    assert result["warnings"] == [
-        "Sequence advancement is prohibited by read-only policy"
-    ]
+    assert result["warnings"] == ["Sequence advancement is prohibited by read-only policy"]
 
 
 def test_oracle_nested_unresolved_nextval_sequence_remains_blocked() -> None:
@@ -368,9 +354,7 @@ def test_oracle_nested_unresolved_nextval_sequence_remains_blocked() -> None:
         dialect="oracle",
     )
     assert result["is_safe"] is False
-    assert result["warnings"] == [
-        "Sequence advancement is prohibited by read-only policy"
-    ]
+    assert result["warnings"] == ["Sequence advancement is prohibited by read-only policy"]
 
 
 def test_sqlserver_nolock_hint_remains_allowed() -> None:
@@ -390,7 +374,7 @@ def test_generic_schema_gate_accepts_union_of_safe_anonymous_functions(
     query: str,
 ) -> None:
     """The pre-connection tool gate must accept every supported dialect allowlist entry."""
-    assert ExecuteQueryArgs(query=query).query == query
+    assert ExecuteQueryArgs.model_validate({"query": query}).query == query
     assert ExplainQueryArgs(query=query).query == query
 
 
@@ -455,7 +439,7 @@ def test_parse_errors_are_stable_while_diagnostics_are_sanitized_and_correlated(
     assert "analyze_sql_query" in record.getMessage()
     assert "SQL_PARSE_FAILED" in record.getMessage()
     assert "sql-policy-secret" not in record.getMessage()
-    assert record.request_id == "req_sql_policy"
+    assert getattr(record, "request_id") == "req_sql_policy"
     assert record.exc_info is None
 
 
@@ -606,10 +590,7 @@ def test_ai_explain_rejects_dangerous_function_before_database_boundary(
     )
 
     assert result == {
-        "error": (
-            "Query blocked for security reasons: "
-            "Function xp_cmdshell is prohibited: external code execution"
-        )
+        "error": ("Query blocked for security reasons: Function xp_cmdshell is prohibited: external code execution")
     }
     assert boundary.attempts == 0
 
@@ -648,7 +629,7 @@ def test_execution_rechecks_actual_dialect_after_generic_tool_validation(
 ) -> None:
     """Using only the schema union would let a PostgreSQL-only function reach MySQL."""
     query = "SELECT AGE(created_at) FROM events"
-    assert ExecuteQueryArgs(query=query).query == query
+    assert ExecuteQueryArgs.model_validate({"query": query}).query == query
 
     boundary = _DatabaseBoundaryProbe()
     monkeypatch.setattr("service.database.adapters.get_adapter", boundary.reject_entry)
@@ -664,9 +645,6 @@ def test_execution_rechecks_actual_dialect_after_generic_tool_validation(
 
     assert result == {
         "status": "error",
-        "message": (
-            "Query blocked: Function age is not allowed: "
-            "unapproved anonymous function"
-        ),
+        "message": ("Query blocked: Function age is not allowed: unapproved anonymous function"),
     }
     assert boundary.attempts == 0

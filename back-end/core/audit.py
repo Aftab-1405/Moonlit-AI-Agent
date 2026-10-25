@@ -136,6 +136,7 @@ def configure_audit_logging(
     absolute_path = os.path.abspath(path)
     if (
         len(owned_handlers) == 1
+        and isinstance(owned_handlers[0], _AuditRotatingFileHandler)
         and owned_handlers[0].baseFilename == absolute_path
         and owned_handlers[0].maxBytes == max_bytes
         and owned_handlers[0].backupCount == backup_count
@@ -178,10 +179,7 @@ def pseudonymize_audit_actor(actor: str, *, key: str | None = None) -> str:
         return actor
 
     secret = (
-        key
-        or os.getenv("AUDIT_ACTOR_PSEUDONYM_KEY")
-        or os.getenv("SECRET_KEY")
-        or "moonlit-development-audit-subject"
+        key or os.getenv("AUDIT_ACTOR_PSEUDONYM_KEY") or os.getenv("SECRET_KEY") or "moonlit-development-audit-subject"
     )
     digest = hmac.new(
         secret.encode("utf-8"),

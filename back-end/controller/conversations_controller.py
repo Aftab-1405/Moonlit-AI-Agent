@@ -26,9 +26,9 @@ Streaming workflow
 import asyncio
 import contextlib
 import logging
-from typing import Optional
+from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 from google.api_core.exceptions import (
@@ -47,12 +47,15 @@ from api_contract.conversations import (
     ConversationId,
     RenameConversationRequest,
 )
+from api_contract.run_context import TaskMode
 from api_contract.streaming import STREAMING_RESPONSES
 from core.errors import log_safe_exception, public_tool_error
-from dependencies import get_authenticated_db_config, get_current_user
+from dependencies import AuthenticatedUser, get_authenticated_db_config, get_current_user
+from service.conversations.conversation_history import page_messages
 from service.conversations.conversation_service import ConversationService
 from service.conversations.run_context import resolve_run_policy
 from service.llm import LLMOptionsService, ModelSelectionError, ModelSelectionReason
+from service.llm.llm_options_service import ProviderOption
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Moonlit Conversation End Points"])
@@ -98,13 +101,13 @@ def _firestore_unavailable_response(exc: Exception) -> HTTPException:
     )
 
 
-def _build_provider_options() -> tuple[list[dict], str]:
+def _build_provider_options() -> tuple[list[ProviderOption], str]:
     """
     Fetch LLM provider options and the default provider configured for the server.
 
     Returns:
         A tuple containing:
-            - list[dict]: A list of provider configurations (supported models, details).
+            - list[ProviderOption]: A list of provider configurations (supported models, details).
             - str: The default provider name (e.g., 'gemini', 'openai').
     """
     return LLMOptionsService.build_provider_options()
@@ -160,6 +163,19 @@ async def _stream_with_heartbeats(source, *, interval_seconds: float = 15.0):
             producer.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await producer
+
+
+def _validated_task_mode(value: object, *, persisted: bool = False) -> TaskMode:
+    """Narrow raw request/storage modes using the run-policy validation contract."""
+    if value == "normal":
+        return "normal"
+    if value == "tool_task":
+        return "tool_task"
+    if value == "long_task":
+        return "long_task"
+    if persisted:
+        raise ValueError("Unsupported persisted resume task mode")
+    raise ValueError("Unsupported requested task mode")
 
 
 async def _handle_agent_stream(
@@ -233,7 +249,7 @@ async def _handle_agent_stream(
     if not is_resume:
         run_policy = resolve_run_policy(
             stream_generator_kwargs.get("prompt"),
-            requested_mode,
+            _validated_task_mode(requested_mode),
             None,
             provider,
             model,
@@ -278,8 +294,8 @@ async def _handle_agent_stream(
             raise HTTPException(status_code=404, detail="Conversation not found")
         run_policy = resolve_run_policy(
             stream_generator_kwargs.get("prompt"),
-            requested_mode,
-            conversation.get("task_mode") or "normal",
+            _validated_task_mode(requested_mode),
+            _validated_task_mode(conversation.get("task_mode") or "normal", persisted=True),
             provider,
             model,
             bool((stream_generator_kwargs.get("db_config") or {}).get("db_type")),
@@ -423,7 +439,7 @@ async def _handle_agent_stream(
 async def chat(
     request: Request,
     data: ChatRequest,
-    user: dict = Depends(get_current_user),
+    user: AuthenticatedUser = Depends(get_current_user),
     db_config: Optional[dict] = Depends(get_authenticated_db_config),
 ):
     """
@@ -444,7 +460,7 @@ async def chat(
     provider = data.provider or Config.LLM_PROVIDER
     require_existing_conversation = data.conversation_id is not None
     conversation_id = data.conversation_id or ConversationService.create_conversation_id()
-    user_id = user.get("uid") if isinstance(user, dict) else user
+    user_id = user["uid"]
 
     logger.info(
         "LLM selection requested: provider=%s, model=%s, conversation_id=%s",
@@ -484,7 +500,7 @@ async def chat(
 async def resume_agent(
     request: Request,
     data: AgentResumeRequest,
-    user: dict = Depends(get_current_user),
+    user: AuthenticatedUser = Depends(get_current_user),
     db_config: Optional[dict] = Depends(get_authenticated_db_config),
 ):
     """
@@ -502,7 +518,7 @@ async def resume_agent(
     Returns:
         A StreamingResponse resuming the agent execution.
     """
-    user_id = user.get("uid") if isinstance(user, dict) else user
+    user_id = user["uid"]
     provider = data.provider or Config.LLM_PROVIDER
 
     kwargs = {
@@ -528,7 +544,7 @@ async def resume_agent(
 
 
 @router.get("/llm/options")
-async def get_llm_options(user: dict = Depends(get_current_user)):
+async def get_llm_options(user: AuthenticatedUser = Depends(get_current_user)):
     """
     Retrieve available provider/model options and defaults for the current deployment.
 
@@ -606,6 +622,8 @@ def _sanitize_messages(messages: list) -> list:
                     new_timeline.append(item)
                     continue
                 item_copy = dict(item)
+                # Restored LLM evidence is private history, not another UI preview.
+                item_copy.pop("model_evidence", None)
 
                 # Parse args to dict if they are stored as JSON string
                 args_val = item_copy.get("args")
@@ -638,7 +656,12 @@ def _sanitize_messages(messages: list) -> list:
 
 
 @router.get("/get_conversation/{conversation_id}")
-async def get_conversation(conversation_id: ConversationId, user: dict = Depends(get_current_user)):
+async def get_conversation(
+    conversation_id: ConversationId,
+    user: AuthenticatedUser = Depends(get_current_user),
+    limit: Annotated[int | None, Query(ge=1, le=100)] = None,
+    before: Annotated[str | None, Query(min_length=1, max_length=200)] = None,
+):
     """
     Get message history and status for a specific conversation.
 
@@ -648,6 +671,8 @@ async def get_conversation(conversation_id: ConversationId, user: dict = Depends
     Args:
         conversation_id: The unique ID of the conversation.
         user: The authenticated user dict containing the UID.
+        limit: Optional history page size (1–100); omitted for legacy full reads.
+        before: Opaque exclusive boundary returned by an earlier history page.
 
     Returns:
         A dict containing a success status and the conversation details.
@@ -657,11 +682,22 @@ async def get_conversation(conversation_id: ConversationId, user: dict = Depends
                      503 if Firestore is temporarily unavailable, or 500 for general failures.
     """
     try:
-        user_id = user.get("uid") if isinstance(user, dict) else user
+        user_id = user["uid"]
         conv_data = await run_in_threadpool(ConversationService.get_conversation_data, conversation_id, user_id)
         if conv_data:
             # Keep this flat response shape; frontend conversation loaders read `conversation` directly.
             raw_messages = conv_data.get("messages") or []
+            pagination = None
+            if limit is not None or before is not None:
+                try:
+                    raw_messages, pagination = page_messages(
+                        conversation_id,
+                        raw_messages,
+                        limit=limit or 30,
+                        before=before,
+                    )
+                except ValueError as exc:
+                    raise HTTPException(status_code=400, detail="Invalid history cursor") from exc
             sanitized_conv = {
                 "id": conversation_id,
                 "title": conv_data.get("title") or "Conversation",
@@ -670,6 +706,18 @@ async def get_conversation(conversation_id: ConversationId, user: dict = Depends
                 "task_mode": conv_data.get("task_mode") or "normal",
                 "task_status": conv_data.get("task_status") or "",
             }
+            if pagination is not None:
+                sanitized_conv["pagination"] = pagination
+                # Title recovery must use the first prompt, not the first user
+                # message in the most recent page.
+                sanitized_conv["first_user_message"] = next(
+                    (
+                        str(msg.get("content") or "")[:80]
+                        for msg in (conv_data.get("messages") or [])
+                        if isinstance(msg, dict) and msg.get("sender") == "user"
+                    ),
+                    "",
+                )
             return {"status": "success", "conversation": sanitized_conv}
         raise HTTPException(status_code=404, detail="Conversation not found")
     except PermissionError as e:
@@ -702,7 +750,7 @@ async def get_conversation(conversation_id: ConversationId, user: dict = Depends
 async def fetch_execution_result(
     conversation_id: ConversationId,
     execution_id: str,
-    user: dict = Depends(get_current_user),
+    user: AuthenticatedUser = Depends(get_current_user),
 ):
     """
     Get full query execution results (columns and rows) for an inline table.
@@ -723,7 +771,7 @@ async def fetch_execution_result(
                      503 if Firestore is unavailable, or 500 for general failures.
     """
     try:
-        user_id = user.get("uid") if isinstance(user, dict) else user
+        user_id = user["uid"]
 
         # Verify ownership using a user_id-only projection. Downloading the
         # full message array once per artifact causes severe N+1 amplification.
@@ -746,8 +794,13 @@ async def fetch_execution_result(
             "columns": result_data.get("columns") or [],
             "data": result_data.get("data") or [],
             "row_count": result_data.get("row_count") or 0,
-            "total_rows": result_data.get("total_rows") or 0,
+            "total_rows": result_data.get("total_rows"),
             "truncated": result_data.get("truncated") or False,
+            "tabular_result": result_data.get("tabular_result"),
+            "column_metadata": result_data.get("column_metadata") or [],
+            "column_types": result_data.get("column_types") or {},
+            "result_metadata": result_data.get("result_metadata"),
+            "execution_time_ms": result_data.get("execution_time_ms"),
         }
         return {"status": "success", "data": sanitized_result}
     except PermissionError as e:
@@ -774,7 +827,7 @@ async def fetch_execution_result(
 
 
 @router.get("/get_all_user_conversations")
-async def get_all_user_conversations(user: dict = Depends(get_current_user)):
+async def get_all_user_conversations(user: AuthenticatedUser = Depends(get_current_user)):
     """
     Retrieve all conversation metadata (id, title, timestamp) for the authenticated user.
 
@@ -784,14 +837,14 @@ async def get_all_user_conversations(user: dict = Depends(get_current_user)):
     Returns:
         A dict containing success status and list of conversations.
     """
-    user_id = user.get("uid") if isinstance(user, dict) else user
+    user_id = user["uid"]
     conversations = await run_in_threadpool(ConversationService.get_user_conversations, user_id)
     # Keep this flat response shape; frontend conversation loaders read `conversations` directly.
     return {"status": "success", "conversations": conversations}
 
 
 @router.delete("/delete_conversation/{conversation_id}")
-async def delete_conversation(conversation_id: ConversationId, user: dict = Depends(get_current_user)):
+async def delete_conversation(conversation_id: ConversationId, user: AuthenticatedUser = Depends(get_current_user)):
     """
     Delete a conversation and all its associated messages.
 
@@ -807,7 +860,7 @@ async def delete_conversation(conversation_id: ConversationId, user: dict = Depe
                      or 500 for general failures.
     """
     try:
-        user_id = user.get("uid") if isinstance(user, dict) else user
+        user_id = user["uid"]
         await run_in_threadpool(ConversationService.delete_user_conversation, conversation_id, user_id)
         return {"status": "success"}
     except PermissionError as e:
@@ -846,7 +899,7 @@ async def delete_conversation(conversation_id: ConversationId, user: dict = Depe
 async def rename_conversation(
     conversation_id: ConversationId,
     data: RenameConversationRequest,
-    user: dict = Depends(get_current_user),
+    user: AuthenticatedUser = Depends(get_current_user),
 ):
     """
     Rename a conversation with a new custom title.
@@ -864,7 +917,7 @@ async def rename_conversation(
                      or 500 for general failures.
     """
     try:
-        user_id = user.get("uid") if isinstance(user, dict) else user
+        user_id = user["uid"]
         title = await run_in_threadpool(
             ConversationService.rename_user_conversation,
             conversation_id,

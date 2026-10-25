@@ -1,0 +1,7 @@
+execute_sql_query failed: exception_type=TypeError error_code=DB_OPERATION_FAILED request_id=-
+{"case": "oracle_blob_serialization", "blob_status": "error", "blob_error": "DB_OPERATION_FAILED", "clob_control_status": "success", "clob_rows": [["text"]]}
+{"case": "oracle_composite_fk_cross_product", "expected_pairs": [["TENANT_ID", "TENANT_ID"], ["PARENT_ID", "ID"]], "actual_pairs": [["PARENT_ID", "ID"], ["PARENT_ID", "TENANT_ID"], ["TENANT_ID", "ID"], ["TENANT_ID", "TENANT_ID"]]}
+{"case": "oracle_nullable_flag", "catalog_nullable": "Y", "reported_nullable": false}
+{"case": "account_metadata_session_connection_mismatch", "borrowed_driver": "mysql", "borrowed_database": "alpha", "metadata_driver": "oracle", "metadata_owner": "BETA", "limit": "recorded query/config discrepancy; fixture accepts query and does not establish cross-user access"}
+{"case": "explain_missing_schema_setup", "selected_schema": "analytics", "manual_effective_schema": "analytics", "explain_effective_schema": "public", "actual_driver_calls": ["EXPLAIN (FORMAT JSON, VERBOSE) SELECT * FROM orders"], "manual_driver_calls": ["SELECT 1", "SET statement_timeout = '5000ms'", "SET search_path TO \"analytics\"", "SELECT * FROM orders"], "limit": "stateful DB-API session double applies actual SET; PostgreSQL optimizer not executed"}
+{"case": "sqlserver_schema_metadata_merge", "requested_schema": "dbo", "table_list": ["orders", "orders"], "column_names": ["id", "archive_note"], "limit": "actual adapter-generated SQL in SQLite catalog fixture; only DB-API placeholders translated"}

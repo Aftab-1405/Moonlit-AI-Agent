@@ -25,7 +25,7 @@ def get_default_conversation_summarizer() -> ConversationSummarizer:
 def group_messages_into_turns(messages: list) -> list[list[int]]:
     """Groups message indices into turns, with explicit turn_index/turn_id or fallback."""
     turns = []
-    current_turn = []
+    current_turn: list[int] = []
 
     # We will build turns based on turn_index or turn_id if they exist,
     # otherwise fallback to grouping where 'user' starts a new turn.

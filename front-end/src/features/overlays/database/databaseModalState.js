@@ -6,10 +6,10 @@ export function getConnectionActionState({ loading, connected }) {
   }
 
   if (loading) {
-    return { label: 'Connecting', tone: 'primary', disabled: true };
+    return { label: 'Connecting', tone: 'accent', disabled: true };
   }
 
-  return { label: 'Connect', tone: 'primary', disabled: false };
+  return { label: 'Connect', tone: 'accent', disabled: false };
 }
 
 export function getConnectedActionDisabledSx(theme) {

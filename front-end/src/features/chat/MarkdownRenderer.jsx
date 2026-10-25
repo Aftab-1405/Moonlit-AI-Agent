@@ -401,7 +401,7 @@ const MarkdownRenderer = memo(function MarkdownRenderer({
         mb: isCompact ? 0.4 : 0.6,
       },
       '& h4, & h5, & h6': {
-        fontFamily: theme.typography.fontFamily,
+        fontFamily: theme.typography.fontFamilyContent,
         fontSize: isCompact ? 'inherit' : { xs: '0.9375rem', sm: '0.975rem' },
         fontWeight: 400,
         color: theme.palette.text.primary,

@@ -1,15 +1,4 @@
-import { keyframes } from '@mui/material/styles';
 import { HOVER_CAPABLE_QUERY } from '../../../styles/mediaQueries.js';
-
-/**
- * Entry animation for timeline items and accordion.
- * Pure opacity-fade — no translateY — so items materialise in-place
- * instead of flying up from below, which felt like a loading delay.
- */
-export const slideIn = keyframes`
-  from { opacity: 0; }
-  to   { opacity: 1; }
-`;
 
 export const TIMELINE_LINE_X = { xs: 12, sm: 14 };
 

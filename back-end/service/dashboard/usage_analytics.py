@@ -51,11 +51,7 @@ def accumulate_token_usage(existing, event):
 
     counted_input = _count(input_tokens)
     counted_output = _count(output_tokens)
-    counted_total = (
-        _count(total_tokens)
-        if total_tokens is not None
-        else counted_input + counted_output
-    )
+    counted_total = _count(total_tokens) if total_tokens is not None else counted_input + counted_output
     totals["input_tokens"] += counted_input
     totals["output_tokens"] += counted_output
     totals["total_tokens"] += counted_total
@@ -84,9 +80,7 @@ def merge_usage_event(existing, event):
             "total_tokens": 0,
         }
         model_usage["requests"] = _count(model_usage.get("requests")) + 1
-        model_usage["total_tokens"] = _count(model_usage.get("total_tokens")) + _count(
-            event.get("total_tokens")
-        )
+        model_usage["total_tokens"] = _count(model_usage.get("total_tokens")) + _count(event.get("total_tokens"))
         aggregate["models"][key] = model_usage
 
         task_mode = str(event.get("task_mode") or "normal")[:40]

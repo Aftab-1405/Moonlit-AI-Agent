@@ -13,7 +13,7 @@
  * @module features/styles/interfaceChrome
  */
 
-import { TOUCH_DEVICE_QUERY } from '../../styles/mediaQueries.js';
+import { BUTTON_TOUCH_QUERY } from '../../styles/mediaQueries.js';
 import { UI_LAYOUT } from '../../styles/shared.js';
 
 export const COMPOSER_MAX_WIDTH = UI_LAYOUT.chatInputMaxWidth;
@@ -31,8 +31,8 @@ export const INTERFACE_RADIUS = Object.freeze({
 /** Responsive pill geometry for labeled chat controls. */
 export function getResponsivePillControlSx(theme, { desktopHeight, mobileHeight = 44 } = {}) {
   return {
-    height: { xs: mobileHeight, md: desktopHeight },
     minHeight: { xs: mobileHeight, md: desktopHeight },
+    [BUTTON_TOUCH_QUERY]: { minWidth: UI_LAYOUT.touchTarget, minHeight: UI_LAYOUT.touchTarget },
     borderRadius: theme.shape.radius.pill,
   };
 }
@@ -45,7 +45,7 @@ export function getResponsivePillIconButtonSx(theme, { desktopSize, mobileSize =
     minWidth: { xs: mobileSize, md: desktopSize },
     minHeight: { xs: mobileSize, md: desktopSize },
     borderRadius: theme.shape.radius.pill,
-    [TOUCH_DEVICE_QUERY]: { minWidth: UI_LAYOUT.touchTarget, minHeight: UI_LAYOUT.touchTarget },
+    [BUTTON_TOUCH_QUERY]: { minWidth: UI_LAYOUT.touchTarget, minHeight: UI_LAYOUT.touchTarget },
   };
 }
 
@@ -65,8 +65,8 @@ export function getComposerLayoutSx(theme) {
       px: 0,
       pb: { xs: `max(${theme.spacing(1)}, env(safe-area-inset-bottom))`, md: 1 },
     },
-    surface: { minHeight: { xs: 116, md: 108 } },
-    content: { px: { xs: 1.5, md: 2 }, py: 1.5, gap: 1 },
+    surface: { minHeight: 126 },
+    content: { pl: { xs: 1.5, md: 2 }, pr: 1, pt: 2, pb: 1, gap: 1, boxSizing: 'border-box' },
     toolbar: { gap: 1 },
   };
 }
@@ -194,12 +194,21 @@ export function getWelcomeCategorySx(theme) {
     minWidth: { xs: 44, md: 0 },
     px: 1.5,
     gap: 0.75,
-    borderRadius: INTERFACE_RADIUS.control,
+    borderRadius: `${theme.shape.radius.sm}px`,
     border: 0,
-    backgroundColor: theme.palette.action.hover,
-    color: theme.palette.text.secondary,
+    backgroundColor: theme.palette.background.paper,
+    color: theme.palette.text.primary,
+    fontWeight: 400,
+    fontSize: theme.typography.uiBodySm.fontSize,
+    textTransform: 'none',
+    whiteSpace: 'nowrap',
     boxShadow: 'none',
-    '& .MuiButton-startIcon': { m: 0 },
+    '& .MuiButton-startIcon': { m: 0, color: theme.palette.text.secondary },
+    [BUTTON_TOUCH_QUERY]: { minHeight: 44 },
+    '&.Mui-disabled': {
+      color: theme.palette.text.disabled,
+      backgroundColor: theme.palette.action.disabledBackground,
+    },
     '&:hover': {
       backgroundColor: theme.palette.action.selected,
       color: theme.palette.text.primary,
@@ -270,14 +279,6 @@ export function getAppPanelSurfaceSx(theme) {
   };
 }
 
-/** Bar surface — toolbar / header strips inside panels. */
-export function getAppBarSurfaceSx(theme) {
-  return {
-    backgroundColor: theme.palette.background.paper,
-    backgroundImage: 'none',
-  };
-}
-
 /** Sunken surface — workspace canvas background. Sits one step below panels. */
 export function getAppSunkenSurfaceSx(theme) {
   return {
@@ -290,7 +291,7 @@ export function getAppSunkenSurfaceSx(theme) {
 export function getShellWorkspaceSx(theme) {
   return {
     backgroundColor: theme.palette.background.default,
-    border: `1px solid ${theme.palette.border.subtle}`,
+    border: `${UI_LAYOUT.workspaceFrameBorderWidth}px solid ${theme.palette.border.subtle}`,
     borderRadius: { xs: 0, md: '20px' },
     backgroundImage: 'none',
   };
@@ -314,12 +315,29 @@ export function getSidebarChromeSx(_theme) {
 export function getComposerSurfaceSx(theme) {
   return {
     borderRadius: INTERFACE_RADIUS.composer,
-    border: `1px solid ${theme.palette.border.idle}`,
+    border: `1px solid ${theme.palette.border.subtle}`,
     overflow: 'hidden',
     backgroundColor: theme.palette.background.composer,
     backgroundImage: 'none',
     boxShadow: 'none',
     transition: 'border-color 140ms ease, background-color 140ms ease',
+  };
+}
+
+/** Inset context tray sits behind the composer without a seam or squared corners. */
+export function getComposerContextSurfaceSx(theme) {
+  return {
+    maxWidth: COMPOSER_MAX_WIDTH - 24,
+    width: 'calc(100% - 24px)',
+    mx: 'auto',
+    mt: '-12px',
+    px: 1,
+    pt: '20px',
+    pb: '6px',
+    minHeight: 62,
+    boxSizing: 'border-box',
+    backgroundColor: theme.palette.background.composerContext,
+    borderRadius: '18px',
   };
 }
 

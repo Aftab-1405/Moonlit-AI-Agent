@@ -29,7 +29,7 @@ class DatabaseService:
     """Service for database operations - accepts config explicitly."""
 
     @staticmethod
-    def switch_remote_database(db_config: dict, new_db_name: str, user_id: str = None) -> dict:
+    def switch_remote_database(db_config: dict, new_db_name: str, user_id: str | None = None) -> dict:
         """
         Switch to a different database on an existing remote connection.
 
@@ -115,7 +115,7 @@ class DatabaseService:
             return _database_service_failure("switch_remote_database", err)
 
     @staticmethod
-    def select_schema(db_config: dict, schema_name: str, user_id: str = None) -> dict:
+    def select_schema(db_config: dict, schema_name: str, user_id: str | None = None) -> dict:
         """
         Select a PostgreSQL schema on the current connection.
 
@@ -206,7 +206,9 @@ class DatabaseService:
             try:
                 from service.context.context_service import ContextService
 
-                ContextService.clear_schema_context(user_id, db_config.get("database"))
+                database = db_config.get("database")
+                if isinstance(database, str) and database:
+                    ContextService.clear_schema_context(user_id, database)
                 # Repopulate with the new schema's tables/columns.
                 ContextService.refresh_schema_context_from_database(user_id, new_config)
                 logger.info(
@@ -312,7 +314,7 @@ class DatabaseService:
         }
 
     @staticmethod
-    def disconnect(db_config: dict, user_id: str = None) -> dict:
+    def disconnect(db_config: dict | None, user_id: str | None = None) -> dict:
         """
         Close connection pool + clear context.
 
@@ -350,9 +352,10 @@ class DatabaseService:
     def execute_query(
         db_config: dict,
         sql_query: str,
-        user_id: str = None,
+        user_id: str | None = None,
         max_rows: int = 1000,
         timeout: int = 30,
+        cancellation=None,
     ) -> dict:
         """
         Execute SQL query + log to context.
@@ -375,6 +378,7 @@ class DatabaseService:
             user_id=user_id,
             max_rows=max_rows,
             timeout_seconds=timeout,
+            cancellation=cancellation,
         )
         if user_id:
             try:

@@ -1,17 +1,18 @@
-import { alpha } from '@mui/material/styles';
+import { alpha, darken, getContrastRatio, lighten } from '@mui/material/styles';
 import { primitives } from './primitives.js';
 
 const DARK_BACKGROUND = Object.freeze({
   shell: primitives.neutral[1000],
-  default: primitives.neutral[950],
-  paper: primitives.neutral[850],
+  default: primitives.neutral[1000],
+  paper: primitives.neutral[925],
   input: primitives.neutral[900],
-  composer: primitives.neutral[850],
+  composer: primitives.neutral[890],
+  composerContext: primitives.neutral[860],
   sunken: primitives.neutral[900],
   hover: primitives.neutral[800],
   strong: primitives.neutral[700],
-  elevated1: primitives.neutral[850],
-  elevated2: primitives.neutral[800],
+  elevated1: primitives.neutral[900],
+  elevated2: primitives.neutral[850],
   elevated3: primitives.neutral[800],
   elevated4: primitives.neutral[800],
   elevated5: primitives.neutral[800],
@@ -43,7 +44,36 @@ const createStatus = (family) => {
   return Object.freeze({ main, light, dark, contrastText });
 };
 
-const createDarkSemanticTokens = () => {
+// All interaction variants derive from the single workspace accent. Syntax and
+// identity colors deliberately do not depend on this palette.
+const createAccent = (main) => {
+  const black = primitives.neutral[1000];
+  const white = primitives.neutral[0];
+  const contrastText =
+    getContrastRatio(main, black) >= getContrastRatio(main, white) ? black : white;
+  const readable = (color) => (getContrastRatio(color, contrastText) >= 4.5 ? color : main);
+  let foreground = main;
+  for (
+    let step = 1;
+    step <= 20 && getContrastRatio(foreground, DARK_BACKGROUND.elevated3) < 3;
+    step += 1
+  ) {
+    foreground = lighten(main, step / 20);
+  }
+  return Object.freeze({
+    main,
+    light: lighten(main, 0.16),
+    dark: readable(darken(main, 0.12)),
+    hover: readable(darken(main, 0.08)),
+    pressed: readable(darken(main, 0.16)),
+    contrastText,
+    foreground,
+    selectedBackground: alpha(foreground, 0.12),
+    selectedBorder: alpha(foreground, 0.5),
+  });
+};
+
+export const createDarkSemanticTokens = (accentColor = primitives.workspace.accent) => {
   const background = DARK_BACKGROUND;
   const foreground = primitives.neutral[100];
   const secondaryForeground = primitives.neutral[300];
@@ -75,15 +105,21 @@ const createDarkSemanticTokens = () => {
     statusFocus: 0.24,
   });
 
+  const accent = createAccent(accentColor);
   const primary = Object.freeze({
     main: foreground,
-    light: secondaryForeground,
-    dark: primitives.neutral[300],
+    light: primitives.neutral[0],
+    dark: secondaryForeground,
     contrastText: primitives.neutral[950],
   });
 
   return Object.freeze({
     mode: 'dark',
+    semanticColors: Object.freeze({
+      diffAdded: primitives.workspace.diffAdded,
+      diffRemoved: primitives.workspace.diffRemoved,
+      skill: primitives.workspace.skill,
+    }),
     background,
     text: Object.freeze({
       primary: foreground,
@@ -97,7 +133,7 @@ const createDarkSemanticTokens = () => {
       separator: alpha(primitives.neutral[0], 0.15),
       default: disabledForeground,
       hover: alpha(foreground, 0.25),
-      focus: foreground,
+      focus: secondaryForeground,
       active: hairline,
       base: foreground,
     }),
@@ -128,6 +164,7 @@ const createDarkSemanticTokens = () => {
     }),
     divider: hairline,
     primary,
+    accent,
     secondary: Object.freeze({
       main: secondaryForeground,
       light: foreground,
@@ -180,7 +217,11 @@ const createDarkSemanticTokens = () => {
     }),
     integration: Object.freeze({
       colorMode: 'dark',
-      codeTheme: 'moonlit-dark',
+      contrast: 50,
+      opaqueWindows: true,
+      accentSource: 'chatgpt',
+      codeThemeId: 'vercel',
+      codeTheme: 'moonlit-vercel',
       perspectiveTheme: 'Pro Dark',
       hyperspeedOpacity: 0,
     }),

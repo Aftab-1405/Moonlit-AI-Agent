@@ -45,11 +45,7 @@ _MIN_PROMPT_LEN_FOR_ESCALATION = 24
 
 
 def _automatic_mode(prompt: str | None) -> TaskMode:
-    if (
-        not Config.AGENT_AUTO_TASK_MODE
-        or not prompt
-        or len(prompt.strip()) < _MIN_PROMPT_LEN_FOR_ESCALATION
-    ):
+    if not Config.AGENT_AUTO_TASK_MODE or not prompt or len(prompt.strip()) < _MIN_PROMPT_LEN_FOR_ESCALATION:
         return "normal"
     normalized = prompt.strip()
     if any(pattern.search(normalized) for pattern in _LONG_TASK_PATTERNS):

@@ -49,7 +49,11 @@ import asyncio
 import json
 import logging
 import threading
-from typing import Optional
+import time
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from langchain_tavily import TavilySearch
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
@@ -57,12 +61,15 @@ from langgraph.types import interrupt
 
 from core.account_activity import run_account_work
 from core.errors import PublicError, log_safe_exception, public_error_for_code
+from langgraph_orchestration.tool_evidence import MAX_CACHE_ENTRIES, build_evidence
 from langgraph_orchestration.tool_executor import ToolExecutor
 from service.database.ai_tool_executor import AIToolExecutor as DBTools
+from service.database.query_result import query_timeline_result
 
 logger = logging.getLogger(__name__)
 
 _TAVILY_LOCK = threading.Lock()
+_tavily_searcher: "TavilySearch"
 
 # Tools whose results can be cached within a single conversation turn set.
 CACHEABLE_TOOLS = {
@@ -480,6 +487,8 @@ async def _execute_tool(
     raw_args: dict,
     config: RunnableConfig,
     executor_fn,
+    *,
+    refresh_cache: bool = False,
 ) -> str:
     """Shared execution pipeline used by every tool function.
 
@@ -515,6 +524,8 @@ async def _execute_tool(
 
     # 2. Display args (show effective max_rows for execute_query)
     display_args = dict(validated)
+    if refresh_cache:
+        display_args["refresh"] = True
     execution_max_rows = cfg.get("max_rows")
     if tool_name == "execute_query":
         execution_max_rows = _effective_query_max_rows(validated.get("max_rows"), cfg.get("max_rows"))
@@ -537,7 +548,11 @@ async def _execute_tool(
     if short_circuit is not None:
         return short_circuit
     writer({"type": "tool_start", "name": tool_name, "args": display_args})
-    cache = cfg.get("tool_cache", {})
+    cache = cfg.setdefault("tool_cache", {})
+    observed = cfg.setdefault("tool_cache_observed_at", {})
+    if refresh_cache:
+        cache.clear()
+        observed.clear()
     cache_key = None
     if tool_name in CACHEABLE_TOOLS:
         cache_args = dict(validated)
@@ -600,7 +615,12 @@ async def _execute_tool(
         # Do not pin transient failures in the request-scoped cache. Executor
         # methods report expected failures as ``{"error": ...}`` dictionaries.
         if cache_key and not (isinstance(parsed, dict) and (parsed.get("error") or parsed.get("success") is False)):
+            if len(cache) >= MAX_CACHE_ENTRIES:
+                oldest = next(iter(cache))
+                cache.pop(oldest)
+                observed.pop(oldest, None)
             cache[cache_key] = parsed
+            observed[cache_key] = time.time()
             logger.info(f"Cached result for {tool_name}")
 
     # Generate execution_id and save large query results to Firestore Subcollection
@@ -611,19 +631,30 @@ async def _execute_tool(
 
         conversation_id = cfg.get("conversation_id")
 
-        execution_id = str(uuid.uuid4())
+        execution_id = (parsed.get("result_metadata") or {}).get("execution_id") or str(uuid.uuid4())
         parsed["execution_id"] = execution_id
         parsed["conversation_id"] = conversation_id or None
 
         if conversation_id:
             try:
                 await run_account_work(
-                    cfg.get("user_id"),
+                    cfg["user_id"],
                     lambda: asyncio.to_thread(store_execution_result, conversation_id, execution_id, parsed),
                 )
             except Exception as e:
                 public = public_error_for_code("TOOL_RESULT_PERSISTENCE_FAILED")
                 log_safe_exception(logger, "store_execution_result", e, public)
+                # An artifact ID promises reloadable data. Do not publish one
+                # when persistence failed, even though the SELECT succeeded.
+                writer(
+                    {
+                        "type": "tool_end",
+                        "name": tool_name,
+                        "args": display_args,
+                        "result": _tool_failure_result(public.code),
+                    }
+                )
+                return _model_error_envelope("tool_execution_error", public)
     ui_result, llm_summary = ToolExecutor.summarize(
         tool_name,
         parsed,
@@ -633,13 +664,17 @@ async def _execute_tool(
         include_query_preview=(tool_name == "execute_query"),
     )
 
-    # 7. Emit tool_end with full UI data
+    # 7. Chat retains metadata only. Full query rows were persisted above and
+    # are fetched by execution ID; the model still receives its bounded preview.
     writer(
         {
             "type": "tool_end",
             "name": tool_name,
             "args": display_args,
-            "result": ui_result,
+            "result": query_timeline_result(ui_result) if tool_name == "execute_query" else ui_result,
+            "model_evidence": build_evidence(
+                tool_name, display_args, ui_result, cfg, observed_at=observed.get(cache_key, time.time())
+            ),
         }
     )
 
@@ -676,19 +711,30 @@ async def execute_query(
     *,
     config: RunnableConfig,
 ) -> str:
-    """Requires read_skill('database-querying') first. Execute one read-only SELECT/WITH query and return bounded result evidence for interpretation and follow-up analysis. Full rows are rendered in the UI."""
+    """Requires an activated database-querying skill (preloaded when connected). Execute one read-only SELECT/WITH query and return bounded result evidence for interpretation and follow-up analysis. Full rows are rendered in the UI."""
     tool_name = "execute_query"
     raw_args = {
         "query": query,
         "max_rows": max_rows,
     }
 
-    return await _execute_tool(
-        tool_name,
-        raw_args,
-        config,
-        lambda v, uid, db_cfg, mx: DBTools._execute_query(uid, v["query"], mx, db_config=db_cfg),
-    )
+    from service.database.query_guards import QueryCancellation
+
+    cancellation = QueryCancellation()
+    try:
+        return await _execute_tool(
+            tool_name,
+            raw_args,
+            config,
+            lambda v, uid, db_cfg, mx: DBTools._execute_query(
+                uid, v["query"], mx, db_config=db_cfg, cancellation=cancellation
+            ),
+        )
+    finally:
+        # wait_for can stop waiting while its worker thread still executes SQL.
+        # On success the cursor has already unbound; on timeout/stream cancellation
+        # this token can only cancel this tool's live database borrow.
+        await asyncio.to_thread(cancellation.cancel)
 
 
 @tool
@@ -699,7 +745,7 @@ async def analyze_query_result(
     *,
     config: RunnableConfig,
 ) -> str:
-    """Requires read_skill('database-querying') first. Deterministically profile columns, check nulls/duplicates, or calculate Pearson correlation over a bounded prior execute_query result."""
+    """Requires an activated database-querying skill (preloaded when connected). Deterministically profile columns, check nulls/duplicates, or calculate Pearson correlation over a bounded prior execute_query result."""
 
     def execute(validated, _uid, _db_cfg, _max_rows):
         from langgraph_orchestration.result_analysis import analyze_execution_result
@@ -734,8 +780,9 @@ async def get_table_indexes(
     table_name: str,
     *,
     config: RunnableConfig,
+    refresh: bool = False,
 ) -> str:
-    """Requires read_skill('database-querying') first. Get indexes for a table, including columns, uniqueness, and primary-key status."""
+    """Requires an activated database-querying skill (preloaded when connected). Use refresh=true for an explicitly requested fresh lookup. Get indexes for a table, including columns, uniqueness, and primary-key status."""
     return await _execute_tool(
         "get_table_indexes",
         {
@@ -743,6 +790,7 @@ async def get_table_indexes(
         },
         config,
         lambda v, uid, db_cfg, mx: DBTools._get_table_indexes(uid, v["table_name"], db_config=db_cfg),
+        refresh_cache=refresh,
     )
 
 
@@ -751,13 +799,15 @@ async def get_schema_overview(
     target_tables: Optional[list[str]] = None,
     *,
     config: RunnableConfig,
+    refresh: bool = False,
 ) -> str:
-    """Requires a relevant skill first: database-querying for SQL/data work, or react-flow-diagram for a requested visualization. Get tables, columns, and foreign keys in one call."""
+    """Requires a relevant skill first: database-querying for SQL/data work, or react-flow-diagram for a requested visualization. Get tables, columns, and foreign keys in one call. Use refresh=true for an explicitly requested fresh lookup; otherwise reuse available evidence."""
     return await _execute_tool(
         "get_schema_overview",
         {"target_tables": target_tables},
         config,
         lambda v, uid, db_cfg, mx: DBTools._get_schema_overview(uid, v.get("target_tables"), db_config=db_cfg),
+        refresh_cache=refresh,
     )
 
 
@@ -780,7 +830,7 @@ async def explain_query(
     *,
     config: RunnableConfig,
 ) -> str:
-    """Requires read_skill('database-querying') first. Get the query execution plan (EXPLAIN) for a read-only SELECT/WITH statement. Use this to diagnose slow queries, missing indexes, full-table scans, and bad join orderings before running the actual query. The plan is NOT executed (no ANALYZE) so it is safe to run on any read-only SQL."""
+    """Requires an activated database-querying skill (preloaded when connected). Get the query execution plan (EXPLAIN) for a read-only SELECT/WITH statement. Use this to diagnose slow queries, missing indexes, full-table scans, and bad join orderings before running the actual query. The plan is NOT executed (no ANALYZE) so it is safe to run on any read-only SQL."""
     return await _execute_tool(
         "explain_query",
         {"query": query},
@@ -796,13 +846,15 @@ async def get_table_details(
     table_name: str,
     *,
     config: RunnableConfig,
+    refresh: bool = False,
 ) -> str:
-    """Requires read_skill('database-querying') first. Get detailed per-column metadata for one table: data type, nullability, default value, primary-key flag, unique flag, and max character length. Use this when you need type-correct SQL (CAST/CONVERT, NULL handling, VARCHAR length limits) and get_schema_overview's name+PK summary is not enough."""
+    """Requires an activated database-querying skill (preloaded when connected). Use refresh=true for an explicitly requested fresh lookup. Get detailed per-column metadata for one table: data type, nullability, default value, primary-key flag, unique flag, and max character length. Use this when you need type-correct SQL (CAST/CONVERT, NULL handling, VARCHAR length limits) and get_schema_overview's name+PK summary is not enough."""
     return await _execute_tool(
         "get_table_details",
         {"table_name": table_name},
         config,
         lambda v, uid, db_cfg, mx: DBTools._get_table_details(uid, db_cfg, v["table_name"]),
+        refresh_cache=refresh,
     )
 
 
@@ -812,7 +864,7 @@ async def get_table_row_counts(
     *,
     config: RunnableConfig,
 ) -> str:
-    """Requires read_skill('database-querying') first. Get exact row counts for 1-10 unique, unqualified table names in one database statement (does NOT consume the per-conversation query row budget). Batch up to 10 names per call; when more are required, use the minimum number of batches rather than one call per table."""
+    """Requires an activated database-querying skill (preloaded when connected). Get exact row counts for 1-10 unique, unqualified table names in one database statement (does NOT consume the per-conversation query row budget). Batch up to 10 names per call; when more are required, use the minimum number of batches rather than one call per table."""
     return await _execute_tool(
         "get_table_row_counts",
         {"table_names": table_names},
@@ -831,13 +883,15 @@ async def get_foreign_keys(
     table_name: Optional[str] = None,
     *,
     config: RunnableConfig,
+    refresh: bool = False,
 ) -> str:
-    """Requires read_skill('database-querying') first. Get foreign key relationships for one table (when table_name is provided) or for the entire connected database (when omitted). Faster and cheaper than get_schema_overview when you only need FK metadata."""
+    """Requires an activated database-querying skill (preloaded when connected). Use refresh=true for an explicitly requested fresh lookup. Get foreign key relationships for one table (when table_name is provided) or for the entire connected database (when omitted). Faster and cheaper than get_schema_overview when you only need FK metadata."""
     return await _execute_tool(
         "get_foreign_keys",
         {"table_name": table_name},
         config,
         lambda v, uid, db_cfg, mx: DBTools._get_foreign_keys(uid, table_name=v.get("table_name"), db_config=db_cfg),
+        refresh_cache=refresh,
     )
 
 
@@ -845,13 +899,15 @@ async def get_foreign_keys(
 async def list_views(
     *,
     config: RunnableConfig,
+    refresh: bool = False,
 ) -> str:
-    """Requires read_skill('database-querying') first. List all views (and materialized views, on PostgreSQL / Oracle) in the connected database/schema. Use this when the user mentions a view by name, when get_schema_overview does not show an expected relation (it only lists BASE TABLEs), or when you need to know whether a derived table already exists as a view before writing a redundant query."""
+    """Requires an activated database-querying skill (preloaded when connected). Use refresh=true for an explicitly requested fresh lookup. List all views (and materialized views, on PostgreSQL / Oracle) in the connected database/schema. Use this when the user mentions a view by name, when get_schema_overview does not show an expected relation (it only lists BASE TABLEs), or when you need to know whether a derived table already exists as a view before writing a redundant query."""
     return await _execute_tool(
         "list_views",
         {},
         config,
         lambda v, uid, db_cfg, mx: DBTools._list_views(uid, db_cfg),
+        refresh_cache=refresh,
     )
 
 
@@ -1062,14 +1118,10 @@ async def web_search(query: str, *, config: RunnableConfig) -> str:
     if not ui_result["results"]:
         return f"No results found for: {query}"
 
-    lines = [f"Web search results for '{query}':\n"]
-    for i, r in enumerate(ui_result["results"], 1):
-        title = r["title"] or "Untitled"
-        url = r["url"]
-        snippet = r["content"][:400].strip() if r["content"] else ""
-        lines.append(f"{i}. {title}\n   {url}\n   {snippet}\n")
-
-    return "\n".join(lines)
+    evidence = build_evidence("web_search", {"query": query}, ui_result, _cfg(config))
+    return json.dumps(
+        {**evidence["result"], "evidence_complete": evidence["evidence_complete"], "omitted": evidence["omitted"]}
+    )
 
 
 @tool
@@ -1272,7 +1324,10 @@ def get_query_history(*, config: RunnableConfig) -> str:
     if not ui_result["success"]:
         public = public_error_for_code(ui_result.get("error_code"))
         return _model_error_envelope("tool_execution_error", public)
-    return json.dumps(queries, indent=2)
+    evidence = build_evidence(tool_name, tool_args, ui_result, _cfg(config))
+    return json.dumps(
+        {**evidence["result"], "evidence_complete": evidence["evidence_complete"], "omitted": evidence["omitted"]}
+    )
 
 
 # CENH [4]: `retrieve_memory` — mid-turn VAMP retrieval. Lets the LLM issue

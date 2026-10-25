@@ -11,7 +11,15 @@ vi.mock('@/api/conversations', () => ({
 }));
 
 vi.mock('material-react-table', () => ({
-  MaterialReactTable: () => <div data-testid="result-table" />,
+  MaterialReactTable: ({ table }) => (
+    <div data-testid="result-table">
+      {table.columns.map((column) => (
+        <div key={column.id}>
+          {column.header}:{String(column.accessorFn(table.data[0]))}
+        </div>
+      ))}
+    </div>
+  ),
   useMaterialReactTable: (options) => options,
 }));
 
@@ -28,6 +36,23 @@ function renderExecutionTable(props = {}) {
 describe('InlineExecutionTable result motion', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('shows original duplicate labels without losing their distinct source values', async () => {
+    getExecutionResult.mockResolvedValue({
+      status: 'success',
+      data: {
+        columns: ['__column_1', '__column_2'],
+        data: [{ __column_1: '9007199254740993', __column_2: 2 }],
+        column_metadata: [
+          { key: '__column_1', label: 'id' },
+          { key: '__column_2', label: 'id' },
+        ],
+      },
+    });
+    renderExecutionTable();
+    expect(await screen.findByText('id:9007199254740993')).toBeTruthy();
+    expect(screen.getByText('id:2')).toBeTruthy();
   });
 
   it('opens the same saved execution and source SQL from the inline table', async () => {

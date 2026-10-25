@@ -24,6 +24,16 @@ import { recoverLegacyConversationTitle } from '@/utils/conversationTitles';
 import logger from '@/utils/logger';
 
 let draftSequence = 0;
+const HISTORY_PAGE_SIZE = 30;
+
+function historyState(conversation) {
+  return {
+    before: conversation?.pagination?.before || null,
+    hasMore: Boolean(conversation?.pagination?.has_more && conversation?.pagination?.before),
+    isLoading: false,
+    error: null,
+  };
+}
 
 function createDraftSessionKey() {
   if (globalThis.crypto?.randomUUID) return `draft:${globalThis.crypto.randomUUID()}`;
@@ -66,6 +76,8 @@ export function useConversations() {
   const conversationsLoadSeqRef = useRef(0);
   const legacyTitleSourceRef = useRef(new Map());
   const activeSessionKeyRef = useRef(null);
+  const historyRequestsRef = useRef(new Map());
+  const deletedSessionsRef = useRef(new Set());
   const [sessionMetadataRevision, bumpSessionMetadataRevision] = useReducer(
     (revision) => revision + 1,
     0,
@@ -218,8 +230,9 @@ export function useConversations() {
     [fetchConversations],
   );
 
-  const recoverGeneratedTitle = useCallback((conversationId, conversationMessages) => {
-    const firstUserMessage = conversationMessages.find((message) => message?.role === 'user')?.text;
+  const recoverGeneratedTitle = useCallback((conversationId, conversationMessages, firstPrompt) => {
+    const firstUserMessage =
+      firstPrompt ?? conversationMessages.find((message) => message?.role === 'user')?.text;
     if (!firstUserMessage) return;
     legacyTitleSourceRef.current.set(conversationId, firstUserMessage);
     setConversations((previous) =>
@@ -248,11 +261,16 @@ export function useConversations() {
           ...current,
           conversationId,
           messages,
+          history: cachedConversation.history || historyState(cachedConversation.conversation),
           loadStatus: CHAT_LOAD_STATUS.READY,
           usageMetrics: findLatestUsage(messages),
           unreadActivity: null,
         }));
-        recoverGeneratedTitle(conversationId, messages);
+        recoverGeneratedTitle(
+          conversationId,
+          messages,
+          cachedConversation.conversation?.first_user_message,
+        );
         return true;
       }
 
@@ -267,7 +285,8 @@ export function useConversations() {
       try {
         const data = await queryClient.fetchQuery({
           queryKey: queryKeys.conversation(conversationId),
-          queryFn: ({ signal }) => getConversation(conversationId, signal),
+          queryFn: ({ signal }) =>
+            getConversation(conversationId, signal, { limit: HISTORY_PAGE_SIZE }),
           staleTime: 5 * 60 * 1000,
         });
         if (conversationLoadGenerationRef.current.get(sessionKey) !== generation) return false;
@@ -287,11 +306,12 @@ export function useConversations() {
           ...current,
           conversationId,
           messages,
+          history: historyState(data.conversation),
           loadStatus: CHAT_LOAD_STATUS.READY,
           usageMetrics: findLatestUsage(messages),
           unreadActivity: null,
         }));
-        recoverGeneratedTitle(conversationId, messages);
+        recoverGeneratedTitle(conversationId, messages, data.conversation.first_user_message);
         return true;
       } catch (error) {
         if (error.name === 'AbortError') return false;
@@ -305,6 +325,97 @@ export function useConversations() {
     },
     [getSession, recoverGeneratedTitle, updateSession],
   );
+
+  const loadOlderMessages = useCallback(
+    async ({ beforePrepend } = {}) => {
+      const sessionKey = activeSessionKey;
+      const session = getSession(sessionKey);
+      const history = session?.history;
+      if (
+        !session?.conversationId ||
+        !history?.hasMore ||
+        !history.before ||
+        historyRequestsRef.current.has(sessionKey)
+      )
+        return false;
+      const request = new AbortController();
+      historyRequestsRef.current.set(sessionKey, request);
+      updateSession(sessionKey, (current) => ({
+        ...current,
+        history: { ...current.history, isLoading: true, error: null },
+      }));
+      try {
+        const data = await getConversation(session.conversationId, request.signal, {
+          limit: HISTORY_PAGE_SIZE,
+          before: history.before,
+        });
+        if (
+          request.signal.aborted ||
+          historyRequestsRef.current.get(sessionKey) !== request ||
+          !getSession(sessionKey)
+        )
+          return false;
+        if (data.status !== 'success' || !data.conversation) throw new Error('History unavailable');
+        const nextHistory = historyState(data.conversation);
+        if (nextHistory.hasMore && nextHistory.before === history.before)
+          throw new Error('History cursor did not advance');
+        const older = (data.conversation.messages || []).map(normalizeConversationMessage);
+        beforePrepend?.();
+        updateSession(sessionKey, (current) => {
+          const ids = new Set(current.messages.map((message) => message.id));
+          const unseen = older.filter((message) => {
+            if (ids.has(message.id)) return false;
+            ids.add(message.id);
+            return true;
+          });
+          const messages = [...unseen, ...current.messages];
+          queryClient.setQueryData(queryKeys.conversation(session.conversationId), (cached) => ({
+            ...cached,
+            messages,
+            history: nextHistory,
+          }));
+          return { ...current, messages, history: nextHistory };
+        });
+        return true;
+      } catch {
+        if (request.signal.aborted || !getSession(sessionKey)) return false;
+        updateSession(sessionKey, (current) => ({
+          ...current,
+          history: { ...current.history, isLoading: false, error: 'Couldn’t load older messages.' },
+        }));
+        return false;
+      } finally {
+        if (historyRequestsRef.current.get(sessionKey) === request)
+          historyRequestsRef.current.delete(sessionKey);
+      }
+    },
+    [activeSessionKey, getSession, updateSession],
+  );
+
+  useEffect(
+    () => () => {
+      const request = historyRequestsRef.current.get(activeSessionKey);
+      if (!request) return;
+      request.abort();
+      historyRequestsRef.current.delete(activeSessionKey);
+      if (getSession(activeSessionKey))
+        updateSession(activeSessionKey, (current) => ({
+          ...current,
+          history: { ...current.history, isLoading: false },
+        }));
+    },
+    [activeSessionKey, getSession, updateSession],
+  );
+
+  useEffect(() => {
+    // An observed query can be recreated from initialData if removed before
+    // navigation commits. Retire deleted sessions after the observer switches.
+    for (const sessionKey of deletedSessionsRef.current) {
+      if (sessionKey === activeSessionKey) continue;
+      queryClient.removeQueries({ queryKey: queryKeys.chatSession(sessionKey) });
+      deletedSessionsRef.current.delete(sessionKey);
+    }
+  }, [activeSessionKey]);
 
   const startNewChat = useCallback(() => {
     const sessionKey = createDraftSessionKey();
@@ -383,12 +494,16 @@ export function useConversations() {
         queryClient.invalidateQueries({ queryKey: queryKeys.conversations });
         queryClient.removeQueries({ queryKey: queryKeys.conversation(conversationId) });
         const sessionKey = getSessionKeyForConversation(conversationId);
-        queryClient.removeQueries({ queryKey: queryKeys.chatSession(sessionKey) });
+        historyRequestsRef.current.get(sessionKey)?.abort();
+        historyRequestsRef.current.delete(sessionKey);
+        const deletingActiveSession = activeSessionKeyRef.current === sessionKey;
+        if (deletingActiveSession) deletedSessionsRef.current.add(sessionKey);
+        else queryClient.removeQueries({ queryKey: queryKeys.chatSession(sessionKey) });
         sessionKeysByConversationRef.current.delete(conversationId);
         setConversations((previous) =>
           previous.filter((conversation) => conversation.id !== conversationId),
         );
-        if (activeSessionKeyRef.current === sessionKey) startNewChat();
+        if (deletingActiveSession) startNewChat();
       } catch (error) {
         if (error.name === 'AbortError') return;
         logger.error('Failed to delete conversation:', error);
@@ -449,6 +564,8 @@ export function useConversations() {
     activeSession,
     activeSessionKey,
     messages: activeSession?.messages || [],
+    history: activeSession?.history,
+    loadOlderMessages,
     updateSession,
     updateSessionMessages,
     getSession,

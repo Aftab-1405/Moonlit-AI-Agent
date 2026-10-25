@@ -38,16 +38,11 @@ def create_checkpoint_generation(
         raise ValueError("run_id is required")
     if fence < 1:
         raise ValueError("fence must be positive")
-    if (
-        source_generation is not None
-        and source_generation.logical_thread_id != normalized_logical_id
-    ):
+    if source_generation is not None and source_generation.logical_thread_id != normalized_logical_id:
         raise ValueError("source generation must belong to the same logical thread")
     return CheckpointGeneration(
         logical_thread_id=normalized_logical_id,
-        physical_thread_id=(
-            f"{normalized_logical_id}:checkpoint-generation:{fence}:{normalized_run_id}"
-        ),
+        physical_thread_id=(f"{normalized_logical_id}:checkpoint-generation:{fence}:{normalized_run_id}"),
         run_id=normalized_run_id,
         fence=fence,
         source_generation=source_generation,

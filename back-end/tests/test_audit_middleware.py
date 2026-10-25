@@ -5,19 +5,15 @@ from __future__ import annotations
 import io
 import json
 import logging
-from collections.abc import Awaitable, Callable
 
 import pytest
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from core.audit_middleware import (
     PrivilegedActionAuditMiddleware,
     match_privileged_action,
 )
 from core.http_boundary import RequestBodyLimitMiddleware, ResponseSecurityMiddleware
-
-ASGIMessage = dict[str, object]
-Receive = Callable[[], Awaitable[ASGIMessage]]
-Send = Callable[[ASGIMessage], Awaitable[None]]
 
 APPROVED_ROUTE_CASES = [
     ("POST", "/set_authenticated_user_session", "auth.login", "auth:session"),
@@ -54,7 +50,7 @@ APPROVED_ROUTE_CASES = [
 ]
 
 
-def http_scope(method: str, path: str, *, body: bytes = b"") -> ASGIMessage:
+def http_scope(method: str, path: str, *, body: bytes = b"") -> Scope:
     """Build the minimal real HTTP scope consumed by the middleware."""
     return {
         "type": "http",
@@ -75,7 +71,7 @@ def one_body_receive(body: bytes) -> Receive:
     """Return one request frame, followed by a disconnect if read again."""
     delivered = False
 
-    async def receive() -> ASGIMessage:
+    async def receive() -> Message:
         nonlocal delivered
         if delivered:
             return {"type": "http.disconnect"}
@@ -85,18 +81,18 @@ def one_body_receive(body: bytes) -> Receive:
     return receive
 
 
-async def invoke(app, scope: ASGIMessage, body: bytes = b"") -> list[ASGIMessage]:
+async def invoke(app: ASGIApp, scope: Scope, body: bytes = b"") -> list[Message]:
     """Invoke an ASGI application and capture every response frame."""
-    sent: list[ASGIMessage] = []
+    sent: list[Message] = []
 
-    async def send(message: ASGIMessage) -> None:
+    async def send(message: Message) -> None:
         sent.append(message)
 
     await app(scope, one_body_receive(body), send)
     return sent
 
 
-def response_header(sent: list[ASGIMessage], name: bytes) -> str:
+def response_header(sent: list[Message], name: bytes) -> str:
     """Read one response header value case-insensitively."""
     start = next(message for message in sent if message["type"] == "http.response.start")
     headers = start["headers"]
@@ -154,7 +150,7 @@ async def test_selected_route_emits_one_correlated_sanitized_event(
 ) -> None:
     """Catch duplicate, uncorrelated, misclassified, or content-bearing events."""
 
-    async def endpoint(scope: ASGIMessage, receive: Receive, send: Send) -> None:
+    async def endpoint(scope: Scope, receive: Receive, send: Send) -> None:
         del receive
         state = scope.setdefault("state", {})
         state["user"] = {"uid": "user-1", "email": "private@example.com"}
@@ -191,7 +187,7 @@ async def test_selected_route_emits_one_correlated_sanitized_event(
 async def test_dynamic_route_does_not_log_its_identifier(audit_buffer: io.StringIO) -> None:
     """Keep opaque conversation identifiers out of the security event."""
 
-    async def endpoint(scope: ASGIMessage, receive: Receive, send: Send) -> None:
+    async def endpoint(scope: Scope, receive: Receive, send: Send) -> None:
         del scope, receive
         await send({"type": "http.response.start", "status": 204, "headers": []})
         await send({"type": "http.response.body", "body": b""})
@@ -210,7 +206,7 @@ async def test_dynamic_route_does_not_log_its_identifier(audit_buffer: io.String
 async def test_unlisted_route_emits_no_event(audit_buffer: io.StringIO) -> None:
     """Catch accidental audit volume expansion to ordinary endpoints."""
 
-    async def endpoint(scope: ASGIMessage, receive: Receive, send: Send) -> None:
+    async def endpoint(scope: Scope, receive: Receive, send: Send) -> None:
         del scope, receive
         await send({"type": "http.response.start", "status": 204, "headers": []})
         await send({"type": "http.response.body", "body": b""})
@@ -227,7 +223,7 @@ async def test_unlisted_route_emits_no_event(audit_buffer: io.StringIO) -> None:
 async def test_pre_auth_denial_uses_anonymous_actor(audit_buffer: io.StringIO) -> None:
     """Audit a rejection that occurs before authentication can populate request state."""
 
-    async def denied(scope: ASGIMessage, receive: Receive, send: Send) -> None:
+    async def denied(scope: Scope, receive: Receive, send: Send) -> None:
         del scope, receive
         await send({"type": "http.response.start", "status": 401, "headers": []})
         await send({"type": "http.response.body", "body": b""})
@@ -248,13 +244,13 @@ async def test_downstream_exception_emits_one_safe_failure_then_reraises(
 ) -> None:
     """Preserve the HTTP error boundary while recording a payload-free failure."""
 
-    async def failing(scope: ASGIMessage, receive: Receive, send: Send) -> None:
+    async def failing(scope: Scope, receive: Receive, send: Send) -> None:
         del scope, receive, send
         raise RuntimeError("private-exception")
 
     middleware = PrivilegedActionAuditMiddleware(failing)
 
-    async def send(message: ASGIMessage) -> None:
+    async def send(message: Message) -> None:
         del message
 
     with pytest.raises(RuntimeError, match="private-exception"):
@@ -278,7 +274,7 @@ def test_application_middleware_order_binds_request_id_before_audit() -> None:
     app = create_app()
     middleware_classes = [entry.cls for entry in app.user_middleware]
 
-    response_index = middleware_classes.index(ResponseSecurityMiddleware)
-    audit_index = middleware_classes.index(PrivilegedActionAuditMiddleware)
-    body_index = middleware_classes.index(RequestBodyLimitMiddleware)
+    response_index = next(index for index, cls in enumerate(middleware_classes) if cls is ResponseSecurityMiddleware)
+    audit_index = next(index for index, cls in enumerate(middleware_classes) if cls is PrivilegedActionAuditMiddleware)
+    body_index = next(index for index, cls in enumerate(middleware_classes) if cls is RequestBodyLimitMiddleware)
     assert response_index < audit_index < body_index

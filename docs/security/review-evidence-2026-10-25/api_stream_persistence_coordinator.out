@@ -1,0 +1,6 @@
+2026-10-25 20:00:59,596 - main - INFO - request_id=- - CORS enabled for origins: ['https://frontend.example']
+2026-10-25 20:00:59,596 - main - INFO - request_id=- - LLM provider: bedrock; LLM rate limiter: 1 providers, enabled=False
+2026-10-25 20:00:59,669 - asyncio - DEBUG - request_id=- - Using selector: EpollSelector
+2026-10-25 20:00:59,689 - service.conversations.conversation_streaming_service - WARNING - request_id=- - Stream aborted for conversation offline-id reason=cancelled
+2026-10-25 20:00:59,711 - service.conversations.conversation_streaming_service - INFO - request_id=- - Stored AI response (complete): 24 chars, 1 timeline items for conversation offline-id
+{"disconnected": {"partial_token_delivered": true, "stored_roles": ["user"], "assistant_saved": false}, "normal_completion": {"stored_roles": ["user", "ai"], "assistant_saved": true}}

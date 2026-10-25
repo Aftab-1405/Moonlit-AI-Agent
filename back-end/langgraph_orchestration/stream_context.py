@@ -33,7 +33,7 @@ async def retrieve_historical_context(
     """Call the current port while tolerating legacy three-argument adapters."""
     method = provider.retrieve_context
     parameters = inspect.signature(method).parameters
-    kwargs = {}
+    kwargs: dict[str, str | int] = {}
     if "model_id" in parameters:
         kwargs["model_id"] = model_id
     if "token_budget" in parameters:

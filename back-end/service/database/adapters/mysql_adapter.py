@@ -178,8 +178,9 @@ class MySQLAdapter(BaseDatabaseAdapter):
             # FIX [AUDIT-2-B]: if is_connected() raises, the previous
             # code caught the exception but never closed the connection,
             # leaking it. We now close unconditionally.
-            if connection.is_connected():
-                connection.close()  # Returns to pool for pooled connections
+            # Even disconnected pooled wrappers must return their slot. The
+            # connector reconnects the physical connection on the next borrow.
+            connection.close()
         except Exception as err:
             log_safe_exception(
                 logger,
@@ -193,21 +194,45 @@ class MySQLAdapter(BaseDatabaseAdapter):
             except Exception:
                 pass
 
+    @staticmethod
+    def _discard_unread_connection(connection):
+        # PooledMySQLConnection delegates reads but not writes to _cnx.
+        # Clearing unread_result is safe only AFTER its socket is closed;
+        # otherwise reconnect/reset would inherit a stale unread-result flag.
+        physical = getattr(connection, "_cnx", connection)
+        physical.disconnect()
+        physical.unread_result = False
+
     @contextmanager
     def get_cursor(self, connection: Any, dictionary: bool = False, buffered: bool = True):
-        """Get MySQL cursor from connection."""
+        """Stream bounded reads; abandon unread results without draining them."""
         cursor = None
+        discarded = False
         try:
             cursor = connection.cursor(dictionary=dictionary, buffered=buffered)
             yield cursor
-            connection.commit()
-        except Exception as e:
-            if connection:
+            if getattr(connection, "unread_result", False):
+                # close() on a pooled wrapper returns it to the pool, and
+                # cursor.close()/rollback may drain or reject unread results.
+                # Disconnect the physical socket first; next borrow reconnects.
+                self._discard_unread_connection(connection)
+                discarded = True
+            else:
+                connection.commit()
+        except BaseException:
+            if getattr(connection, "unread_result", False):
+                self._discard_unread_connection(connection)
+                discarded = True
+            elif not discarded:
                 connection.rollback()
-            raise e
+            raise
         finally:
             if cursor:
-                cursor.close()
+                try:
+                    cursor.close()
+                except Exception:
+                    if not discarded:
+                        raise
 
     def get_databases_query(self) -> str:
         """SQL query to list MySQL databases."""
@@ -277,7 +302,7 @@ class MySQLAdapter(BaseDatabaseAdapter):
 
     # Schema Caching Methods (for AI context)
 
-    def get_all_tables_for_cache(self, db_name: str, schema: str = "public") -> tuple:
+    def get_all_tables_for_cache(self, db_name: str, schema: str = "public") -> tuple[str, tuple[str, ...]]:
         """Return SQL query and params to get all tables for schema caching."""
         query = """
             SELECT TABLE_NAME
@@ -332,7 +357,7 @@ class MySQLAdapter(BaseDatabaseAdapter):
 
     # Schema Metadata Methods (for AI tools)
 
-    def get_indexes_query(self, table_name: str, db_name: str = None, schema: str = "public") -> tuple:
+    def get_indexes_query(self, table_name: str, db_name: str | None = None, schema: str = "public") -> tuple:
         """Return SQL query and params to get indexes for a MySQL table."""
         query = """
             SELECT
@@ -346,7 +371,9 @@ class MySQLAdapter(BaseDatabaseAdapter):
         """
         return query, (db_name, table_name)
 
-    def get_foreign_keys_query(self, table_name: str = None, db_name: str = None, schema: str = "public") -> tuple:
+    def get_foreign_keys_query(
+        self, table_name: str | None = None, db_name: str | None = None, schema: str = "public"
+    ) -> tuple:
         """Return SQL query and params to get foreign key relationships in MySQL."""
         if table_name:
             query = """
@@ -403,7 +430,7 @@ class MySQLAdapter(BaseDatabaseAdapter):
 
     # Table-details Method (added for the get_table_details AI tool)
 
-    def get_table_details_query(self, table_name: str, db_name: str = None, schema: str = "public") -> tuple:
+    def get_table_details_query(self, table_name: str, db_name: str | None = None, schema: str = "public") -> tuple:
         """Return SQL query and params for a rich per-column MySQL schema dump.
 
         Returns one row per column with positional columns:
@@ -427,7 +454,7 @@ class MySQLAdapter(BaseDatabaseAdapter):
 
     # Views Introspection Methods (added for the list_views AI tool)
 
-    def get_views(self, schema: str = None, db_name: str = None) -> tuple:
+    def get_views(self, schema: str | None = None, db_name: str | None = None) -> tuple:
         """Return SQL query and params to list MySQL views in ``db_name``.
 
         MySQL does not support materialized views natively, so

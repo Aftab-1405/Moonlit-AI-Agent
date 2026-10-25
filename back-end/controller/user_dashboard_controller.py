@@ -10,6 +10,7 @@ from firebase_admin import auth
 from config import get_config
 from core.account_activity import AccountBusyError, track_account_request
 from dependencies import (
+    AuthenticatedUser,
     clear_all_user_session_state,
     clear_session_state,
     get_all_user_session_state,
@@ -46,8 +47,8 @@ def is_recent_authentication(decoded_claims: dict, *, now=None) -> bool:
 
 
 @router.get("/overview")
-async def get_dashboard_overview(user: dict = Depends(get_current_user)):
-    user_id = user.get("uid") or user
+async def get_dashboard_overview(user: AuthenticatedUser = Depends(get_current_user)):
+    user_id = user["uid"]
     data = await run_in_threadpool(
         DashboardService.get_overview,
         user_id,
@@ -59,9 +60,9 @@ async def get_dashboard_overview(user: dict = Depends(get_current_user)):
 @router.get("/usage")
 async def get_dashboard_usage(
     days: UsageDays = UsageDays.THIRTY,
-    user: dict = Depends(get_current_user),
+    user: AuthenticatedUser = Depends(get_current_user),
 ):
-    user_id = user.get("uid") or user
+    user_id = user["uid"]
     data = await run_in_threadpool(
         UsageAnalyticsService.get_usage,
         user_id,
@@ -80,7 +81,7 @@ account_router = APIRouter(prefix="/user", tags=["User Account"])
 async def delete_user_account(
     request: Request,
     response: Response,
-    user: dict = Depends(get_current_user),
+    user: AuthenticatedUser = Depends(get_current_user),
 ):
     """Permanently erase Moonlit data after a recent Firebase reauthentication."""
     verify_csrf_token(request)
@@ -100,7 +101,7 @@ async def delete_user_account(
             detail="Recent authentication required",
         ) from error
 
-    user_id = user.get("uid") or user
+    user_id = user["uid"]
     if decoded.get("uid") != user_id or not is_recent_authentication(decoded):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -113,12 +114,12 @@ async def delete_user_account(
     except AccountBusyError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail='Account work is still running. Stop active responses and retry account deletion.',
+            detail="Account work is still running. Stop active responses and retry account deletion.",
         ) from exc
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail='Account activity service temporarily unavailable',
+            detail="Account activity service temporarily unavailable",
         ) from exc
 
     current_session_data = await get_session_data(request) or {}

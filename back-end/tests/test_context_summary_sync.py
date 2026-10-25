@@ -367,7 +367,9 @@ def test_stream_emits_one_summary_event_and_keeps_following_turn_in_sync(monkeyp
         return [json.loads(line.removeprefix("data: ")) for line in lines]
 
     first_events = asyncio.run(_collect("current"))
-    conversation["messages"].extend(
+    conversation_messages = conversation["messages"]
+    assert isinstance(conversation_messages, list)
+    conversation_messages.extend(
         [
             {
                 "sender": "ai",

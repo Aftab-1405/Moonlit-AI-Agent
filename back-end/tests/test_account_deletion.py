@@ -29,14 +29,12 @@ class _Conversations:
 
     @classmethod
     def delete(cls, conversation_id, user_id, *, strict_subcollection_cleanup=False):
-        cls.events.append(
-            ("conversation", conversation_id, user_id, strict_subcollection_cleanup)
-        )
+        cls.events.append(("conversation", conversation_id, user_id, strict_subcollection_cleanup))
         return True
 
     @classmethod
     def get_memory_cleanup_retries_for_user(cls, user_id):
-        return [{'id': 'retry-1', 'conversation_id': 'already-deleted', 'status': 'failed'}]
+        return [{"id": "retry-1", "conversation_id": "already-deleted", "status": "failed"}]
 
     @classmethod
     def delete_memory_cleanup_retry(cls, retry_id):
@@ -104,8 +102,8 @@ async def test_account_erasure_deletes_moonlit_data_before_firebase_identity():
     assert events[-1] == ("identity", "user-1")
     assert ("context", "user-1") in events[:-1]
     assert ("usage", "user-1") in events[:-1]
-    assert ('account_checkpoints', 'user-1') in events[:-1]
-    assert events.index(('memory', 'already-deleted', 'user-1')) < events.index(('memory_retry', 'retry-1'))
+    assert ("account_checkpoints", "user-1") in events[:-1]
+    assert events.index(("memory", "already-deleted", "user-1")) < events.index(("memory_retry", "retry-1"))
     assert (
         "conversation",
         "conversation-1",
@@ -153,25 +151,25 @@ async def test_account_erasure_keeps_identity_when_moonlit_cleanup_fails():
 @pytest.mark.asyncio
 async def test_failed_retry_cleanup_retains_record_and_identity(monkeypatch):
     async def fail_retry(self, conversation_id, user_id):
-        self.events.append(('memory', conversation_id, user_id))
-        if conversation_id == 'already-deleted':
-            raise RuntimeError('vectors unavailable')
+        self.events.append(("memory", conversation_id, user_id))
+        if conversation_id == "already-deleted":
+            raise RuntimeError("vectors unavailable")
 
-    monkeypatch.setattr(_MemoryCleaner, 'delete_conversation_pointers', fail_retry)
+    monkeypatch.setattr(_MemoryCleaner, "delete_conversation_pointers", fail_retry)
     events = []
-    with pytest.raises(RuntimeError, match='vectors unavailable'):
+    with pytest.raises(RuntimeError, match="vectors unavailable"):
         await _delete(events)
-    assert ('memory_retry', 'retry-1') not in events
-    assert ('identity', 'user-1') not in events
+    assert ("memory_retry", "retry-1") not in events
+    assert ("identity", "user-1") not in events
 
 
 @pytest.mark.asyncio
 async def test_checkpoint_failure_prevents_account_deletion(monkeypatch):
     async def fail(self, user_id):
-        raise RuntimeError('checkpoints unavailable')
+        raise RuntimeError("checkpoints unavailable")
 
-    monkeypatch.setattr(_CheckpointCleaner, 'adelete_user_threads', fail)
+    monkeypatch.setattr(_CheckpointCleaner, "adelete_user_threads", fail)
     events = []
-    with pytest.raises(RuntimeError, match='checkpoints unavailable'):
+    with pytest.raises(RuntimeError, match="checkpoints unavailable"):
         await _delete(events)
-    assert not any(event[0] in {'conversation', 'identity'} for event in events)
+    assert not any(event[0] in {"conversation", "identity"} for event in events)

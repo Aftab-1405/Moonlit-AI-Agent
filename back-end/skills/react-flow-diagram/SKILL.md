@@ -82,8 +82,46 @@ Node fields: `id`, `type`, `label`, and optional `subtitle`, `position`, `status
 
 Edge types are `floating`, `default`, `simplebezier`, `smoothstep`, `step`, and `straight`. `markerStart`/`markerEnd` accept `none`, `arrow`, or `arrow-closed`. Use dashed edges for optional or inferred conceptual relationships; use animation only when motion or active flow is meaningful.
 
+## Readability in Moonlit's workspace
+
+The diagram may first appear in a narrow split pane on a dark canvas. Preserve
+creative freedom: choose colors, shapes and layouts that communicate the idea.
+Theme defaults are a convenient starting point, not a required palette.
+
+- Whenever you specify a node fill, also specify a contrasting `style.color` for
+  its text and icons. A light fill normally needs dark text; do not assume the
+  workspace's default light text will remain readable. Aim for at least 4.5:1
+  contrast for ordinary labels, and keep borders and edges visible against the
+  surrounding canvas. Avoid reducing text opacity to decorate a node.
+- At normal zoom, prefer titles around 14–16px and body labels at least 12px.
+  `style.fontSize` applies to the node's text, including entity details. Use
+  useful columns and concise labels, with enough space for the content.
+- Fitting a large or tall graph into a split pane shrinks every label. Choose a
+  compact topology with adequate node spacing; omit only nonessential detail.
+  Users can zoom, fit or expand the artifact. Do not claim readability is fixed
+  merely because a fill color or border changed.
+- Check node titles, column names/types, edge labels and semantic badges as a
+  complete design. Color should support meaning, not be its only signal.
+
+Examples of custom styles with paired foreground/background colors (illustrative,
+not mandatory):
+
+```json
+{"backgroundColor":"#fff3c4","color":"#1a1a1a","borderColor":"#b78a24","fontSize":14}
+```
+
+```json
+{"backgroundColor":"#1b2432","color":"#ededed","borderColor":"#7aa2d6","fontSize":14}
+```
+
+Place these properties inside a node's `style` object. Keep custom edge and node
+styles when useful; do not replace a user-requested visual design with a fixed
+house style. Never claim to have visually inspected the rendered diagram unless
+an actual rendering was available to inspect.
+
 ## Output check
 
+- Custom fills have readable foregrounds; labels remain useful at the intended scale.
 - IDs are semantic and unique; every edge endpoint exists.
 - Required facts are verified, while hypothetical content is clearly based on the user's model.
 - Layout and node types match the diagram's meaning rather than a fixed template.

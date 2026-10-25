@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import { getInteractiveIconButtonSx } from '@/styles/shared';
 import { TOUCH_DEVICE_QUERY } from '@/styles/mediaQueries';
+import { getInteractiveIconButtonSx } from '@/styles/shared';
 
 export const ARTIFACT_ROOT_SX = {
   height: '100%',

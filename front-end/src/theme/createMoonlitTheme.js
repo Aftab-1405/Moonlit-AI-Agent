@@ -1,6 +1,12 @@
 import { alpha, createTheme, responsiveFontSizes } from '@mui/material/styles';
-import { HOVER_CAPABLE_QUERY, MOBILE_SM_QUERY, REDUCED_MOTION_QUERY, TOUCH_DEVICE_QUERY } from '@/styles/mediaQueries';
-import { BREAKPOINTS, FONTS, SHAPE, SWITCH_GEOMETRY } from '@/theme/tokens';
+import {
+  BUTTON_TOUCH_QUERY,
+  HOVER_CAPABLE_QUERY,
+  MOBILE_SM_QUERY,
+  REDUCED_MOTION_QUERY,
+  TOUCH_DEVICE_QUERY,
+} from '@/styles/mediaQueries';
+import { BREAKPOINTS, BUTTON_SIZES, FONTS, SHAPE, SWITCH_GEOMETRY } from '@/theme/tokens';
 import { createTypography } from '@/theme/typography';
 
 const pill = SHAPE.radius.pill;
@@ -15,7 +21,11 @@ const outlined = (S, color = S.text.primary) => ({
     borderColor: color === S.text.primary ? alpha(S.text.primary, 0.4) : alpha(color, 0.58),
     backgroundColor: alpha(color, 0.07),
   },
-  '&.Mui-focusVisible': { boxShadow: `0 0 0 2px ${S.border.focus}` },
+  '&.Mui-focusVisible': {
+    outline: `2px solid ${S.border.focus}`,
+    outlineOffset: 2,
+    boxShadow: 'none',
+  },
 });
 
 const contained = (S, color, contrastText) => ({
@@ -23,7 +33,11 @@ const contained = (S, color, contrastText) => ({
   borderColor: color,
   backgroundColor: color,
   '&:hover': { color: contrastText, borderColor: color, backgroundColor: color, opacity: 0.9 },
-  '&.Mui-focusVisible': { boxShadow: `0 0 0 2px ${S.border.focus}` },
+  '&.Mui-focusVisible': {
+    outline: `2px solid ${S.border.focus}`,
+    outlineOffset: 2,
+    boxShadow: 'none',
+  },
 });
 
 const textButton = (S, color = S.text.primary) => ({
@@ -31,7 +45,11 @@ const textButton = (S, color = S.text.primary) => ({
   borderColor: 'transparent',
   backgroundColor: 'transparent',
   '&:hover': { color, borderColor: 'transparent', backgroundColor: alpha(color, 0.07) },
-  '&.Mui-focusVisible': { boxShadow: `0 0 0 2px ${S.border.focus}` },
+  '&.Mui-focusVisible': {
+    outline: `2px solid ${S.border.focus}`,
+    outlineOffset: 2,
+    boxShadow: 'none',
+  },
 });
 
 const createPalette = (S) => ({
@@ -39,6 +57,8 @@ const createPalette = (S) => ({
   background: { ...S.background, elevated: S.background.elevated1 },
   text: S.text,
   primary: S.primary,
+  accent: S.accent,
+  semanticColors: S.semanticColors,
   secondary: S.secondary,
   error: S.error,
   success: S.success,
@@ -81,6 +101,21 @@ const createPalette = (S) => ({
     S.error.main,
   ],
 });
+
+// Explicit status colors take precedence over the default checked-control accent.
+const checkedControlColor = (S, color) =>
+  ['error', 'warning', 'success', 'info'].includes(color) ? S[color].main : S.accent.foreground;
+
+const buttonSize = (size) => {
+  const { height, paddingX, fontSize, icon } = BUTTON_SIZES[size];
+  return {
+    minHeight: height,
+    padding: `${(height - 22) / 2}px ${paddingX}px`,
+    fontSize,
+    '& .MuiButton-icon > .MuiSvgIcon-root': { fontSize: icon },
+    [BUTTON_TOUCH_QUERY]: { minWidth: 44, minHeight: 44 },
+  };
+};
 
 const createComponents = (S) => ({
   MuiCssBaseline: {
@@ -138,6 +173,8 @@ const createComponents = (S) => ({
         '--color-border-subtle': S.border.idle,
         '--color-border-hover': S.border.hover,
         '--color-border-focus': S.border.focus,
+        '--color-accent': S.accent.main,
+        '--color-accent-selection': S.accent.selectedBackground,
         '--color-primary': S.primary.main,
         '--color-primary-light': S.primary.light,
         '--color-primary-dark': S.primary.dark,
@@ -176,11 +213,47 @@ const createComponents = (S) => ({
   },
   MuiButtonBase: { defaultProps: { disableRipple: true } },
   MuiButton: {
-    defaultProps: { disableElevation: true },
+    defaultProps: { disableElevation: true, size: 'medium' },
+    variants: [
+      {
+        props: { color: 'accent', variant: 'contained' },
+        style: {
+          ...contained(S, S.accent.main, S.accent.contrastText),
+          borderColor: S.accent.foreground,
+          '&:hover:not(.Mui-disabled)': {
+            backgroundColor: S.accent.hover,
+            color: S.accent.contrastText,
+            opacity: 1,
+          },
+          '&:active:not(.Mui-disabled)': { backgroundColor: S.accent.pressed },
+          '&.Mui-disabled': {
+            color: S.text.disabled,
+            backgroundColor: S.action.disabledBackground,
+            borderColor: S.border.idle,
+          },
+        },
+      },
+      {
+        props: { color: 'accent', variant: 'text' },
+        style: textButton(S, S.accent.foreground),
+      },
+      {
+        props: { color: 'accent', variant: 'outlined' },
+        style: outlined(S, S.accent.foreground),
+      },
+      {
+        props: ({ loading, loadingPosition }) =>
+          loading && (!loadingPosition || loadingPosition === 'center'),
+        style: {
+          '&.Mui-disabled': { color: 'transparent' },
+          '& .MuiButton-loadingIndicator': { color: S.text.secondary },
+        },
+      },
+    ],
     styleOverrides: {
       root: {
-        minHeight: 36,
-        padding: '7px 16px',
+        ...buttonSize('medium'),
+        minWidth: 0,
         borderRadius: pill,
         border: '1px solid',
         fontFamily: FONTS.sans,
@@ -191,8 +264,12 @@ const createComponents = (S) => ({
         textTransform: 'none',
         boxShadow: 'none',
         transition: 'background-color 140ms ease, border-color 140ms ease, color 140ms ease',
-        [MOBILE_SM_QUERY]: { minHeight: 44, padding: '11px 16px' },
-        [TOUCH_DEVICE_QUERY]: { minHeight: 44 },
+        [REDUCED_MOTION_QUERY]: { transition: 'none' },
+        '&.Mui-focusVisible': {
+          outline: `2px solid ${S.border.focus}`,
+          outlineOffset: 2,
+          boxShadow: 'none',
+        },
         '&:active:not(.Mui-disabled)': { backgroundColor: S.action.selected },
         '&.Mui-disabled': {
           color: S.text.disabled,
@@ -224,41 +301,68 @@ const createComponents = (S) => ({
       textWarning: textButton(S, S.warning.main),
       textError: textButton(S, S.error.main),
       textInfo: textButton(S, S.info.main),
-      sizeSmall: { minHeight: 32, padding: '5px 12px', fontSize: '0.8125rem' },
-      sizeLarge: { minHeight: 40, padding: '9px 20px' },
+      sizeSmall: buttonSize('small'),
+      sizeMedium: buttonSize('medium'),
+      sizeLarge: buttonSize('large'),
+      startIcon: { marginLeft: 0, marginRight: 8 },
+      endIcon: { marginLeft: 8, marginRight: 0 },
     },
   },
   MuiIconButton: {
+    defaultProps: { size: 'medium' },
     styleOverrides: {
       root: {
-        width: 36,
-        height: 36,
-        minWidth: 36,
-        minHeight: 36,
+        width: BUTTON_SIZES.medium.height,
+        height: BUTTON_SIZES.medium.height,
+        minWidth: BUTTON_SIZES.medium.height,
+        minHeight: BUTTON_SIZES.medium.height,
         padding: 0,
         border: '1px solid transparent',
         borderRadius: pill,
         color: S.text.secondary,
         backgroundColor: 'transparent',
         boxShadow: 'none',
-        '& .MuiSvgIcon-root': { fontSize: '20px' },
+        '& .MuiSvgIcon-root': { fontSize: BUTTON_SIZES.medium.icon },
         [HOVER_CAPABLE_QUERY]: {
           '&:hover:not(.Mui-disabled)': { color: S.text.primary, backgroundColor: S.action.hover },
         },
-        [TOUCH_DEVICE_QUERY]: { minWidth: 44, minHeight: 44 },
+        [BUTTON_TOUCH_QUERY]: { minWidth: 44, minHeight: 44 },
         [REDUCED_MOTION_QUERY]: { transition: 'none' },
         '&.Mui-focusVisible': { outline: `2px solid ${S.border.focus}`, outlineOffset: 2 },
         '&:active:not(.Mui-disabled)': { backgroundColor: S.action.selected },
         '&.Mui-disabled': { color: S.text.disabled, backgroundColor: 'transparent' },
       },
       sizeSmall: {
-        width: 32, height: 32, minWidth: 32, minHeight: 32,
-        '& .MuiSvgIcon-root': { fontSize: '18px' },
-        [TOUCH_DEVICE_QUERY]: { minWidth: 44, minHeight: 44 },
+        width: BUTTON_SIZES.small.height,
+        height: BUTTON_SIZES.small.height,
+        minWidth: BUTTON_SIZES.small.height,
+        minHeight: BUTTON_SIZES.small.height,
+        '& .MuiSvgIcon-root': { fontSize: BUTTON_SIZES.small.icon },
+        [BUTTON_TOUCH_QUERY]: { minWidth: 44, minHeight: 44 },
       },
-      sizeLarge: { width: 44, height: 44, minWidth: 44, minHeight: 44 },
+      sizeLarge: {
+        width: 44,
+        height: 44,
+        minWidth: 44,
+        minHeight: 44,
+        '& .MuiSvgIcon-root': { fontSize: BUTTON_SIZES.large.icon },
+      },
     },
-    variants: [{ props: { variant: 'outlined' }, style: outlined(S) }],
+    variants: [
+      { props: { variant: 'outlined' }, style: outlined(S) },
+      ...['primary', 'secondary', 'accent', 'error', 'warning', 'success', 'info'].map((color) => ({
+        props: { color },
+        style: {
+          '&:not(.Mui-disabled), &:hover:not(.Mui-disabled)': {
+            color: color === 'accent' ? S.accent.foreground : S[color].main,
+          },
+        },
+      })),
+      {
+        props: { color: 'inherit' },
+        style: { '&:not(.Mui-disabled), &:hover:not(.Mui-disabled)': { color: 'inherit' } },
+      },
+    ],
   },
   MuiPaper: {
     defaultProps: { elevation: 0 },
@@ -321,11 +425,11 @@ const createComponents = (S) => ({
         backgroundColor: S.background.input,
         '&.Mui-focused': { outline: 'none', boxShadow: 'none' },
         '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-          borderColor: S.border.idle,
+          borderColor: S.border.focus,
           borderWidth: 1,
         },
         '&.Mui-focused:hover .MuiOutlinedInput-notchedOutline': {
-          borderColor: S.border.hover,
+          borderColor: S.border.focus,
           borderWidth: 1,
         },
         '&.Mui-error.Mui-focused .MuiOutlinedInput-notchedOutline': {
@@ -494,7 +598,10 @@ const createComponents = (S) => ({
     },
   },
   MuiTabs: {
-    styleOverrides: { root: { minHeight: 40 }, indicator: { display: 'none' } },
+    styleOverrides: {
+      root: { minHeight: 40 },
+      indicator: { height: 2, backgroundColor: S.text.secondary },
+    },
   },
   MuiTab: {
     styleOverrides: {
@@ -545,7 +652,7 @@ const createComponents = (S) => ({
           height: SWITCH_GEOMETRY.thumb,
         },
       },
-      switchBase: {
+      switchBase: ({ ownerState }) => ({
         width: SWITCH_GEOMETRY.height,
         height: SWITCH_GEOMETRY.height,
         padding: SWITCH_GEOMETRY.inset,
@@ -559,7 +666,10 @@ const createComponents = (S) => ({
           color: S.background.default,
           backgroundColor: 'transparent',
           '&:hover, &:active': { backgroundColor: 'transparent' },
-          '& + .MuiSwitch-track': { opacity: 1, backgroundColor: S.text.primary },
+          '& + .MuiSwitch-track': {
+            opacity: 1,
+            backgroundColor: checkedControlColor(S, ownerState.color),
+          },
         },
         '&.Mui-focusVisible': {
           outline: 'none',
@@ -567,14 +677,15 @@ const createComponents = (S) => ({
           backgroundColor: 'transparent',
         },
         '&.Mui-focusVisible + .MuiSwitch-track': {
-          boxShadow: 'none',
+          outline: `2px solid ${S.border.focus}`,
+          outlineOffset: 3,
         },
         '&.Mui-disabled': { color: S.text.disabled },
         '&.Mui-disabled + .MuiSwitch-track': {
           opacity: 0.5,
           backgroundColor: S.background.strong,
         },
-      },
+      }),
       thumb: {
         width: SWITCH_GEOMETRY.thumb,
         height: SWITCH_GEOMETRY.thumb,
@@ -658,11 +769,17 @@ const createComponents = (S) => ({
         textTransform: 'none',
         '&:hover': { color: S.text.primary, backgroundColor: S.action.hover },
         '&.Mui-selected': {
+          boxShadow: 'none',
           color: S.text.primary,
           backgroundColor: S.action.selected,
           fontWeight: 400,
         },
-        '&.Mui-focusVisible': { boxShadow: `0 0 0 2px ${S.border.focus}` },
+        '&.Mui-disabled': { boxShadow: 'none', color: S.text.disabled },
+        '&.Mui-focusVisible': {
+          outline: `2px solid ${S.border.focus}`,
+          outlineOffset: 2,
+          boxShadow: 'none',
+        },
       },
     },
   },
@@ -685,25 +802,40 @@ const createComponents = (S) => ({
   MuiFormHelperText: { styleOverrides: { root: { fontSize: '0.75rem', color: S.text.secondary } } },
   MuiCheckbox: {
     styleOverrides: {
-      root: {
+      root: ({ ownerState }) => ({
         color: S.text.secondary,
-        '&.Mui-checked': { color: S.text.primary },
-        '&.Mui-focusVisible': { outline: 'none', boxShadow: 'none' },
-      },
+        '&.Mui-checked, &.MuiCheckbox-indeterminate': {
+          color: checkedControlColor(S, ownerState.color),
+        },
+        '&.Mui-disabled': { color: S.text.disabled },
+        '&.Mui-focusVisible': { outline: `2px solid ${S.border.focus}`, outlineOffset: 2 },
+      }),
     },
   },
   MuiRadio: {
     styleOverrides: {
-      root: {
+      root: ({ ownerState }) => ({
         color: S.text.secondary,
-        '&.Mui-checked': { color: S.text.primary },
-        '&.Mui-focusVisible': { outline: 'none', boxShadow: 'none' },
-      },
+        '&.Mui-checked': { color: checkedControlColor(S, ownerState.color) },
+        '&.Mui-disabled': { color: S.text.disabled },
+        '&.Mui-focusVisible': { outline: `2px solid ${S.border.focus}`, outlineOffset: 2 },
+      }),
     },
   },
   MuiSlider: {
     styleOverrides: {
-      thumb: { '&.Mui-focusVisible': { outline: 'none', boxShadow: 'none' } },
+      root: ({ ownerState }) => ({
+        color: checkedControlColor(S, ownerState.color),
+        '&.Mui-disabled': { color: S.text.disabled },
+      }),
+      rail: { color: S.text.disabled },
+      thumb: {
+        '&.Mui-focusVisible': {
+          outline: `2px solid ${S.border.focus}`,
+          outlineOffset: 3,
+          boxShadow: 'none',
+        },
+      },
     },
   },
   MuiBadge: {

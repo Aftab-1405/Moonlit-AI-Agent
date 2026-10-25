@@ -1,160 +1,123 @@
-/**
- * Keeps chat pinned to bottom while streaming unless the user scrolls up.
- * Uses lightweight pinned-state refs plus event-driven scheduling for smooth
- * stream updates (including markdown/code block reflows) without per-frame loops.
- */
-import { useCallback, useEffect, useRef, useState } from 'react';
+/** Follow new replies only while the reader stays near the bottom. */
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 const PINNED_THRESHOLD_PX = 96;
-const POST_STREAM_SETTLE_MS = 700;
 
 function useAutoScroll({
   messageCount,
+  lastMessageId,
+  sessionKey,
   isStreaming,
   isConversationLoading = false,
   activityKey = '',
 }) {
   const [scrollContainer, setScrollContainer] = useState(null);
-  const [isPinnedToBottom, setIsPinnedToBottom] = useState(true);
-  const scheduleRafRef = useRef(null);
-  const prevMessageCountRef = useRef(messageCount);
-  const prevStreamingRef = useRef(isStreaming);
+  const [pinnedState, setPinnedState] = useState({ sessionKey, pinned: true });
+  const isPinnedToBottom =
+    isConversationLoading || pinnedState.sessionKey !== sessionKey || pinnedState.pinned;
   const pinnedRef = useRef(true);
-  const streamingRef = useRef(isStreaming);
-  const settleUntilRef = useRef(0);
+  const frameRef = useRef(null);
+  const previousRef = useRef(null);
 
-  const setScrollContainerRef = useCallback((node) => {
-    setScrollContainer(node);
-  }, []);
-
-  const scrollToBottomNow = useCallback(() => {
-    if (scrollContainer) {
-      scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior: 'auto' });
-      pinnedRef.current = true;
-      setIsPinnedToBottom(true);
-    }
+  const setScrollContainerRef = useCallback((node) => setScrollContainer(node), []);
+  const setPinned = useCallback(
+    (value) => {
+      pinnedRef.current = value;
+      setPinnedState((current) =>
+        current.sessionKey === sessionKey && current.pinned === value
+          ? current
+          : { sessionKey, pinned: value },
+      );
+    },
+    [sessionKey],
+  );
+  const followNow = useCallback(() => {
+    if (!scrollContainer || !pinnedRef.current || scrollContainer.dataset.historyPrepending) return;
+    scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior: 'auto' });
   }, [scrollContainer]);
-
+  const scheduleFollow = useCallback(() => {
+    if (frameRef.current !== null) return;
+    frameRef.current = requestAnimationFrame(() => {
+      frameRef.current = null;
+      // Check at execution time: a queued stream frame must respect a later scroll.
+      followNow();
+    });
+  }, [followNow]);
   const scrollToBottom = useCallback(() => {
     if (!scrollContainer) return;
-    pinnedRef.current = true;
-    setIsPinnedToBottom(true);
+    setPinned(true);
     scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior: 'smooth' });
-  }, [scrollContainer]);
+  }, [scrollContainer, setPinned]);
+  const pauseFollowing = useCallback(() => setPinned(false), [setPinned]);
 
-  const scheduleScrollToBottom = useCallback(() => {
-    if (scheduleRafRef.current !== null) return;
-    scheduleRafRef.current = requestAnimationFrame(() => {
-      scheduleRafRef.current = null;
-      scrollToBottomNow();
-    });
-  }, [scrollToBottomNow]);
-
-  const shouldAutoFollow = useCallback(() => {
-    if (!pinnedRef.current) return false;
-    if (streamingRef.current) return true;
-    return Date.now() < settleUntilRef.current;
-  }, []);
-
-  useEffect(() => {
-    const wasStreaming = streamingRef.current;
-    streamingRef.current = isStreaming;
-    if (isStreaming) {
-      settleUntilRef.current = 0;
-    } else if (wasStreaming) {
-      settleUntilRef.current = Date.now() + POST_STREAM_SETTLE_MS;
-    } else {
-      settleUntilRef.current = 0;
+  useLayoutEffect(() => {
+    const previous = previousRef.current;
+    previousRef.current = { sessionKey, isConversationLoading, lastMessageId, scrollContainer };
+    if (!scrollContainer) return;
+    if (isConversationLoading) {
+      pinnedRef.current = true;
+      return;
     }
-  }, [isStreaming]);
+    if (
+      !previous ||
+      previous.sessionKey !== sessionKey ||
+      previous.isConversationLoading ||
+      previous.scrollContainer !== scrollContainer
+    ) {
+      pinnedRef.current = true;
+      followNow();
+    } else if (lastMessageId !== previous.lastMessageId && pinnedRef.current) {
+      scheduleFollow();
+    }
+    // Count alone cannot distinguish a prepend from a newly appended reply.
+  }, [
+    sessionKey,
+    isConversationLoading,
+    lastMessageId,
+    messageCount,
+    scrollContainer,
+    setPinned,
+    followNow,
+    scheduleFollow,
+  ]);
 
   useEffect(() => {
-    if (!scrollContainer) return undefined;
-
-    const handleScroll = () => {
-      const distanceFromBottom =
+    if (!scrollContainer) return;
+    const onScroll = () => {
+      if (scrollContainer.dataset.historyPrepending) return;
+      const distance =
         scrollContainer.scrollHeight - scrollContainer.scrollTop - scrollContainer.clientHeight;
-      const nextPinned = distanceFromBottom <= PINNED_THRESHOLD_PX;
-      pinnedRef.current = nextPinned;
-      setIsPinnedToBottom((current) => (current === nextPinned ? current : nextPinned));
+      setPinned(distance <= PINNED_THRESHOLD_PX);
     };
-
-    handleScroll();
-    scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
-    return () => {
-      scrollContainer.removeEventListener('scroll', handleScroll);
-    };
-  }, [scrollContainer]);
-  useEffect(() => {
-    if (!scrollContainer) return;
-    if (shouldAutoFollow()) {
-      scheduleScrollToBottom();
-    }
-  }, [scrollContainer, scheduleScrollToBottom, shouldAutoFollow]);
+    scrollContainer.addEventListener('scroll', onScroll, { passive: true });
+    return () => scrollContainer.removeEventListener('scroll', onScroll);
+  }, [scrollContainer, setPinned]);
 
   useEffect(() => {
-    if (!scrollContainer || !isConversationLoading) return;
-    scrollContainer.scrollTo({ top: 0, behavior: 'auto' });
-    pinnedRef.current = true;
-  }, [isConversationLoading, scrollContainer]);
-
-  useEffect(() => {
-    if (messageCount > prevMessageCountRef.current) {
-      pinnedRef.current = true;
-      scheduleScrollToBottom();
-    }
-    prevMessageCountRef.current = messageCount;
-  }, [messageCount, scheduleScrollToBottom]);
-
-  useEffect(() => {
-    if (isStreaming && !prevStreamingRef.current) {
-      pinnedRef.current = true;
-      scheduleScrollToBottom();
-    }
-    prevStreamingRef.current = isStreaming;
-  }, [isStreaming, scheduleScrollToBottom]);
-  useEffect(() => {
-    // A changed activity key is the signal to re-evaluate the pinned state.
     void activityKey;
-    if (!scrollContainer) return;
-    if (shouldAutoFollow()) {
-      scheduleScrollToBottom();
-    }
-  }, [activityKey, scheduleScrollToBottom, scrollContainer, shouldAutoFollow]);
-  useEffect(() => {
-    if (!scrollContainer || typeof ResizeObserver === 'undefined') return undefined;
+    void isStreaming;
+    if (!isConversationLoading && pinnedRef.current) scheduleFollow();
+  }, [activityKey, isStreaming, isConversationLoading, scheduleFollow]);
 
+  useEffect(() => {
+    if (!scrollContainer || typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver(() => {
-      if (shouldAutoFollow()) {
-        scheduleScrollToBottom();
-      }
+      if (!isConversationLoading && pinnedRef.current) scheduleFollow();
     });
-
     observer.observe(scrollContainer);
+    if (scrollContainer.firstElementChild) observer.observe(scrollContainer.firstElementChild);
+    return () => observer.disconnect();
+  }, [scrollContainer, isConversationLoading, scheduleFollow]);
 
-    const contentNode = scrollContainer.firstElementChild;
-    if (contentNode) {
-      observer.observe(contentNode);
-    }
+  useEffect(
+    () => () => {
+      if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+    },
+    [scrollContainer, sessionKey],
+  );
 
-    return () => {
-      observer.disconnect();
-    };
-  }, [scrollContainer, scheduleScrollToBottom, shouldAutoFollow]);
-
-  useEffect(() => {
-    return () => {
-      if (scheduleRafRef.current !== null) {
-        cancelAnimationFrame(scheduleRafRef.current);
-      }
-    };
-  }, []);
-
-  return {
-    setScrollContainerRef,
-    isPinnedToBottom,
-    scrollToBottom,
-  };
+  return { setScrollContainerRef, isPinnedToBottom, scrollToBottom, pauseFollowing };
 }
 
 export default useAutoScroll;

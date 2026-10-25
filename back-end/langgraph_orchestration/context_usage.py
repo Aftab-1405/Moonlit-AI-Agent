@@ -12,7 +12,10 @@ from __future__ import annotations
 from typing import Any
 
 
-def _percent(numerator: int | float | None, denominator: int | float | None) -> int | None:
+def _percent(
+    numerator: int | float | str | None,
+    denominator: int | float | str | None,
+) -> int | None:
     """Return a clamped whole-number percentage for non-negative token counts."""
     if numerator is None:
         return None
@@ -60,9 +63,7 @@ def build_usage_metrics(budget_info: dict, **overrides: Any) -> dict:
     event.update(overrides)
 
     active_budget = (
-        event.get("activeContextBudget")
-        or event.get("hotHistoryBudget")
-        or event.get("pressureTriggerTokens")
+        event.get("activeContextBudget") or event.get("hotHistoryBudget") or event.get("pressureTriggerTokens")
     )
     event["activePercent"] = _percent(event.get("activeContextTokens"), active_budget)
     event["modelPercent"] = _percent(
@@ -104,11 +105,8 @@ def build_summary_completed_events(
     if not summary_result or not summary_result.get("created"):
         return []
 
-    remaining_tail = int(
-        summary_pressure.get("tail_tokens")
-        if summary_pressure.get("tail_tokens") is not None
-        else summary_result.get("tail_tokens") or 0
-    )
+    pressure_tail = summary_pressure.get("tail_tokens")
+    remaining_tail = int(pressure_tail if pressure_tail is not None else summary_result.get("tail_tokens") or 0)
     budget_info.update(
         {
             "tail_tokens": remaining_tail,

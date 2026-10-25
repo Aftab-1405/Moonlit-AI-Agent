@@ -27,13 +27,14 @@ test('clears only the deleted account namespace plus unowned legacy account data
   const removed = [];
   const storage = {
     length: 5,
-    key: (index) => [
-      'moonlit:user-1:settings',
-      'moonlit:user-1:saved-connection',
-      'moonlit:user-2:settings',
-      'moonlit-settings',
-      'unrelated',
-    ][index],
+    key: (index) =>
+      [
+        'moonlit:user-1:settings',
+        'moonlit:user-1:saved-connection',
+        'moonlit:user-2:settings',
+        'moonlit-settings',
+        'unrelated',
+      ][index],
     removeItem: (key) => removed.push(key),
   };
 

@@ -1,0 +1,1 @@
+{"F27": {"caller_received_ownership": false, "redis_concurrency_after_cancel": 1, "redis_concurrency_before_cancel": 1, "rpm_after_cancel": 0}, "F28": {"A_at_0": true, "B_at_121_A_still_active": true, "C_while_B_still_active": true, "counter_after_A_release_B_still_active": 0, "counter_after_B": 1, "max_concurrent": 1}}

@@ -30,7 +30,7 @@ DEFAULT_PREFERENCES: dict[str, Any] = {
 
 _INT_KEYS = {"queryTimeout", "maxRows", "connectionPersistence"}
 _BOOL_KEYS = {"confirmBeforeRun", "rememberConnection", "enableReasoning"}
-_ENUMS = {
+_ENUMS: dict[str, set[str] | set[int]] = {
     "theme": {"light", "dark"},
     "defaultDbType": {"mysql", "postgresql", "sqlserver", "oracle"},
     "connectionPersistence": {0, 5, 15, 30, 60},
@@ -114,12 +114,10 @@ class UserSettingsService:
         """Return the user's preferences merged on top of DEFAULT_PREFERENCES."""
         uid = _normalize_user_id(user_id)
         doc = ContextRepository.get(uid) or {}
-        stored = doc.get("preferences") if isinstance(doc.get("preferences"), dict) else {}
+        preferences = doc.get("preferences")
+        stored = preferences if isinstance(preferences, dict) else {}
         merged = {**DEFAULT_PREFERENCES, **stored}
-        merged["taskMode"] = (
-            _coerce_value("taskMode", stored.get("taskMode"))
-            or DEFAULT_PREFERENCES["taskMode"]
-        )
+        merged["taskMode"] = _coerce_value("taskMode", stored.get("taskMode")) or DEFAULT_PREFERENCES["taskMode"]
         return merged
 
     @staticmethod

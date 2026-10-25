@@ -145,7 +145,7 @@ def _redact_string(value: str) -> str:
     return redacted
 
 
-def redact_connection_config(config: Mapping[str, Any]) -> dict[str, Any]:
+def redact_connection_config(config: object) -> dict[str, Any]:
     """Return a copy of a DB connection config with credentials removed.
 
     Args:

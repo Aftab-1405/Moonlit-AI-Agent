@@ -50,6 +50,7 @@ from langgraph_orchestration.react_graph import (
     format_retrieved_long_term_memory,
 )
 from llm_provider.token_budget import (
+    TokenCountResult,
     calculate_dynamic_token_budget,
     count_converse_tokens_cached,
     count_converse_tokens_with_fallback,
@@ -133,11 +134,11 @@ async def prepare_stream_budget(
     results = await asyncio.gather(*count_tasks)
     system_count, tool_count = results[:2]
     index = 2
-    memory_count: dict | int = {"tokens": 0, "mode": "exact"}
+    memory_count: TokenCountResult = {"tokens": 0, "mode": "exact", "reason": None}
     if historical_context:
         memory_count = results[index]
         index += 1
-    checkpoint_count: dict | int = {"tokens": 0, "mode": "exact"}
+    checkpoint_count: TokenCountResult = {"tokens": 0, "mode": "exact", "reason": None}
     if task_checkpoint_summary:
         checkpoint_count = results[index]
 
@@ -235,24 +236,20 @@ async def _count_tokens(
     *,
     cache_key: tuple | None = None,
     **kwargs,
-) -> dict:
+) -> TokenCountResult:
     """Count Converse tokens for one payload section, with optional caching."""
-    counter = count_converse_tokens_with_fallback
-    if cache_key is not None:
 
-        def counter(current_model, **current_kwargs):
-            return count_converse_tokens_cached(
-                current_model,
-                cache_key=cache_key,
-                **current_kwargs,
-            )
+    def counter() -> TokenCountResult:
+        if cache_key is not None:
+            return count_converse_tokens_cached(model_id, cache_key=cache_key, **kwargs)
+        return count_converse_tokens_with_fallback(model_id, **kwargs)
 
     if str(model_id).startswith("mock"):
-        return counter(model_id, **kwargs)
-    return await run_in_threadpool(counter, model_id, **kwargs)
+        return counter()
+    return await run_in_threadpool(counter)
 
 
-def _merge_count_results(*results: dict | int | None) -> tuple[str, str | None]:
+def _merge_count_results(*results: TokenCountResult | dict | int | None) -> tuple[str, str | None]:
     """Collapse per-section count results into one ``(mode, reason)`` tuple."""
     for result in results:
         if isinstance(result, dict) and result.get("mode") == "estimated":
@@ -260,7 +257,7 @@ def _merge_count_results(*results: dict | int | None) -> tuple[str, str | None]:
     return "exact", None
 
 
-def _token_value(result: dict | int | None) -> int:
+def _token_value(result: TokenCountResult | dict | int | None) -> int:
     """Return the integer token count from a count result of any shape."""
     if isinstance(result, dict):
         return int(result.get("tokens") or 0)

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><title>Perspective synthetic integration fixture</title>
+<style>html,body{height:100%;margin:0}perspective-viewer{display:block;width:100%;height:100%}</style>
+</head><body><perspective-viewer></perspective-viewer>
+<script type="module">
+import perspective from '@perspective-dev/client/inline';
+import '@perspective-dev/viewer/inline';
+import '@perspective-dev/viewer-datagrid';
+import '@perspective-dev/viewer-charts';
+import '@perspective-dev/viewer/themes';
+import { createPerspectiveSession } from '/src/features/sidebar-right/artifacts/data-visualization/perspectiveSession.js';
+import { createPerspectiveWorker } from '/src/features/sidebar-right/artifacts/data-visualization/perspectiveWorker.js';
+import { buildPerspectiveData } from '/src/utils/queryResult.js';
+
+window.analysis = { createPerspectiveSession, createPerspectiveWorker, buildPerspectiveData };
+window.engine = perspective;
+window.engineReady = true;
+</script></body></html>

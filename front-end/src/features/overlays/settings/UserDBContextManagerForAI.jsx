@@ -33,7 +33,6 @@ import {
 import { getPreferenceToggleGroupSx } from '@/features/overlays/preference-surface/preferenceSurfaceStyles';
 import { useUserDBContext } from '@/hooks/useUserDBContext';
 import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
-import { getUtilityIconButtonSx } from '@/styles/shared';
 
 const formatTimeAgo = (isoString) => {
   if (!isoString) return 'Unknown';
@@ -188,7 +187,6 @@ function UserDBContextManagerForAI() {
   } = useUserDBContext();
 
   const theme = useTheme();
-  const utilityIconButtonSx = useMemo(() => getUtilityIconButtonSx(theme), [theme]);
   const toggleGroupSx = useMemo(() => getPreferenceToggleGroupSx(theme), [theme]);
   const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -333,21 +331,8 @@ function UserDBContextManagerForAI() {
           <Button
             size="small"
             onClick={() => openDeleteDialog(activeView === 'schemas' ? 'all-schemas' : 'queries')}
-            sx={{
-              ...theme.typography.uiNavItem,
-              textTransform: 'none',
-              fontWeight: 400,
-              px: 1.5,
-              height: 32,
-              borderRadius: '8px',
-              minWidth: 0,
-              color: 'text.secondary',
-              transition: theme.transitions.create(['color', 'background-color']),
-              '&:hover': {
-                color: 'error.main',
-                backgroundColor: alpha(theme.palette.error.main, theme.palette.opacity.statusHover),
-              },
-            }}
+            color="error"
+            variant="text"
           >
             Clear all
           </Button>
@@ -398,24 +383,9 @@ function UserDBContextManagerForAI() {
                             openDeleteDialog('schema', schema.database);
                           }}
                           aria-label="Remove schema context"
-                          sx={{
-                            ...utilityIconButtonSx,
-                            width: 32,
-                            height: 32,
-                            minWidth: 32,
-                            minHeight: 32,
-                            color: 'text.disabled',
-                            [HOVER_CAPABLE_QUERY]: {
-                              '&:hover': {
-                                ...utilityIconButtonSx[HOVER_CAPABLE_QUERY]?.[
-                                  '&:hover:not(:disabled):not(.Mui-disabled)'
-                                ],
-                                color: 'error.main',
-                              },
-                            },
-                          }}
+                          color="error"
                         >
-                          <DeleteIcon sx={{ fontSize: 15 }} />
+                          <DeleteIcon />
                         </IconButton>
                       </Tooltip>
                       <ExpandMoreIcon

@@ -252,7 +252,7 @@ export const SkillStep = memo(function SkillStep({ skills = [] }) {
 
   const label = skills.map((s) => SKILL_LABELS[s] || humanizeSkillName(s)).join(', ');
 
-  const nodeColor = theme.palette.success.main;
+  const nodeColor = theme.palette.semanticColors.skill;
 
   const skillNodeSx = useMemo(
     () =>

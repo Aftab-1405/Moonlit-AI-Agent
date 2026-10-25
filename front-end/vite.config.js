@@ -10,6 +10,8 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'jsdom',
+    // Bound concurrent MUI/jsdom work so default test deadlines stay meaningful.
+    maxWorkers: 2,
     setupFiles: ['./src/vitest.setup.js'],
     include: ['src/**/*.vitest.{js,jsx}'],
     css: false,

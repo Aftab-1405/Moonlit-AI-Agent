@@ -1,5 +1,5 @@
 import { ThemeProvider } from '@mui/material/styles';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import MessageList from '@/features/chat/MessageList';
 import { createDarkTheme } from '@/theme';
@@ -19,7 +19,9 @@ function renderMessageList(props = {}) {
 
   const view = render(
     <ThemeProvider theme={theme}>
-      <MessageList {...baseProps} />
+      <div data-chat-scroll-container="">
+        <MessageList {...baseProps} />
+      </div>
     </ThemeProvider>,
   );
 
@@ -28,7 +30,9 @@ function renderMessageList(props = {}) {
     rerenderList(nextProps = {}) {
       view.rerender(
         <ThemeProvider theme={theme}>
-          <MessageList {...baseProps} {...nextProps} />
+          <div data-chat-scroll-container="">
+            <MessageList {...baseProps} {...nextProps} />
+          </div>
         </ThemeProvider>,
       );
     },
@@ -229,5 +233,95 @@ describe('MessageList motion lifecycle', () => {
     expect(screen.getByRole('article', { name: 'Moonlit response' })).toBe(responseArticle);
     expect(responseArticle.getAttribute('data-response-state')).toBe('error');
     expect(screen.getByRole('alert').getAttribute('data-status-motion')).toBe('live');
+  });
+});
+
+const historyMessages = (count, prefix = 'history') =>
+  Array.from({ length: count }, (_, index) => ({
+    id: `${prefix}-${index}`,
+    role: 'user',
+    text: `${prefix} message ${index}`,
+  }));
+
+describe('MessageList continuous history', () => {
+  it('renders all loaded messages without transcript page controls', () => {
+    renderMessageList({ messages: historyMessages(36) });
+    expect(screen.getAllByRole('article')).toHaveLength(36);
+    expect(screen.queryByRole('navigation', { name: 'Transcript pages' })).toBeNull();
+    expect(screen.getByText('history message 0')).toBeTruthy();
+    expect(screen.getByText('history message 35')).toBeTruthy();
+  });
+
+  it('preserves the live article when older messages are prepended without animating history', () => {
+    const tail = { id: 'live', role: 'assistant', text: 'Working', status: 'streaming' };
+    const messages = [...historyMessages(30, 'recent'), tail];
+    const view = renderMessageList({ messages });
+    const response = screen.getByRole('article', { name: 'Moonlit response' });
+    view.rerenderList({ messages: [...historyMessages(30, 'older'), ...messages] });
+    expect(screen.getByRole('article', { name: 'Moonlit response' })).toBe(response);
+    expect(screen.getByText('older message 0').closest('article').dataset.entryMotion).toBe(
+      'static',
+    );
+    view.rerenderList({
+      messages: [
+        ...historyMessages(30, 'older'),
+        ...messages.slice(0, -1),
+        { ...tail, text: 'Done', status: 'done' },
+      ],
+    });
+    expect(screen.getByRole('article', { name: 'Moonlit response' })).toBe(response);
+  });
+
+  it('loads near the top once and preserves the visible anchor at response time', async () => {
+    let finish;
+    let capture;
+    const onLoadOlder = vi.fn(({ beforePrepend }) => {
+      capture = beforePrepend;
+      return new Promise((resolve) => {
+        finish = resolve;
+      });
+    });
+    const messages = historyMessages(2, 'recent');
+    const history = { hasMore: true, before: 'cursor', isLoading: false };
+    const view = renderMessageList({ messages, history, onLoadOlder });
+    const container = document.querySelector('[data-chat-scroll-container]');
+    Object.defineProperties(container, {
+      clientHeight: { value: 400 },
+      scrollHeight: { value: 2000 },
+    });
+    container.getBoundingClientRect = () => ({ top: 0 });
+    const anchor = document.querySelector('[data-message-id="recent-0"]');
+    let anchorTop = -20;
+    anchor.getBoundingClientRect = () => ({ top: anchorTop, bottom: anchorTop + 200 });
+    container.scrollTop = 100;
+    fireEvent.scroll(container);
+    fireEvent.scroll(container);
+    expect(onLoadOlder).toHaveBeenCalledTimes(1);
+    // The reader moves while fetching. Capture this offset when the response arrives.
+    container.scrollTop = 150;
+    anchorTop = -70;
+    capture();
+    anchorTop = 230;
+    view.rerenderList({
+      messages: [...historyMessages(2, 'older'), ...messages],
+      history,
+      onLoadOlder,
+    });
+    expect(container.scrollTop).toBe(450);
+    expect(screen.getByText('recent message 0').closest('[data-message-id]')).toBe(anchor);
+    await act(async () => finish(true));
+  });
+
+  it('exposes an inline retry after history failure', () => {
+    const onLoadOlder = vi.fn().mockResolvedValue(false);
+    renderMessageList({
+      messages: historyMessages(2),
+      onLoadOlder,
+      history: { hasMore: true, error: 'Couldn’t load older messages.' },
+    });
+    fireEvent.scroll(document.querySelector('[data-chat-scroll-container]'));
+    expect(onLoadOlder).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry loading older messages' }));
+    expect(onLoadOlder).toHaveBeenCalledOnce();
   });
 });

@@ -1,12 +1,13 @@
 import { Box, Button, IconButton, Tooltip, Typography } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
-import { memo, useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { runQuery } from '@/api';
-import { ButtonLoadingSpinner } from '@/components';
 import { CheckIcon, CopyIcon, ExecuteIcon } from '@/components/icons';
+import { useDatabaseConnection } from '@/contexts/DatabaseContext';
 import { useTheme as useAppTheme } from '@/contexts/ThemeContext';
 import { getArtifactActionButtonSx } from '@/features/sidebar-right/artifact-loader';
 import { copyToClipboard } from '@/utils/clipboard';
+import { normalizeQueryResult } from '@/utils/queryResult';
 
 const STATUS_ACTION_SIZE = 30;
 
@@ -19,39 +20,47 @@ function StatusBar({
 }) {
   const theme = useTheme();
   const { settings } = useAppTheme();
+  const { currentSchema, lastConnectedAt, isLoading: sourceChanging } = useDatabaseConnection();
   const [isRunning, setIsRunning] = useState(false);
+  const requestRef = useRef(null);
+  useLayoutEffect(() => {
+    setIsRunning(false);
+    return () => {
+      requestRef.current?.abort();
+      requestRef.current = null;
+    };
+  }, [activeTab?.id, currentDatabase, isConnected, currentSchema, lastConnectedAt, sourceChanging]);
   const [copied, setCopied] = useState(false);
 
   const handleRunQuery = useCallback(async () => {
-    if (!activeTab?.query?.trim() || isRunning || !isConnected) return;
+    if (!activeTab?.query?.trim() || requestRef.current || !isConnected || sourceChanging) return;
 
+    const request = new AbortController();
+    requestRef.current = request;
     setIsRunning(true);
 
     try {
       const maxRows = settings.maxRows ?? 1000;
       const queryTimeout = settings.queryTimeout ?? 30;
-      const response = await runQuery({
-        sql: activeTab.query,
-        maxRows,
-        timeout: queryTimeout,
-      });
+      const response = await runQuery(
+        {
+          sql: activeTab.query,
+          maxRows,
+          timeout: queryTimeout,
+        },
+        request.signal,
+      );
+      if (request.signal.aborted || requestRef.current !== request) return;
 
       if (response.status === 'success') {
         const queryData = response.data;
-        const results = {
-          columns: queryData.result?.columns || [],
-          column_types: queryData.result?.column_types || {},
-          rows: queryData.result?.rows || [],
-          row_count: queryData.row_count,
-          total_rows: queryData.total_rows,
-          truncated: queryData.truncated,
-          execution_time: queryData.execution_time_ms ? queryData.execution_time_ms / 1000 : null,
-        };
+        const results = normalizeQueryResult(queryData);
         onQueryExecute(results, null);
       } else {
         onQueryExecute(null, response.message || 'Query execution failed');
       }
     } catch (error) {
+      if (request.signal.aborted || requestRef.current !== request) return;
       const message =
         error?.data?.message ||
         error?.response?.data?.message ||
@@ -59,9 +68,12 @@ function StatusBar({
         'Failed to execute query';
       onQueryExecute(null, message);
     } finally {
-      setIsRunning(false);
+      if (requestRef.current === request) {
+        requestRef.current = null;
+        setIsRunning(false);
+      }
     }
-  }, [activeTab, isConnected, isRunning, onQueryExecute, settings]);
+  }, [activeTab, isConnected, onQueryExecute, settings, sourceChanging]);
 
   useEffect(() => {
     onRegisterRunQuery?.(handleRunQuery);
@@ -77,7 +89,7 @@ function StatusBar({
   }, [activeTab]);
 
   const hasRunnableQuery = Boolean(activeTab?.query?.trim());
-  const connectionColor = isConnected ? theme.palette.primary.main : theme.palette.text.disabled;
+  const connectionColor = isConnected ? theme.palette.success.main : theme.palette.text.disabled;
 
   return (
     <Box
@@ -149,29 +161,29 @@ function StatusBar({
             <Button
               size="small"
               variant="contained"
+              color="accent"
               onClick={handleRunQuery}
-              disabled={isRunning || !hasRunnableQuery || !isConnected}
+              disabled={isRunning || !hasRunnableQuery || !isConnected || sourceChanging}
               aria-label="Run query"
-              startIcon={
-                isRunning ? (
-                  <ButtonLoadingSpinner size={14} />
-                ) : (
-                  <ExecuteIcon sx={{ fontSize: 17 }} />
-                )
-              }
-              sx={{
-                minWidth: 72,
-                height: 30,
-                px: 1.25,
-                borderRadius: '9999px',
-                ...theme.typography.uiCaptionSm,
-                fontWeight: 400,
-                boxShadow: 'none',
-                '&:hover': { boxShadow: 'none' },
-                '& .MuiButton-startIcon': { ml: 0, mr: 0.5 },
-              }}
+              loading={isRunning}
+              startIcon={<ExecuteIcon />}
+              loadingPosition="start"
             >
-              {isRunning ? 'Running' : 'Run'}
+              <Box component="span" sx={{ display: 'grid' }}>
+                <Box
+                  component="span"
+                  sx={{ gridArea: '1 / 1', visibility: isRunning ? 'hidden' : 'visible' }}
+                >
+                  Run
+                </Box>
+                <Box
+                  component="span"
+                  aria-hidden={!isRunning}
+                  sx={{ gridArea: '1 / 1', visibility: isRunning ? 'visible' : 'hidden' }}
+                >
+                  Running
+                </Box>
+              </Box>
             </Button>
           </span>
         </Tooltip>

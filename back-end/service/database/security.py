@@ -19,7 +19,7 @@ All public methods are static and cached where the input space is small.
 import logging
 from functools import lru_cache
 from types import MappingProxyType
-from typing import Mapping
+from typing import Mapping, TypedDict
 
 from core.errors import log_safe_exception, public_tool_error
 from core.security import is_valid_identifier
@@ -87,6 +87,13 @@ _SQLSERVER_STATE_CHANGING_LOCK_HINTS = frozenset(
 _SEQUENCE_ADVANCEMENT_WARNING = "Sequence advancement is prohibited by read-only policy"
 _SESSION_ASSIGNMENT_WARNING = "Session assignment is prohibited by read-only policy"
 _STATE_CHANGING_LOCK_WARNING = "State-changing table lock hint is prohibited by read-only policy"
+
+
+class SQLAnalysis(TypedDict):
+    is_safe: bool
+    warnings: list[str]
+    query_type: str | None
+    tables_accessed: list[str]
 
 
 class DatabaseSecurity:
@@ -158,7 +165,7 @@ class DatabaseSecurity:
         return column_name
 
     @staticmethod
-    def analyze_sql_query(query: str, dialect: str | None = None) -> dict:
+    def analyze_sql_query(query: str, dialect: str | None = None) -> SQLAnalysis:
         """Parse and validate exactly one read-only SQL statement.
 
         Args:
@@ -175,7 +182,7 @@ class DatabaseSecurity:
         if not query:
             raise ValueError("Query cannot be empty")
 
-        analysis = {
+        analysis: SQLAnalysis = {
             "is_safe": False,
             "warnings": [],
             "query_type": None,

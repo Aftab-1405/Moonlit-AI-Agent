@@ -146,7 +146,7 @@ SseEvent = Annotated[
 SSE_EVENT_SCHEMA = TypeAdapter(SseEvent).json_schema()
 
 
-STREAMING_RESPONSES = {
+STREAMING_RESPONSES: dict[int | str, dict[str, Any]] = {
     200: {
         "description": (
             "Server-sent event stream. Each data frame contains one JSON object "

@@ -69,11 +69,11 @@ function ResultCell({ cell }) {
   );
 }
 
-function createColumnDefinitions(columnNames, rows) {
+function createColumnDefinitions(columnNames, rows, metadata = []) {
   return columnNames.map((columnName, columnIndex) => ({
     id: `${String(columnName)}-${columnIndex}`,
     accessorFn: (row) => (Array.isArray(row) ? row[columnIndex] : row?.[columnName]),
-    header: String(columnName),
+    header: String(metadata[columnIndex]?.label ?? columnName),
     minSize: MIN_COLUMN_SIZE,
     maxSize: MAX_COLUMN_SIZE,
     size: estimateColumnSize(columnName, columnIndex, rows),
@@ -246,6 +246,7 @@ export default function InlineExecutionTable({
 
   useEffect(() => {
     let mounted = true;
+    const request = new AbortController();
 
     async function fetchResult() {
       if (!conversationId || !executionId) {
@@ -256,7 +257,7 @@ export default function InlineExecutionTable({
       try {
         setLoading(true);
         setError(null);
-        const response = await getExecutionResult(conversationId, executionId);
+        const response = await getExecutionResult(conversationId, executionId, request.signal);
 
         if (mounted && response.status === 'success' && response.data) {
           const rawData = Array.isArray(response.data.data)
@@ -273,7 +274,7 @@ export default function InlineExecutionTable({
                 : [];
 
           setData(rawData);
-          setColumns(createColumnDefinitions(columnNames, rawData));
+          setColumns(createColumnDefinitions(columnNames, rawData, response.data.column_metadata));
         } else if (mounted) {
           setError(response.message || 'Could not load this query result.');
         }
@@ -288,6 +289,7 @@ export default function InlineExecutionTable({
 
     return () => {
       mounted = false;
+      request.abort();
     };
   }, [conversationId, executionId]);
 
@@ -333,15 +335,15 @@ export default function InlineExecutionTable({
     initialState: { density: 'compact' },
     mrtTheme: {
       baseBackgroundColor: theme.palette.transparent,
-      cellNavigationOutlineColor: theme.palette.primary.main,
-      draggingBorderColor: theme.palette.primary.main,
+      cellNavigationOutlineColor: theme.palette.border.focus,
+      draggingBorderColor: theme.palette.accent.foreground,
       matchHighlightColor: alpha(
-        theme.palette.primary.main,
+        theme.palette.accent.foreground,
         theme.palette.opacity.statusBackground,
       ),
       menuBackgroundColor: theme.palette.background.paper,
       pinnedRowBackgroundColor: theme.palette.transparent,
-      selectedRowBackgroundColor: alpha(theme.palette.primary.main, theme.palette.opacity.soft),
+      selectedRowBackgroundColor: theme.palette.accent.selectedBackground,
     },
     muiTableContainerProps: {
       sx: {
@@ -367,7 +369,7 @@ export default function InlineExecutionTable({
       },
     },
     muiTableHeadProps: {
-      sx: { bgcolor: 'transparent' },
+      sx: { bgcolor: 'background.paper', opacity: 1 },
     },
     muiTableHeadRowProps: {
       sx: { boxShadow: 'none' },
@@ -394,7 +396,7 @@ export default function InlineExecutionTable({
           opacity: 0,
         },
         '&:hover .Mui-TableHeadCell-ResizeHandle-Divider': {
-          borderColor: theme.palette.primary.main,
+          borderColor: theme.palette.border.hover,
           opacity: 1,
         },
       },

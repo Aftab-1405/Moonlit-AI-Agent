@@ -5,7 +5,7 @@ import { getQueryExecutionMeta } from '@/features/chat/conversationOutputs';
  * Composition:
  *   - ConversationLoadingSkeleton  (shown while the conversation is loading)
  *   - Error state                   (shown if load failed and there's no cache)
- *   - "Load older messages" button  (visible when total > visibleCount)
+ *   - Automatic history loading near the top of the transcript
  *   - For each message: UserMessage | AIMessage
  *
  * AIMessage internally splits content into a timeline (interleaved
@@ -14,11 +14,10 @@ import { getQueryExecutionMeta } from '@/features/chat/conversationOutputs';
  * DiagramArtifactCard entries below the text content.
  *
  * Performance:
- *   - `visibleCount` caps the number of rendered messages to keep DOM size
- *     bounded for very long conversations (default 60).
+ *   - History is fetched in cursor pages and prepended without replacing the live
+ *     response. Offscreen completed turns skip layout and paint.
  *   - Each message component is memoised and uses stable callbacks.
- *   - `overflowAnchor: 'none'` is set on scroll containers to prevent the
- *     browser from auto-scrolling to keep older content in view.
+ *   - A visible message anchor preserves the reading position on prepend.
  */
 
 import {
@@ -46,6 +45,7 @@ import {
   getMobileEdgeControlSx,
   getResponsivePillIconButtonSx,
 } from '@/features/styles/interfaceChrome';
+import { useHistoryScroll } from '@/hooks/chat-page/useHistoryScroll';
 import {
   HOVER_CAPABLE_QUERY,
   REDUCED_MOTION_QUERY,
@@ -86,6 +86,14 @@ const getMessageActionsRowSx = (theme) => ({
   }),
   [REDUCED_MOTION_QUERY]: { transition: 'none' },
 });
+
+// Keep transcript semantics/find-in-page while skipping offscreen layout and paint.
+const offscreenTurnSx = {
+  contentVisibility: 'auto',
+  containIntrinsicSize: 'auto 240px',
+  '&:focus-within': { contentVisibility: 'visible' },
+  '@media print': { contentVisibility: 'visible', containIntrinsicSize: 'none' },
+};
 
 const turnGroupHoverSx = {
   [HOVER_CAPABLE_QUERY]: {
@@ -202,6 +210,13 @@ function useMessageEntryMotion({ sessionKey, isLoading, messageIds }) {
     seenIds,
     messageIds,
   });
+  const previousFirst = snapshot.messageIds[0];
+  const prependCount = previousFirst ? messageIds.indexOf(previousFirst) : 0;
+  if (snapshot.sessionKey === sessionKey && prependCount > 0) {
+    messageIds.slice(0, prependCount).forEach((id) => {
+      entryIds.delete(id);
+    });
+  }
   const nextSeenBySession = new Map(snapshot.seenBySession);
   const nextSeenIds = new Set(seenIds);
   messageIds.forEach((id) => {
@@ -261,6 +276,7 @@ const UserMessage = memo(function UserMessage({ message, animateEntry, entryMoti
       sx={{
         mt: { xs: 2, md: 2.5 },
         mb: 0,
+        ...offscreenTurnSx,
         ...turnGroupHoverSx,
       }}
     >
@@ -698,7 +714,7 @@ const AIMessage = memo(function AIMessage({
             pr: { xs: 0, sm: 0.5 },
             minWidth: 0,
             py: 0.1,
-            overflowAnchor: 'none',
+            overflowAnchor: 'auto',
           }}
         >
           <MarkdownRenderer
@@ -909,6 +925,7 @@ const AIMessage = memo(function AIMessage({
       sx={{
         pb: { xs: 2.25, sm: 2.5 },
         minWidth: 0,
+        ...(!isWaiting && !isStreaming ? offscreenTurnSx : {}),
         ...turnGroupHoverSx,
       }}
     >
@@ -1198,13 +1215,19 @@ const MessageList = memo(function MessageList({
   conversationId = null,
   onRunQuery,
   onOpenCanvasArtifact,
+  history,
+  onLoadOlder,
 }) {
-  // FIX [THEME-UNBOUND]: theme is used at line 1010 in
-  // getSecondaryActionButtonSx(theme) for the "Load older messages" button.
-  // Without this declaration, theme is undefined and throws
-  // ReferenceError when hiddenCount > 0 (conversation has >60 messages).
   const theme = useTheme();
-  const [visibleCount, setVisibleCount] = useState(60);
+  const rootRef = useRef(null);
+  const loadOlder = useHistoryScroll({
+    rootRef,
+    sessionKey: sessionKey ?? conversationId,
+    messages,
+    history,
+    onLoadOlder,
+    isLoading: isLoadingConversation,
+  });
   const normalizedMessages = useMemo(
     () =>
       messages.map((message, index) => {
@@ -1216,10 +1239,6 @@ const MessageList = memo(function MessageList({
       }),
     [messages],
   );
-  const effectiveVisibleCount = normalizedMessages.length <= 50 ? 60 : visibleCount;
-  const hiddenCount = Math.max(0, normalizedMessages.length - effectiveVisibleCount);
-  const visibleMessages =
-    hiddenCount > 0 ? normalizedMessages.slice(-effectiveVisibleCount) : normalizedMessages;
   const messageIds = useMemo(
     () => normalizedMessages.map((message) => message.id),
     [normalizedMessages],
@@ -1294,12 +1313,13 @@ const MessageList = memo(function MessageList({
     <Box
       role="log"
       aria-label="Conversation transcript"
+      ref={rootRef}
       aria-live="polite"
       aria-relevant="additions text"
       sx={{
         flex: 1,
         py: { xs: 1.25, sm: 1.75 },
-        overflowAnchor: 'none',
+        overflowAnchor: 'auto',
         display: 'flex',
         flexDirection: 'column',
       }}
@@ -1317,42 +1337,45 @@ const MessageList = memo(function MessageList({
           minWidth: 0,
         }}
       >
-        {hiddenCount > 0 && (
-          <Box sx={{ pb: 1.5, display: 'flex', justifyContent: 'center' }}>
-            <Button
-              size="small"
-              variant="outlined"
-              onClick={() => setVisibleCount((c) => c + 50)}
-              sx={getSecondaryActionButtonSx(theme)}
-            >
-              Load {Math.min(50, hiddenCount)} older messages
+        {history?.isLoading && (
+          <Typography role="status" sx={{ textAlign: 'center', color: 'text.secondary', py: 1 }}>
+            Loading older messages…
+          </Typography>
+        )}
+        {history?.error && (
+          <Box role="alert" sx={{ textAlign: 'center', py: 1 }}>
+            <Typography sx={{ color: 'text.secondary' }}>{history.error}</Typography>
+            <Button size="small" onClick={loadOlder} sx={getSecondaryActionButtonSx(theme)}>
+              Retry loading older messages
             </Button>
           </Box>
         )}
-        {visibleMessages.map((message) =>
-          message.role === 'user' ? (
-            <UserMessage
-              key={message.id}
-              message={message.text}
-              animateEntry={animatedMessageIds.has(message.id)}
-              entryMotion={motionVariants.turn}
-            />
-          ) : (
-            <AIMessage
-              key={message.id}
-              id={message.id}
-              text={message.text}
-              steps={message.steps}
-              timeline={message.timeline}
-              status={message.status}
-              onRunQuery={onRunQuery}
-              onOpenCanvasArtifact={onOpenCanvasArtifact}
-              conversationId={conversationId}
-              animateEntry={animatedMessageIds.has(message.id)}
-              motionVariants={motionVariants}
-            />
-          ),
-        )}
+        {normalizedMessages.map((message) => (
+          <Box key={message.id} data-message-id={message.id}>
+            {message.role === 'user' ? (
+              <UserMessage
+                key={message.id}
+                message={message.text}
+                animateEntry={animatedMessageIds.has(message.id)}
+                entryMotion={motionVariants.turn}
+              />
+            ) : (
+              <AIMessage
+                key={message.id}
+                id={message.id}
+                text={message.text}
+                steps={message.steps}
+                timeline={message.timeline}
+                status={message.status}
+                onRunQuery={onRunQuery}
+                onOpenCanvasArtifact={onOpenCanvasArtifact}
+                conversationId={conversationId}
+                animateEntry={animatedMessageIds.has(message.id)}
+                motionVariants={motionVariants}
+              />
+            )}
+          </Box>
+        ))}
       </Box>
     </Box>
   );

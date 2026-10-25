@@ -196,7 +196,11 @@ export const AppPopoverItem = memo(function AppPopoverItem({
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: 'text.primary',
+            color: props.disabled
+              ? 'text.disabled'
+              : selected && ariaChecked
+                ? 'accent.foreground'
+                : 'text.primary',
             '& .MuiSvgIcon-root': { fontSize: UI_POPOVER.iconSize },
           }}
         >

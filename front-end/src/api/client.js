@@ -48,7 +48,7 @@ function csrfHeaders(method) {
  */
 async function apiClient(endpoint, options = {}) {
   const method = options.method || 'GET';
-  const { body, headers: customHeaders, ...restOptions } = options;
+  const { body, headers: customHeaders, onMetrics, ...restOptions } = options;
   const hasBody = body !== undefined;
 
   const headers = {
@@ -75,7 +75,9 @@ async function apiClient(endpoint, options = {}) {
   }
 
   try {
+    const started = performance.now();
     const response = await fetch(endpoint, config);
+    const headersReceived = performance.now();
 
     const contentType = response.headers.get('content-type');
     if (response.status === 204) {
@@ -99,7 +101,22 @@ async function apiClient(endpoint, options = {}) {
       return response;
     }
 
-    const data = await response.json();
+    let data;
+    if (onMetrics) {
+      const text = await response.text();
+      const bodyReceived = performance.now();
+      data = JSON.parse(text);
+      const parsed = performance.now();
+      onMetrics({
+        request_to_headers_ms: headersReceived - started,
+        transfer_ms: bodyReceived - headersReceived,
+        parse_ms: parsed - bodyReceived,
+        request_total_ms: parsed - started,
+        payload_bytes: new TextEncoder().encode(text).byteLength,
+      });
+    } else {
+      data = await response.json();
+    }
 
     if (!response.ok) {
       throw new ApiError(

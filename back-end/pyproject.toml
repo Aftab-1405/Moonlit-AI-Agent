@@ -51,6 +51,7 @@ dev = [
   "pip-audit>=2.9.0,<3.0.0",
   "pytest>=9.0.0,<10.0.0",
   "pytest-asyncio>=1.0.0,<2.0.0",
+  "pytest-cov>=7,<8",
   "ruff>=0.15.0,<0.16.0",
 ]
 
@@ -99,3 +100,14 @@ markers = [
 python_version = "3.12"
 warn_unused_configs = true
 ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["."]
+omit = ["tests/*", ".venv/*"]
+
+[tool.coverage.report]
+show_missing = true
+precision = 2
+
+[tool.coverage.html]
+directory = "htmlcov"

@@ -1,34 +1,37 @@
 import {
   Avatar,
   Box,
+  Button,
   IconButton,
   TextField,
-  Tooltip,
   Typography,
   useMediaQuery,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  AddIcon,
-  CheckIcon,
   CloseIcon,
+  DashboardIcon,
   DatabaseIcon,
   HomeIcon,
   MindmapIcon,
-  RecentChatIcon,
   SearchIcon,
   SidebarPanelIcon,
 } from '@/components/icons';
 import { Drawer, DrawerContent, DrawerOverlay } from '@/components/ui/Drawer';
-import UserProfileMenu from '@/features/shell/UserProfileMenu';
+import { getScrollbarStyles, UI_LAYOUT } from '@/styles/shared';
+import DashboardPreview from './components/DashboardPreview';
+import DatabasePreview from './components/DatabasePreview';
+import UserProfileMenu from './components/ProfilePreview';
 import {
   ConversationItem,
   HistoryListSkeleton,
   SidebarNavItem,
 } from './components/SidebarPrimitives';
+import { SidebarSkeleton } from './components/SidebarSectionLayout';
 import { buildDesktopNavSx, buildMobileDrawerPaperStyles } from './styles/sidebarStyles';
-import { getScrollbarStyles, UI_LAYOUT } from '@/styles/shared';
+
+const CONVERSATIONS_PER_PAGE = 40;
 
 const EMPTY_INLINE_RENAME = {
   surface: null,
@@ -38,7 +41,8 @@ const EMPTY_INLINE_RENAME = {
   saving: false,
 };
 const PANEL_TITLES = {
-  history: 'History',
+  home: 'Home',
+  dashboard: 'Dashboard',
   search: 'Search chats',
   database: 'Databases',
   profile: 'Your account',
@@ -56,6 +60,12 @@ function Sidebar({
   onRenameConversation,
   isConnected,
   currentDatabase,
+  dbType,
+  currentSchema,
+  isStreaming,
+  isDatabaseBusy,
+  databaseStatus = 'ready',
+  onRetryDatabaseStatus,
   availableDatabases = [],
   onOpenDbModal,
   onOpenMindmap,
@@ -73,13 +83,15 @@ function Sidebar({
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const finePointer = useMediaQuery('(hover: hover) and (pointer: fine)');
-  const [selectedMode, setSelectedMode] = useState('history');
+  const [selectedMode, setSelectedMode] = useState('home');
   const [peekMode, setPeekMode] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [conversationPage, setConversationPage] = useState(0);
   const [inlineRename, setInlineRename] = useState(EMPTY_INLINE_RENAME);
   const inlineRenameRef = useRef(EMPTY_INLINE_RENAME);
   const navRef = useRef(null);
   const panelRef = useRef(null);
+  const listScrollRef = useRef(null);
   const triggerRef = useRef(null);
   const homeRef = useRef(null);
   const closeRef = useRef(null);
@@ -87,10 +99,10 @@ function Sidebar({
   const focusSearchRef = useRef(false);
   const timerRef = useRef(null);
   const mode = isMobile ? selectedMode : peekMode || selectedMode;
+  const activeItem = mode;
   const panelVisible = isMobile ? mobileOpen : open || Boolean(peekMode);
   const clearTimer = useCallback(() => clearTimeout(timerRef.current), []);
   useEffect(() => clearTimer, [clearTimer]);
-
   const closePeek = useCallback(() => {
     clearTimer();
     if (!open && panelRef.current?.contains(document.activeElement))
@@ -118,6 +130,7 @@ function Sidebar({
     clearTimer();
     triggerRef.current = event?.currentTarget || triggerRef.current;
     setSelectedMode(nextMode);
+    setConversationPage(0);
     setPeekMode(null);
     focusSearchRef.current = nextMode === 'search';
     if (!isMobile && !open) onToggleOpen?.();
@@ -133,7 +146,7 @@ function Sidebar({
         triggerRef.current = trigger;
         setPeekMode(nextMode);
       },
-      panelVisible && mode !== nextMode ? 300 : 100,
+      panelVisible && activeItem !== nextMode ? 300 : 100,
     );
   };
   const leavePreview = () => {
@@ -155,11 +168,14 @@ function Sidebar({
     else if (open) onToggleOpen?.();
     (triggerRef.current || homeRef.current)?.focus();
   };
-  const handleSelectConversation = (id) => {
-    onSelectConversation?.(id);
-    closePeek();
-    if (isMobile) onMobileClose?.();
-  };
+  const handleSelectConversation = useCallback(
+    (id) => {
+      onSelectConversation?.(id);
+      closePeek();
+      if (isMobile) onMobileClose?.();
+    },
+    [onSelectConversation, closePeek, isMobile, onMobileClose],
+  );
   const handleInlineRenameStart = useCallback((surface, conversationId, title) => {
     const nextRename = {
       surface,
@@ -214,19 +230,31 @@ function Sidebar({
   }, [onRenameConversation]);
 
   const normalizedQuery = mode === 'search' ? searchQuery.trim().toLowerCase() : '';
-  const shownConversations = conversations.filter(
-    (conv) =>
-      !normalizedQuery ||
-      (conv.title || 'New Conversation').toLowerCase().includes(normalizedQuery),
+  const matchingConversations = useMemo(
+    () =>
+      conversations.filter(
+        (conv) =>
+          !normalizedQuery ||
+          (conv.title || 'New Conversation').toLowerCase().includes(normalizedQuery),
+      ),
+    [conversations, normalizedQuery],
   );
+  const pageCount = Math.ceil(matchingConversations.length / CONVERSATIONS_PER_PAGE);
+  const page = Math.min(conversationPage, Math.max(0, pageCount - 1));
+  const shownConversations = matchingConversations.slice(
+    page * CONVERSATIONS_PER_PAGE,
+    (page + 1) * CONVERSATIONS_PER_PAGE,
+  );
+  const activeIndex = conversations.findIndex((conv) => conv.id === currentConversationId);
+  const activeIsVisible = shownConversations.some((conv) => conv.id === currentConversationId);
   const navItem = (id, label, Icon, extra = {}) => (
     <SidebarNavItem
       key={id}
       label={label}
       icon={<Icon sx={{ fontSize: 20 }} />}
       isCollapsed={!isMobile}
-      isActive={panelVisible && mode === id}
-      expanded={panelVisible && mode === id}
+      isActive={panelVisible && activeItem === id}
+      expanded={panelVisible && activeItem === id}
       onClick={(event) => chooseMode(id, event)}
       onPointerEnter={(event) => previewMode(id, event)}
       onPointerLeave={leavePreview}
@@ -234,24 +262,22 @@ function Sidebar({
     />
   );
   const profile = (
-    <Tooltip title="Your account" placement="right" disableHoverListener={Boolean(peekMode)}>
-      <IconButton
-        aria-label={`Open ${user?.displayName || 'Profile'} profile`}
-        aria-expanded={panelVisible && mode === 'profile'}
-        onClick={(event) => chooseMode('profile', event)}
-        onPointerEnter={(event) => previewMode('profile', event)}
-        onPointerLeave={leavePreview}
-        sx={{ width: isMobile ? 44 : 36, height: isMobile ? 44 : 36, borderRadius: '10px' }}
-      >
-        <Avatar src={user?.photoURL || undefined} sx={{ width: 26, height: 26, fontSize: 11 }}>
-          {(user?.displayName || 'Moonlit')
-            .split(/\s+/)
-            .slice(0, 2)
-            .map((part) => part[0])
-            .join('')}
-        </Avatar>
-      </IconButton>
-    </Tooltip>
+    <IconButton
+      aria-label={`Open ${user?.displayName || 'Profile'} profile`}
+      aria-expanded={panelVisible && mode === 'profile'}
+      onClick={(event) => chooseMode('profile', event)}
+      onPointerEnter={(event) => previewMode('profile', event)}
+      onPointerLeave={leavePreview}
+      sx={{ width: isMobile ? 44 : 36, height: isMobile ? 44 : 36, borderRadius: '9999px' }}
+    >
+      <Avatar src={user?.photoURL || undefined} sx={{ width: 26, height: 26, fontSize: 11 }}>
+        {(user?.displayName || 'Moonlit')
+          .split(/\s+/)
+          .slice(0, 2)
+          .map((part) => part[0])
+          .join('')}
+      </Avatar>
+    </IconButton>
   );
   const panel = (
     <Box
@@ -288,7 +314,14 @@ function Sidebar({
     >
       <Box
         component="header"
-        sx={{ minHeight: 52, display: 'flex', alignItems: 'center', px: 1.5 }}
+        sx={{
+          height: 52,
+          minHeight: 52,
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          px: 1.5,
+        }}
       >
         <Typography component="h2" sx={{ fontSize: 15, fontWeight: 500, flex: 1 }}>
           {PANEL_TITLES[mode]}
@@ -297,7 +330,7 @@ function Sidebar({
           ref={closeRef}
           aria-label="Close sidebar panel"
           onClick={closePanel}
-          sx={{ borderRadius: '8px', width: isMobile ? 44 : 32, height: isMobile ? 44 : 32 }}
+          sx={{ borderRadius: '9999px', width: isMobile ? 44 : 32, height: isMobile ? 44 : 32 }}
         >
           {isMobile ? (
             <CloseIcon sx={{ fontSize: 18 }} />
@@ -311,24 +344,42 @@ function Sidebar({
           inputRef={searchRef}
           placeholder="Search chats"
           value={searchQuery}
-          onChange={(event) => setSearchQuery(event.target.value)}
+          onChange={(event) => {
+            setSearchQuery(event.target.value);
+            setConversationPage(0);
+          }}
           size="small"
           slotProps={{ htmlInput: { 'aria-label': 'Search chats' } }}
           sx={{
             mx: 1.5,
             mb: 1,
-            '& .MuiOutlinedInput-root': { borderRadius: '10px', fontSize: 14, bgcolor: 'background.input' },
+            '& .MuiOutlinedInput-root': {
+              borderRadius: '10px',
+              fontSize: 14,
+              bgcolor: 'background.input',
+            },
           }}
         />
       )}
-      <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', ...getScrollbarStyles(theme) }}>
-        {(mode === 'history' || mode === 'search') && (
+      <Box
+        ref={listScrollRef}
+        sx={{
+          flex: 1,
+          minHeight: 0,
+          scrollbarGutter: ['dashboard', 'profile', 'database'].includes(mode) ? 'auto' : 'stable',
+          overflowY: ['dashboard', 'profile', 'database'].includes(mode) ? 'hidden' : 'auto',
+          ...getScrollbarStyles(theme),
+        }}
+      >
+        {(mode === 'home' || mode === 'search') && (
           <>
             <Typography sx={{ color: 'text.secondary', fontSize: 12, px: 2, py: 1 }}>
               {mode === 'search' ? 'Results' : 'Recent chats'}
             </Typography>
             {isConversationsLoading && conversations.length === 0 ? (
-              <HistoryListSkeleton />
+              <HistoryListSkeleton
+                label={mode === 'search' ? 'Loading conversations' : 'Loading recent conversations'}
+              />
             ) : conversationListError && conversations.length === 0 ? (
               <Box role="alert" sx={{ p: 2 }}>
                 <Typography sx={{ fontSize: 13 }}>Couldn’t load conversations</Typography>
@@ -363,31 +414,35 @@ function Sidebar({
             )}
           </>
         )}
-        {mode === 'database' && (
-          <Box sx={{ px: 1 }}>
-            {availableDatabases.map((db) => (
-              <SidebarNavItem
-                key={db}
-                label={db}
-                icon={db === currentDatabase ? <CheckIcon /> : <DatabaseIcon />}
-                isActive={db === currentDatabase}
-                onClick={() => {
-                  if (db !== currentDatabase) onDatabaseSwitch?.(db);
-                }}
-              />
-            ))}
-            {!isConnected && (
-              <Typography sx={{ p: 1, fontSize: 13, color: 'text.secondary' }}>
-                Connect a database to explore your data.
-              </Typography>
-            )}
-            <SidebarNavItem
-              label="New connection"
-              icon={<AddIcon />}
-              onClick={onOpenDbModal}
-              uiTarget="database_button"
-            />
-          </Box>
+        {panelVisible && mode === 'database' && (
+          <DatabasePreview
+            key={isConnected ? 'connected' : 'disconnected'}
+            {...{
+              isConnected,
+              currentDatabase,
+              dbType,
+              currentSchema,
+              availableDatabases,
+              isStreaming,
+              isDatabaseBusy,
+              onDatabaseSwitch,
+              databaseStatus,
+              onRetryDatabaseStatus,
+            }}
+            onOpenDatabase={onOpenDbModal}
+          />
+        )}
+        {panelVisible && mode === 'dashboard' && (
+          <DashboardPreview
+            userId={user?.uid}
+            isConnected={isConnected}
+            currentDatabase={currentDatabase}
+            onOpenDashboard={() => {
+              closePeek();
+              if (isMobile) onMobileClose?.();
+              onOpenDashboard?.();
+            }}
+          />
         )}
         {mode === 'profile' && (
           <UserProfileMenu
@@ -395,18 +450,88 @@ function Sidebar({
             open
             user={user}
             theme={theme}
-            onOpenDashboard={onOpenDashboard}
             onOpenSettings={onOpenSettings}
             onLogout={onLogout}
           />
         )}
       </Box>
+      {(mode === 'home' || mode === 'search') && (
+        <Box
+          component="nav"
+          aria-label="Conversation pages"
+          sx={{ height: 72, flex: '0 0 72px', boxSizing: 'border-box', px: 2, overflow: 'hidden' }}
+        >
+          <Box
+            sx={{
+              minHeight: 32,
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 1,
+            }}
+          >
+            {isConversationsLoading && !conversations.length ? (
+              <SidebarSkeleton width="65%" />
+            ) : (
+              pageCount > 1 && (
+                <Typography sx={{ fontSize: 11, whiteSpace: 'nowrap' }}>
+                  Page {page + 1} of {pageCount}
+                </Typography>
+              )
+            )}
+            {activeIndex >= 0 && !activeIsVisible && (
+              <Button
+                size="small"
+                onClick={() => {
+                  setSelectedMode('home');
+                  setPeekMode(!isMobile && !open ? 'home' : null);
+                  listScrollRef.current?.scrollTo?.({ top: 0 });
+                  setConversationPage(Math.floor(activeIndex / CONVERSATIONS_PER_PAGE));
+                }}
+                sx={{ whiteSpace: 'nowrap', flexShrink: 0 }}
+              >
+                Show current chat
+              </Button>
+            )}
+          </Box>
+          <Box sx={{ height: 36, display: 'flex', justifyContent: 'space-between' }}>
+            {pageCount > 1 && (
+              <>
+                <Button
+                  size="small"
+                  aria-disabled={page === 0 || Boolean(inlineRename.conversationId)}
+                  onClick={() => {
+                    if (page === 0 || inlineRename.conversationId) return;
+                    setConversationPage(page - 1);
+                    listScrollRef.current?.scrollTo?.({ top: 0 });
+                  }}
+                >
+                  Previous chats
+                </Button>
+                <Button
+                  size="small"
+                  aria-disabled={page >= pageCount - 1 || Boolean(inlineRename.conversationId)}
+                  onClick={() => {
+                    if (page >= pageCount - 1 || inlineRename.conversationId) return;
+                    setConversationPage(page + 1);
+                    listScrollRef.current?.scrollTo?.({ top: 0 });
+                  }}
+                >
+                  Next chats
+                </Button>
+              </>
+            )}
+          </Box>
+        </Box>
+      )}
     </Box>
   );
   const navigation = (
     <>
+      {isMobile && navItem('home', 'Home', HomeIcon)}
       {navItem('search', 'Search chats', SearchIcon)}
-      {navItem('history', 'History', RecentChatIcon)}
+      {navItem('dashboard', 'Dashboard', DashboardIcon)}
       <Box
         aria-hidden
         sx={{ height: '1px', flexShrink: 0, bgcolor: 'border.separator', my: 0.5, mx: 0.75 }}
@@ -469,30 +594,26 @@ function Sidebar({
         sx={{
           width: 44,
           flex: '0 0 44px',
-          m: 0.5,
+          m: `${UI_LAYOUT.navigationRailInset}px`,
           boxSizing: 'border-box',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           bgcolor: 'transparent',
-          py: 1,
+          pt: `${(UI_LAYOUT.workspaceTopRowHeight - UI_LAYOUT.controlRowHeight) / 2 - UI_LAYOUT.navigationRailInset}px`,
+          pb: 1,
           gap: 2,
         }}
       >
         <SidebarNavItem
           buttonRef={homeRef}
-          label={open ? 'Collapse sidebar' : 'Expand sidebar'}
+          label="Home"
           icon={<HomeIcon sx={{ fontSize: 20 }} />}
           isCollapsed
-          isActive={open}
-          onClick={(event) => {
-            triggerRef.current = event.currentTarget;
-            clearTimer();
-            setPeekMode(null);
-            setSelectedMode('history');
-            onToggleOpen?.();
-          }}
-          onPointerEnter={(event) => previewMode('history', event)}
+          isActive={panelVisible && activeItem === 'home'}
+          expanded={panelVisible && activeItem === 'home'}
+          onClick={(event) => chooseMode('home', event)}
+          onPointerEnter={(event) => previewMode('home', event)}
           onPointerLeave={leavePreview}
         />
         <Box

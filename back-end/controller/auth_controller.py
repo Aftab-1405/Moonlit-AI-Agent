@@ -56,6 +56,7 @@ _AUTH_TOKEN_VERIFICATION_ERROR = PublicError(
     "Authentication token verification failed.",
 )
 _AUTH_REVOCATION_ERROR = PublicError("AUTH_REVOCATION_FAILED", "Authentication revocation failed.")
+_AUTH_SESSION_CLEANUP_ERROR = PublicError("AUTH_SESSION_CLEANUP_FAILED", "Session state cleanup failed.")
 _FIREBASE_CONFIG_ERROR = PublicError("FIREBASE_CONFIG_FAILED", "Firebase configuration failed.")
 
 # ENH [RL-HTTP]: Layer 1 IP-level guard for auth endpoints.
@@ -123,7 +124,7 @@ async def set_authenticated_user_session(request: Request, response: Response, d
             data.idToken,
             check_revoked=Config.FIREBASE_SESSION_CHECK_REVOKED,
         )
-        await track_account_request(request, decoded_token['uid'], allow_pending=True)
+        await track_account_request(request, decoded_token["uid"], allow_pending=True)
         expires_in = timedelta(seconds=Config.SESSION_EXPIRE_SECONDS)
         session_cookie = await run_in_threadpool(
             auth.create_session_cookie,
@@ -199,10 +200,9 @@ async def logout_authenticated_user_session(request: Request, response: Response
     has logged out — a stolen cookie would remain usable until natural expiry.
 
     The revoke call is best-effort: if Firebase Admin is unavailable at
-    logout time, the cookie is still cleared client-side and the Redis state
-    is wiped, so the only residual risk is the (stolen) cookie remaining
-    valid until natural expiry. A brief warning is logged so operators can
-    spot a Firebase outage.
+    logout time, the cookie is still cleared client-side. Session-state cleanup
+    is also best-effort: storage failures are logged and state expires by TTL.
+    A stolen cookie may remain valid until natural expiry if revocation fails.
     """
     verify_csrf_token(request)
 
@@ -210,14 +210,24 @@ async def logout_authenticated_user_session(request: Request, response: Response
     # verify_session_cookie(check_revoked=True) returns revoked=true on any
     # subsequent request with the (now invalid) cookie. This is the only
     # server-side signal Firebase offers for session-cookie invalidation.
-    user = await get_current_user_optional(request)
+    try:
+        user = await get_current_user_optional(request)
+    except HTTPException as exc:
+        if exc.status_code not in {status.HTTP_409_CONFLICT, status.HTTP_503_SERVICE_UNAVAILABLE}:
+            raise
+        # Verification outages and account erasure must not prevent local
+        # logout. Do not admit new account work or bypass the erasure barrier.
+        user = None
     if user and user.get("uid"):
         try:
             await run_in_threadpool(auth.revoke_refresh_tokens, user["uid"])
         except Exception as exc:
             log_safe_exception(logger, "revoke_firebase_refresh_tokens", exc, _AUTH_REVOCATION_ERROR)
 
-    await clear_session_state(request)
+    try:
+        await clear_session_state(request)
+    except Exception as exc:
+        log_safe_exception(logger, "clear_logout_session_state", exc, _AUTH_SESSION_CLEANUP_ERROR)
 
     _delete_cookie(response, Config.SESSION_COOKIE_NAME, httponly=True)
 

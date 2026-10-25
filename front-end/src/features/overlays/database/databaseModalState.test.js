@@ -5,12 +5,12 @@ import { getConnectedActionDisabledSx, getConnectionActionState } from './databa
 test('database connection action uses primary styling until connection succeeds', () => {
   assert.deepEqual(getConnectionActionState({ loading: false, connected: false }), {
     label: 'Connect',
-    tone: 'primary',
+    tone: 'accent',
     disabled: false,
   });
   assert.deepEqual(getConnectionActionState({ loading: true, connected: false }), {
     label: 'Connecting',
-    tone: 'primary',
+    tone: 'accent',
     disabled: true,
   });
   assert.deepEqual(getConnectionActionState({ loading: false, connected: true }), {

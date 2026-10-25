@@ -117,6 +117,12 @@ def store_execution_result(conversation_id: str, execution_id: str, data: dict) 
             .document(execution_id)
         )
 
+        # Firestore does not support nested arrays. Persist the canonical
+        # schema/metadata once and reconstruct positional rows from the lossless
+        # object projection after reading its existing bounded chunks.
+        data = dict(data)
+        if isinstance(data.get("tabular_result"), dict):
+            data["tabular_result"] = {k: v for k, v in data["tabular_result"].items() if k != "rows"}
         rows = list(data.get("data") or [])
         serialized_size = len(json.dumps(rows, default=str).encode("utf-8"))
         chunks = []
@@ -193,13 +199,19 @@ def get_execution_result(conversation_id: str, execution_id: str) -> dict:
                 raise RuntimeError("Execution result persistence is incomplete")
             chunk_count = int(result.get("chunk_count", 0) or 0)
             if chunk_count:
-                rows = []
+                rows: list[dict] = []
                 for index in range(chunk_count):
                     chunk = doc_ref.collection("chunks").document(f"{index:06d}").get()
                     if not chunk.exists:
                         raise RuntimeError(f"Execution result chunk {index} is missing")
                     rows.extend((chunk.to_dict() or {}).get("rows") or [])
                 result["data"] = rows
+            if isinstance(result.get("tabular_result"), dict):
+                tabular = dict(result["tabular_result"])
+                tabular["rows"] = [
+                    [row.get(key) for key in tabular.get("columns", [])] for row in result.get("data", [])
+                ]
+                result["tabular_result"] = tabular
             return result
         return {}
     except Exception as e:

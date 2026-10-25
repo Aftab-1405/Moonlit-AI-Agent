@@ -51,7 +51,7 @@ def default_embedding_provider(text: str) -> list[float]:
     if not model_id:
         raise ValueError("VAMP_EMBEDDING_MODEL is not configured in settings/environment")
 
-    request_body = {"inputText": text}
+    request_body: dict[str, str | int | bool] = {"inputText": text}
     if "titan-embed-text-v2" in model_id:
         request_body.update(
             {

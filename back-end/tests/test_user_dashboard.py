@@ -175,6 +175,7 @@ async def test_account_deletion_requires_recent_firebase_auth_and_clears_session
         "clear_session_state",
         lambda _request: _record_async(cleared, True),
     )
+
     async def delete_user(user_id):
         deleted.append(user_id)
         return {"deleted_conversations": 2}
@@ -206,11 +207,11 @@ async def test_account_deletion_requires_recent_firebase_auth_and_clears_session
         cookies={"firebase_session": "fresh-session"},
     ) as client:
         activity = get_account_activity_store()
-        active_request = await activity.admit('user-1')
-        busy_response = await client.delete('/api/v1/user/account')
+        active_request = await activity.admit("user-1")
+        busy_response = await client.delete("/api/v1/user/account")
         assert busy_response.status_code == 409
         assert not deleted and not cleared and not quota_cleared
-        await activity.release('user-1', active_request)
+        await activity.release("user-1", active_request)
         response = await client.delete("/api/v1/user/account")
 
     assert response.status_code == 200

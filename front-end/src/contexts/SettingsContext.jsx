@@ -31,9 +31,7 @@ export function useSettings() {
 
 export function SettingsProvider({ children }) {
   const { user } = useAuth();
-  const storageKey = user?.uid
-    ? getAccountStorageKey(user.uid, 'settings')
-    : THEME_STORAGE_KEY;
+  const storageKey = user?.uid ? getAccountStorageKey(user.uid, 'settings') : THEME_STORAGE_KEY;
   const [rawSettings, setRawSettings] = useLocalStorage(storageKey, defaultSettings);
   const settings = useMemo(
     () => ({

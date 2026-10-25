@@ -42,7 +42,8 @@ const getLabelSx = (theme) => ({
 
 const ICON_PROPS = { sx: { fontSize: 18 }, 'aria-hidden': true };
 
-const formatNumber = (value) => new Intl.NumberFormat('en-US').format(value || 0);
+const numberFormatter = new Intl.NumberFormat('en-US');
+const formatNumber = (value) => numberFormatter.format(value || 0);
 
 const formatLatency = (latency) => {
   if (latency === null || latency === undefined) return 'No signal';
@@ -71,7 +72,7 @@ function getStatusTone(apiHealth) {
   if (apiHealth.online) {
     return {
       label: 'Online',
-      color: 'primary.main',
+      color: 'success.main',
       copy: 'Backend responding normally',
     };
   }
@@ -140,7 +141,7 @@ function CardHeader({ label, title, icon: Icon }) {
 function MetricRow({ icon, label, value, detail, tone = 'neutral' }) {
   const Icon = icon;
   const color =
-    tone === 'good' ? 'primary.main' : tone === 'warning' ? 'warning.main' : 'text.primary';
+    tone === 'good' ? 'success.main' : tone === 'warning' ? 'warning.main' : 'text.primary';
 
   return (
     <Box
@@ -227,7 +228,7 @@ function HitRateCard({ hitRate, hits, misses }) {
           height: 6,
           borderRadius: '999px',
           bgcolor: (theme) => alpha(theme.palette.text.primary, 0.08),
-          '& .MuiLinearProgress-bar': { borderRadius: '999px', bgcolor: 'primary.main' },
+          '& .MuiLinearProgress-bar': { borderRadius: '999px', bgcolor: 'text.secondary' },
         }}
       />
       <Box
@@ -243,7 +244,7 @@ function HitRateCard({ hitRate, hits, misses }) {
           <Typography
             sx={{
               mt: 0.5,
-              color: 'primary.main',
+              color: 'text.secondary',
               fontFamily: (theme) => theme.typography.fontFamilyMono,
               fontSize: 16,
               fontWeight: 400,
@@ -337,19 +338,6 @@ function ApiStatusCard({ statusTone, apiHealth, refreshing, onRefresh }) {
             aria-busy={refreshing}
             onClick={onRefresh}
             disabled={refreshing}
-            sx={{
-              width: { xs: 44, md: 36 },
-              height: { xs: 44, md: 36 },
-              borderRadius: (theme) => theme.shape.radius.pill,
-              color: 'text.secondary',
-              '&:hover': {
-                bgcolor: (theme) => alpha(theme.palette.text.primary, 0.06),
-                color: 'text.primary',
-              },
-              '&.Mui-focusVisible': {
-                boxShadow: (theme) => `0 0 0 3px ${theme.palette.border.focus}`,
-              },
-            }}
           >
             {refreshing ? (
               <CircularProgress size={16} sx={{ color: 'text.primary' }} />
@@ -742,7 +730,7 @@ function AdminDashboard() {
                 }}
               >
                 <Box sx={{ textAlign: 'center' }}>
-                  <CircularProgress size={32} thickness={3.5} sx={{ color: 'primary.main' }} />
+                  <CircularProgress size={32} thickness={3.5} sx={{ color: 'text.secondary' }} />
                   <Typography sx={(theme) => ({ ...getLabelSx(theme), mt: 2 })}>
                     Reading runtime telemetry
                   </Typography>

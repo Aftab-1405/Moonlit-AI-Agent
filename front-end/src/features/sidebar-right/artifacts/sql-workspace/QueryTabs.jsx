@@ -1,6 +1,6 @@
 import { Box, Button, IconButton, Tooltip } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
-import { memo } from 'react';
+import { memo, useRef } from 'react';
 import {
   AddIcon,
   CloseIcon,
@@ -61,6 +61,21 @@ function QueryTabs({
 }) {
   const theme = useTheme();
   const interaction = getInteractionColors(theme);
+  const tabRefs = useRef(new Map());
+
+  const handleTabKeyDown = (event, index) => {
+    const direction = theme.direction === 'rtl' ? -1 : 1;
+    let next;
+    if (event.key === 'ArrowRight') next = (index + direction + tabs.length) % tabs.length;
+    else if (event.key === 'ArrowLeft') next = (index - direction + tabs.length) % tabs.length;
+    else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = tabs.length - 1;
+    else return;
+    event.preventDefault();
+    const id = tabs[next].id;
+    tabRefs.current.get(id)?.focus();
+    onTabChange(id);
+  };
 
   return (
     <Box
@@ -108,7 +123,7 @@ function QueryTabs({
           },
         }}
       >
-        {tabs.map((tab) => {
+        {tabs.map((tab, index) => {
           const active = activeTabId === tab.id;
           return (
             <Box
@@ -127,6 +142,12 @@ function QueryTabs({
                 id={`sql-query-tab-${tab.id}`}
                 className="sql-query-tab"
                 role="tab"
+                tabIndex={active ? 0 : -1}
+                ref={(node) => {
+                  if (node) tabRefs.current.set(tab.id, node);
+                  else tabRefs.current.delete(tab.id);
+                }}
+                onKeyDown={(event) => handleTabKeyDown(event, index)}
                 aria-selected={active}
                 aria-controls={active ? `sql-query-panel-${tab.id}` : undefined}
                 aria-label={tab.title}

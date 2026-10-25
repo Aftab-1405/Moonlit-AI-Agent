@@ -21,3 +21,6 @@ export const MOBILE_SM_QUERY = '@media (max-width:599.95px)';
 /** Browsers without backdrop-filter support — fallback to solid backgrounds. */
 export const BACKDROP_FILTER_FALLBACK_QUERY =
   '@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)))';
+
+/** Button hit targets cover small viewports and coarse pointers. */
+export const BUTTON_TOUCH_QUERY = '@media (max-width:767.95px), (pointer: coarse)';

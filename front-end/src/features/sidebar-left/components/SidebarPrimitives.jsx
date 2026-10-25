@@ -6,8 +6,6 @@ import {
   ListItemIcon,
   Menu,
   MenuItem,
-  Skeleton,
-  Tooltip,
   Typography,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
@@ -19,7 +17,6 @@ import {
   buildConversationSelectSx,
   buildNavRowSx,
   getCollapsingLabelSx,
-  getSidebarRailTooltipSlotProps,
   ICON_COL,
 } from '@/features/sidebar-left/styles/sidebarStyles';
 import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
@@ -32,6 +29,7 @@ import {
   UI_POPOVER,
 } from '@/styles/shared';
 import { getConversationDisplayTitle } from '@/utils/conversationTitles';
+import { LoadingStatus, SidebarSkeleton } from './SidebarSectionLayout';
 
 /**
  * Sidebar primitive components — the building blocks rendered inside the
@@ -119,41 +117,39 @@ const ConversationActivity = memo(function ConversationActivity({ presentation }
   if (!presentation) return null;
 
   return (
-    <Tooltip title={presentation.label}>
-      <Box
-        component="span"
-        aria-hidden="true"
-        data-conversation-activity={presentation.kind}
-        sx={{
-          width: 18,
-          height: 18,
-          ml: 0.5,
-          flexShrink: 0,
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color:
-            presentation.kind === 'error'
-              ? 'error.main'
-              : presentation.kind === 'attention'
-                ? 'warning.main'
-                : 'text.secondary',
-        }}
-      >
-        {presentation.kind === 'generating' ? (
-          <CircularProgress size={12} thickness={5} color="inherit" />
-        ) : presentation.kind === 'done' ? (
-          <CheckIcon sx={{ fontSize: 14 }} />
-        ) : presentation.kind === 'error' ? (
-          <CloseIcon sx={{ fontSize: 14 }} />
-        ) : (
-          <Box
-            component="span"
-            sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: 'currentColor' }}
-          />
-        )}
-      </Box>
-    </Tooltip>
+    <Box
+      component="span"
+      aria-hidden="true"
+      data-conversation-activity={presentation.kind}
+      sx={{
+        width: 18,
+        height: 18,
+        ml: 0.5,
+        flexShrink: 0,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color:
+          presentation.kind === 'error'
+            ? 'error.main'
+            : presentation.kind === 'attention'
+              ? 'warning.main'
+              : 'text.secondary',
+      }}
+    >
+      {presentation.kind === 'generating' ? (
+        <CircularProgress size={12} thickness={5} color="inherit" />
+      ) : presentation.kind === 'done' ? (
+        <CheckIcon sx={{ fontSize: 14 }} />
+      ) : presentation.kind === 'error' ? (
+        <CloseIcon sx={{ fontSize: 14 }} />
+      ) : (
+        <Box
+          component="span"
+          sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: 'currentColor' }}
+        />
+      )}
+    </Box>
   );
 });
 
@@ -281,46 +277,42 @@ const InlineConversationTitle = memo(function InlineConversationTitle({
           gap: { xs: 0, md: 0.25 },
         }}
       >
-        <Tooltip title="Save rename">
-          <span>
-            <IconButton
-              size="small"
-              disableRipple
-              disabled={saving || !title.trim()}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={(event) => {
-                event.stopPropagation();
-                onCommit?.();
-              }}
-              aria-label="Save conversation title"
-              sx={actionButtonSx}
-            >
-              {saving ? (
-                <CircularProgress size={13} thickness={5} color="inherit" />
-              ) : (
-                <CheckIcon sx={{ fontSize: 16 }} />
-              )}
-            </IconButton>
-          </span>
-        </Tooltip>
-        <Tooltip title="Cancel rename">
-          <span>
-            <IconButton
-              size="small"
-              disableRipple
-              disabled={saving}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={(event) => {
-                event.stopPropagation();
-                onCancel?.();
-              }}
-              aria-label="Cancel renaming conversation"
-              sx={actionButtonSx}
-            >
-              <CloseIcon sx={{ fontSize: 15 }} />
-            </IconButton>
-          </span>
-        </Tooltip>
+        <span>
+          <IconButton
+            size="small"
+            disableRipple
+            disabled={saving || !title.trim()}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={(event) => {
+              event.stopPropagation();
+              onCommit?.();
+            }}
+            aria-label="Save conversation title"
+            sx={actionButtonSx}
+          >
+            {saving ? (
+              <CircularProgress size={13} thickness={5} color="inherit" />
+            ) : (
+              <CheckIcon sx={{ fontSize: 16 }} />
+            )}
+          </IconButton>
+        </span>
+        <span>
+          <IconButton
+            size="small"
+            disableRipple
+            disabled={saving}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={(event) => {
+              event.stopPropagation();
+              onCancel?.();
+            }}
+            aria-label="Cancel renaming conversation"
+            sx={actionButtonSx}
+          >
+            <CloseIcon sx={{ fontSize: 15 }} />
+          </IconButton>
+        </span>
       </Box>
     </>
   );
@@ -428,20 +420,18 @@ export const ConversationItem = memo(function ConversationItem({
               <ConversationActivity presentation={activityPresentation} />
             </Box>
             <ConversationActivityStatus presentation={activityPresentation} title={title} />
-            <Tooltip title="Conversation options" arrow>
-              <IconButton
-                className="conversation-options"
-                size="small"
-                disableRipple
-                onClick={handleMenuOpen}
-                aria-label={`Options for ${title}`}
-                aria-haspopup="menu"
-                aria-expanded={menuOpen}
-                sx={optionsButtonSx}
-              >
-                <MoreIcon sx={{ fontSize: 16 }} />
-              </IconButton>
-            </Tooltip>
+            <IconButton
+              className="conversation-options"
+              size="small"
+              disableRipple
+              onClick={handleMenuOpen}
+              aria-label={`Options for ${title}`}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              sx={optionsButtonSx}
+            >
+              <MoreIcon sx={{ fontSize: 16 }} />
+            </IconButton>
           </>
         )}
       </Box>
@@ -491,7 +481,6 @@ export const SidebarNavItem = memo(function SidebarNavItem({
   buttonRef,
   label,
   ariaLabel = label,
-  tooltip,
   icon,
   onClick,
   onPointerEnter,
@@ -504,86 +493,77 @@ export const SidebarNavItem = memo(function SidebarNavItem({
   uiTarget,
 }) {
   const theme = useTheme();
-  const tooltipTitle = disabled || isCollapsed ? tooltip || label : '';
-  const railTooltipSlotProps = getSidebarRailTooltipSlotProps(theme);
-
   return (
-    <Tooltip
-      title={tooltipTitle}
-      placement="right"
-      arrow
-      slotProps={railTooltipSlotProps}
-      disableHoverListener={!tooltipTitle}
-      disableFocusListener={!tooltipTitle}
-      disableTouchListener={!tooltipTitle}
-    >
-      <Box component="span" sx={{ display: 'block', width: isCollapsed ? '36px' : '100%' }}>
+    <Box component="span" sx={{ display: 'block', width: isCollapsed ? '36px' : '100%' }}>
+      <Box
+        ref={buttonRef}
+        component="button"
+        type="button"
+        onClick={disabled ? undefined : onClick}
+        onPointerEnter={onPointerEnter}
+        onPointerLeave={onPointerLeave}
+        aria-expanded={expanded}
+        aria-current={isActive ? 'true' : undefined}
+        disabled={disabled}
+        aria-label={ariaLabel}
+        data-ui-target={uiTarget}
+        sx={{
+          ...buildNavRowSx(theme, { isActive, disabled, collapsed: isCollapsed }),
+          px: 0,
+        }}
+      >
+        {/* ── Icon column ── always ICON_COL wide, icon centered inside ── */}
         <Box
-          ref={buttonRef}
-          component="button"
-          type="button"
-          onClick={disabled ? undefined : onClick}
-          onPointerEnter={onPointerEnter}
-          onPointerLeave={onPointerLeave}
-          aria-expanded={expanded}
-          disabled={disabled}
-          aria-label={ariaLabel}
-          data-ui-target={uiTarget}
+          component="span"
           sx={{
-            ...buildNavRowSx(theme, { isActive, disabled, collapsed: isCollapsed }),
-            px: 0,
+            display: 'inline-flex',
+            flexShrink: 0,
+            width: ICON_COL,
+            justifyContent: 'center',
+            alignItems: 'center',
+            position: 'relative',
           }}
         >
-          {/* ── Icon column ── always ICON_COL wide, icon centered inside ── */}
           <Box
             component="span"
             sx={{
               display: 'inline-flex',
-              flexShrink: 0,
-              width: ICON_COL,
-              justifyContent: 'center',
-              alignItems: 'center',
-              position: 'relative',
+              color: showStatus ? 'text.primary' : 'inherit',
             }}
           >
-            <Box
-              component="span"
-              sx={{
-                display: 'inline-flex',
-                color: showStatus ? 'text.primary' : 'inherit',
-              }}
-            >
-              {icon}
-            </Box>
-          </Box>
-
-          {/* ── Label — collapses to zero when sidebar is collapsed ── */}
-          <Box sx={getCollapsingLabelSx(theme, isCollapsed)}>
-            <Typography
-              noWrap
-              sx={{
-                ...theme.typography.uiNavItem,
-                fontWeight: 400,
-                color: 'inherit',
-                textAlign: 'left',
-              }}
-            >
-              {label}
-            </Typography>
+            {icon}
           </Box>
         </Box>
+
+        {/* ── Label — collapses to zero when sidebar is collapsed ── */}
+        <Box sx={getCollapsingLabelSx(theme, isCollapsed)}>
+          <Typography
+            noWrap
+            sx={{
+              ...theme.typography.uiNavItem,
+              fontWeight: 400,
+              color: 'inherit',
+              textAlign: 'left',
+            }}
+          >
+            {label}
+          </Typography>
+        </Box>
       </Box>
-    </Tooltip>
+    </Box>
   );
 });
 
 // ─── HistoryListSkeleton ──────────────────────────────────────────────────────
 // Skeleton rows match the two-column conversation-row geometry. The options
 // column is intentionally empty until interaction.
-export const HistoryListSkeleton = memo(function HistoryListSkeleton() {
+export const HistoryListSkeleton = memo(function HistoryListSkeleton({
+  label = 'Loading recent conversations',
+}) {
   return (
-    <Box role="status" aria-label="Loading recent conversations" sx={{ px: 1, pb: 1 }}>
-      {[0, 1, 2, 3, 4].map((i) => (
+    <Box aria-busy="true" sx={{ px: 1, pb: 1, overflow: 'hidden' }}>
+      <LoadingStatus>{label}</LoadingStatus>
+      {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
         <Box
           key={i}
           sx={{
@@ -593,21 +573,12 @@ export const HistoryListSkeleton = memo(function HistoryListSkeleton() {
             pl: 1,
             pr: 0,
             py: 0,
-            mb: 0.25,
+            mb: 0.125,
             height: { xs: UI_LAYOUT.touchTarget, md: UI_POPOVER.rowMinHeight },
             minHeight: { xs: UI_LAYOUT.touchTarget, md: UI_POPOVER.rowMinHeight },
           }}
         >
-          <Skeleton
-            variant="rounded"
-            animation="wave"
-            sx={{
-              width: `${88 - (i % 3) * 12}%`,
-              maxWidth: 168,
-              height: 10,
-              borderRadius: 999,
-            }}
-          />
+          <SidebarSkeleton width={`${88 - (i % 3) * 12}%`} height={10} />
         </Box>
       ))}
     </Box>

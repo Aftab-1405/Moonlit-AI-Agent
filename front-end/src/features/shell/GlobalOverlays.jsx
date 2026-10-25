@@ -9,7 +9,7 @@
 //   - ConfirmDialog                         run-query confirmation
 //   - ConfirmDialog                         delete-conversation confirmation
 
-import { lazy, memo, Suspense } from 'react';
+import { lazy, memo, Suspense, useState } from 'react';
 import { ConfirmDialog } from '@/components';
 import ToastStack from '@/components/common/ToastStack';
 import SchemaMindmapDialog from '@/features/overlays/mindmap';
@@ -17,23 +17,30 @@ import SchemaMindmapDialog from '@/features/overlays/mindmap';
 const DatabaseModal = lazy(() => import('@/features/overlays/database/DatabaseModal'));
 const SettingsModal = lazy(() => import('@/features/overlays/settings/SettingsModal'));
 
-const ModalLayer = memo(
-  function ModalLayer({
-    dbModalOpen,
-    handleCloseDbModal,
-    handleDbConnect,
-    handleDbModalSelectDatabase,
-    isDbConnected,
-    currentDatabase,
-    availableDatabases,
-    dbModalInitialType,
-    settingsOpen,
-    handleCloseSettings,
-    settingsInitialSection,
-  }) {
-    return (
-      <>
-        <Suspense fallback={null}>
+// Defer the import until first use, then retain state and exit transitions.
+function MountOnFirstOpen({ open, children }) {
+  const [hasOpened, setHasOpened] = useState(open);
+  if (open && !hasOpened) setHasOpened(true);
+  return open || hasOpened ? children : null;
+}
+
+const ModalLayer = memo(function ModalLayer({
+  dbModalOpen,
+  handleCloseDbModal,
+  handleDbConnect,
+  handleDbModalSelectDatabase,
+  isDbConnected,
+  currentDatabase,
+  availableDatabases,
+  dbModalInitialType,
+  settingsOpen,
+  handleCloseSettings,
+  settingsInitialSection,
+}) {
+  return (
+    <>
+      <Suspense fallback={null}>
+        <MountOnFirstOpen open={dbModalOpen}>
           <DatabaseModal
             open={dbModalOpen}
             onClose={handleCloseDbModal}
@@ -44,26 +51,20 @@ const ModalLayer = memo(
             availableDatabases={availableDatabases}
             initialDbType={dbModalInitialType}
           />
-        </Suspense>
-        <Suspense fallback={null}>
+        </MountOnFirstOpen>
+      </Suspense>
+      <Suspense fallback={null}>
+        <MountOnFirstOpen open={settingsOpen}>
           <SettingsModal
             open={settingsOpen}
             onClose={handleCloseSettings}
             initialSection={settingsInitialSection}
           />
-        </Suspense>
-      </>
-    );
-  },
-  (prev, next) =>
-    prev.dbModalOpen === next.dbModalOpen &&
-    prev.settingsOpen === next.settingsOpen &&
-    prev.isDbConnected === next.isDbConnected &&
-    prev.currentDatabase === next.currentDatabase &&
-    prev.availableDatabases === next.availableDatabases &&
-    prev.dbModalInitialType === next.dbModalInitialType &&
-    prev.settingsInitialSection === next.settingsInitialSection,
-);
+        </MountOnFirstOpen>
+      </Suspense>
+    </>
+  );
+});
 
 const GlobalOverlays = memo(function GlobalOverlays({
   // Modals

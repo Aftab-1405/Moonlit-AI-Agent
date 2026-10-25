@@ -23,7 +23,8 @@ const SCHEMA_PANEL_MOTION = {
 
 function SqlWorkspace({
   workspaceCache,
-  _title,
+  title,
+  outputsSlot,
   initialQuery = '',
   initialResults = null,
   isConnected = false,
@@ -268,7 +269,7 @@ function SqlWorkspace({
       minHeight: 0,
       overflow: 'hidden',
       contain: 'layout paint style',
-      gap: 0.75,
+      gap: 1,
     }),
     [],
   );
@@ -283,9 +284,9 @@ function SqlWorkspace({
         minHeight: 0,
         overflow: 'hidden',
         bgcolor: 'background.default',
-        p: 0.75,
-        pb: 0.25,
-        gap: 0.25,
+        p: 0,
+        pb: 0,
+        gap: 1,
         cursor: resizingSidebar ? 'col-resize' : 'default',
         userSelect: resizingSidebar ? 'none' : 'auto',
       }}
@@ -373,7 +374,8 @@ function SqlWorkspace({
       }}
     >
       <ArtifactShell
-        title="Editor"
+        outputsSlot={outputsSlot}
+        title={title || 'SQL editor'}
         chrome={chrome}
         onClose={onClose}
         onRequestClose={onRequestClose}

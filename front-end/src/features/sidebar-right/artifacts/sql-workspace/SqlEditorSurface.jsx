@@ -126,7 +126,7 @@ function SqlEditorSurface({
         flexDirection: 'column',
         position: 'relative',
         bgcolor: 'background.default',
-        borderRadius: '0 0 8px 8px',
+        borderRadius: 0,
       }}
     >
       {/* Editor */}
@@ -156,7 +156,7 @@ function SqlEditorSurface({
             fontStyle: 'normal',
           },
           '& .cm-activeLine, & .cm-activeLineGutter': {
-            backgroundColor: alpha(theme.palette.primary.main, theme.palette.opacity.subtle),
+            backgroundColor: alpha(theme.palette.text.secondary, theme.palette.opacity.subtle),
           },
         }}
       >
@@ -226,7 +226,7 @@ function SqlEditorSurface({
               width: 6,
               height: 6,
               borderRadius: '50%',
-              backgroundColor: 'primary.main',
+              backgroundColor: 'text.secondary',
               animation: 'pulse 1.4s ease-in-out infinite',
               '@keyframes pulse': {
                 '0%, 100%': { opacity: 1, transform: 'scale(1)' },

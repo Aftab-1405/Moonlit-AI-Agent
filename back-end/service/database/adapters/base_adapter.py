@@ -19,13 +19,18 @@ implementations to first-class members of the base class:
   dialect-specific syntax (Oracle ``user/pass@host:port/db``).
 """
 
+from __future__ import annotations
+
 import re
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 from core.security import validate_identifier
+
+if TYPE_CHECKING:
+    from psycopg2.sql import Composable
 
 
 class BaseDatabaseAdapter(ABC):
@@ -151,7 +156,7 @@ class BaseDatabaseAdapter(ABC):
         pass
 
     @abstractmethod
-    def get_tables_query(self) -> str:
+    def get_tables_query(self) -> str | Composable:
         """
         Return SQL query to list all tables in a database.
 
@@ -161,7 +166,7 @@ class BaseDatabaseAdapter(ABC):
         pass
 
     @abstractmethod
-    def get_table_schema_query(self) -> str:
+    def get_table_schema_query(self) -> str | Composable:
         """
         Return SQL query to get table schema information.
 
@@ -195,7 +200,9 @@ class BaseDatabaseAdapter(ABC):
 
     # Schema Caching Methods (for AI context)
 
-    def get_all_tables_for_cache(self, db_name: str, schema: str = "public") -> str:
+    def get_all_tables_for_cache(
+        self, db_name: str, schema: str = "public"
+    ) -> tuple[str | Composable, tuple[str, ...]]:
         """
         Return SQL query to get all tables for schema caching.
 
@@ -304,7 +311,7 @@ class BaseDatabaseAdapter(ABC):
 
     # Schema Metadata Methods (for AI tools)
 
-    def get_indexes_query(self, table_name: str, db_name: str = None, schema: str = "public") -> tuple:
+    def get_indexes_query(self, table_name: str, db_name: str | None = None, schema: str = "public") -> tuple:
         """
         Return SQL query and params to get indexes for a table.
 
@@ -320,7 +327,9 @@ class BaseDatabaseAdapter(ABC):
         """
         return None, ()  # Default: not supported
 
-    def get_foreign_keys_query(self, table_name: str = None, db_name: str = None, schema: str = "public") -> tuple:
+    def get_foreign_keys_query(
+        self, table_name: str | None = None, db_name: str | None = None, schema: str = "public"
+    ) -> tuple:
         """
         Return SQL query and params to get foreign key relationships.
 
@@ -409,7 +418,7 @@ class BaseDatabaseAdapter(ABC):
     # tool, which the agent uses to write type-correct SQL without having
     # to infer column constraints from naming conventions.
 
-    def get_table_details_query(self, table_name: str, db_name: str = None, schema: str = "public") -> tuple:
+    def get_table_details_query(self, table_name: str, db_name: str | None = None, schema: str = "public") -> tuple:
         """Return SQL query and params for a rich per-column schema dump.
 
         Query should return one row per column with these positional
@@ -439,7 +448,7 @@ class BaseDatabaseAdapter(ABC):
     # (the existing get_schema_overview / get_tables_query filters by
     # ``table_type = 'BASE TABLE'`` only, leaving views invisible).
 
-    def get_views(self, schema: str = None, db_name: str = None) -> tuple:
+    def get_views(self, schema: str | None = None, db_name: str | None = None) -> tuple:
         """Return SQL query and params to list regular views.
 
         Args:
@@ -452,7 +461,7 @@ class BaseDatabaseAdapter(ABC):
         """
         return None, ()  # Default: not supported
 
-    def get_materialized_views(self, schema: str = None, db_name: str = None):
+    def get_materialized_views(self, schema: str | None = None, db_name: str | None = None):
         """Return SQL query and params to list materialized views, or None.
 
         Args:

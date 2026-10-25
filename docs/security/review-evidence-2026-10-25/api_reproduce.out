@@ -1,0 +1,45 @@
+2026-10-25 19:56:02,331 - main - INFO - request_id=- - CORS enabled for origins: ['https://frontend.example']
+2026-10-25 19:56:02,331 - main - INFO - request_id=- - LLM provider: bedrock; LLM rate limiter: 1 providers, enabled=False
+2026-10-25 19:56:02,398 - asyncio - DEBUG - request_id=- - Using selector: EpollSelector
+{"runtime": {"python": "3.14.4", "fastapi": "0.141.1", "starlette": "1.6.0", "pydantic": "2.13.5", "slowapi": "0.1.10", "httpx": "0.28.1"}}
+{"F02": {"debit_before_cancellation": 1, "used_after_cancel": 1, "refunds": 0}}
+{"F01": {"asgi_spec": "2.3", "release_entered": true, "release_finished": false, "quota_used": 1}}
+{"F03": {"status": 200, "body": {"status": "success", "message": "Cleared 2 schema contexts"}, "failed_deletions": ["database_schemas.sales", "database_schemas.analytics"]}}
+{"F04": {"firestore_set_delay_seconds": 0.12, "timer_target_seconds": 0.01, "observed_timer_seconds": [0.12199857399991743, 0.122544103999644, 0.12211827600003744], "status": 200}}
+2026-10-25 19:56:02,794 - service.user_settings.user_settings_service - INFO - request_id=- - Updated preferences for user review-user: ['connectionPersistence']
+2026-10-25 19:56:02,806 - service.user_settings.user_settings_service - INFO - request_id=- - Updated preferences for user review-user: ['connectionPersistence']
+{"F07": {"post_status": 200, "reported_preference": 60, "session_mirror": 60, "next_get": 0, "repository_update": false}}
+{"F05": {"tab_A_heartbeat_age_seconds": "approximately 0", "tab_B_status": 200, "disconnect_calls": 1, "db_config": null}}
+2026-10-25 19:56:02,823 - service.user_settings.user_settings_service - INFO - request_id=- - Updated preferences for user review-user: ['maxRows']
+2026-10-25 19:56:02,823 - service.user_settings.user_settings_service - INFO - request_id=- - Updated preferences for user review-user: ['queryTimeout']
+{"F06": {"patches": [{"queryTimeout": 60}, {"maxRows": 2000}], "trace": ["read baseline", "read baseline", "write maxRows", "write timeout"], "final": {"queryTimeout": 60, "maxRows": 1000}, "both_calls_returned": true}}
+2026-10-25 19:56:02,827 - main - INFO - request_id=- - CORS enabled for origins: ['https://frontend.example']
+2026-10-25 19:56:02,827 - main - INFO - request_id=- - Rate limiting enabled: 1 per minute
+2026-10-25 19:56:02,827 - main - INFO - request_id=- - LLM provider: bedrock; LLM rate limiter: 1 providers, enabled=False
+2026-10-25 19:56:02,830 - main - DEBUG - request_id=req_3RUMuZJNX4ZkkPIQ - Incoming request: GET http://test/api/v1/get_tables
+2026-10-25 19:56:02,830 - main - DEBUG - request_id=req_3RUMuZJNX4ZkkPIQ - Headers: {'host': 'test', 'accept': '*/*', 'accept-encoding': 'gzip, deflate, zstd', 'connection': 'keep-alive', 'user-agent': 'python-httpx/0.28.1'}
+2026-10-25 19:56:02,857 - main - DEBUG - request_id=req_3RUMuZJNX4ZkkPIQ - Response status: 200
+2026-10-25 19:56:02,858 - main - DEBUG - request_id=req_LaWk_BSBjxuaLPdT - Incoming request: GET http://test/api/v1/get_tables
+2026-10-25 19:56:02,858 - main - DEBUG - request_id=req_LaWk_BSBjxuaLPdT - Headers: {'host': 'test', 'accept': '*/*', 'accept-encoding': 'gzip, deflate, zstd', 'connection': 'keep-alive', 'user-agent': 'python-httpx/0.28.1'}
+2026-10-25 19:56:02,862 - main - DEBUG - request_id=req_LaWk_BSBjxuaLPdT - Response status: 200
+2026-10-25 19:56:02,863 - main - DEBUG - request_id=req_-21vsVXNWv94v46Y - Incoming request: GET http://test/api/v1/get_tables
+2026-10-25 19:56:02,863 - main - DEBUG - request_id=req_-21vsVXNWv94v46Y - Headers: {'host': 'test', 'accept': '*/*', 'accept-encoding': 'gzip, deflate, zstd', 'connection': 'keep-alive', 'user-agent': 'python-httpx/0.28.1'}
+2026-10-25 19:56:02,868 - main - DEBUG - request_id=req_-21vsVXNWv94v46Y - Response status: 200
+{"F08": {"configured_default": "1 per minute", "limiter_enabled": true, "registered_default_groups": 1, "get_tables_statuses": [200, 200, 200], "middleware": ["ResponseSecurityMiddleware", "AccountActivityMiddleware", "PrivilegedActionAuditMiddleware", "RequestBodyLimitMiddleware", "BaseHTTPMiddleware", "BaseHTTPMiddleware", "CORSMiddleware"]}}
+2026-10-25 19:56:02,869 - main - DEBUG - request_id=req_6s5R548cW0QAp9QA - Incoming request: GET http://test/api/v1/
+2026-10-25 19:56:02,869 - main - DEBUG - request_id=req_6s5R548cW0QAp9QA - Headers: {'host': 'test', 'accept': '*/*', 'accept-encoding': 'gzip, deflate, zstd', 'connection': 'keep-alive', 'user-agent': 'python-httpx/0.28.1', 'origin': 'https://frontend.example'}
+2026-10-25 19:56:02,869 - main - DEBUG - request_id=req_6s5R548cW0QAp9QA - Response status: 200
+2026-10-25 19:56:02,871 - main - DEBUG - request_id=req_at-d975F9kjQlKVh - Incoming request: GET http://test/offline-raise
+2026-10-25 19:56:02,871 - main - DEBUG - request_id=req_at-d975F9kjQlKVh - Headers: {'host': 'test', 'accept': '*/*', 'accept-encoding': 'gzip, deflate, zstd', 'connection': 'keep-alive', 'user-agent': 'python-httpx/0.28.1', 'origin': 'https://frontend.example'}
+2026-10-25 19:56:02,874 - core.http_boundary - ERROR - request_id=req_at-d975F9kjQlKVh - Unhandled exception while processing HTTP request; exception_type=RuntimeError
+{"F09": {"origin": "https://frontend.example", "normal_csrf_large_unhandled": [{"status": 200, "allow_origin": "https://frontend.example"}, {"status": 403, "allow_origin": null}, {"status": 413, "allow_origin": null}, {"status": 500, "allow_origin": null}]}}
+2026-10-25 19:56:02,919 - service.database.database_service - ERROR - request_id=- - disconnect_database failed: exception_type=RuntimeError error_code=DB_OPERATION_FAILED request_id=-
+2026-10-25 19:56:02,925 - service.database.database_service - INFO - request_id=- - Disconnected (pool closed: False)
+{"F10": {"statuses": [500, 200], "pool_close_attempts": 1, "db_config": null}}
+2026-10-25 19:56:02,943 - controller.auth_controller - ERROR - request_id=- - verify_firebase_id_token failed: exception_type=ConnectionError error_code=AUTH_TOKEN_VERIFICATION_FAILED request_id=-
+{"F11": {"id_token_verified": true, "create_session_cookie_error": "ConnectionError", "status": 401, "body": {"detail": "Invalid or expired token"}}}
+{"F34": [{"events": 1000, "payload_bytes": 1041, "produced_at_first_delivery": 1000, "retained_bytes": 1158840, "peak_bytes": 1160600, "seconds": 0.003564421999726619}, {"events": 10000, "payload_bytes": 1041, "produced_at_first_delivery": 10000, "retained_bytes": 11483784, "peak_bytes": 11485536, "seconds": 0.030213675999220868}]}
+2026-10-25 19:56:02,979 - service.context.context_service - WARNING - request_id=- - Could not parse cached_at timestamp: can't subtract offset-naive and offset-aware datetimes
+2026-10-25 19:56:02,980 - service.context.context_service - DEBUG - request_id=- - Schema context stale for sales (age: 86460s, TTL: 86400s), will refresh
+{"F35": {"same_instant": {"datetime": "2026-10-25 14:26:02.979556+00:00", "utc_iso": "2026-10-25T14:26:02.979556+00:00", "offset_iso": "2026-10-25T19:56:02.979556+05:30"}, "cache_hits": {"datetime": false, "utc_iso": true, "offset_iso": true}, "ttl_seconds": 86400, "age_of_stale_instant_seconds": 86460, "stale_cache_hits": {"utc_iso": false, "offset_iso": true}}}
+{"F36": {"ORA-01031: insufficient privileges": {"category": "unknown", "public_code": "DB_OPERATION_FAILED"}, "ORA-01756: quoted string not properly terminated": {"category": "unknown", "public_code": "DB_OPERATION_FAILED"}}}

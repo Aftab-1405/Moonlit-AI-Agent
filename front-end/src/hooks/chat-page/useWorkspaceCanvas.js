@@ -7,8 +7,8 @@
  * @module hooks/useWorkspaceCanvas
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
 import { skipToken, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { queryKeys } from '@/api/queryClient';
 import { createChatSession } from '@/hooks/chat-page/chatSessionModel';
 
@@ -21,8 +21,40 @@ function createEditorCache() {
   let state = null;
   return {
     get: () => state,
+    release: () => {
+      if (state) state = { ...state, tabs: state.tabs?.map((tab) => ({ ...tab, results: null })) };
+    },
     set: (next) => {
-      state = next;
+      state = next
+        ? {
+            ...next,
+            tabs: next.tabs?.map((tab) =>
+              tab.id === next.activeTabId ? tab : { ...tab, results: null },
+            ),
+          }
+        : null;
+    },
+  };
+}
+
+function expireArtifactRows(artifact) {
+  if (!artifact?.props) return artifact;
+  const props = { ...artifact.props };
+  if (props.data?.rows) props.data = { ...props.data, rows: [], expired: true };
+  if (props.initialResults) props.initialResults = null;
+  return { ...artifact, props };
+}
+
+function releaseCanvasRows(previous) {
+  if (!previous?.workspaceCanvas) return previous;
+  const canvas = previous.workspaceCanvas;
+  canvas.workspaceCache?.release();
+  return {
+    ...previous,
+    workspaceCanvas: {
+      ...canvas,
+      artifact: expireArtifactRows(canvas.artifact),
+      outputs: canvas.outputs?.map(expireArtifactRows) || [],
     },
   };
 }
@@ -73,9 +105,17 @@ export function useWorkspaceCanvas({
     sidebarWidthRef.current = sidebarWidth;
   }, [sidebarWidth]);
 
+  // Keep each session's callback bound to its own latest committed context.
+  // A late completion from A must never read B's source or output IDs.
+  const artifactContexts = useRef(new Map());
+  useLayoutEffect(() => {
+    artifactContexts.current.set(sessionKey, { source, historyOutputs });
+  }, [sessionKey, source, historyOutputs]);
+
   const handleOpenCanvasArtifact = useCallback(
     (artifact) => {
       if (!artifact?.type) return;
+      const { source, historyOutputs } = artifactContexts.current.get(sessionKey);
       const historyOutput = historyOutputs.find(
         (item) =>
           item.type === artifact.type &&
@@ -98,7 +138,9 @@ export function useWorkspaceCanvas({
               : artifact.source,
           props: { ...artifact.props, workspaceCache },
         };
-        const outputs = (current?.outputs || []).filter((item) => item.id !== id);
+        const outputs = (current?.outputs || [])
+          .filter((item) => item.id !== id)
+          .map(expireArtifactRows);
         // The empty editor is a workspace action, not an output.
         if (next.type !== 'sql-editor' || next.props.initialQuery?.trim()) outputs.push(next);
         return {
@@ -107,7 +149,7 @@ export function useWorkspaceCanvas({
         };
       });
     },
-    [queryClient, sessionKey, source, historyOutputs],
+    [queryClient, sessionKey],
   );
 
   const handleOpenSqlEditor = useCallback(
@@ -129,11 +171,18 @@ export function useWorkspaceCanvas({
       previous
         ? {
             ...previous,
-            workspaceCanvas: { ...previous.workspaceCanvas, open: false },
+            workspaceCanvas: { ...releaseCanvasRows(previous).workspaceCanvas, open: false },
           }
         : previous,
     );
   }, [queryClient, sessionKey]);
+
+  useEffect(
+    () => () => {
+      queryClient.setQueryData(queryKeys.chatSession(sessionKey), releaseCanvasRows);
+    },
+    [queryClient, sessionKey],
+  );
 
   const handleCanvasResize = useCallback((deltaX) => {
     setHasBeenResized(true);

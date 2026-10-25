@@ -67,9 +67,9 @@ class FullCopyInMemorySaver(InMemorySaver):
         for key in list(self.blobs):
             if key[0].startswith(prefix):
                 del self.blobs[key]
-        for key in list(self.writes):
-            if key[0].startswith(prefix):
-                del self.writes[key]
+        for write_key in list(self.writes):
+            if write_key[0].startswith(prefix):
+                del self.writes[write_key]
 
     async def acopy_thread(self, source_thread_id: str, target_thread_id: str) -> None:
         if source_thread_id == target_thread_id:
@@ -86,9 +86,9 @@ class FullCopyInMemorySaver(InMemorySaver):
         for (thread_id, checkpoint_ns, channel, version), value in list(self.blobs.items()):
             if thread_id == source_thread_id:
                 self.blobs[(target_thread_id, checkpoint_ns, channel, version)] = deepcopy(value)
-        for (thread_id, checkpoint_ns, checkpoint_id), value in list(self.writes.items()):
+        for (thread_id, checkpoint_ns, checkpoint_id), write_values in list(self.writes.items()):
             if thread_id == source_thread_id:
-                self.writes[(target_thread_id, checkpoint_ns, checkpoint_id)] = deepcopy(value)
+                self.writes[(target_thread_id, checkpoint_ns, checkpoint_id)] = deepcopy(write_values)
 
         if self._full_thread_manifest(target_thread_id) != source_manifest:
             raise RuntimeError("Checkpoint full-thread copy verification failed.")
@@ -223,9 +223,7 @@ class FullCopyAsyncRedisSaver(AsyncRedisSaver):
                 record.task_path,
             )
             grouped_writes.setdefault(group_key, []).append(record)
-        for (checkpoint_ns, checkpoint_id, task_id, task_path), records in sorted(
-            grouped_writes.items()
-        ):
+        for (checkpoint_ns, checkpoint_id, task_id, task_path), records in sorted(grouped_writes.items()):
             writes = self._reconstruct_writes(records)
             await self.aput_writes(
                 written_configs[(checkpoint_ns, checkpoint_id)],
@@ -247,10 +245,7 @@ class FullCopyAsyncRedisSaver(AsyncRedisSaver):
         thread_id: str,
         checkpoint_items: Mapping[tuple[str, str], CheckpointTuple],
     ) -> list[_RedisWriteRecord]:
-        records = [
-            self._normalize_write_record(raw)
-            for raw in await self._aload_full_thread_write_records(thread_id)
-        ]
+        records = [self._normalize_write_record(raw) for raw in await self._aload_full_thread_write_records(thread_id)]
         identities: set[tuple[str, str, str, int]] = set()
         task_paths: dict[tuple[str, str, str], str] = {}
         for record in records:
@@ -330,9 +325,14 @@ class FullCopyAsyncRedisSaver(AsyncRedisSaver):
         type_ = raw.get("type")
         idx = raw.get("idx")
         blob = raw.get("blob")
-        if not all(isinstance(value, str) for value in (checkpoint_ns, checkpoint_id)):
+        if not isinstance(checkpoint_ns, str) or not isinstance(checkpoint_id, str):
             raise RuntimeError("Checkpoint write contains invalid checkpoint identity.")
-        if not all(isinstance(value, str) for value in (task_id, task_path, channel, type_)):
+        if (
+            not isinstance(task_id, str)
+            or not isinstance(task_path, str)
+            or not isinstance(channel, str)
+            or not isinstance(type_, str)
+        ):
             raise RuntimeError("Checkpoint write contains invalid task or value identity.")
         if isinstance(idx, bool):
             raise RuntimeError("Checkpoint write contains an invalid effective index.")
@@ -346,9 +346,7 @@ class FullCopyAsyncRedisSaver(AsyncRedisSaver):
             try:
                 normalized_idx = int(idx)
             except ValueError as exc:
-                raise RuntimeError(
-                    "Checkpoint write contains an invalid effective index."
-                ) from exc
+                raise RuntimeError("Checkpoint write contains an invalid effective index.") from exc
         else:
             raise RuntimeError("Checkpoint write contains an invalid effective index.")
         if isinstance(blob, str):
@@ -374,16 +372,16 @@ class FullCopyAsyncRedisSaver(AsyncRedisSaver):
     ) -> list[tuple[str, Any]]:
         positions: list[_RedisWriteRecord | None] = [None] * len(records)
         special: list[_RedisWriteRecord] = []
-        for record in records:
-            special_idx = WRITES_IDX_MAP.get(record.channel)
+        for stored_record in records:
+            special_idx = WRITES_IDX_MAP.get(stored_record.channel)
             if special_idx is not None:
-                if record.idx != special_idx:
+                if stored_record.idx != special_idx:
                     raise RuntimeError("Checkpoint special write has an invalid effective index.")
-                special.append(record)
+                special.append(stored_record)
                 continue
-            if record.idx < 0 or record.idx >= len(records) or positions[record.idx] is not None:
+            if stored_record.idx < 0 or stored_record.idx >= len(records) or positions[stored_record.idx] is not None:
                 raise RuntimeError("Checkpoint regular write has an invalid effective index.")
-            positions[record.idx] = record
+            positions[stored_record.idx] = stored_record
 
         special_iter = iter(sorted(special, key=self._write_record_sort_key))
         for position, record in enumerate(positions):

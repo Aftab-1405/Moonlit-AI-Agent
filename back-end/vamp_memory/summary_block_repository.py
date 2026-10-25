@@ -418,7 +418,7 @@ class SummaryBlockRepository:
         ``_maintenance_firestore_retry(timeout)`` policy so transient errors
         are retried server-side.
         """
-        payload = {
+        payload: dict[str, str | int | datetime | None] = {
             "vector_status": status,
             "vector_error": None,
             "vector_next_retry_at": None,

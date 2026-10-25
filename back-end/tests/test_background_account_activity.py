@@ -32,7 +32,11 @@ async def test_summary_creation_holds_account_admission(monkeypatch):
         summary_repo=SimpleNamespace(create_block=create_block),
     )
     await service.store_summary_block(
-        "conversation", "owner", text="summary", start_message_idx=0, end_message_idx=1,
+        "conversation",
+        "owner",
+        text="summary",
+        start_message_idx=0,
+        end_message_idx=1,
     )
     assert writes == [("conversation", "owner", {"owner"})]
     assert active_users == set()
@@ -62,9 +66,12 @@ async def test_vector_retry_metadata_is_written_while_account_is_admitted(monkey
     )
     monkeypatch.setattr(service, "index_summary_block", broken_index)
 
-    assert await service._index_with_failure_record(
-        {"user_id": "owner", "conversation_id": "conversation", "summary_id": "summary"}
-    ) is False
+    assert (
+        await service._index_with_failure_record(
+            {"user_id": "owner", "conversation_id": "conversation", "summary_id": "summary"}
+        )
+        is False
+    )
     assert writes == [("conversation", "summary", {"owner"})]
     assert active_users == set()
 
@@ -90,9 +97,12 @@ async def test_erasing_account_does_not_index_or_write_retry_metadata(monkeypatc
         ),
     )
 
-    assert await service._index_with_failure_record(
-        {"user_id": "owner", "conversation_id": "conversation", "summary_id": "summary"}
-    ) is False
+    assert (
+        await service._index_with_failure_record(
+            {"user_id": "owner", "conversation_id": "conversation", "summary_id": "summary"}
+        )
+        is False
+    )
     assert writes == []
 
 
@@ -115,7 +125,10 @@ async def test_database_tool_executor_runs_with_its_account_admitted(monkeypatch
     monkeypatch.setattr(tool_module, "run_account_work", admitted)
     monkeypatch.setattr(tool_module, "_try_writer", lambda: lambda event: None)
     await tool_module._execute_tool(
-        "get_connection_status", {}, {"configurable": {"user_id": "owner"}}, executor,
+        "get_connection_status",
+        {},
+        {"configurable": {"user_id": "owner"}},
+        executor,
     )
 
     assert writes == [("owner", {"owner"})]
@@ -145,9 +158,14 @@ async def test_timed_out_database_thread_keeps_erasure_blocked_until_it_finishes
     monkeypatch.setattr(tool_module, "_try_writer", lambda: lambda event: None)
     monkeypatch.setattr(tool_module, "_tool_timeout_seconds", lambda *args: 0.1)
     deletion_token = await store.admit("owner")
-    execution = asyncio.create_task(tool_module._execute_tool(
-        "get_connection_status", {}, {"configurable": {"user_id": "owner"}}, executor,
-    ))
+    execution = asyncio.create_task(
+        tool_module._execute_tool(
+            "get_connection_status",
+            {},
+            {"configurable": {"user_id": "owner"}},
+            executor,
+        )
+    )
     try:
         await asyncio.wait_for(started.wait(), timeout=2)
         result = await asyncio.wait_for(execution, timeout=2)

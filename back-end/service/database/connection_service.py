@@ -14,7 +14,7 @@ class ConnectionService:
     """Service for managing database connections."""
 
     @staticmethod
-    def connect_database(connection_params: dict, user_id: str = None) -> dict:
+    def connect_database(connection_params: dict, user_id: str | None = None) -> dict:
         """
         Route connection request to appropriate handler.
 
@@ -59,15 +59,15 @@ class ConnectionService:
             ConnectionService._sync_context_from_result(result, user_id)
             return result
 
-        handler = _HOST_PORT_HANDLERS.get(db_type)
-        if not handler:
+        host_port_handler = _HOST_PORT_HANDLERS.get(db_type)
+        if not host_port_handler:
             return {"status": "error", "message": f"Unknown database type: {db_type}"}
 
-        result = handler(
-            connection_params.get("host"),
-            connection_params.get("port"),
-            connection_params.get("username"),
-            connection_params.get("password"),
+        result = host_port_handler(
+            connection_params.get("host") or "",
+            connection_params.get("port") or 0,
+            connection_params.get("username") or "",
+            connection_params.get("password") or "",
             connection_params.get("database"),
             pool_owner=user_id,
         )
@@ -75,7 +75,7 @@ class ConnectionService:
         return result
 
     @staticmethod
-    def select_database(db_config: dict, db_name: str, user_id: str = None) -> dict:
+    def select_database(db_config: dict, db_name: str, user_id: str | None = None) -> dict:
         """
         Select a database and update user context after the database layer succeeds.
 
@@ -96,7 +96,7 @@ class ConnectionService:
         return result
 
     @staticmethod
-    def _sync_context_from_result(result: dict, user_id: str = None) -> None:
+    def _sync_context_from_result(result: dict, user_id: str | None = None) -> None:
         """Sync successful connection results to Firestore-owned context."""
         if not user_id or result.get("status") not in {"connected", "success"}:
             return
@@ -218,7 +218,7 @@ class ConnectionService:
             # FIX [M13]: use the user's selected schema, not the adapter default.
             schema = db_config.get("schema") or "public"
 
-            columns = {}
+            columns: dict[str, list[dict]] = {}
             tables_subset = tables[:max_tables]
             query, params = adapter.get_batch_columns_for_tables(database, tables_subset, schema=schema)
 
