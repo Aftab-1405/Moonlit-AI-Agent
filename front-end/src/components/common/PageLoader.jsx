@@ -36,7 +36,7 @@ function PageLoader() {
           alignItems: 'center',
           gap: 1.75,
           animation: `${fadeIn} 420ms ease-out both`,
-          '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
+          'html[data-moonlit-reduced-motion="true"] &': { animation: 'none' },
         }}
       >
         <Typography
@@ -65,7 +65,7 @@ function PageLoader() {
               backgroundColor: 'text.primary',
               animation: `${horizonSweep} 1.8s ease-in-out infinite`,
             },
-            '@media (prefers-reduced-motion: reduce)': {
+            'html[data-moonlit-reduced-motion="true"] &': {
               '&::after': {
                 width: '100%',
                 opacity: 0.5,

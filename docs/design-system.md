@@ -79,6 +79,30 @@ MUI owns modal/drawer focus and Escape behavior. Finish a mobile drawer's exit b
 
 Use semantic buttons/links, accessible names, visible focus, and keyboard/pointer resize controls. Keep sidebar selection/menu actions and tab selection/close actions as sibling controls. Never hide an essential action exclusively behind hover. Test reduced motion, long labels, zoom, narrow heights, loading/empty/error/disabled states, and mobile targets. The schema mindmap modal owns focus and fullscreen layout while React Flow owns graph interaction.
 
+## Authentication entry
+
+The root and `/login` share a dark authentication screen. Desktop uses a quiet brand panel with an explicitly illustrative question-to-insight workflow beside a 400px-wide form. Below 768px the brand reduces to the wordmark and the form takes priority; the page owns vertical scrolling for short screens and registration.
+
+Provider buttons use their identity colors and outlined surfaces. The main sign-in/create-account action uses the workspace accent; labels and focus states retain shared semantics. Authentication controls have 48px minimum heights and explicit autofill hints. The product illustration uses a single reduced-motion-aware entrance, with no live data requests or workspace component imports. The shared logo and theme remain application assets after removing the marketing page.
+
+## Floating menus and popovers
+
+Native MUI Menu/Select popups and AppPopover share the same paper and row helpers from `styles/shared.js`; theme overrides consume those helpers rather than maintaining separate copies. The reference is the inspected ChatGPT settings dropdown and profile menu (2026-11-02).
+
+Floating surfaces have 16px corners, 10px content padding, the elevated-2 neutral at 90% opacity, 8px backdrop blur, a subtle inset highlight, and a soft shadow. An opaque elevated-2 fallback covers browsers without backdrop filters. Rows have 12px corners, 6px vertical/10px horizontal padding, 14px text with a 20px line height, and a 36px desktop minimum. Multiline content grows naturally; touch targets remain at least 44px. Hover and keyboard focus use the same neutral fill, with an explicit outline in forced-color mode. Selection remains semantic and destructive/disabled actions retain their own states.
+
+Each caller owns placement, width, search, descriptions, and controls. It should not override the shared surface radius, background, or padding to create a separate popup style. Full-size dialogs remain opaque and do not inherit popup blur/shadow. Opening transitions must not reclaim focus after a user has begun navigating inside the popup.
+
+## Settings overlay
+
+Settings is a non-modal pane beside the existing 52px application rail. The rail remains visible and interactive; chat and artifact surfaces are hidden and inert while remaining mounted. Opening and closing settings does not change the saved sidebar expansion preference; choosing a rail section leaves settings and follows the normal sidebar navigation behavior. No new settings route or history behavior is introduced.
+
+Both the pane and mobile navigation use the workspace's black `background.default`. Desktop has a 238px settings sidebar, a search field for section names, and an independently scrolling content area capped at 768px including 20px side gutters. The title has a 60px row below 16px top padding; content begins after a 1px header boundary and 20px gutter. Section headings occupy 52px, with 16px grouped surfaces beneath. Stable scroll gutters prevent alignment shifts. Borders use explicit semantic colors in responsive shorthands to avoid falling back to bright text color.
+
+The explicit `settings` preference variant uses uniform groups, inset separators, 14px/20px labels, 12px/16px descriptions, 62px minimum rows, and pill selectors. Selectors are 36px on desktop and at least 44px on touch devices. Switches keep their compact visual shape with a 44px touch target. Shared components retain the database connection dialog's existing presentation by default.
+
+General, Database, and AI context keep their original internal IDs and persistence. Reset all settings restores all AI/database preferences, including model selection, without deleting context data; it is absent from AI context. Settings has no modal close icon. Desktop users leave through the application rail or Escape; mobile users can choose Home in the navigation drawer. Select menus and drawers consume Escape before the containing pane. The chat controller owns focus restoration.
+
 ## Maintenance
 
 Update this guide and the owning tokens together when design intent changes. Keep durable design decisions here; do not retain interface-inspection dumps or separate research logs in the repository.

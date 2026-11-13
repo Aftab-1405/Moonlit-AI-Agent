@@ -1,0 +1,98 @@
+[
+  {
+    "name": "light analytics text field keeps idle border/background on click",
+    "pass": true,
+    "details": {
+      "idle": {
+        "border": "1px solid rgba(0, 0, 0, 0)",
+        "outline": "rgb(0, 0, 0) none 3px",
+        "background": "rgba(139, 134, 128, 0.27)",
+        "color": "rgb(0, 0, 0)",
+        "modality": "keyboard"
+      },
+      "active": {
+        "border": "1px solid rgba(0, 0, 0, 0)",
+        "outline": "rgb(22, 22, 22) none 3px",
+        "background": "rgba(139, 134, 128, 0.27)",
+        "color": "rgb(22, 22, 22)",
+        "modality": "pointer"
+      }
+    }
+  },
+  {
+    "name": "light shadow text editing retains pointer origin",
+    "pass": true
+  },
+  {
+    "name": "light analytics keyboard focus remains visible",
+    "pass": true,
+    "details": {
+      "border": "1px solid rgba(0, 0, 0, 0)",
+      "outline": "rgb(73, 73, 73) solid 2px",
+      "background": "rgba(139, 134, 128, 0.27)",
+      "color": "rgb(22, 22, 22)",
+      "modality": "keyboard"
+    }
+  },
+  {
+    "name": "light read-only analytics cell adds no activation outline",
+    "pass": true,
+    "details": {
+      "border": "",
+      "outline": "rgb(22, 22, 22) none 3px",
+      "background": "rgba(0, 0, 0, 0)",
+      "color": "rgb(22, 22, 22)",
+      "modality": "pointer"
+    }
+  },
+  {
+    "name": "dark analytics text field keeps idle border/background on click",
+    "pass": true,
+    "details": {
+      "idle": {
+        "border": "1px solid rgba(0, 0, 0, 0)",
+        "outline": "rgb(255, 255, 255) none 3px",
+        "background": "rgba(139, 134, 128, 0.27)",
+        "color": "rgb(255, 255, 255)",
+        "modality": "pointer"
+      },
+      "active": {
+        "border": "1px solid rgba(0, 0, 0, 0)",
+        "outline": "rgb(255, 255, 255) none 3px",
+        "background": "rgba(139, 134, 128, 0.27)",
+        "color": "rgb(255, 255, 255)",
+        "modality": "pointer"
+      }
+    }
+  },
+  {
+    "name": "dark shadow text editing retains pointer origin",
+    "pass": true
+  },
+  {
+    "name": "dark analytics keyboard focus remains visible",
+    "pass": true,
+    "details": {
+      "border": "1px solid rgba(0, 0, 0, 0)",
+      "outline": "rgb(205, 205, 205) solid 2px",
+      "background": "rgba(139, 134, 128, 0.27)",
+      "color": "rgb(255, 255, 255)",
+      "modality": "keyboard"
+    }
+  },
+  {
+    "name": "dark read-only analytics cell adds no activation outline",
+    "pass": true,
+    "details": {
+      "border": "",
+      "outline": "rgb(255, 255, 255) none 3px",
+      "background": "rgba(0, 0, 0, 0)",
+      "color": "rgb(255, 255, 255)",
+      "modality": "pointer"
+    }
+  },
+  {
+    "name": "changing chart plugin retains one focus stylesheet in viewer shadow root",
+    "pass": true
+  }
+]

@@ -19,7 +19,7 @@ function ButtonLoadingSpinner({ size = 16, sx = {} }) {
         '@keyframes buttonSpinnerRotate': {
           to: { transform: 'rotate(360deg)' },
         },
-        '@media (prefers-reduced-motion: reduce)': {
+        'html[data-moonlit-reduced-motion="true"] &': {
           animation: 'none',
         },
         ...sx,

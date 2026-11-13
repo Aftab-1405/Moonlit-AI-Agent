@@ -8,9 +8,10 @@ import { defaultUserSettings } from '@/config/userSettings';
 import { useAuth } from '@/contexts/AuthContext';
 import { getAccountStorageKey } from '@/features/dashboard/accountModel';
 import { useLocalStorage } from '@/hooks';
+import { DEFAULT_APPEARANCE, validateAppearance } from '@/theme/appearance';
 import { THEME_STORAGE_KEY } from '@/theme/mode';
 
-const defaultSettings = Object.freeze({ ...defaultUserSettings });
+const defaultSettings = Object.freeze({ ...defaultUserSettings, appearance: DEFAULT_APPEARANCE });
 
 const withoutLegacyTheme = (settings) => {
   const { theme: _legacyTheme, ...supportedSettings } = settings ?? {};
@@ -37,6 +38,7 @@ export function SettingsProvider({ children }) {
     () => ({
       ...defaultSettings,
       ...withoutLegacyTheme(rawSettings),
+      appearance: validateAppearance(rawSettings?.appearance),
     }),
     [rawSettings],
   );
@@ -44,7 +46,10 @@ export function SettingsProvider({ children }) {
   /** Update a single setting by key. */
   const updateSetting = useCallback(
     (key, value) => {
-      setRawSettings((prev) => ({ ...prev, [key]: value }));
+      setRawSettings((prev) => ({
+        ...prev,
+        [key]: key === 'appearance' ? validateAppearance(value) : value,
+      }));
     },
     [setRawSettings],
   );
@@ -52,7 +57,13 @@ export function SettingsProvider({ children }) {
   /** Update multiple settings at once. */
   const updateSettings = useCallback(
     (newSettings) => {
-      setRawSettings((prev) => ({ ...prev, ...newSettings }));
+      setRawSettings((prev) => ({
+        ...prev,
+        ...newSettings,
+        ...('appearance' in newSettings
+          ? { appearance: validateAppearance(newSettings.appearance) }
+          : {}),
+      }));
     },
     [setRawSettings],
   );
@@ -73,13 +84,13 @@ export function SettingsProvider({ children }) {
   const value = useMemo(
     () => ({
       settings,
-
+      settingsScope: storageKey,
       updateSetting,
       updateSettings,
       resetSettings,
       getSetting,
     }),
-    [settings, updateSetting, updateSettings, resetSettings, getSetting],
+    [settings, storageKey, updateSetting, updateSettings, resetSettings, getSetting],
   );
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;

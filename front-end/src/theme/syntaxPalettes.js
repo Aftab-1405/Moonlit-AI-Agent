@@ -2,6 +2,41 @@ import { primitives } from './tokens/primitives.js';
 
 export const moonlitDarkSyntax = primitives.code.vercel;
 
+// Moonlit's light syntax palette. These are local, readable counterparts to
+// the existing syntax roles, rather than an unmeasured reference preset.
+export const moonlitLightSyntax = Object.freeze({
+  editorForeground: '#242424',
+  editorBackground: '#fcfcfc',
+  lineNumberForeground: '#686868',
+  lineNumberActiveForeground: '#242424',
+  lineHighlightBackground: '#00000008',
+  selectionBackground: '#dce8f8',
+  whitespaceForeground: '#00000026',
+  comment: '#686868',
+  constant: '#164e87',
+  entity: '#6b328e',
+  keyword: '#9b225a',
+  storage: '#9b225a',
+  string: '#23613b',
+  support: '#6b328e',
+  variable: '#242424',
+  variableOther: '#242424',
+  functionCall: '#6b328e',
+  propertyName: '#164e87',
+  punctuation: '#525252',
+  tagName: '#9b225a',
+  attributeName: '#164e87',
+  number: '#164e87',
+  boolean: '#9b225a',
+  operator: '#525252',
+  invalid: '#ba2623',
+  regex: '#23613b',
+  escape: '#9b225a',
+});
+
+export const getSyntaxPalette = (themeName = 'moonlit-vercel') =>
+  themeName === 'moonlit-light' ? moonlitLightSyntax : moonlitDarkSyntax;
+
 const createShikiTheme = (name, type, palette) => ({
   name,
   type,
@@ -48,3 +83,4 @@ const createShikiTheme = (name, type, palette) => ({
 });
 
 export const moonlitDarkShikiTheme = createShikiTheme('moonlit-vercel', 'dark', moonlitDarkSyntax);
+export const moonlitLightShikiTheme = createShikiTheme('moonlit-light', 'light', moonlitLightSyntax);

@@ -1,0 +1,29 @@
+
+> moonlit@0.0.0 test:components
+> vitest run src/theme/accentRoles.vitest.jsx
+
+
+ RUN  v4.1.11 /home/aftab-1405/Desktop/Moonlit-AI-Agent/front-end
+
+ ❯ src/theme/accentRoles.vitest.jsx (6 tests | 1 failed) 25ms
+   × keeps generated pairs readable and previews isolated in dark 4ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/theme/accentRoles.vitest.jsx > keeps generated pairs readable and previews isolated in dark
+AssertionError: default/paper: expected 4.1720930232558135 to be greater than or equal to 4.5
+ ❯ src/theme/accentRoles.vitest.jsx:43:95
+     41|         parseInt(selection.slice(i, i + 2), 16) * opacity,
+     42|       ).toString(16).padStart(2, '0')).join('');
+     43|       expect(getContrastRatio(composite, s.textSelection.foreground), …
+       |                                                                                               ^
+     44|     }
+     45|     expect(a.profiles[mode].custom).toBe(false);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 5 passed (6)
+   Start at  17:59:56
+   Duration  1.20s (transform 85ms, setup 137ms, import 188ms, tests 25ms, environment 700ms)

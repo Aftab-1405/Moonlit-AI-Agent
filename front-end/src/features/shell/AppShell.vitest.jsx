@@ -2,7 +2,7 @@ import { ThemeProvider } from '@mui/material/styles';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import AppShell from '@/features/shell/AppShell';
 import { createDarkTheme } from '@/theme';
 
@@ -113,4 +113,41 @@ describe('AppShell responsive lifecycle', () => {
     expect(screen.getByRole('textbox', { name: 'Chat state probe' })).toBe(probe);
     expect(probe.value).toBe('preserved');
   });
+});
+
+it('keeps the application rail interactive while settings covers mounted chat and artifacts', async () => {
+  const user = userEvent.setup();
+  const navigation = vi.fn();
+  const shell = (settingsOpen) => (
+    <ThemeProvider theme={theme}>
+      <AppShell
+        settingsOpen={settingsOpen}
+        sidebarOpen
+        canvasOpen
+        canvasWidth={480}
+        sidebarSlot={
+          <button type="button" onClick={navigation}>
+            Home navigation
+          </button>
+        }
+        chatSlot={<StatefulChatProbe />}
+        workspaceSlot={<input aria-label="SQL draft" defaultValue="select 42" />}
+      />
+    </ThemeProvider>
+  );
+  const view = render(shell(false));
+  const chat = screen.getByRole('textbox', { name: 'Chat state probe' });
+  const sql = screen.getByRole('textbox', { name: 'SQL draft' });
+  await user.type(chat, 'keep my draft');
+  view.rerender(shell(true));
+  expect(screen.getByLabelText('Sidebar column').parentElement.style.width).toBe('52px');
+  expect(chat.closest('main').hasAttribute('inert')).toBe(true);
+  expect(screen.queryByRole('textbox', { name: 'SQL draft' })).toBeNull();
+  await user.click(screen.getByRole('button', { name: 'Home navigation' }));
+  expect(navigation).toHaveBeenCalledOnce();
+  view.rerender(shell(false));
+  expect(screen.getByRole('textbox', { name: 'Chat state probe' })).toBe(chat);
+  expect(chat.value).toBe('keep my draft');
+  expect(screen.getByRole('textbox', { name: 'SQL draft' })).toBe(sql);
+  expect(screen.getByLabelText('Sidebar column').parentElement.style.width).toBe('344px');
 });

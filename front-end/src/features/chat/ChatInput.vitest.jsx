@@ -202,3 +202,21 @@ it('keeps the same spacious composer height and draft when entering an active ch
   expect(getComputedStyle(surface).minHeight).toBe('126px');
   expect(input.value).toBe('Keep my draft');
 });
+
+it('does not steal model-list focus when the opening transition finishes', () => {
+  vi.useFakeTimers();
+  try {
+    setup();
+    fireEvent.click(screen.getByRole('button', { name: /Select model/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Choose a model' }));
+    const search = screen.getByRole('textbox', { name: 'Search models' });
+    fireEvent.change(search, { target: { value: 'Standard' } });
+    fireEvent.keyDown(search, { key: 'ArrowDown' });
+    const option = screen.getByRole('menuitemradio', { name: 'Standard model' });
+    expect(document.activeElement).toBe(option);
+    act(() => vi.advanceTimersByTime(500));
+    expect(document.activeElement).toBe(option);
+  } finally {
+    vi.useRealTimers();
+  }
+});

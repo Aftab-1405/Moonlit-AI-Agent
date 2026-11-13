@@ -20,8 +20,7 @@ import {
   BACKDROP_FILTER_FALLBACK_QUERY,
   BUTTON_TOUCH_QUERY,
   HOVER_CAPABLE_QUERY,
-  REDUCED_MOTION_QUERY,
-  TOUCH_DEVICE_QUERY,
+  REDUCED_MOTION_SELECTOR,
 } from './mediaQueries.js';
 
 const DIALOG_VIEWPORT_SUPPORT_QUERY = '@supports (height: 100dvh)';
@@ -64,17 +63,16 @@ export const UI_Z_INDEX = Object.freeze({
 
 export const UI_POPOVER = Object.freeze({
   paperRadius: '16px',
-  paperPadding: 0.75,
-  rowRadius: '8px',
+  paperPadding: 1.25,
+  rowRadius: '12px',
   // Match the expanded-sidebar action/conversation rows on pointer devices.
   // Touch devices are promoted to `touchTarget` by getPopoverMenuItemSx.
   rowMinHeight: UI_LAYOUT.controlRowHeight,
-  descriptiveRowMinHeight: 60,
-  rowPaddingX: 1,
+  rowPaddingX: 1.25,
   rowPaddingY: 0.75,
-  rowGap: 1,
-  iconSlotWidth: 24,
-  iconSize: 18,
+  rowGap: 0.75,
+  iconSlotWidth: 20,
+  iconSize: 20,
   sectionGap: 0.5,
 });
 
@@ -173,23 +171,25 @@ export const getOutlinedFieldStateSx = (
       boxShadow: 'none',
     },
     '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-      borderColor: theme.palette.border.focus,
+      borderColor: theme.palette.border.idle,
       borderWidth: 1,
     },
     '&.Mui-focused:hover': {
       backgroundColor,
     },
     '&.Mui-focused:hover .MuiOutlinedInput-notchedOutline': {
-      borderColor: theme.palette.border.focus,
+      borderColor: theme.palette.border.hover,
       borderWidth: 1,
     },
-    '&.Mui-error .MuiOutlinedInput-notchedOutline': {
-      borderColor: theme.palette.error.main,
-    },
-    '&.Mui-error.Mui-focused .MuiOutlinedInput-notchedOutline': {
-      borderColor: theme.palette.error.main,
-      borderWidth: 1,
-    },
+    '&.Mui-error .MuiOutlinedInput-notchedOutline, &.Mui-error:hover .MuiOutlinedInput-notchedOutline':
+      {
+        borderColor: theme.palette.error.main,
+      },
+    '&.Mui-error.Mui-focused .MuiOutlinedInput-notchedOutline, &.Mui-error.Mui-focused:hover .MuiOutlinedInput-notchedOutline':
+      {
+        borderColor: theme.palette.error.main,
+        borderWidth: 1,
+      },
   },
 });
 
@@ -230,7 +230,7 @@ export const getInteractiveControlSx = (
     '&:active:not(:disabled):not(.Mui-disabled)': {
       backgroundColor: interaction.activeBackground,
     },
-    [REDUCED_MOTION_QUERY]: { transition: 'none' },
+    [REDUCED_MOTION_SELECTOR]: { transition: 'none' },
     '&:focus-visible': {
       outline: `2px solid ${interaction.focusRing}`,
       outlineOffset: 2,
@@ -329,7 +329,7 @@ export const getPopoverMenuListSx = () => ({
   px: UI_POPOVER.paperPadding,
   display: 'flex',
   flexDirection: 'column',
-  gap: 0.25,
+  gap: 0,
 });
 
 export const getPopoverMenuItemSx = (
@@ -340,7 +340,9 @@ export const getPopoverMenuItemSx = (
 
   return {
     ...theme.typography.uiNavItem,
-    height: UI_POPOVER.rowMinHeight,
+    fontSize: 14,
+    lineHeight: '20px',
+    height: 'auto',
     minHeight: UI_POPOVER.rowMinHeight,
     boxSizing: 'border-box',
     borderRadius: UI_POPOVER.rowRadius,
@@ -352,8 +354,8 @@ export const getPopoverMenuItemSx = (
     display: 'grid',
     gridTemplateColumns: columns,
     alignItems: 'center',
-    color: interaction.color,
-    backgroundColor: interaction.background,
+    color: tone === 'neutral' ? theme.palette.text.primary : interaction.color,
+    backgroundColor: active ? interaction.hoverBackground : 'transparent',
     transition: theme.transitions.create(['background-color', 'color'], {
       duration: theme.transitions.duration.shorter,
     }),
@@ -371,33 +373,34 @@ export const getPopoverMenuItemSx = (
     [HOVER_CAPABLE_QUERY]: {
       '&:hover': {
         color: interaction.hoverColor,
-        backgroundColor: active ? interaction.activeHoverBackground : interaction.hoverBackground,
+        backgroundColor: interaction.hoverBackground,
       },
     },
     '&.Mui-selected': {
       color: interaction.activeColor,
-      backgroundColor: interaction.activeBackground,
+      backgroundColor: active ? interaction.hoverBackground : 'transparent',
       fontWeight: 400,
       [HOVER_CAPABLE_QUERY]: {
         '&:hover': {
-          backgroundColor: interaction.activeHoverBackground,
+          backgroundColor: interaction.hoverBackground,
         },
       },
     },
     '&.Mui-focusVisible': {
       color: interaction.hoverColor,
-      backgroundColor: active ? interaction.activeHoverBackground : interaction.hoverBackground,
-      outline: `2px solid ${interaction.focusRing}`,
-      outlineOffset: -2,
+      backgroundColor: interaction.hoverBackground,
+      outline: 'none',
+      '@media (forced-colors: active)': { outline: '2px solid Highlight', outlineOffset: -2 },
     },
     '&.Mui-selected.Mui-focusVisible': {
       color: interaction.activeColor,
-      backgroundColor: interaction.activeHoverBackground,
-      outline: `2px solid ${interaction.focusRing}`,
-      outlineOffset: -2,
+      backgroundColor: interaction.hoverBackground,
+      outline: 'none',
+      '@media (forced-colors: active)': { outline: '2px solid Highlight', outlineOffset: -2 },
     },
-    [TOUCH_DEVICE_QUERY]: {
-      height: UI_LAYOUT.touchTarget,
+    [theme.breakpoints.up('sm')]: { minHeight: UI_POPOVER.rowMinHeight },
+    [BUTTON_TOUCH_QUERY]: {
+      height: 'auto',
       minHeight: UI_LAYOUT.touchTarget,
     },
   };
@@ -459,20 +462,21 @@ export const getDialogPaperSx = (
   theme,
   { isMobile = false, desktopMaxHeight = 720, desktopMinHeight = 400 } = {},
 ) => ({
-  ...getPopoverPaperSx(theme, {
-    borderRadius: isMobile ? 0 : '8px',
-    height: isMobile ? '100vh' : `calc(100vh - ${UI_LAYOUT.dialogDesktopOffset}px)`,
-    maxHeight: isMobile ? '100vh' : desktopMaxHeight,
-    minHeight: isMobile ? '100vh' : desktopMinHeight,
-    [DIALOG_VIEWPORT_SUPPORT_QUERY]: isMobile
-      ? {
-          height: '100dvh',
-          maxHeight: '100dvh',
-          minHeight: '100dvh',
-        }
-      : {},
-    overflow: 'hidden',
-  }),
+  borderRadius: isMobile ? 0 : '8px',
+  border: `1px solid ${theme.palette.border.subtle}`,
+  color: theme.palette.text.primary,
+  backgroundColor: theme.palette.background.elevated || theme.palette.background.paper,
+  backgroundImage: 'none',
+  backdropFilter: 'none',
+  WebkitBackdropFilter: 'none',
+  boxShadow: 'none',
+  height: isMobile ? '100vh' : `calc(100vh - ${UI_LAYOUT.dialogDesktopOffset}px)`,
+  maxHeight: isMobile ? '100vh' : desktopMaxHeight,
+  minHeight: isMobile ? '100vh' : desktopMinHeight,
+  [DIALOG_VIEWPORT_SUPPORT_QUERY]: isMobile
+    ? { height: '100dvh', maxHeight: '100dvh', minHeight: '100dvh' }
+    : {},
+  overflow: 'hidden',
 });
 
 export const getDialogHeaderSx = (theme) => ({
@@ -518,17 +522,17 @@ export const getSecondaryActionButtonSx = () => ({ color: 'text.secondary' });
 export const getPopoverPaperSx = (theme, overrides = {}) => ({
   borderRadius: UI_POPOVER.paperRadius,
   overflowX: 'hidden',
-  border: `1px solid ${theme.palette.border.subtle}`,
-  color: 'text.primary',
-  backgroundColor: theme.palette.background.elevated || theme.palette.background.paper,
+  border: 0,
+  color: theme.palette.text.primary,
+  backgroundColor: alpha(theme.palette.background.elevated2, 0.9),
   backgroundImage: 'none',
-  backdropFilter: 'none',
-  WebkitBackdropFilter: 'none',
-  boxShadow: 'none',
+  backdropFilter: 'blur(8px)',
+  WebkitBackdropFilter: 'blur(8px)',
+  boxShadow: `inset 0 0 1px ${alpha(theme.palette.common.white, 0.2)}, 0 8px 16px -4px ${alpha(theme.palette.common.black, 0.12)}`,
   [BACKDROP_FILTER_FALLBACK_QUERY]: {
     backdropFilter: 'none',
     WebkitBackdropFilter: 'none',
-    backgroundColor: theme.palette.background.paper,
+    backgroundColor: theme.palette.background.elevated2,
   },
   ...overrides,
 });

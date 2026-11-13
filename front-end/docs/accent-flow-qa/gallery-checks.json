@@ -1,0 +1,22 @@
+[
+  {
+    "mode": "light",
+    "accent": "purple",
+    "pass": true
+  },
+  {
+    "mode": "light",
+    "accent": "blue",
+    "pass": true
+  },
+  {
+    "mode": "dark",
+    "accent": "purple",
+    "pass": true
+  },
+  {
+    "mode": "dark",
+    "accent": "blue",
+    "pass": true
+  }
+]

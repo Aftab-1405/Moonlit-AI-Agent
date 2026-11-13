@@ -39,7 +39,13 @@ export default function ComposerModelPicker({
   const listRef = useRef(null);
   const searchRef = useRef(null);
   const modelRef = useRef(null);
-  const focusControl = () => (showModels ? searchRef : modelRef).current?.focus();
+  const focusControl = () => {
+    const control = (showModels ? searchRef : modelRef).current;
+    const popup = control?.closest('[data-app-popover]');
+    // Enter animations must not steal focus after the user starts navigating.
+    if (!popup?.contains(document.activeElement) || document.activeElement === popup)
+      control?.focus();
+  };
   useEffect(() => {
     (showModels ? searchRef : modelRef).current?.focus();
   }, [showModels]);
@@ -71,9 +77,6 @@ export default function ComposerModelPicker({
       transformOrigin={{ vertical: below ? 'top' : 'bottom', horizontal: 'right' }}
       paperSx={{
         mt: below ? 0.5 : -0.5,
-        borderRadius: '18px',
-        bgcolor: 'background.elevated2',
-        p: 0.75,
         overflowY: 'auto',
       }}
       slotProps={{

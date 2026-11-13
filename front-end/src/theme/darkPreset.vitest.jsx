@@ -5,7 +5,7 @@ import { moonlitDarkShikiTheme, moonlitDarkSyntax } from './syntaxPalettes';
 it('applies the supplied dark preset across UI, content and code tokens', () => {
   const theme = createDarkTheme();
   expect(theme.palette.background.default).toBe('#000000');
-  expect(theme.palette.accent.main).toBe('#f077af');
+  expect(theme.palette.accent.main).toBe('#FFFFFF');
   expect(theme.palette.text.primary).toBe('#ededed');
   expect(theme.palette.semanticColors).toEqual({
     diffAdded: '#00ad3a',

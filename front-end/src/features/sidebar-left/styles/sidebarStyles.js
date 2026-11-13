@@ -127,7 +127,7 @@ export function buildConversationRowSx(theme, { isActive = false, isRenaming = f
         transform: 'translateX(calc(-1 * var(--conversation-title-overflow)))',
         transition: 'transform var(--conversation-title-duration) linear 300ms',
       },
-    '@media (prefers-reduced-motion: reduce)': {
+    'html[data-moonlit-reduced-motion="true"] &': {
       '&:hover .conversation-title-text, & .conversation-select:focus-visible .conversation-title-text':
         {
           transition: 'none',

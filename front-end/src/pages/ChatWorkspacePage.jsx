@@ -13,7 +13,7 @@
 // appropriate column slots.
 
 import { Box } from '@mui/material';
-import { lazy, memo, Suspense, useRef, useState } from 'react';
+import { lazy, memo, Suspense, useCallback, useRef, useState } from 'react';
 import { ResizeHandle } from '@/components';
 import ChatColumn from '@/features/chat/ChatColumn';
 import AppShell from '@/features/shell/AppShell';
@@ -104,6 +104,12 @@ function ChatWorkspacePage() {
   } = useChatPageController({ mobileSidebarTriggerRef });
 
   const [isResizingCanvas, setIsResizingCanvas] = useState(false);
+  const handleToggleSidebar = useCallback(() => {
+    if (settingsOpen) {
+      handleCloseSettings();
+      if (!sidebarOpen) handleSidebarToggle();
+    } else handleSidebarToggle();
+  }, [settingsOpen, sidebarOpen, handleCloseSettings, handleSidebarToggle]);
   const [fullscreenSession, setFullscreenSession] = useState(null);
   const canvasFullscreen =
     workspaceCanvasOpen && fullscreenSession === chatInputSharedProps.sessionKey;
@@ -211,6 +217,7 @@ function ChatWorkspacePage() {
   return (
     <Box id="app-shell" sx={{ width: '100%', height: '100%', minHeight: 0, minWidth: 0 }}>
       <AppShell
+        settingsOpen={settingsOpen}
         isNarrowLayout={isNarrowLayout}
         sidebarOpen={sidebarOpen}
         canvasOpen={workspaceCanvasOpen}
@@ -224,8 +231,9 @@ function ChatWorkspacePage() {
               onSelectConversation={handleSidebarSelectConversation}
               onOpenDbModal={handleSidebarOpenDbModal}
               onOpenMindmap={handleOpenMindmap}
-              open={sidebarOpen}
-              onToggleOpen={handleSidebarToggle}
+              open={sidebarOpen && !settingsOpen}
+              railOnly={settingsOpen}
+              onToggleOpen={handleToggleSidebar}
               onOpenSettings={handleSidebarOpenSettings}
               onOpenDashboard={handleOpenDashboard}
               onLogout={handleLogout}

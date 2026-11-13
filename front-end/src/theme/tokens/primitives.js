@@ -7,7 +7,8 @@
 
 export const primitives = Object.freeze({
   workspace: Object.freeze({
-    accent: '#f077af',
+    accent: '#FFFFFF',
+    accentLight: '#0D0D0D',
     diffAdded: '#00ad3a',
     diffRemoved: '#f13342',
     skill: '#9540d5',

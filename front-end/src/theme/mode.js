@@ -3,4 +3,13 @@ export const THEME_ATTRIBUTE = 'data-moonlit-color-scheme';
 export const INPUT_MODALITY_ATTRIBUTE = 'data-moonlit-input-modality';
 export const CANONICAL_THEME_MODE = 'dark';
 
-export const getEffectiveThemeMode = (_pathname, _preferredMode) => CANONICAL_THEME_MODE;
+export const getEffectiveThemeMode = (_pathname, preferredMode, systemDark = false) =>
+  preferredMode === 'dark' || preferredMode === 'light'
+    ? preferredMode
+    : systemDark
+      ? 'dark'
+      : 'light';
+
+export const getReducedMotion = (preference, systemReduced = false) =>
+  preference === 'on' || (preference !== 'off' && systemReduced);
+export const APPEARANCE_BOOT_KEY = 'moonlit-appearance-boot-v1';

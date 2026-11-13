@@ -1,0 +1,75 @@
+[
+  {
+    "name": "Enter expands Advanced",
+    "pass": true
+  },
+  {
+    "name": "Space collapses Advanced",
+    "pass": true
+  },
+  {
+    "name": "Unchanged hex Enter and blur write nothing",
+    "pass": true
+  },
+  {
+    "name": "Changed lowercase hex normalizes and writes once",
+    "pass": true
+  },
+  {
+    "name": "Preview preserves validation error color",
+    "pass": true,
+    "details": "rgb(255, 154, 154)"
+  },
+  {
+    "name": "Keyboard-equivalent controls produce blue",
+    "pass": true
+  },
+  {
+    "name": "Neutral edit retains selected hue",
+    "pass": true
+  },
+  {
+    "name": "Returning saturation restores blue",
+    "pass": true
+  },
+  {
+    "name": "Black edit retains hue",
+    "pass": true
+  },
+  {
+    "name": "Same-color external profile reset closes draft",
+    "pass": true
+  },
+  {
+    "name": "External reset reinitializes remembered hue",
+    "pass": true
+  },
+  {
+    "name": "light background preview equals commit",
+    "pass": true
+  },
+  {
+    "name": "dark background preview equals commit",
+    "pass": true
+  },
+  {
+    "name": "light contrast preview equals commit",
+    "pass": true
+  },
+  {
+    "name": "dark contrast preview equals commit",
+    "pass": true
+  },
+  {
+    "name": "Backdrop and blur commit a hex draft exactly once",
+    "pass": true
+  },
+  {
+    "name": "Touch-cancelled contrast cannot commit on blur",
+    "pass": true
+  },
+  {
+    "name": "Reduced motion disables disclosure rotation animation",
+    "pass": true
+  }
+]

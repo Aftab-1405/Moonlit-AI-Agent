@@ -55,7 +55,7 @@ npm ci
 npm run dev
 ```
 
-Open `http://localhost:5173`. Vite proxies the authentication and `/api` routes to the local API. Firebase Web configuration is obtained from the backend bootstrap endpoint; the browser must never receive Firebase Admin credentials.
+Open `http://localhost:5173` to sign in, or visit `/login` directly. Signed-in visitors continue to the chat workspace. Vite proxies the authentication and `/api` routes to the local API. Firebase Web configuration is obtained from the backend bootstrap endpoint; the browser must never receive Firebase Admin credentials.
 
 ## Validation
 
@@ -80,6 +80,6 @@ The Markdown files under `back-end/skills/*/SKILL.md` are application runtime as
 
 ## Deployment limits
 
-The repository does not contain a complete backend deployment manifest. The current frontend Vercel rewrites still use legacy authentication paths and need reconciliation before deployment. Production-shaped verification of Firebase, Redis, Qdrant, Bedrock, remote databases, proxy streaming, and account-erasure recovery remains necessary. See [operations](docs/operations.md#deployment).
+The repository does not contain a complete backend deployment manifest. Frontend Vercel rewrites forward the current authentication paths; verify session cookies and CSRF through the deployed proxy before release. Production-shaped verification of Firebase, Redis, Qdrant, Bedrock, remote databases, proxy streaming, and account-erasure recovery remains necessary. See [operations](docs/operations.md#deployment).
 
 Full command idempotency, protected-action fencing, hard end-to-end budgets, and recoverable terminal finalization remain tracked work. Existing source controls and historical unit-test evidence do not establish production guarantees.

@@ -71,7 +71,7 @@ export function getFullCodeBlockStyles(theme) {
     },
     pre: {
       fontFamily: theme.typography.fontFamilyMono,
-      fontSize: '14px',
+      fontSize: 'var(--font-code-size, 12px)',
       lineHeight: 1.625,
       color: 'text.primary',
     },

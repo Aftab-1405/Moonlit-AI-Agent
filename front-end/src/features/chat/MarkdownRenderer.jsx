@@ -1,6 +1,7 @@
+import { useAppearanceReducedMotion } from '@/hooks/useAppearanceReducedMotion';
 import { Box, Typography, useTheme } from '@mui/material';
 import { alpha, keyframes } from '@mui/material/styles';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { createContext, memo, useContext, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -70,7 +71,7 @@ const AnimatedMarkdownImage = memo(function AnimatedMarkdownImage({
   onLoad,
   ...imageProps
 }) {
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = useAppearanceReducedMotion();
   const [loaded, setLoaded] = useState(!animateBlocks);
   const revealImage = (event, callback) => {
     setLoaded(true);
@@ -102,7 +103,7 @@ const StructuredBlockMotion = memo(function StructuredBlockMotion({
   children,
   ...boxProps
 }) {
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = useAppearanceReducedMotion();
   const structuredMotion = useMemo(
     () => getChatMotionVariants(prefersReducedMotion).structured,
     [prefersReducedMotion],
@@ -457,7 +458,7 @@ const MarkdownRenderer = memo(function MarkdownRenderer({
           backgroundColor: alpha(theme.palette.text.primary, 0.82),
           animation: `${streamingCaret} 1s ease-in-out infinite`,
         },
-      '@media (prefers-reduced-motion: reduce)': {
+      'html[data-moonlit-reduced-motion="true"] &': {
         '&.is-streaming > p:last-child::after, &.is-streaming > ul:last-child li:last-child::after, &.is-streaming > ol:last-child li:last-child::after, &.is-streaming > blockquote:last-child p:last-child::after':
           {
             animation: 'none',

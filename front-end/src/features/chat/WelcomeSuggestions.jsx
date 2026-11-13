@@ -1,5 +1,6 @@
+import { useAppearanceReducedMotion } from '@/hooks/useAppearanceReducedMotion';
 import { Box, Button, IconButton, Typography } from '@mui/material';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import {
   AiSparkleIcon,
@@ -48,7 +49,7 @@ function WelcomeSuggestions({
   canOpenDatabase = false,
   disabled = false,
 }) {
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useAppearanceReducedMotion();
   const suggestionRefs = useRef([]);
   const returnFocusIdRef = useRef(null);
   const panelFocusPendingRef = useRef(false);

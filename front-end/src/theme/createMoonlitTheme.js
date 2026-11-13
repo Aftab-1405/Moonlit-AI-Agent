@@ -1,11 +1,13 @@
-import { alpha, createTheme, responsiveFontSizes } from '@mui/material/styles';
+import { alpha, createTheme } from '@mui/material/styles';
+import { createElement } from 'react';
+import SvgIcon from '@mui/material/SvgIcon';
 import {
   BUTTON_TOUCH_QUERY,
   HOVER_CAPABLE_QUERY,
+  KEYBOARD_FOCUS_SELECTOR,
   MOBILE_SM_QUERY,
-  REDUCED_MOTION_QUERY,
-  TOUCH_DEVICE_QUERY,
 } from '@/styles/mediaQueries';
+import { getPopoverMenuItemSx, getPopoverMenuListSx, getPopoverPaperSx } from '@/styles/shared';
 import { BREAKPOINTS, BUTTON_SIZES, FONTS, SHAPE, SWITCH_GEOMETRY } from '@/theme/tokens';
 import { createTypography } from '@/theme/typography';
 
@@ -58,6 +60,9 @@ const createPalette = (S) => ({
   text: S.text,
   primary: S.primary,
   accent: S.accent,
+  userMessage: S.userMessage,
+  textSelection: S.textSelection,
+  composerAction: S.composerAction,
   semanticColors: S.semanticColors,
   secondary: S.secondary,
   error: S.error,
@@ -104,7 +109,33 @@ const createPalette = (S) => ({
 
 // Explicit status colors take precedence over the default checked-control accent.
 const checkedControlColor = (S, color) =>
-  ['error', 'warning', 'success', 'info'].includes(color) ? S[color].main : S.accent.foreground;
+  ['error', 'warning', 'success', 'info'].includes(color) ? S[color].main : S.accent.main;
+const checkedControlMark = (S, color) =>
+  ['error', 'warning', 'success', 'info'].includes(color)
+    ? S[color].contrastText
+    : S.accent.contrastText;
+// Separate SVG geometry gives the mark its on-solid role instead of a transparent hole.
+const checkedIcon = (kind) =>
+  createElement(
+    SvgIcon,
+    null,
+    kind === 'radio'
+      ? createElement('circle', { cx: 12, cy: 12, r: 9 })
+      : createElement('rect', { x: 3, y: 3, width: 18, height: 18, rx: 2 }),
+    kind === 'radio'
+      ? createElement('circle', {
+          cx: 12,
+          cy: 12,
+          r: 4,
+          fill: 'var(--checked-mark)',
+          'data-accent-mark': '',
+        })
+      : createElement('path', {
+          d: kind === 'mixed' ? 'M7 11h10v2H7z' : 'M9 16.2 4.8 12l1.4-1.4L9 13.4l8.8-8.8L19.2 6z',
+          fill: 'var(--checked-mark)',
+          'data-accent-mark': '',
+        }),
+  );
 
 const buttonSize = (size) => {
   const { height, paddingX, fontSize, icon } = BUTTON_SIZES[size];
@@ -122,6 +153,17 @@ const createComponents = (S) => ({
     styleOverrides: {
       '*, *::before, *::after': { boxSizing: 'border-box' },
       '*': { scrollbarWidth: 'thin' },
+      // MUI may retain focus-visible after restoring focus from a menu. Pointer activation
+      // never paints a keyboard ring, including native text inputs that always match :focus-visible.
+      'html[data-moonlit-input-modality="pointer"] :where(button, a, input, textarea, [tabindex], .MuiButtonBase-root, .MuiSlider-thumb):is(:focus-visible, .Mui-focusVisible)':
+        {
+          outline: 'none !important',
+          boxShadow: 'none !important',
+        },
+      'html[data-moonlit-input-modality="pointer"] .MuiSwitch-switchBase.Mui-focusVisible + .MuiSwitch-track':
+        {
+          outline: 'none',
+        },
       '*::-webkit-scrollbar': { width: 8, height: 8 },
       '*::-webkit-scrollbar-track': { backgroundColor: 'transparent' },
       '*::-webkit-scrollbar-thumb': {
@@ -132,13 +174,25 @@ const createComponents = (S) => ({
       },
       '*::-webkit-scrollbar-thumb:hover': { backgroundColor: alpha(S.text.primary, 0.3) },
       '*::-webkit-scrollbar-corner': { backgroundColor: 'transparent' },
+      'html[data-moonlit-reduced-motion="true"] *, html[data-moonlit-reduced-motion="true"] *::before, html[data-moonlit-reduced-motion="true"] *::after':
+        {
+          animationDuration: '0.01ms !important',
+          animationIterationCount: '1 !important',
+          transitionDuration: '0.01ms !important',
+          scrollBehavior: 'auto !important',
+        },
       html: {
+        '--moonlit-keyboard-focus-outline': `2px solid ${S.border.focus}`,
         colorScheme: S.mode,
         scrollBehavior: 'smooth',
         WebkitTextSizeAdjust: '100%',
         textSizeAdjust: '100%',
         minHeight: '100%',
         height: '100%',
+      },
+      'html[data-moonlit-input-modality="pointer"]': {
+        // Inherits through embedded analytics shadow roots without extra event listeners.
+        '--moonlit-keyboard-focus-outline': 'none',
       },
       body: {
         margin: 0,
@@ -147,7 +201,7 @@ const createComponents = (S) => ({
         display: 'flex',
         flexDirection: 'column',
         overflowX: 'hidden',
-        fontFamily: FONTS.sans,
+        fontFamily: S.integration.appearance?.profiles[S.mode].fonts.ui || FONTS.sans,
         fontSize: '1rem',
         fontWeight: 400,
         color: S.text.primary,
@@ -174,7 +228,7 @@ const createComponents = (S) => ({
         '--color-border-hover': S.border.hover,
         '--color-border-focus': S.border.focus,
         '--color-accent': S.accent.main,
-        '--color-accent-selection': S.accent.selectedBackground,
+        '--color-accent-selection': S.textSelection.background,
         '--color-primary': S.primary.main,
         '--color-primary-light': S.primary.light,
         '--color-primary-dark': S.primary.dark,
@@ -190,7 +244,11 @@ const createComponents = (S) => ({
         '--color-code-bg': S.background.sunken,
         '--color-code-text': S.text.primary,
         '--color-code-border': S.border.idle,
-        '&::selection': { backgroundColor: alpha(S.text.primary, 0.2), color: S.text.primary },
+        '&::selection, & ::selection': {
+          backgroundColor: S.textSelection.background,
+          color: S.textSelection.foreground,
+        },
+        '& pre ::selection, & code::selection, & code ::selection': { color: 'currentColor' },
         [MOBILE_SM_QUERY]: { '& input, & select, & textarea': { fontSize: '16px' } },
       },
       '#root': {
@@ -200,14 +258,6 @@ const createComponents = (S) => ({
         minHeight: '100dvh',
         display: 'flex',
         flexDirection: 'column',
-      },
-      [REDUCED_MOTION_QUERY]: {
-        '*': {
-          animationDuration: '0.01ms !important',
-          animationIterationCount: '1 !important',
-          transitionDuration: '0.01ms !important',
-          scrollBehavior: 'auto !important',
-        },
       },
     },
   },
@@ -256,7 +306,7 @@ const createComponents = (S) => ({
         minWidth: 0,
         borderRadius: pill,
         border: '1px solid',
-        fontFamily: FONTS.sans,
+        fontFamily: S.integration.appearance?.profiles[S.mode].fonts.ui || FONTS.sans,
         fontSize: '0.875rem',
         fontWeight: 400,
         lineHeight: '20px',
@@ -264,7 +314,6 @@ const createComponents = (S) => ({
         textTransform: 'none',
         boxShadow: 'none',
         transition: 'background-color 140ms ease, border-color 140ms ease, color 140ms ease',
-        [REDUCED_MOTION_QUERY]: { transition: 'none' },
         '&.Mui-focusVisible': {
           outline: `2px solid ${S.border.focus}`,
           outlineOffset: 2,
@@ -327,7 +376,6 @@ const createComponents = (S) => ({
           '&:hover:not(.Mui-disabled)': { color: S.text.primary, backgroundColor: S.action.hover },
         },
         [BUTTON_TOUCH_QUERY]: { minWidth: 44, minHeight: 44 },
-        [REDUCED_MOTION_QUERY]: { transition: 'none' },
         '&.Mui-focusVisible': { outline: `2px solid ${S.border.focus}`, outlineOffset: 2 },
         '&:active:not(.Mui-disabled)': { backgroundColor: S.action.selected },
         '&.Mui-disabled': { color: S.text.disabled, backgroundColor: 'transparent' },
@@ -409,8 +457,14 @@ const createComponents = (S) => ({
     styleOverrides: {
       root: {
         color: S.text.primary,
-        fontFamily: FONTS.sans,
+        fontFamily: S.integration.appearance?.profiles[S.mode].fonts.ui || FONTS.sans,
         '&.Mui-focused': { outline: 'none', boxShadow: 'none' },
+        [KEYBOARD_FOCUS_SELECTOR]: {
+          '&.Mui-focused:has(:focus-visible)': {
+            outline: `2px solid ${S.border.focus}`,
+            outlineOffset: 2,
+          },
+        },
       },
       input: {
         fontFamily: 'inherit',
@@ -421,24 +475,31 @@ const createComponents = (S) => ({
   },
   MuiOutlinedInput: {
     styleOverrides: {
+      notchedOutline: { borderColor: S.border.idle, borderWidth: 1 },
       root: {
         backgroundColor: S.background.input,
+        '&:hover:not(.Mui-disabled) .MuiOutlinedInput-notchedOutline': {
+          borderColor: S.border.hover,
+        },
         '&.Mui-focused': { outline: 'none', boxShadow: 'none' },
         '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-          borderColor: S.border.focus,
+          borderColor: S.border.idle,
           borderWidth: 1,
         },
         '&.Mui-focused:hover .MuiOutlinedInput-notchedOutline': {
-          borderColor: S.border.focus,
+          borderColor: S.border.hover,
           borderWidth: 1,
         },
-        '&.Mui-error.Mui-focused .MuiOutlinedInput-notchedOutline': {
-          borderColor: S.error.main,
-          borderWidth: 1,
-        },
+        '&.Mui-error .MuiOutlinedInput-notchedOutline, &.Mui-error:hover .MuiOutlinedInput-notchedOutline, &.Mui-error.Mui-focused .MuiOutlinedInput-notchedOutline, &.Mui-error.Mui-focused:hover .MuiOutlinedInput-notchedOutline':
+          {
+            borderColor: S.error.main,
+            borderWidth: 1,
+          },
       },
     },
   },
+  MuiInput: { styleOverrides: { root: { '&::after': { borderBottom: 0 } } } },
+  MuiFilledInput: { styleOverrides: { root: { '&::after': { borderBottom: 0 } } } },
   MuiDivider: { styleOverrides: { root: { borderColor: S.border.idle } } },
   MuiTooltip: {
     styleOverrides: {
@@ -448,7 +509,7 @@ const createComponents = (S) => ({
         border: `1px solid ${S.border.idle}`,
         backgroundColor: S.background.sunken,
         color: S.text.primary,
-        fontFamily: FONTS.sans,
+        fontFamily: S.integration.appearance?.profiles[S.mode].fonts.ui || FONTS.sans,
         fontSize: '0.75rem',
         fontWeight: 400,
         boxShadow: 'none',
@@ -496,45 +557,30 @@ const createComponents = (S) => ({
   },
   MuiMenu: {
     styleOverrides: {
-      paper: {
-        borderRadius: '16px',
-        overflowX: 'hidden',
-        border: `1px solid ${S.border.idle}`,
-        backgroundColor: S.background.paper,
-        backgroundImage: 'none',
-        backdropFilter: 'none',
-        boxShadow: 'none',
-      },
-      list: { padding: 6, display: 'flex', flexDirection: 'column', gap: 2 },
+      paper: ({ theme }) => theme.unstable_sx(getPopoverPaperSx(theme)),
+      list: ({ theme }) => theme.unstable_sx(getPopoverMenuListSx()),
     },
   },
   MuiPopover: {
     styleOverrides: {
-      paper: {
-        borderRadius: '16px',
-        overflowX: 'hidden',
-        border: `1px solid ${S.border.idle}`,
-        backgroundColor: S.background.paper,
-        backgroundImage: 'none',
-        backdropFilter: 'none',
-        boxShadow: 'none',
-      },
+      paper: ({ theme }) => theme.unstable_sx(getPopoverPaperSx(theme)),
     },
   },
   MuiMenuItem: {
     styleOverrides: {
-      root: {
-        minHeight: 36,
-        padding: '8px',
-        gap: 8,
-        borderRadius: cardRadius,
-        fontSize: '0.8125rem',
-        fontWeight: 400,
-        '&:hover': { backgroundColor: S.action.hover },
-        '&.Mui-selected': { backgroundColor: S.action.selected, fontWeight: 400 },
-        '&.Mui-focusVisible': { outline: `2px solid ${S.border.focus}`, outlineOffset: -2 },
-        [TOUCH_DEVICE_QUERY]: { minHeight: 44 },
-      },
+      root: ({ theme }) =>
+        theme.unstable_sx({
+          ...getPopoverMenuItemSx(theme),
+          display: 'flex',
+          '&[role="option"]::after': {
+            content: '"✓"',
+            visibility: 'hidden',
+            width: 16,
+            ml: 'auto',
+            color: 'accent.foreground',
+          },
+          '&[role="option"].Mui-selected::after': { visibility: 'visible' },
+        }),
     },
   },
   MuiTableCell: {
@@ -663,7 +709,7 @@ const createComponents = (S) => ({
         '&:hover, &:active': { backgroundColor: 'transparent' },
         '&.Mui-checked': {
           transform: `translateX(${SWITCH_GEOMETRY.travel}px)`,
-          color: S.background.default,
+          color: checkedControlMark(S, ownerState.color),
           backgroundColor: 'transparent',
           '&:hover, &:active': { backgroundColor: 'transparent' },
           '& + .MuiSwitch-track': {
@@ -801,23 +847,27 @@ const createComponents = (S) => ({
   },
   MuiFormHelperText: { styleOverrides: { root: { fontSize: '0.75rem', color: S.text.secondary } } },
   MuiCheckbox: {
+    defaultProps: { checkedIcon: checkedIcon('check'), indeterminateIcon: checkedIcon('mixed') },
     styleOverrides: {
       root: ({ ownerState }) => ({
         color: S.text.secondary,
+        '--checked-mark': checkedControlMark(S, ownerState.color),
         '&.Mui-checked, &.MuiCheckbox-indeterminate': {
           color: checkedControlColor(S, ownerState.color),
         },
-        '&.Mui-disabled': { color: S.text.disabled },
+        '&.Mui-disabled': { color: S.text.disabled, '--checked-mark': S.background.default },
         '&.Mui-focusVisible': { outline: `2px solid ${S.border.focus}`, outlineOffset: 2 },
       }),
     },
   },
   MuiRadio: {
+    defaultProps: { checkedIcon: checkedIcon('radio') },
     styleOverrides: {
       root: ({ ownerState }) => ({
         color: S.text.secondary,
+        '--checked-mark': checkedControlMark(S, ownerState.color),
         '&.Mui-checked': { color: checkedControlColor(S, ownerState.color) },
-        '&.Mui-disabled': { color: S.text.disabled },
+        '&.Mui-disabled': { color: S.text.disabled, '--checked-mark': S.background.default },
         '&.Mui-focusVisible': { outline: `2px solid ${S.border.focus}`, outlineOffset: 2 },
       }),
     },
@@ -825,11 +875,14 @@ const createComponents = (S) => ({
   MuiSlider: {
     styleOverrides: {
       root: ({ ownerState }) => ({
-        color: checkedControlColor(S, ownerState.color),
+        color: ['error', 'warning', 'success', 'info'].includes(ownerState.color)
+          ? S[ownerState.color].main
+          : S.accent.foreground,
         '&.Mui-disabled': { color: S.text.disabled },
       }),
       rail: { color: S.text.disabled },
       thumb: {
+        '&:hover, &.Mui-active': { boxShadow: 'none' },
         '&.Mui-focusVisible': {
           outline: `2px solid ${S.border.focus}`,
           outlineOffset: 3,
@@ -844,7 +897,7 @@ const createComponents = (S) => ({
 });
 
 export function createMoonlitTheme(S, H) {
-  const typography = createTypography(H);
+  const typography = createTypography(H, S.integration.appearance, S.mode);
   const base = createTheme({
     cssVariables: { colorSchemeSelector: 'data-moonlit-color-scheme' },
     breakpoints: BREAKPOINTS,
@@ -854,5 +907,5 @@ export function createMoonlitTheme(S, H) {
     typography,
     components: createComponents(S),
   });
-  return responsiveFontSizes(base);
+  return base;
 }

@@ -1,0 +1,1225 @@
+{
+  "checks": [
+    {
+      "label": "light/false/hover has stable disclosure bounds",
+      "pass": true,
+      "details": {
+        "x": 372.5,
+        "y": 412,
+        "width": 102.28125,
+        "height": 36,
+        "top": 412,
+        "right": 474.78125,
+        "bottom": 448,
+        "left": 372.5
+      }
+    },
+    {
+      "label": "light/false/pressed has stable disclosure bounds",
+      "pass": true,
+      "details": {
+        "x": 372.5,
+        "y": 412,
+        "width": 102.28125,
+        "height": 36,
+        "top": 412,
+        "right": 474.78125,
+        "bottom": 448,
+        "left": 372.5
+      }
+    },
+    {
+      "label": "light/false/focus has stable disclosure bounds",
+      "pass": true,
+      "details": {
+        "x": 372.5,
+        "y": 412,
+        "width": 102.28125,
+        "height": 36,
+        "top": 412,
+        "right": 474.78125,
+        "bottom": 448,
+        "left": 372.5
+      }
+    },
+    {
+      "label": "light/false focus has outline",
+      "pass": true,
+      "details": {
+        "bounds": {
+          "x": 372.5,
+          "y": 412,
+          "width": 102.28125,
+          "height": 36,
+          "top": 412,
+          "right": 474.78125,
+          "bottom": 448,
+          "left": 372.5
+        },
+        "group": {
+          "x": 380.5,
+          "y": 133,
+          "width": 728,
+          "height": 78,
+          "top": 133,
+          "right": 1108.5,
+          "bottom": 211,
+          "left": 380.5
+        },
+        "color": "rgb(73, 73, 73)",
+        "background": "rgba(14, 14, 14, 0)",
+        "radius": "6px",
+        "outline": "rgb(73, 73, 73) solid 2px",
+        "focus": true
+      }
+    },
+    {
+      "label": "light/true/hover has stable disclosure bounds",
+      "pass": true,
+      "details": {
+        "x": 372.5,
+        "y": 412,
+        "width": 102.28125,
+        "height": 36,
+        "top": 412,
+        "right": 474.78125,
+        "bottom": 448,
+        "left": 372.5
+      }
+    },
+    {
+      "label": "light/true/pressed has stable disclosure bounds",
+      "pass": true,
+      "details": {
+        "x": 372.5,
+        "y": 412,
+        "width": 102.28125,
+        "height": 36,
+        "top": 412,
+        "right": 474.78125,
+        "bottom": 448,
+        "left": 372.5
+      }
+    },
+    {
+      "label": "light/true/focus has stable disclosure bounds",
+      "pass": true,
+      "details": {
+        "x": 372.5,
+        "y": 412,
+        "width": 102.28125,
+        "height": 36,
+        "top": 412,
+        "right": 474.78125,
+        "bottom": 448,
+        "left": 372.5
+      }
+    },
+    {
+      "label": "light/true focus has outline",
+      "pass": true,
+      "details": {
+        "bounds": {
+          "x": 372.5,
+          "y": 412,
+          "width": 102.28125,
+          "height": 36,
+          "top": 412,
+          "right": 474.78125,
+          "bottom": 448,
+          "left": 372.5
+        },
+        "group": {
+          "x": 380.5,
+          "y": 133,
+          "width": 728,
+          "height": 78,
+          "top": 133,
+          "right": 1108.5,
+          "bottom": 211,
+          "left": 380.5
+        },
+        "color": "rgb(73, 73, 73)",
+        "background": "rgba(14, 14, 14, 0)",
+        "radius": "6px",
+        "outline": "rgb(73, 73, 73) solid 2px",
+        "focus": true
+      }
+    },
+    {
+      "label": "Reset does not toggle Advanced",
+      "pass": true
+    },
+    {
+      "label": "dark/false/hover has stable disclosure bounds",
+      "pass": true,
+      "details": {
+        "x": 372.5,
+        "y": 412,
+        "width": 102.28125,
+        "height": 36,
+        "top": 412,
+        "right": 474.78125,
+        "bottom": 448,
+        "left": 372.5
+      }
+    },
+    {
+      "label": "dark/false/pressed has stable disclosure bounds",
+      "pass": true,
+      "details": {
+        "x": 372.5,
+        "y": 412,
+        "width": 102.28125,
+        "height": 36,
+        "top": 412,
+        "right": 474.78125,
+        "bottom": 448,
+        "left": 372.5
+      }
+    },
+    {
+      "label": "dark/false/focus has stable disclosure bounds",
+      "pass": true,
+      "details": {
+        "x": 372.5,
+        "y": 412,
+        "width": 102.28125,
+        "height": 36,
+        "top": 412,
+        "right": 474.78125,
+        "bottom": 448,
+        "left": 372.5
+      }
+    },
+    {
+      "label": "dark/false focus has outline",
+      "pass": true,
+      "details": {
+        "bounds": {
+          "x": 372.5,
+          "y": 412,
+          "width": 102.28125,
+          "height": 36,
+          "top": 412,
+          "right": 474.78125,
+          "bottom": 448,
+          "left": 372.5
+        },
+        "group": {
+          "x": 380.5,
+          "y": 133,
+          "width": 728,
+          "height": 78,
+          "top": 133,
+          "right": 1108.5,
+          "bottom": 211,
+          "left": 380.5
+        },
+        "color": "rgb(205, 205, 205)",
+        "background": "rgba(14, 14, 14, 0)",
+        "radius": "6px",
+        "outline": "rgb(205, 205, 205) solid 2px",
+        "focus": true
+      }
+    },
+    {
+      "label": "dark/true/hover has stable disclosure bounds",
+      "pass": true,
+      "details": {
+        "x": 372.5,
+        "y": 412,
+        "width": 102.28125,
+        "height": 36,
+        "top": 412,
+        "right": 474.78125,
+        "bottom": 448,
+        "left": 372.5
+      }
+    },
+    {
+      "label": "dark/true/pressed has stable disclosure bounds",
+      "pass": true,
+      "details": {
+        "x": 372.5,
+        "y": 412,
+        "width": 102.28125,
+        "height": 36,
+        "top": 412,
+        "right": 474.78125,
+        "bottom": 448,
+        "left": 372.5
+      }
+    },
+    {
+      "label": "dark/true/focus has stable disclosure bounds",
+      "pass": true,
+      "details": {
+        "x": 372.5,
+        "y": 412,
+        "width": 102.28125,
+        "height": 36,
+        "top": 412,
+        "right": 474.78125,
+        "bottom": 448,
+        "left": 372.5
+      }
+    },
+    {
+      "label": "dark/true focus has outline",
+      "pass": true,
+      "details": {
+        "bounds": {
+          "x": 372.5,
+          "y": 412,
+          "width": 102.28125,
+          "height": 36,
+          "top": 412,
+          "right": 474.78125,
+          "bottom": 448,
+          "left": 372.5
+        },
+        "group": {
+          "x": 380.5,
+          "y": 133,
+          "width": 728,
+          "height": 78,
+          "top": 133,
+          "right": 1108.5,
+          "bottom": 211,
+          "left": 380.5
+        },
+        "color": "rgb(205, 205, 205)",
+        "background": "rgba(14, 14, 14, 0)",
+        "radius": "6px",
+        "outline": "rgb(205, 205, 205) solid 2px",
+        "focus": true
+      }
+    },
+    {
+      "label": "Reset does not toggle Advanced",
+      "pass": true
+    },
+    {
+      "label": "Four semantic navigation glyphs are distinct",
+      "pass": true,
+      "details": [
+        {
+          "label": "General",
+          "icon": "SettingsOutlinedIcon",
+          "hidden": "true",
+          "bounds": {
+            "x": 68,
+            "y": 141.5,
+            "width": 20,
+            "height": 20,
+            "top": 141.5,
+            "right": 88,
+            "bottom": 161.5,
+            "left": 68
+          },
+          "fill": "rgb(200, 200, 200)"
+        },
+        {
+          "label": "Appearance",
+          "icon": "PaletteOutlinedIcon",
+          "hidden": "true",
+          "bounds": {
+            "x": 68,
+            "y": 177.5,
+            "width": 20,
+            "height": 20,
+            "top": 177.5,
+            "right": 88,
+            "bottom": 197.5,
+            "left": 68
+          },
+          "fill": "rgb(228, 228, 228)"
+        },
+        {
+          "label": "Database",
+          "icon": null,
+          "hidden": "true",
+          "bounds": {
+            "x": 68,
+            "y": 254.5,
+            "width": 20,
+            "height": 20,
+            "top": 254.5,
+            "right": 88,
+            "bottom": 274.5,
+            "left": 68
+          },
+          "fill": "rgb(200, 200, 200)"
+        },
+        {
+          "label": "AI context",
+          "icon": "PsychologyRoundedIcon",
+          "hidden": "true",
+          "bounds": {
+            "x": 68,
+            "y": 290.5,
+            "width": 20,
+            "height": 20,
+            "top": 290.5,
+            "right": 88,
+            "bottom": 310.5,
+            "left": 68
+          },
+          "fill": "rgb(200, 200, 200)"
+        }
+      ]
+    },
+    {
+      "label": "Navigation glyphs decorative",
+      "pass": true,
+      "details": [
+        {
+          "label": "General",
+          "icon": "SettingsOutlinedIcon",
+          "hidden": "true",
+          "bounds": {
+            "x": 68,
+            "y": 141.5,
+            "width": 20,
+            "height": 20,
+            "top": 141.5,
+            "right": 88,
+            "bottom": 161.5,
+            "left": 68
+          },
+          "fill": "rgb(200, 200, 200)"
+        },
+        {
+          "label": "Appearance",
+          "icon": "PaletteOutlinedIcon",
+          "hidden": "true",
+          "bounds": {
+            "x": 68,
+            "y": 177.5,
+            "width": 20,
+            "height": 20,
+            "top": 177.5,
+            "right": 88,
+            "bottom": 197.5,
+            "left": 68
+          },
+          "fill": "rgb(228, 228, 228)"
+        },
+        {
+          "label": "Database",
+          "icon": null,
+          "hidden": "true",
+          "bounds": {
+            "x": 68,
+            "y": 254.5,
+            "width": 20,
+            "height": 20,
+            "top": 254.5,
+            "right": 88,
+            "bottom": 274.5,
+            "left": 68
+          },
+          "fill": "rgb(200, 200, 200)"
+        },
+        {
+          "label": "AI context",
+          "icon": "PsychologyRoundedIcon",
+          "hidden": "true",
+          "bounds": {
+            "x": 68,
+            "y": 290.5,
+            "width": 20,
+            "height": 20,
+            "top": 290.5,
+            "right": 88,
+            "bottom": 310.5,
+            "left": 68
+          },
+          "fill": "rgb(200, 200, 200)"
+        }
+      ]
+    },
+    {
+      "label": "Search results use appearance icon",
+      "pass": true
+    },
+    {
+      "label": "Picker opens #000000",
+      "pass": true
+    },
+    {
+      "label": "Native keyboard equivalent advances Hue",
+      "pass": true
+    },
+    {
+      "label": "Hue-only neutral edit writes nothing #000000",
+      "pass": true,
+      "details": {
+        "hex": "#000000",
+        "hue": "240",
+        "writes": 0
+      }
+    },
+    {
+      "label": "Blue obtainable from #000000",
+      "pass": true,
+      "details": "#0000FF"
+    },
+    {
+      "label": "Escape closes picker",
+      "pass": true
+    },
+    {
+      "label": "Picker opens #FFFFFF",
+      "pass": true
+    },
+    {
+      "label": "Native keyboard equivalent advances Hue",
+      "pass": true
+    },
+    {
+      "label": "Hue-only neutral edit writes nothing #FFFFFF",
+      "pass": true,
+      "details": {
+        "hex": "#FFFFFF",
+        "hue": "240",
+        "writes": 0
+      }
+    },
+    {
+      "label": "Blue obtainable from #FFFFFF",
+      "pass": true,
+      "details": "#0000FF"
+    },
+    {
+      "label": "Escape closes picker",
+      "pass": true
+    },
+    {
+      "label": "Picker opens #808080",
+      "pass": true
+    },
+    {
+      "label": "Native keyboard equivalent advances Hue",
+      "pass": true
+    },
+    {
+      "label": "Hue-only neutral edit writes nothing #808080",
+      "pass": true,
+      "details": {
+        "hex": "#808080",
+        "hue": "240",
+        "writes": 0
+      }
+    },
+    {
+      "label": "Blue obtainable from #808080",
+      "pass": true,
+      "details": "#0000FF"
+    },
+    {
+      "label": "Escape closes picker",
+      "pass": true
+    },
+    {
+      "label": "Picker opens #FF0000",
+      "pass": true
+    },
+    {
+      "label": "Native keyboard equivalent advances Hue",
+      "pass": true
+    },
+    {
+      "label": "Saturated red becomes blue",
+      "pass": true,
+      "details": "#0000FF"
+    },
+    {
+      "label": "Blue obtainable from #FF0000",
+      "pass": true,
+      "details": "#0000FF"
+    },
+    {
+      "label": "Escape closes picker",
+      "pass": true
+    },
+    {
+      "label": "Picker opens #CC9999",
+      "pass": true
+    },
+    {
+      "label": "Native keyboard equivalent advances Hue",
+      "pass": true
+    },
+    {
+      "label": "Pastel saturation survives hue change",
+      "pass": true,
+      "details": "#9999CC"
+    },
+    {
+      "label": "Blue obtainable from #CC9999",
+      "pass": true,
+      "details": "#0000FF"
+    },
+    {
+      "label": "Escape closes picker",
+      "pass": true
+    },
+    {
+      "label": "Native keyboard equivalent advances Hue",
+      "pass": true
+    },
+    {
+      "label": "Dragging previews without persistence",
+      "pass": true
+    },
+    {
+      "label": "Pointer capture is active",
+      "pass": true
+    },
+    {
+      "label": "Outside plane drag clamps to blue once",
+      "pass": true,
+      "details": {
+        "surface": "#0000FF",
+        "writes": 1
+      }
+    },
+    {
+      "label": "Escape closes picker",
+      "pass": true
+    },
+    {
+      "label": "Escape cancellation cannot be recommitted",
+      "pass": true
+    },
+    {
+      "label": "Inactive accent preview equals committed card and preserves active mode",
+      "pass": true,
+      "details": {
+        "style": "--profile-bg: #FCFCFC; --profile-ink: #0D0D0D; --profile-secondary: #494949; --profile-border: rgba(13, 13, 13, 0.13); --profile-separator: rgba(13, 13, 13, 0.13); --profile-hover: rgba(13, 13, 13, 0.1); --profile-selected: rgba(13, 13, 13, 0.1); --profile-accent: #6229CC; --profile-accent-main: #6229CC; --profile-error: #b4232a;",
+        "other": "--profile-bg: #000000; --profile-ink: #ededed; --profile-secondary: #cdcdcd; --profile-border: rgba(255, 255, 255, 0.15); --profile-separator: rgba(255, 255, 255, 0.15); --profile-hover: rgba(255, 255, 255, 0.1); --profile-selected: rgba(255, 255, 255, 0.15); --profile-accent: #f077af; --profile-accent-main: #f077af; --profile-error: #ff9a9a;",
+        "mode": "dark",
+        "writes": 0
+      }
+    },
+    {
+      "label": "Escape closes picker",
+      "pass": true
+    },
+    {
+      "label": "Background picker opens after accent",
+      "pass": true
+    },
+    {
+      "label": "Account switch discards picker draft",
+      "pass": true
+    },
+    {
+      "label": "light/default import opens",
+      "pass": true
+    },
+    {
+      "label": "light/purple import opens",
+      "pass": true
+    },
+    {
+      "label": "light/white import opens",
+      "pass": true
+    },
+    {
+      "label": "dark/default import opens",
+      "pass": true
+    },
+    {
+      "label": "dark/purple import opens",
+      "pass": true
+    },
+    {
+      "label": "dark/white import opens",
+      "pass": true
+    },
+    {
+      "label": "Mobile has no horizontal overflow",
+      "pass": true
+    },
+    {
+      "label": "Native keyboard equivalent advances Hue",
+      "pass": true
+    },
+    {
+      "label": "Touch gesture commits once without scrolling",
+      "pass": true,
+      "details": {
+        "writes": 1,
+        "hex": "#0101FD"
+      }
+    },
+    {
+      "label": "Escape closes picker",
+      "pass": true
+    }
+  ],
+  "advanced": {
+    "light-false": {
+      "normal": {
+        "bounds": {
+          "x": 372.5,
+          "y": 412,
+          "width": 102.28125,
+          "height": 36,
+          "top": 412,
+          "right": 474.78125,
+          "bottom": 448,
+          "left": 372.5
+        },
+        "group": {
+          "x": 380.5,
+          "y": 133,
+          "width": 728,
+          "height": 78,
+          "top": 133,
+          "right": 1108.5,
+          "bottom": 211,
+          "left": 380.5
+        },
+        "color": "rgb(73, 73, 73)",
+        "background": "rgba(14, 14, 14, 0)",
+        "radius": "6px",
+        "outline": "rgb(73, 73, 73) none 0px",
+        "focus": false
+      },
+      "hover": {
+        "bounds": {
+          "x": 372.5,
+          "y": 412,
+          "width": 102.28125,
+          "height": 36,
+          "top": 412,
+          "right": 474.78125,
+          "bottom": 448,
+          "left": 372.5
+        },
+        "group": {
+          "x": 380.5,
+          "y": 133,
+          "width": 728,
+          "height": 78,
+          "top": 133,
+          "right": 1108.5,
+          "bottom": 211,
+          "left": 380.5
+        },
+        "color": "rgb(13, 13, 13)",
+        "background": "rgba(13, 13, 13, 0.1)",
+        "radius": "6px",
+        "outline": "rgb(13, 13, 13) none 0px",
+        "focus": false
+      },
+      "pressed": {
+        "bounds": {
+          "x": 372.5,
+          "y": 412,
+          "width": 102.28125,
+          "height": 36,
+          "top": 412,
+          "right": 474.78125,
+          "bottom": 448,
+          "left": 372.5
+        },
+        "group": {
+          "x": 380.5,
+          "y": 133,
+          "width": 728,
+          "height": 78,
+          "top": 133,
+          "right": 1108.5,
+          "bottom": 211,
+          "left": 380.5
+        },
+        "color": "rgb(13, 13, 13)",
+        "background": "rgba(13, 13, 13, 0.1)",
+        "radius": "6px",
+        "outline": "rgb(13, 13, 13) none 0px",
+        "focus": false
+      },
+      "focus": {
+        "bounds": {
+          "x": 372.5,
+          "y": 412,
+          "width": 102.28125,
+          "height": 36,
+          "top": 412,
+          "right": 474.78125,
+          "bottom": 448,
+          "left": 372.5
+        },
+        "group": {
+          "x": 380.5,
+          "y": 133,
+          "width": 728,
+          "height": 78,
+          "top": 133,
+          "right": 1108.5,
+          "bottom": 211,
+          "left": 380.5
+        },
+        "color": "rgb(73, 73, 73)",
+        "background": "rgba(14, 14, 14, 0)",
+        "radius": "6px",
+        "outline": "rgb(73, 73, 73) solid 2px",
+        "focus": true
+      }
+    },
+    "light-true": {
+      "normal": {
+        "bounds": {
+          "x": 372.5,
+          "y": 412,
+          "width": 102.28125,
+          "height": 36,
+          "top": 412,
+          "right": 474.78125,
+          "bottom": 448,
+          "left": 372.5
+        },
+        "group": {
+          "x": 380.5,
+          "y": 133,
+          "width": 728,
+          "height": 78,
+          "top": 133,
+          "right": 1108.5,
+          "bottom": 211,
+          "left": 380.5
+        },
+        "color": "rgb(73, 73, 73)",
+        "background": "rgba(14, 14, 14, 0)",
+        "radius": "6px",
+        "outline": "rgb(73, 73, 73) none 0px",
+        "focus": false
+      },
+      "hover": {
+        "bounds": {
+          "x": 372.5,
+          "y": 412,
+          "width": 102.28125,
+          "height": 36,
+          "top": 412,
+          "right": 474.78125,
+          "bottom": 448,
+          "left": 372.5
+        },
+        "group": {
+          "x": 380.5,
+          "y": 133,
+          "width": 728,
+          "height": 78,
+          "top": 133,
+          "right": 1108.5,
+          "bottom": 211,
+          "left": 380.5
+        },
+        "color": "rgb(13, 13, 13)",
+        "background": "rgba(13, 13, 13, 0.1)",
+        "radius": "6px",
+        "outline": "rgb(13, 13, 13) none 0px",
+        "focus": false
+      },
+      "pressed": {
+        "bounds": {
+          "x": 372.5,
+          "y": 412,
+          "width": 102.28125,
+          "height": 36,
+          "top": 412,
+          "right": 474.78125,
+          "bottom": 448,
+          "left": 372.5
+        },
+        "group": {
+          "x": 380.5,
+          "y": 133,
+          "width": 728,
+          "height": 78,
+          "top": 133,
+          "right": 1108.5,
+          "bottom": 211,
+          "left": 380.5
+        },
+        "color": "rgb(13, 13, 13)",
+        "background": "rgba(13, 13, 13, 0.1)",
+        "radius": "6px",
+        "outline": "rgb(13, 13, 13) none 0px",
+        "focus": false
+      },
+      "focus": {
+        "bounds": {
+          "x": 372.5,
+          "y": 412,
+          "width": 102.28125,
+          "height": 36,
+          "top": 412,
+          "right": 474.78125,
+          "bottom": 448,
+          "left": 372.5
+        },
+        "group": {
+          "x": 380.5,
+          "y": 133,
+          "width": 728,
+          "height": 78,
+          "top": 133,
+          "right": 1108.5,
+          "bottom": 211,
+          "left": 380.5
+        },
+        "color": "rgb(73, 73, 73)",
+        "background": "rgba(14, 14, 14, 0)",
+        "radius": "6px",
+        "outline": "rgb(73, 73, 73) solid 2px",
+        "focus": true
+      }
+    },
+    "dark-false": {
+      "normal": {
+        "bounds": {
+          "x": 372.5,
+          "y": 412,
+          "width": 102.28125,
+          "height": 36,
+          "top": 412,
+          "right": 474.78125,
+          "bottom": 448,
+          "left": 372.5
+        },
+        "group": {
+          "x": 380.5,
+          "y": 133,
+          "width": 728,
+          "height": 78,
+          "top": 133,
+          "right": 1108.5,
+          "bottom": 211,
+          "left": 380.5
+        },
+        "color": "rgb(205, 205, 205)",
+        "background": "rgba(14, 14, 14, 0)",
+        "radius": "6px",
+        "outline": "rgb(205, 205, 205) none 0px",
+        "focus": false
+      },
+      "hover": {
+        "bounds": {
+          "x": 372.5,
+          "y": 412,
+          "width": 102.28125,
+          "height": 36,
+          "top": 412,
+          "right": 474.78125,
+          "bottom": 448,
+          "left": 372.5
+        },
+        "group": {
+          "x": 380.5,
+          "y": 133,
+          "width": 728,
+          "height": 78,
+          "top": 133,
+          "right": 1108.5,
+          "bottom": 211,
+          "left": 380.5
+        },
+        "color": "rgb(237, 237, 237)",
+        "background": "rgba(255, 255, 255, 0.1)",
+        "radius": "6px",
+        "outline": "rgb(237, 237, 237) none 0px",
+        "focus": false
+      },
+      "pressed": {
+        "bounds": {
+          "x": 372.5,
+          "y": 412,
+          "width": 102.28125,
+          "height": 36,
+          "top": 412,
+          "right": 474.78125,
+          "bottom": 448,
+          "left": 372.5
+        },
+        "group": {
+          "x": 380.5,
+          "y": 133,
+          "width": 728,
+          "height": 78,
+          "top": 133,
+          "right": 1108.5,
+          "bottom": 211,
+          "left": 380.5
+        },
+        "color": "rgb(237, 237, 237)",
+        "background": "rgba(255, 255, 255, 0.15)",
+        "radius": "6px",
+        "outline": "rgb(237, 237, 237) none 0px",
+        "focus": false
+      },
+      "focus": {
+        "bounds": {
+          "x": 372.5,
+          "y": 412,
+          "width": 102.28125,
+          "height": 36,
+          "top": 412,
+          "right": 474.78125,
+          "bottom": 448,
+          "left": 372.5
+        },
+        "group": {
+          "x": 380.5,
+          "y": 133,
+          "width": 728,
+          "height": 78,
+          "top": 133,
+          "right": 1108.5,
+          "bottom": 211,
+          "left": 380.5
+        },
+        "color": "rgb(205, 205, 205)",
+        "background": "rgba(14, 14, 14, 0)",
+        "radius": "6px",
+        "outline": "rgb(205, 205, 205) solid 2px",
+        "focus": true
+      }
+    },
+    "dark-true": {
+      "normal": {
+        "bounds": {
+          "x": 372.5,
+          "y": 412,
+          "width": 102.28125,
+          "height": 36,
+          "top": 412,
+          "right": 474.78125,
+          "bottom": 448,
+          "left": 372.5
+        },
+        "group": {
+          "x": 380.5,
+          "y": 133,
+          "width": 728,
+          "height": 78,
+          "top": 133,
+          "right": 1108.5,
+          "bottom": 211,
+          "left": 380.5
+        },
+        "color": "rgb(205, 205, 205)",
+        "background": "rgba(14, 14, 14, 0)",
+        "radius": "6px",
+        "outline": "rgb(205, 205, 205) none 0px",
+        "focus": false
+      },
+      "hover": {
+        "bounds": {
+          "x": 372.5,
+          "y": 412,
+          "width": 102.28125,
+          "height": 36,
+          "top": 412,
+          "right": 474.78125,
+          "bottom": 448,
+          "left": 372.5
+        },
+        "group": {
+          "x": 380.5,
+          "y": 133,
+          "width": 728,
+          "height": 78,
+          "top": 133,
+          "right": 1108.5,
+          "bottom": 211,
+          "left": 380.5
+        },
+        "color": "rgb(237, 237, 237)",
+        "background": "rgba(255, 255, 255, 0.1)",
+        "radius": "6px",
+        "outline": "rgb(237, 237, 237) none 0px",
+        "focus": false
+      },
+      "pressed": {
+        "bounds": {
+          "x": 372.5,
+          "y": 412,
+          "width": 102.28125,
+          "height": 36,
+          "top": 412,
+          "right": 474.78125,
+          "bottom": 448,
+          "left": 372.5
+        },
+        "group": {
+          "x": 380.5,
+          "y": 133,
+          "width": 728,
+          "height": 78,
+          "top": 133,
+          "right": 1108.5,
+          "bottom": 211,
+          "left": 380.5
+        },
+        "color": "rgb(237, 237, 237)",
+        "background": "rgba(255, 255, 255, 0.15)",
+        "radius": "6px",
+        "outline": "rgb(237, 237, 237) none 0px",
+        "focus": false
+      },
+      "focus": {
+        "bounds": {
+          "x": 372.5,
+          "y": 412,
+          "width": 102.28125,
+          "height": 36,
+          "top": 412,
+          "right": 474.78125,
+          "bottom": 448,
+          "left": 372.5
+        },
+        "group": {
+          "x": 380.5,
+          "y": 133,
+          "width": 728,
+          "height": 78,
+          "top": 133,
+          "right": 1108.5,
+          "bottom": 211,
+          "left": 380.5
+        },
+        "color": "rgb(205, 205, 205)",
+        "background": "rgba(14, 14, 14, 0)",
+        "radius": "6px",
+        "outline": "rgb(205, 205, 205) solid 2px",
+        "focus": true
+      }
+    }
+  },
+  "picker": [
+    {
+      "start": "#000000",
+      "hue": {
+        "hex": "#000000",
+        "hue": "240",
+        "writes": 0
+      },
+      "result": "#0000FF",
+      "writes": 1
+    },
+    {
+      "start": "#FFFFFF",
+      "hue": {
+        "hex": "#FFFFFF",
+        "hue": "240",
+        "writes": 0
+      },
+      "result": "#0000FF",
+      "writes": 1
+    },
+    {
+      "start": "#808080",
+      "hue": {
+        "hex": "#808080",
+        "hue": "240",
+        "writes": 0
+      },
+      "result": "#0000FF",
+      "writes": 1
+    },
+    {
+      "start": "#FF0000",
+      "hue": {
+        "hex": "#0000FF",
+        "hue": "240",
+        "writes": 2
+      },
+      "result": "#0000FF",
+      "writes": 2
+    },
+    {
+      "start": "#CC9999",
+      "hue": {
+        "hex": "#9999CC",
+        "hue": "240",
+        "writes": 2
+      },
+      "result": "#0000FF",
+      "writes": 3
+    }
+  ],
+  "icons": [
+    {
+      "label": "General",
+      "icon": "SettingsOutlinedIcon",
+      "hidden": "true",
+      "bounds": {
+        "x": 68,
+        "y": 141.5,
+        "width": 20,
+        "height": 20,
+        "top": 141.5,
+        "right": 88,
+        "bottom": 161.5,
+        "left": 68
+      },
+      "fill": "rgb(200, 200, 200)"
+    },
+    {
+      "label": "Appearance",
+      "icon": "PaletteOutlinedIcon",
+      "hidden": "true",
+      "bounds": {
+        "x": 68,
+        "y": 177.5,
+        "width": 20,
+        "height": 20,
+        "top": 177.5,
+        "right": 88,
+        "bottom": 197.5,
+        "left": 68
+      },
+      "fill": "rgb(228, 228, 228)"
+    },
+    {
+      "label": "Database",
+      "icon": null,
+      "hidden": "true",
+      "bounds": {
+        "x": 68,
+        "y": 254.5,
+        "width": 20,
+        "height": 20,
+        "top": 254.5,
+        "right": 88,
+        "bottom": 274.5,
+        "left": 68
+      },
+      "fill": "rgb(200, 200, 200)"
+    },
+    {
+      "label": "AI context",
+      "icon": "PsychologyRoundedIcon",
+      "hidden": "true",
+      "bounds": {
+        "x": 68,
+        "y": 290.5,
+        "width": 20,
+        "height": 20,
+        "top": 290.5,
+        "right": 88,
+        "bottom": 310.5,
+        "left": 68
+      },
+      "fill": "rgb(200, 200, 200)"
+    }
+  ],
+  "performance": {}
+}

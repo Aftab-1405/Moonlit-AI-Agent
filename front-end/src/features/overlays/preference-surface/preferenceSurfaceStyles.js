@@ -3,6 +3,7 @@ import {
   getPreferenceSectionSurfaceSx,
   INTERFACE_RADIUS,
 } from '@/features/styles/interfaceChrome';
+import { BUTTON_TOUCH_QUERY } from '@/styles/mediaQueries';
 import {
   getOutlinedFieldStateSx,
   getScrollbarStyles,
@@ -56,26 +57,32 @@ export const getPreferenceBodySx = (theme) => ({
   ...getScrollbarStyles(theme),
 });
 
-export const getPreferenceControlSx = (theme, { minWidth = 132 } = {}) => {
+export const getPreferenceControlSx = (theme, { minWidth = 132, variant } = {}) => {
   const rootSelector = '& .MuiInputBase-root';
+  const height =
+    variant === 'settings' ? { xs: 44, md: 36 } : PREFERENCE_LAYOUT.responsiveControlHeight;
   const fieldState = getOutlinedFieldStateSx(theme, {
     rootSelector,
-    radius: INTERFACE_RADIUS.control,
+    radius: variant === 'settings' ? `${theme.shape.radius.pill}px` : INTERFACE_RADIUS.control,
   });
 
   return {
     minWidth,
     [rootSelector]: {
       ...fieldState[rootSelector],
-      minHeight: PREFERENCE_LAYOUT.responsiveControlHeight,
+      ...(variant === 'settings' && { backgroundColor: theme.palette.background.hover }),
+      minHeight: height,
+      ...(variant === 'settings' && { [BUTTON_TOUCH_QUERY]: { minHeight: 44 } }),
       boxShadow: 'none',
       '&.Mui-focused': {
-        backgroundColor: theme.palette.background.input,
+        backgroundColor:
+          variant === 'settings' ? theme.palette.background.hover : theme.palette.background.input,
         outline: 'none',
         boxShadow: 'none',
       },
       '&.Mui-focused:hover': {
-        backgroundColor: theme.palette.background.input,
+        backgroundColor:
+          variant === 'settings' ? theme.palette.background.hover : theme.palette.background.input,
       },
       '&.Mui-disabled': {
         backgroundColor: theme.palette.layer.faint,
@@ -106,7 +113,8 @@ export const getPreferenceControlSx = (theme, { minWidth = 132 } = {}) => {
       py: 0,
       pr: '30px !important',
       pl: '10px',
-      minHeight: PREFERENCE_LAYOUT.responsiveControlHeight,
+      minHeight: height,
+      ...(variant === 'settings' && { [BUTTON_TOUCH_QUERY]: { minHeight: 44 } }),
       display: 'flex',
       alignItems: 'center',
       ...theme.typography.uiNavItem,

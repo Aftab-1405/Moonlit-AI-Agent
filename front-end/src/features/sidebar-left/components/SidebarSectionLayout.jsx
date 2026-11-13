@@ -1,5 +1,5 @@
 import { Box } from '@mui/material';
-import { REDUCED_MOTION_QUERY } from '@/styles/mediaQueries';
+import { REDUCED_MOTION_SELECTOR } from '@/styles/mediaQueries';
 import { getScrollbarStyles } from '@/styles/shared';
 
 export function SidebarSkeleton({ width = '100%', height = 12, circular = false }) {
@@ -16,7 +16,7 @@ export function SidebarSkeleton({ width = '100%', height = 12, circular = false 
         bgcolor: 'action.hover',
         animation: 'sidebarPulse 1.6s ease-in-out infinite',
         '@keyframes sidebarPulse': { '0%, 100%': { opacity: 0.45 }, '50%': { opacity: 1 } },
-        [REDUCED_MOTION_QUERY]: { animation: 'none' },
+        [REDUCED_MOTION_SELECTOR]: { animation: 'none' },
       }}
     />
   );

@@ -1,0 +1,112 @@
+Close the verified accent-flow gaps in Moonlit
+
+Scope update: also perform the earlier-requirements closure audit at the end of this prompt. It identifies fixes to preserve, outstanding functional/fidelity gaps, deliberate adaptations and verification still required. Do not interpret this as permission to redesign already-correct parts.
+
+Implement a focused patch to the current unstaged Settings/Appearance work. This prompt replaces the earlier accent-flow prompt, especially its suggestion to recolor prose links. Do not rebuild Settings, change the recent icon/hover/picker fixes, or tint the entire application.
+
+Inspect git diff against the index plus relevant untracked modules. Preserve staged work and unrelated unstaged changes; do not reset/stash/stage/commit/deploy. Read complete current files before editing. Treat code locations below as starting points, not permission to overwrite newer changes.
+
+Read these evidence files:
+- docs/chatgpt-accent-live-evidence.json
+- docs/moonlit-accent-live-comparison.json
+
+The comparison used authenticated ChatGPT and authenticated Moonlit at localhost:5174 on 2026-11-12. ChatGPT used its ChatGPT preset. Moonlit was temporarily set to its ChatGPT preset to compare Purple/Blue in light/dark. Both apps' original preferences were restored. No messages were sent and no queries executed. This establishes the findings below, not exact Vercel/custom-palette mathematics.
+
+Verified findings and priorities
+
+P1. Filled controls use the wrong accent role in Moonlit.
+Moonlit dark/Purple checked switch: track #B897F4, thumb #0E0E0E. Reference checked-fill token: #7849D1, on-solid #FFFFFF. Reference dark/Blue switch track rendered #2C67C5; Moonlit rendered rgb(71,116,240), its adjusted accent foreground. Reference light/Purple track rendered #8952EE. The previous reference dark/Purple switch child RGB was captured during a transition and must not be used as a final target.
+Cause: createMoonlitTheme.js checkedControlColor returns accent.foreground; MuiSwitch uses background.default for the checked thumb. Accent foreground is a readable text color, not the solid-control fill. Give filled controls the solid/on-solid pair. Audit switches, checkboxes and radios separately, including their actual SVG marks; preserve explicit error/success/warning/info overrides and disabled styling. Do not globally replace every accent.foreground usage with accent.main. Sliders have distinct track/rail/thumb roles and need their own check.
+
+P1. Text selection does not follow accent in Moonlit.
+Live Moonlit selection remained rgba(237,237,237,0.2) in dark and rgba(13,13,13,0.2) in light under accent changes. Reference main/content ::selection changed from Purple to Blue. Its light/Purple value was rgba(166,125,242,0.35); light/Blue rgba(83,154,248,0.35); dark/Blue rgba(58,131,247,0.6).
+Cause: createMoonlitTheme.js still emits selection from alpha(text.primary,0.2), despite exporting an accent-selection variable. Add a dedicated text-selection background role, with readable selected foreground. Wire the actual emitted selectors for prose/inputs and inspect computed ::selection. Do not reuse low-opacity selected-row fill as the selection-highlight formula. Preserve code syntax colors; editor selection is a separate deliberate integration, not a reason to recolor tokens.
+
+P1. User-message bubbles are missing the accent role.
+Reference existing conversation, light/Purple: actual bubble background #EDE5FC and text #291947. Changing only accent to Blue produced #E8F3FE and #0C274A. Those were rendered DOM measurements, not only named CSS variables.
+Moonlit's current MessageList.jsx still sets bubbleBg=theme.palette.layer.subtle and color=text.primary. No populated Moonlit conversation was available during this inspection, so this is a source-confirmed missing integration; verify it with the real component and synthetic conversation data rather than sending a chat.
+Add dedicated userMessage.background/foreground roles and consume both in the user-bubble subtree. Make child typography inherit the foreground. Leave assistant messages, tool results, warnings and generic subtle surfaces unchanged. Do not recolor layer.subtle globally. Test selection and links inside tinted bubbles, copy/edit hover controls and existing/new history without modifying stored message content.
+
+P2. Named-color mapping is not consistent across modes/presets.
+Moonlit currently uses #3566F0 for the Blue source and reuses dark-oriented createAccent calculations, whereas the reference Blue base is #3A83F7 and solid action #2C67C5 in both captured modes. Purple already has a measured special case. Add mode-aware reference-backed role data for the compared ChatGPT preset, not per-component literals. Preserve Moonlit's Default accent (white dark / near-black light), Moonlit preset identity and custom colors. Other colors/custom-generation remain approximations unless separately measured; do not extrapolate a proprietary algorithm from two examples.
+
+Reference role table, ChatGPT preset:
+                         Purple light  Purple dark  Blue light  Blue dark
+base                     #A67DF2       #A67DF2      #3A83F7     #3A83F7
+solid                    #8952EE       #7849D1      #2C67C5     #2C67C5
+on-solid                 #FFFFFF       #FFFFFF      #FFFFFF     #FFFFFF
+user bubble background   #EDE5FC       #4E2F88      #E8F3FE     #173E76
+user bubble foreground   #291947       #F8F5FD      #0C274A     #F6FAFE
+selection background     #A67DF259     #8952EE99    #539AF859   #3A83F799
+
+Light user bubbles were rendered and compared live. Dark bubble values are CSS-token evidence, not a fresh rendered dark-conversation comparison. Keep that distinction in the report. Obtain hover/pressed states from saved reference tokens where present rather than inventing universal percentage rules.
+
+P2. Preserve separate composer-action and generic filled-action roles.
+Reference light/Purple Voice action rendered an accent #8952EE background with a white inner icon. Attachment/model controls stayed neutral. No voice action was activated. A separate Yellow sample had generic on-solid=#000000 but composer-primary foreground=#FFFFFF, demonstrating that the role pairs can diverge. Do not blindly reuse generic contrastText for every composer action. Verify readability when adapting Yellow/White/custom colors; disclose an accessibility-driven deviation rather than claiming an exact match.
+Moonlit ChatInput.jsx already uses accent main/hover/pressed/contrastText for enabled Send. Preserve that working opt-in path and give it a composer pair only where required. The live sampled Send remained disabled, so enabled Send must still be verified with the real component fixture. Streaming Stop and disabled Send should not be indiscriminately accent-filled. Never send a real message merely to test colors.
+
+Important behavior already correct: leave it alone
+
+- Selected Settings navigation stays neutral in both apps. Moonlit's current neutral selected-navigation policy is correct.
+- Reference external markdown links in the sampled conversation remained #0D0D0D when Purple changed to Blue. Do NOT globally recolor MuiLink or MarkdownRenderer anchors based on the existence of --link-primary-text-color. A token declaration does not establish every consumer. Other link variants remain unverified.
+- Ordinary attachment/model/SQL controls remain neutral. Accent is not every button's primary color.
+- Keep body text, page surfaces, headings, Advanced/Reset, idle borders, disabled controls, neutral navigation, status colors, provider/database logos and syntax independent of UI accent.
+- Keep categorical chart series and diff-added/removed colors semantically stable. Reference sequential-chart tokens exist, but their rendered chart consumers were not tested. No chart-wide recoloring is authorized by this comparison.
+- Preserve recent keyboard/pointer focus behavior. Do not undo neutral keyboard rings or the pointer-restoration fix merely because reference CSS includes an accent-focus token. Maintain visible accessible keyboard focus.
+
+Implementation boundaries
+
+Extend front-end/src/theme/tokens/semantic.js and the mapping in createMoonlitTheme.js as the single role source. Reuse the current appearance.js state model, named/custom accents, getDefaultAccent and linked/separate profiles. Add the few needed role pairs while preserving existing accent APIs for current consumers. Avoid spreading raw colors across JSX.
+
+Update only the relevant consumers: MessageList user bubbles, selection rules, filled controls, and any confirmed composer role mismatch. Leave existing accent-selected table rows, explicit confirmation/SQL actions and neutral segments intact unless a targeted regression test shows a problem.
+
+Preserve features/overlays/settings/profilePreview.js and the recently optimized local/frame-coalesced picker preview. Derive preview and commit from the same role generator. New custom-accent roles must preview in the edited profile without switching the whole app or remounting editors. Do not reintroduce full-theme reconstruction and storage writes on every pointer event. Accent-only edits must not change surface/ink/contrast customization flags, fonts or syntax preset.
+
+Tests and proof required
+
+1. Add profile-based coverage through createAppearanceSemanticTokens, not only the legacy dark factory. Test Purple/Blue in both modes against the role table; test Default/White/Yellow/custom near-black for readable pairs.
+2. Render switches/checkboxes with actual marks/thumbs; confirm fill/foreground pairing, explicit status colors and disabled states. Test selected navigation remains neutral after changing accent.
+3. Render actual MessageList with fixed synthetic user+assistant messages. Verify user background AND foreground change; assistant/semantic content does not. Verify child text, bubble links and ::selection remain readable.
+4. Inspect ::selection in a browser on normal text, input text and bubble text. Test code-editor selection separately while asserting syntax remains unchanged.
+5. Verify enabled Send using a fixture with valid composer prerequisites; inspect disabled and streaming states too. Keep the real application draft intact and never submit it.
+6. Repeat the same viewport, mode, ChatGPT preset and accent state for comparison screenshots. Wait until save/transition completion before sampling. Capture neutral controls as negative controls as well as colored elements.
+7. Preserve account/profile isolation, reload/cross-tab behavior, preview cancellation and editor state. Run the relevant tests, lint and build. Distinguish existing unrelated failures from this patch.
+
+Deliver a small targeted implementation, a role-to-consumer table, before/after visual evidence and actual test results. State limits precisely: current rendered comparison covers settings, text selection, light-mode reference user bubbles and neutral external links; arbitrary preset math, dark rendered bubbles, charts and enabled-send parity are not all established. Do not expand this into a general Settings redesign.
+
+Earlier requirements closure audit
+
+This section compares the original Settings/Appearance prompt, fidelity correction, interaction audit and accent requirements against the current unstaged working tree. Status is evidence-specific: source presence, prior agent test reports and a fresh browser check are not interchangeable. Refresh these findings against the files you actually edit.
+
+Implemented or substantially implemented — preserve and regression-check
+
+1. Settings shell, categories and routes: current SettingsModal has grouped Personal/Workspace navigation, General/Appearance/Database/AI context, a 288px desktop settings column, bounded content, separate scrolling and a mobile drawer. The real app successfully opened /settings/appearance while authenticated. The original 767/768 breakpoint, drawer focus/dismissal and history/draft behavior are supported by the agent's saved fixture checks, not all freshly rerun during this audit. Preserve this structure.
+2. Appearance hierarchy: explicit Mode, Theme, Font sizes, Motion/profile, Contrast and Diff groups; real inset dividers; compact color pills; one Theme header with preset/import/copy; font px suffixes; Advanced and Reset share a header. Confirmed in source and the live UI. The old extra Preset row and missing-divider defects should NOT be reopened.
+3. Semantic icons: SettingsModal now has an explicit mapping to SettingsIcon, AppearanceIcon, DatabaseIcon and AiContextIcon. Canonical Close/Import aliases replace earlier makeshift glyphs. Source confirms the original shared-sparkle defect is fixed. Preserve the map and the same semantics in search results.
+4. Advanced hover: now ButtonBase with scoped disclosureSx, rather than an unstyled zero-padding generic Button. Fresh dark-mode browser sample: normal and hover both measured 102.28125 x 36px; background changed from transparent to rgba(255,255,255,0.1), text from rgb(205,205,205) to rgb(237,237,237). The prior hover defect is fixed in this sampled state. Light/focus/pressed/coarse-pointer variants are covered by the agent's saved interaction checks; preserve and rerun targeted variants only if changed.
+5. Hue workflow: AppearanceControls now imports hexToHsv/hsvToHex, renders a saturation/brightness plane, hue spectrum and named Hue/Saturation/Brightness ranges, uses pointer capture and retains achromatic editing state. The live popover exposed the plane plus Hue and Saturation controls; source confirms Brightness and no nested native color input. This resolves the missing-saturation UI, but an end-to-end drag/cancel/neutral-to-blue sequence was not freshly completed in this audit. Preserve the new workflow and use the existing interaction tests instead of reinstating the old HSL/native-picker implementation.
+6. Draft and no-op handling: current controls maintain local drafts, valid commit boundaries, cancellation, no-op suppression and external reset handling. Source and existing tests cover unchanged hex Enter/blur, incomplete numeric values and account changes. Keep these invariants when adding accent roles; do not write derived colors as a competing saved state.
+7. Mode/profile lifecycle: light/dark changes and per-mode profiles were exercised in the preceding live accent comparison. Current mode resolver handles System via OS preference; separate/linked profile behavior and resets exist. OS-change listener behavior, account switches, cross-tab persistence and boot-flash behavior have source/test evidence but were not all retested manually here. Preserve them.
+8. Search: current registry indexes individual labels/descriptions, and reveal code uses element/Collapse/Drawer readiness rather than a fixed 300ms timer. Live query 'font' produced a results navigation. An attempted Enter activation did not produce a confirmed expanded/focused result in this audit; browser automation also encountered visibility/stability timeouts. Mark fresh activation verification inconclusive, not a proven regression and not a passed check. Explicitly reproduce click and Enter -> Advanced opens -> UI font input focused, including repeated search and mobile drawer close. Fix only if reproduced.
+9. Motion/font/code/table integration: implementation exists across ThemeContext, typography, CodeMirror/Shiki and Perspective. Agent reports cover explicit/system reduced motion, typography and editor/chart state retention. Fresh full-surface verification is outstanding; do not claim every integration passed solely because settings controls render.
+10. Import/copy: bounded validation, atomic import and clipboard failure handling exist with existing tests. Format is Moonlit v1 plus a supported Codex subset. Preserve that honest compatibility boundary; no need to rebuild the dialogs.
+
+Still partial or missing — keep visible in the work report
+
+A. Accent propagation: filled switch role pairing and text selection are LIVE-CONFIRMED mismatches; user-bubble wiring is SOURCE-CONFIRMED missing; Blue semantic mapping differs from reference. These remain the primary implementation work specified above. Neutral links/navigation are correct boundaries, not gaps.
+B. Preset fidelity: Vercel and the broader Codex catalog remain absent; only Moonlit and sampled ChatGPT exist. Therefore the user's Vercel screenshot is not reproduced exactly. Do not rename Moonlit to Vercel. Record this as a remaining reference-fidelity gap. Recover the required preset data in a separate bounded step if possible; do not delay the verified accent fixes to fabricate a whole catalog.
+C. Custom color/contrast generator: remains a Moonlit approximation. The observed reference contrast transition and arbitrary custom surfaces are not mathematically reproduced. Preserve functional readable generation and explicitly state this limit.
+D. Punctuation/full-width: controls remain omitted because corresponding supported product surfaces were not implemented. This was allowed as an honest adaptation in the correction prompt; it is still a visible difference from the full reference. Do not call the entire original feature catalog complete, and do not reintroduce enabled no-op switches. Implementing a prose/document surface is outside this focused patch.
+E. Persistence scope: appearance is account-local in the browser, not cross-device server synchronization. That is a deliberate current adaptation. Existing backend settings sync must continue excluding unsupported appearance fields.
+F. Exact screenshot match: saved captures compare actual Moonlit before/after fixtures; they do not prove pixel parity with the supplied ChatGPT screenshot, which also had a different preset and browser zoom. Produce matched-scale evidence and state remaining differences. Do not use CSS zoom to mask layout errors.
+G. Enabled Send and populated Moonlit bubbles: the live workspace had no rendered user messages, and the sampled Send remained disabled. Enabled-send and populated-conversation parity must be tested in actual component fixtures with valid prerequisites. Do not claim a live pass or submit a real message to create evidence.
+
+Remaining runtime and verification concerns
+
+- Opening the authenticated Settings route produced a TanStack Query console diagnostic: the ['llm','options'] query has no queryFn/default queryFn. SettingsModal currently calls useQuery with that key and enabled:false, then derives supportsReasoning from the result. Audit cold direct-entry behavior versus cache-populated navigation. Provide the existing fetch function or a proper cache-observation approach as appropriate; do not invent a new endpoint or suppress the warning. Verify reasoning controls reflect real capabilities on both entry paths. This is a settings initialization concern, not evidence that accent changes cause the error.
+- The latest settings-interaction-report.md supersedes the older performance summary: its fixture reports contrast/color frame-p95 of 16.7ms, React-duration p95 2.7/10.4ms and one theme/settings/boot update per gesture, but still long tasks up to 232/269ms. Preserve the verified reductions. Investigate final commit cost if current profiling reproduces it; do not keep citing obsolete 33/50ms samples as the latest results or promise sustained 60fps.
+- The latest report claims 35 Node test files and 275 component tests passed, plus lint/build. Those are AGENT-REPORTED results and available logs, not tests rerun by this audit. Run the focused regressions and required project checks after your patch. Report new results accurately.
+
+Completion checklist for the coding agent
+
+Return a short requirement ledger with four columns: requirement, final status, evidence, remaining difference. Cover shell/routes/search/mobile, groups/icons/hover/picker, mode/profile/persistence, typography/motion/editor/chart integration, import/copy, preset/custom fidelity and accent consumers. Use Implemented, Partial, Intentional adaptation, or Unverified; never collapse all four into 'done'. Repair the verified accent gaps first; separately reproduce the cold-route query warning and search activation before deciding whether they need code changes. Preserve completed fixes and mark optional fidelity work explicitly instead of expanding the task silently.

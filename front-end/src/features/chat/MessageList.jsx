@@ -1,3 +1,4 @@
+import { useAppearanceReducedMotion } from '@/hooks/useAppearanceReducedMotion';
 import { getQueryExecutionMeta } from '@/features/chat/conversationOutputs';
 /**
  * MessageList — renders the conversation transcript.
@@ -27,11 +28,10 @@ import {
   Skeleton,
   Tooltip,
   Typography,
-  useMediaQuery,
   useTheme,
 } from '@mui/material';
 import { alpha, keyframes } from '@mui/material/styles';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { forwardRef, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckIcon, CopyIcon, ErrorIcon, PauseIcon } from '@/components/icons';
 import { StepsAccordion } from '@/features/chat/ai-response-steps';
@@ -48,7 +48,7 @@ import {
 import { useHistoryScroll } from '@/hooks/chat-page/useHistoryScroll';
 import {
   HOVER_CAPABLE_QUERY,
-  REDUCED_MOTION_QUERY,
+  REDUCED_MOTION_SELECTOR,
   TOUCH_DEVICE_QUERY,
 } from '@/styles/mediaQueries';
 import { getInteractionColors, getSecondaryActionButtonSx, UI_LAYOUT } from '@/styles/shared';
@@ -84,7 +84,7 @@ const getMessageActionsRowSx = (theme) => ({
   transition: theme.transitions.create('opacity', {
     duration: theme.transitions.duration.shorter,
   }),
-  [REDUCED_MOTION_QUERY]: { transition: 'none' },
+  [REDUCED_MOTION_SELECTOR]: { transition: 'none' },
 });
 
 // Keep transcript semantics/find-in-page while skipping offscreen layout and paint.
@@ -264,7 +264,7 @@ const UserMessage = memo(function UserMessage({ message, animateEntry, entryMoti
   const { copied, copyText } = useCopyToClipboard();
   const theme = useTheme();
   const handleCopy = useCallback(() => copyText(message), [copyText, message]);
-  const bubbleBg = theme.palette.layer.subtle;
+  const bubble = theme.palette.userMessage;
 
   return (
     <MotionBox
@@ -296,8 +296,12 @@ const UserMessage = memo(function UserMessage({ message, animateEntry, entryMoti
             borderRadius: '24px',
             px: { xs: 1.5, md: 2 },
             py: { xs: 1, md: 1.5 },
-            bgcolor: bubbleBg,
-            color: 'text.primary',
+            bgcolor: bubble.background,
+            color: bubble.foreground,
+            '&::selection, & ::selection': {
+              backgroundColor: theme.palette.textSelection.background,
+              color: bubble.selectionForeground,
+            },
           }}
         >
           <Typography
@@ -305,6 +309,7 @@ const UserMessage = memo(function UserMessage({ message, animateEntry, entryMoti
             data-testid="user-message"
             sx={{
               ...theme.typography.uiResponseBody,
+              color: 'inherit',
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
             }}
@@ -440,7 +445,7 @@ const DiagramArtifactCard = memo(
                   borderRadius: '50%',
                   bgcolor: 'info.main',
                   animation: `${diagramStatusDot} 1.25s ease-in-out infinite`,
-                  [REDUCED_MOTION_QUERY]: { animation: 'none', opacity: 0.72 },
+                  [REDUCED_MOTION_SELECTOR]: { animation: 'none', opacity: 0.72 },
                 }}
               />
             )}
@@ -511,7 +516,7 @@ const DiagramArtifactCard = memo(
                 duration: theme.transitions.duration.short,
                 easing: theme.transitions.easing.easeOut,
               }),
-              [REDUCED_MOTION_QUERY]: { transition: 'none' },
+              [REDUCED_MOTION_SELECTOR]: { transition: 'none' },
             }}
           >
             <Box
@@ -970,7 +975,7 @@ const AIMessage = memo(function AIMessage({
                   fontWeight: 400,
                   color: 'text.secondary',
                   animation: `${softPulse} 1.8s ease-in-out infinite`,
-                  [REDUCED_MOTION_QUERY]: {
+                  [REDUCED_MOTION_SELECTOR]: {
                     animation: 'none',
                   },
                 }}
@@ -1082,7 +1087,7 @@ const AIMessage = memo(function AIMessage({
 });
 
 const ConversationLoadingSkeleton = memo(function ConversationLoadingSkeleton() {
-  const prefersReducedMotion = useMediaQuery(REDUCED_MOTION_QUERY);
+  const prefersReducedMotion = useAppearanceReducedMotion();
   // `animation` is passed to each Skeleton; respects user motion preference.
   // We no longer override `bgcolor` on individual skeletons — the centralized
   // MuiSkeleton theme override provides the shared layered fill and highlight.
@@ -1248,7 +1253,7 @@ const MessageList = memo(function MessageList({
     isLoading: isLoadingConversation,
     messageIds,
   });
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = useAppearanceReducedMotion();
   const motionVariants = useMemo(
     () => getChatMotionVariants(prefersReducedMotion),
     [prefersReducedMotion],

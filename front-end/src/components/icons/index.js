@@ -24,6 +24,7 @@ export { default as DashboardIcon } from '@mui/icons-material/DashboardOutlined'
 export { default as DeleteIcon } from '@mui/icons-material/DeleteOutlineRounded';
 export { default as ServerIcon } from '@mui/icons-material/DnsRounded';
 export { default as DownloadIcon } from '@mui/icons-material/DownloadRounded';
+export { default as ImportIcon } from '@mui/icons-material/FileUploadOutlined';
 export { default as RenameIcon } from '@mui/icons-material/DriveFileRenameOutlineRounded';
 export { default as ErrorIcon } from '@mui/icons-material/ErrorOutlineRounded';
 export { default as UnsavedIcon } from '@mui/icons-material/FiberManualRecordRounded';
@@ -43,6 +44,7 @@ export { default as LogoutIcon } from '@mui/icons-material/LogoutOutlined';
 export { default as MenuIcon } from '@mui/icons-material/MenuRounded';
 export { default as MoreIcon } from '@mui/icons-material/MoreHorizRounded';
 export { default as PauseIcon } from '@mui/icons-material/PauseCircleOutlineRounded';
+export { default as AppearanceIcon } from '@mui/icons-material/PaletteOutlined';
 export { default as UserIcon } from '@mui/icons-material/PersonRounded';
 export { default as ExecuteIcon } from '@mui/icons-material/PlayArrowRounded';
 export { default as AiContextIcon } from '@mui/icons-material/PsychologyRounded';

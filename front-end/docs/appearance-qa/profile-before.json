@@ -1,0 +1,25 @@
+{
+  "label": "baseline",
+  "contrast": {
+    "themes": 76,
+    "settingsWrites": 94,
+    "bootWrites": 76,
+    "reactCommits": 81,
+    "reactP95": 53.99999999906868,
+    "frameP95": 550,
+    "longTasks": 99,
+    "maxLongTask": 760,
+    "value": "20"
+  },
+  "color": {
+    "themes": 69,
+    "settingsWrites": 99,
+    "bootWrites": 69,
+    "reactCommits": 73,
+    "reactP95": 55.69999999832362,
+    "frameP95": 1683.2999999999884,
+    "longTasks": 101,
+    "maxLongTask": 2057,
+    "value": "20"
+  }
+}

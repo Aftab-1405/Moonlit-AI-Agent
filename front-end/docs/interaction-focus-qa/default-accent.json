@@ -1,0 +1,90 @@
+[
+  {
+    "name": "light named Pink remains an explicit choice",
+    "pass": true
+  },
+  {
+    "name": "light Moonlit preset restores neutral default",
+    "pass": true
+  },
+  {
+    "name": "light closed accent label has no checkmark",
+    "pass": true
+  },
+  {
+    "name": "light popup identifies current Default color",
+    "pass": true,
+    "details": {
+      "selected": "true",
+      "text": "Default",
+      "background": "rgba(13, 13, 13, 0.1)",
+      "other": "rgba(14, 14, 14, 0)"
+    }
+  },
+  {
+    "name": "light Reset agrees with the Default swatch",
+    "pass": true,
+    "details": {
+      "swatch": "rgb(13, 13, 13)",
+      "expected": "rgb(13, 13, 13)"
+    }
+  },
+  {
+    "name": "light Reset applies neutral accent to an actual control",
+    "pass": true,
+    "details": {
+      "control": "rgb(13, 13, 13)"
+    }
+  },
+  {
+    "name": "light composer Send uses the same default accent",
+    "pass": true,
+    "details": {
+      "send": "rgb(13, 13, 13)"
+    }
+  },
+  {
+    "name": "dark named Pink remains an explicit choice",
+    "pass": true
+  },
+  {
+    "name": "dark Moonlit preset restores neutral default",
+    "pass": true
+  },
+  {
+    "name": "dark closed accent label has no checkmark",
+    "pass": true
+  },
+  {
+    "name": "dark popup identifies current Default color",
+    "pass": true,
+    "details": {
+      "selected": "true",
+      "text": "Default",
+      "background": "rgba(255, 255, 255, 0.15)",
+      "other": "rgba(14, 14, 14, 0)"
+    }
+  },
+  {
+    "name": "dark Reset agrees with the Default swatch",
+    "pass": true,
+    "details": {
+      "swatch": "rgb(255, 255, 255)",
+      "expected": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "name": "dark Reset applies neutral accent to an actual control",
+    "pass": true,
+    "details": {
+      "control": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "name": "dark composer Send uses the same default accent",
+    "pass": true,
+    "details": {
+      "send": "rgb(255, 255, 255)"
+    }
+  }
+]

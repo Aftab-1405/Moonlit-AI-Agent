@@ -1,4 +1,5 @@
-import { Box, MenuItem, Popover, Typography, useMediaQuery } from '@mui/material';
+import { useAppearanceReducedMotion } from '@/hooks/useAppearanceReducedMotion';
+import { Box, MenuItem, Popover, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { forwardRef, memo } from 'react';
 import {
@@ -37,7 +38,7 @@ export const AppPopoverList = memo(
           {
             display: 'flex',
             flexDirection: 'column',
-            gap: 0.25,
+            gap: 0,
             maxHeight,
             overflowY: 'auto',
             overflowX: 'hidden',
@@ -125,15 +126,7 @@ export const AppPopoverItem = memo(function AppPopoverItem({
       aria-checked={ariaChecked}
       tabIndex={tabIndex}
       selected={selected}
-      sx={[
-        getPopoverMenuItemSx(theme, { active: selected, tone, columns }),
-        description && {
-          height: 'auto',
-          minHeight: UI_POPOVER.descriptiveRowMinHeight,
-          py: 0.75,
-        },
-        sx,
-      ]}
+      sx={[getPopoverMenuItemSx(theme, { active: selected, tone, columns }), sx]}
       {...props}
     >
       {hasLeading ? (
@@ -146,7 +139,7 @@ export const AppPopoverItem = memo(function AppPopoverItem({
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: selected ? 'text.primary' : 'text.secondary',
+            color: tone === 'neutral' ? (selected ? 'text.primary' : 'text.secondary') : 'inherit',
             '& .MuiSvgIcon-root': { fontSize: UI_POPOVER.iconSize },
           }}
         >
@@ -158,8 +151,8 @@ export const AppPopoverItem = memo(function AppPopoverItem({
           <Typography
             noWrap
             sx={{
-              ...theme.typography.uiNavItem,
-              color: 'text.primary',
+              font: 'inherit',
+              color: 'inherit',
               fontWeight: 400,
               minWidth: 0,
               ...labelSx,
@@ -175,7 +168,8 @@ export const AppPopoverItem = memo(function AppPopoverItem({
             noWrap
             title={typeof description === 'string' ? description : undefined}
             sx={{
-              ...theme.typography.uiCaptionXs,
+              fontSize: 12,
+              lineHeight: '16px',
               color: 'text.secondary',
               mt: 0.25,
               minWidth: 0,
@@ -249,7 +243,7 @@ const AppPopover = memo(function AppPopover({
   ...rest
 }) {
   const theme = useTheme();
-  const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+  const prefersReducedMotion = useAppearanceReducedMotion();
 
   const responsiveWidth =
     typeof width === 'number' ? { xs: `min(${width}px, calc(100vw - 24px))`, sm: width } : width;

@@ -6,9 +6,9 @@ test('protected route waits for authentication resolution', () => {
   assert.equal(getProtectedRouteDecision({ loading: true, isAuthenticated: false }), 'loading');
 });
 
-test('protected route sends anonymous users to auth', () => {
+test('protected route sends anonymous users to login', () => {
   assert.deepEqual(getProtectedRouteDecision({ loading: false, isAuthenticated: false }), {
-    redirectTo: '/auth',
+    redirectTo: '/login',
   });
 });
 
@@ -28,7 +28,7 @@ test('admin route waits before evaluating access', () => {
   );
 });
 
-test('admin route sends anonymous users to auth', () => {
+test('admin route sends anonymous users to login', () => {
   assert.deepEqual(
     getAdminRouteDecision({
       loading: false,
@@ -36,7 +36,7 @@ test('admin route sends anonymous users to auth', () => {
       userUid: null,
       adminUid: 'admin-uid',
     }),
-    { redirectTo: '/auth' },
+    { redirectTo: '/login' },
   );
 });
 

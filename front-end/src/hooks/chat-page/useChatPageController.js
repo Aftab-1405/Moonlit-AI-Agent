@@ -115,7 +115,6 @@ export function useChatPageController({ mobileSidebarTriggerRef } = {}) {
     settingsOpen,
     setSettingsOpen,
     settingsInitialSection,
-    setSettingsInitialSection,
     notifications,
     showSnackbar,
     handleCloseDbModal: closeDbModal,
@@ -394,8 +393,7 @@ export function useChatPageController({ mobileSidebarTriggerRef } = {}) {
     },
     open_settings_modal: (payload) => {
       setDbModalOpen(false);
-      setSettingsOpen(true);
-      if (payload?.section) setSettingsInitialSection(payload.section);
+      setSettingsOpen(true, payload?.section);
     },
     navigate_new_chat: (payload) => streaming.onNavigateNewChatGuided(payload),
     complete_navigate_new_chat: (payload) => streaming.onCompleteNavigateNewChat(payload),

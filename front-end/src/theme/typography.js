@@ -26,7 +26,7 @@ const monoCaption = (fontSize, lineHeight, letterSpacing) => ({
 });
 
 /** Typography roles from repository docs/design-system.md, with compatibility aliases for existing UI code. */
-export const createTypography = (H) => ({
+const baseTypography = (H) => ({
   fontFamily: FONTS.sans,
   fontFamilyMono: FONTS.mono,
   fontFamilyContent: FONTS.content,
@@ -125,3 +125,34 @@ export const createTypography = (H) => ({
   uiSchemaColumnLabel: body({ xs: '0.75rem', sm: '0.7rem' }, 1.3),
   uiSchemaColumnType: monoCaption({ xs: '0.65rem', sm: '0.6rem' }, 1.2, '0.6px'),
 });
+
+export function createTypography(H, appearance, mode) {
+  const roles = baseTypography(H);
+  const profile = appearance?.profiles?.[mode];
+  if (profile?.fonts.ui) roles.fontFamily = profile.fonts.ui;
+  if (profile?.fonts.code) roles.fontFamilyMono = profile.fonts.code;
+  const scale = (value) =>
+    typeof value === 'string' && /^\d*\.?\d+rem$/.test(value)
+      ? `calc(var(--font-ui-size, 16px) * ${parseFloat(value)})`
+      : value && typeof value === 'object'
+        ? Object.fromEntries(Object.entries(value).map(([key, v]) => [key, scale(v)]))
+        : value;
+  for (const [name, role] of Object.entries(roles)) {
+    if (!role || typeof role !== 'object') continue;
+    if (role.fontSize) role.fontSize = scale(role.fontSize);
+    if (role.fontFamily === FONTS.sans && profile?.fonts.ui) role.fontFamily = profile.fonts.ui;
+    if (role.fontFamily === FONTS.mono && profile?.fonts.code) role.fontFamily = profile.fonts.code;
+    if (name.startsWith('uiResponse')) {
+      const factor =
+        {
+          uiResponseHeading1: 1.5,
+          uiResponseHeading2: 1.3,
+          uiResponseHeading3: 1.15,
+          uiResponseCompact: 0.9,
+        }[name] || 1;
+      role.fontSize = `calc(var(--font-content-size, 14px) * ${factor})`;
+    }
+    if (['mono', 'uiCodeBlock'].includes(name)) role.fontSize = 'var(--font-code-size, 12px)';
+  }
+  return roles;
+}

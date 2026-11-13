@@ -1,6 +1,7 @@
+import { useAppearanceReducedMotion } from '@/hooks/useAppearanceReducedMotion';
 import { Box, Button, Skeleton, Typography } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { MaterialReactTable, useMaterialReactTable } from 'material-react-table';
 import { useEffect, useMemo, useState } from 'react';
 import { getExecutionResult } from '@/api/conversations';
@@ -213,7 +214,7 @@ function ResultState({ error }) {
 }
 
 function ResultReveal({ animateEntry, children }) {
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = useAppearanceReducedMotion();
   const structuredMotion = useMemo(
     () => getChatMotionVariants(prefersReducedMotion).structured,
     [prefersReducedMotion],

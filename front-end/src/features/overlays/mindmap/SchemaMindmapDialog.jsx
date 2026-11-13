@@ -1,3 +1,4 @@
+import { useAppearanceReducedMotion } from '@/hooks/useAppearanceReducedMotion';
 // SchemaMindmapDialog — full-screen overlay that renders the database schema
 // as an interactive React Flow diagram.
 //
@@ -18,7 +19,7 @@ import {
   IconButton,
   Typography,
 } from '@mui/material';
-import { useReducedMotion } from 'framer-motion';
+
 import { lazy, memo, Suspense } from 'react';
 import { CloseIcon, MindmapIcon } from '@/components/icons';
 import { getMindmapViewerLayoutSx } from '@/features/styles/interfaceChrome';
@@ -58,7 +59,7 @@ const SchemaMindmapDialog = memo(
     schemaLoading,
     schemaData,
   }) {
-    const reduceMotion = useReducedMotion();
+    const reduceMotion = useAppearanceReducedMotion();
     const transitionDuration = reduceMotion ? 0 : 300;
     const schemaSurfaceLeft = '0px';
     const schemaSurfaceWidth = '100vw';

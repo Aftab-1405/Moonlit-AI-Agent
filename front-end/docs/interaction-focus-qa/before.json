@@ -1,0 +1,1247 @@
+[
+  {
+    "name": "light global search click adds no border/ring",
+    "pass": false,
+    "details": {
+      "idle": {
+        "hover": false,
+        "border": "1px solid rgba(13, 13, 13, 0.13)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(234, 234, 234)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": null
+      },
+      "hover": {
+        "hover": true,
+        "border": "1px solid rgba(13, 13, 13, 0.25)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(234, 234, 234)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": null
+      },
+      "focused": {
+        "hover": true,
+        "border": "1px solid rgb(73, 73, 73)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(234, 234, 234)",
+        "underline": "0px none",
+        "focused": true,
+        "modality": "pointer"
+      }
+    }
+  },
+  {
+    "name": "light auth helper click adds no border/ring",
+    "pass": false,
+    "details": {
+      "idle": {
+        "hover": false,
+        "border": "1px solid rgba(13, 13, 13, 0.13)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(234, 234, 234)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "hover": {
+        "hover": true,
+        "border": "1px solid rgba(13, 13, 13, 0.25)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(234, 234, 234)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "focused": {
+        "hover": true,
+        "border": "1px solid rgb(73, 73, 73)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(234, 234, 234)",
+        "underline": "0px none",
+        "focused": true,
+        "modality": "pointer"
+      }
+    }
+  },
+  {
+    "name": "light global dropdown click adds no border/ring",
+    "pass": false,
+    "details": {
+      "idle": {
+        "hover": false,
+        "border": "1px solid rgba(0, 0, 0, 0.23)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(234, 234, 234)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "hover": {
+        "hover": true,
+        "border": "1px solid rgba(0, 0, 0, 0.23)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(234, 234, 234)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "focused": {
+        "hover": false,
+        "border": "1px solid rgb(73, 73, 73)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(234, 234, 234)",
+        "underline": "0px none",
+        "focused": true,
+        "modality": "pointer"
+      }
+    }
+  },
+  {
+    "name": "light preference dropdown click adds no border/ring",
+    "pass": false,
+    "details": {
+      "idle": {
+        "hover": false,
+        "border": "1px solid rgba(13, 13, 13, 0.13)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(228, 228, 228)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "hover": {
+        "hover": true,
+        "border": "1px solid rgba(13, 13, 13, 0.25)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(234, 234, 234)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "focused": {
+        "hover": false,
+        "border": "1px solid rgb(73, 73, 73)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(228, 228, 228)",
+        "underline": "0px none",
+        "focused": true,
+        "modality": "pointer"
+      }
+    }
+  },
+  {
+    "name": "light autocomplete click adds no border/ring",
+    "pass": false,
+    "details": {
+      "idle": {
+        "hover": false,
+        "border": "1px solid rgba(13, 13, 13, 0.13)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(234, 234, 234)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "hover": {
+        "hover": true,
+        "border": "1px solid rgba(13, 13, 13, 0.25)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(234, 234, 234)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "focused": {
+        "hover": true,
+        "border": "1px solid rgb(73, 73, 73)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(234, 234, 234)",
+        "underline": "0px none",
+        "focused": true,
+        "modality": "pointer"
+      }
+    }
+  },
+  {
+    "name": "light standard/database field click adds no border/ring",
+    "pass": false,
+    "details": {
+      "idle": {
+        "hover": false,
+        "border": "",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgba(0, 0, 0, 0)",
+        "underline": "2px solid",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "hover": {
+        "hover": true,
+        "border": "",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgba(0, 0, 0, 0)",
+        "underline": "2px solid",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "focused": {
+        "hover": true,
+        "border": "",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgba(0, 0, 0, 0)",
+        "underline": "2px solid",
+        "focused": true,
+        "modality": "pointer"
+      }
+    }
+  },
+  {
+    "name": "light filled field click adds no border/ring",
+    "pass": false,
+    "details": {
+      "idle": {
+        "hover": false,
+        "border": "",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgba(0, 0, 0, 0.06)",
+        "underline": "2px solid",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "hover": {
+        "hover": true,
+        "border": "",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgba(0, 0, 0, 0.06)",
+        "underline": "2px solid",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "focused": {
+        "hover": true,
+        "border": "",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgba(0, 0, 0, 0.06)",
+        "underline": "2px solid",
+        "focused": true,
+        "modality": "pointer"
+      }
+    }
+  },
+  {
+    "name": "light borderless search click adds no border/ring",
+    "pass": true,
+    "details": {
+      "idle": {
+        "hover": false,
+        "border": "",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgba(0, 0, 0, 0)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "hover": {
+        "hover": true,
+        "border": "",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgba(0, 0, 0, 0)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "focused": {
+        "hover": true,
+        "border": "",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgba(0, 0, 0, 0)",
+        "underline": "0px none",
+        "focused": true,
+        "modality": "pointer"
+      }
+    }
+  },
+  {
+    "name": "light custom native input click adds no border/ring",
+    "pass": false,
+    "details": {
+      "idle": {
+        "hover": false,
+        "border": "",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgba(0, 0, 0, 0)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "hover": {
+        "hover": true,
+        "border": "",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgba(0, 0, 0, 0)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "focused": {
+        "hover": true,
+        "border": "",
+        "outline": "2px solid",
+        "inputOutline": "2px solid",
+        "shadow": "none",
+        "background": "rgba(0, 0, 0, 0)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "pointer"
+      }
+    }
+  },
+  {
+    "name": "light validation click adds no border/ring",
+    "pass": false,
+    "details": {
+      "idle": {
+        "hover": false,
+        "border": "1px solid rgb(180, 35, 42)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(234, 234, 234)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "hover": {
+        "hover": true,
+        "border": "1px solid rgba(13, 13, 13, 0.25)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(234, 234, 234)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "focused": {
+        "hover": true,
+        "border": "1px solid rgb(180, 35, 42)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(234, 234, 234)",
+        "underline": "0px none",
+        "focused": true,
+        "modality": "pointer"
+      }
+    }
+  },
+  {
+    "name": "light typing retains pointer origin",
+    "pass": false
+  },
+  {
+    "name": "light keyboard field focus visible",
+    "pass": false,
+    "details": {
+      "hover": true,
+      "border": "1px solid rgb(73, 73, 73)",
+      "outline": "3px none",
+      "inputOutline": "3px none",
+      "shadow": "none",
+      "background": "rgb(234, 234, 234)",
+      "underline": "0px none",
+      "focused": true,
+      "modality": "keyboard"
+    }
+  },
+  {
+    "name": "light keyboard action focus visible",
+    "pass": true,
+    "details": {
+      "hover": false,
+      "border": "",
+      "outline": "2px solid",
+      "inputOutline": "2px solid",
+      "shadow": "none",
+      "background": "rgba(0, 0, 0, 0)",
+      "underline": "0px none",
+      "focused": false,
+      "modality": "keyboard"
+    }
+  },
+  {
+    "name": "light click clears stale action focus ring",
+    "pass": false,
+    "details": {
+      "hover": true,
+      "border": "",
+      "outline": "2px solid",
+      "inputOutline": "2px solid",
+      "shadow": "none",
+      "background": "rgba(13, 13, 13, 0.07)",
+      "underline": "0px none",
+      "focused": false,
+      "modality": "pointer"
+    }
+  },
+  {
+    "name": "light conversation ellipsis has no round hover fill",
+    "pass": false,
+    "details": {
+      "hover": true,
+      "border": "",
+      "outline": "0px none",
+      "inputOutline": "0px none",
+      "shadow": "none",
+      "background": "rgba(14, 14, 14, 0)",
+      "underline": "0px none",
+      "focused": false,
+      "modality": "pointer"
+    }
+  },
+  {
+    "name": "light conversation ellipsis has no pressed fill",
+    "pass": true,
+    "details": {
+      "hover": true,
+      "border": "",
+      "outline": "0px none",
+      "inputOutline": "0px none",
+      "shadow": "none",
+      "background": "rgba(0, 0, 0, 0)",
+      "underline": "0px none",
+      "focused": false,
+      "modality": "pointer"
+    }
+  },
+  {
+    "name": "light open ellipsis stays transparent",
+    "pass": false,
+    "details": {
+      "hover": false,
+      "border": "",
+      "outline": "0px none",
+      "inputOutline": "0px none",
+      "shadow": "none",
+      "background": "rgba(14, 14, 14, 0)",
+      "underline": "0px none",
+      "focused": false,
+      "modality": "pointer"
+    }
+  },
+  {
+    "name": "light pointer-opened menu has no focus ring",
+    "pass": true
+  },
+  {
+    "name": "light keyboard menu return focus visible",
+    "pass": true,
+    "details": {
+      "hover": true,
+      "border": "",
+      "outline": "2px solid",
+      "inputOutline": "2px solid",
+      "shadow": "none",
+      "background": "rgba(14, 14, 14, 0)",
+      "underline": "0px none",
+      "focused": false,
+      "modality": "keyboard"
+    }
+  },
+  {
+    "name": "light actual General select click adds no border/ring",
+    "pass": false,
+    "details": {
+      "idle": {
+        "hover": false,
+        "border": "1px solid rgba(13, 13, 13, 0.13)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(228, 228, 228)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "pointer"
+      },
+      "hover": {
+        "hover": true,
+        "border": "1px solid rgba(13, 13, 13, 0.25)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(234, 234, 234)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "pointer"
+      },
+      "focused": {
+        "hover": false,
+        "border": "1px solid rgb(73, 73, 73)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(228, 228, 228)",
+        "underline": "0px none",
+        "focused": true,
+        "modality": "pointer"
+      }
+    }
+  },
+  {
+    "name": "light actual Settings search click adds no border/ring",
+    "pass": false,
+    "details": {
+      "idle": {
+        "hover": false,
+        "border": "1px solid rgba(13, 13, 13, 0.13)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(228, 228, 228)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "hover": {
+        "hover": true,
+        "border": "1px solid rgba(13, 13, 13, 0.25)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(228, 228, 228)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "focused": {
+        "hover": true,
+        "border": "1px solid rgb(73, 73, 73)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(228, 228, 228)",
+        "underline": "0px none",
+        "focused": true,
+        "modality": "pointer"
+      }
+    }
+  },
+  {
+    "name": "light actual Appearance select click adds no border/ring",
+    "pass": false,
+    "details": {
+      "idle": {
+        "hover": false,
+        "border": "1px solid rgba(13, 13, 13, 0.13)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgba(14, 14, 14, 0)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "hover": {
+        "hover": true,
+        "border": "1px solid rgb(73, 73, 73)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgba(14, 14, 14, 0)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "focused": {
+        "hover": false,
+        "border": "1px solid rgb(172, 87, 126)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgba(14, 14, 14, 0)",
+        "underline": "0px none",
+        "focused": true,
+        "modality": "pointer"
+      }
+    }
+  },
+  {
+    "name": "dark global search click adds no border/ring",
+    "pass": false,
+    "details": {
+      "idle": {
+        "hover": false,
+        "border": "1px solid rgba(255, 255, 255, 0.15)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(24, 24, 24)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "hover": {
+        "hover": true,
+        "border": "1px solid rgba(237, 237, 237, 0.25)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(24, 24, 24)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "focused": {
+        "hover": true,
+        "border": "1px solid rgb(205, 205, 205)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(24, 24, 24)",
+        "underline": "0px none",
+        "focused": true,
+        "modality": "pointer"
+      }
+    }
+  },
+  {
+    "name": "dark auth helper click adds no border/ring",
+    "pass": false,
+    "details": {
+      "idle": {
+        "hover": false,
+        "border": "1px solid rgba(255, 255, 255, 0.15)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(24, 24, 24)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "hover": {
+        "hover": true,
+        "border": "1px solid rgba(237, 237, 237, 0.25)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(24, 24, 24)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "focused": {
+        "hover": true,
+        "border": "1px solid rgb(205, 205, 205)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(24, 24, 24)",
+        "underline": "0px none",
+        "focused": true,
+        "modality": "pointer"
+      }
+    }
+  },
+  {
+    "name": "dark global dropdown click adds no border/ring",
+    "pass": false,
+    "details": {
+      "idle": {
+        "hover": false,
+        "border": "1px solid rgba(255, 255, 255, 0.23)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(24, 24, 24)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "hover": {
+        "hover": true,
+        "border": "1px solid rgba(255, 255, 255, 0.23)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(24, 24, 24)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "focused": {
+        "hover": false,
+        "border": "1px solid rgb(205, 205, 205)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(24, 24, 24)",
+        "underline": "0px none",
+        "focused": true,
+        "modality": "pointer"
+      }
+    }
+  },
+  {
+    "name": "dark preference dropdown click adds no border/ring",
+    "pass": false,
+    "details": {
+      "idle": {
+        "hover": false,
+        "border": "1px solid rgba(255, 255, 255, 0.15)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(48, 48, 48)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "hover": {
+        "hover": true,
+        "border": "1px solid rgba(237, 237, 237, 0.25)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(24, 24, 24)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "focused": {
+        "hover": false,
+        "border": "1px solid rgb(205, 205, 205)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(48, 48, 48)",
+        "underline": "0px none",
+        "focused": true,
+        "modality": "pointer"
+      }
+    }
+  },
+  {
+    "name": "dark autocomplete click adds no border/ring",
+    "pass": false,
+    "details": {
+      "idle": {
+        "hover": false,
+        "border": "1px solid rgba(255, 255, 255, 0.15)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(24, 24, 24)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "hover": {
+        "hover": true,
+        "border": "1px solid rgba(237, 237, 237, 0.25)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(24, 24, 24)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "focused": {
+        "hover": true,
+        "border": "1px solid rgb(205, 205, 205)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(24, 24, 24)",
+        "underline": "0px none",
+        "focused": true,
+        "modality": "pointer"
+      }
+    }
+  },
+  {
+    "name": "dark standard/database field click adds no border/ring",
+    "pass": false,
+    "details": {
+      "idle": {
+        "hover": false,
+        "border": "",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgba(0, 0, 0, 0)",
+        "underline": "2px solid",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "hover": {
+        "hover": true,
+        "border": "",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgba(0, 0, 0, 0)",
+        "underline": "2px solid",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "focused": {
+        "hover": true,
+        "border": "",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgba(0, 0, 0, 0)",
+        "underline": "2px solid",
+        "focused": true,
+        "modality": "pointer"
+      }
+    }
+  },
+  {
+    "name": "dark filled field click adds no border/ring",
+    "pass": false,
+    "details": {
+      "idle": {
+        "hover": false,
+        "border": "",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgba(255, 255, 255, 0.09)",
+        "underline": "2px solid",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "hover": {
+        "hover": true,
+        "border": "",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgba(255, 255, 255, 0.09)",
+        "underline": "2px solid",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "focused": {
+        "hover": true,
+        "border": "",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgba(255, 255, 255, 0.09)",
+        "underline": "2px solid",
+        "focused": true,
+        "modality": "pointer"
+      }
+    }
+  },
+  {
+    "name": "dark borderless search click adds no border/ring",
+    "pass": true,
+    "details": {
+      "idle": {
+        "hover": false,
+        "border": "",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgba(0, 0, 0, 0)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "hover": {
+        "hover": true,
+        "border": "",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgba(0, 0, 0, 0)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "focused": {
+        "hover": true,
+        "border": "",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgba(0, 0, 0, 0)",
+        "underline": "0px none",
+        "focused": true,
+        "modality": "pointer"
+      }
+    }
+  },
+  {
+    "name": "dark custom native input click adds no border/ring",
+    "pass": false,
+    "details": {
+      "idle": {
+        "hover": false,
+        "border": "",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgba(0, 0, 0, 0)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "hover": {
+        "hover": true,
+        "border": "",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgba(0, 0, 0, 0)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "focused": {
+        "hover": true,
+        "border": "",
+        "outline": "2px solid",
+        "inputOutline": "2px solid",
+        "shadow": "none",
+        "background": "rgba(0, 0, 0, 0)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "pointer"
+      }
+    }
+  },
+  {
+    "name": "dark validation click adds no border/ring",
+    "pass": false,
+    "details": {
+      "idle": {
+        "hover": false,
+        "border": "1px solid rgb(255, 154, 154)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(24, 24, 24)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "hover": {
+        "hover": true,
+        "border": "1px solid rgba(237, 237, 237, 0.25)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(24, 24, 24)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "focused": {
+        "hover": true,
+        "border": "1px solid rgb(255, 154, 154)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(24, 24, 24)",
+        "underline": "0px none",
+        "focused": true,
+        "modality": "pointer"
+      }
+    }
+  },
+  {
+    "name": "dark typing retains pointer origin",
+    "pass": false
+  },
+  {
+    "name": "dark keyboard field focus visible",
+    "pass": false,
+    "details": {
+      "hover": true,
+      "border": "1px solid rgb(205, 205, 205)",
+      "outline": "3px none",
+      "inputOutline": "3px none",
+      "shadow": "none",
+      "background": "rgb(24, 24, 24)",
+      "underline": "0px none",
+      "focused": true,
+      "modality": "keyboard"
+    }
+  },
+  {
+    "name": "dark keyboard action focus visible",
+    "pass": true,
+    "details": {
+      "hover": false,
+      "border": "",
+      "outline": "2px solid",
+      "inputOutline": "2px solid",
+      "shadow": "none",
+      "background": "rgba(0, 0, 0, 0)",
+      "underline": "0px none",
+      "focused": false,
+      "modality": "keyboard"
+    }
+  },
+  {
+    "name": "dark click clears stale action focus ring",
+    "pass": false,
+    "details": {
+      "hover": true,
+      "border": "",
+      "outline": "2px solid",
+      "inputOutline": "2px solid",
+      "shadow": "none",
+      "background": "rgba(237, 237, 237, 0.07)",
+      "underline": "0px none",
+      "focused": false,
+      "modality": "pointer"
+    }
+  },
+  {
+    "name": "dark conversation ellipsis has no round hover fill",
+    "pass": false,
+    "details": {
+      "hover": true,
+      "border": "",
+      "outline": "0px none",
+      "inputOutline": "0px none",
+      "shadow": "none",
+      "background": "rgba(14, 14, 14, 0)",
+      "underline": "0px none",
+      "focused": false,
+      "modality": "pointer"
+    }
+  },
+  {
+    "name": "dark conversation ellipsis has no pressed fill",
+    "pass": true,
+    "details": {
+      "hover": true,
+      "border": "",
+      "outline": "0px none",
+      "inputOutline": "0px none",
+      "shadow": "none",
+      "background": "rgba(0, 0, 0, 0)",
+      "underline": "0px none",
+      "focused": false,
+      "modality": "pointer"
+    }
+  },
+  {
+    "name": "dark open ellipsis stays transparent",
+    "pass": false,
+    "details": {
+      "hover": false,
+      "border": "",
+      "outline": "0px none",
+      "inputOutline": "0px none",
+      "shadow": "none",
+      "background": "rgba(14, 14, 14, 0)",
+      "underline": "0px none",
+      "focused": false,
+      "modality": "pointer"
+    }
+  },
+  {
+    "name": "dark pointer-opened menu has no focus ring",
+    "pass": true
+  },
+  {
+    "name": "dark keyboard menu return focus visible",
+    "pass": true,
+    "details": {
+      "hover": true,
+      "border": "",
+      "outline": "2px solid",
+      "inputOutline": "2px solid",
+      "shadow": "none",
+      "background": "rgba(14, 14, 14, 0)",
+      "underline": "0px none",
+      "focused": false,
+      "modality": "keyboard"
+    }
+  },
+  {
+    "name": "dark actual General select click adds no border/ring",
+    "pass": false,
+    "details": {
+      "idle": {
+        "hover": false,
+        "border": "1px solid rgba(255, 255, 255, 0.15)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(48, 48, 48)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "pointer"
+      },
+      "hover": {
+        "hover": true,
+        "border": "1px solid rgba(237, 237, 237, 0.25)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(24, 24, 24)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "pointer"
+      },
+      "focused": {
+        "hover": false,
+        "border": "1px solid rgb(205, 205, 205)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(48, 48, 48)",
+        "underline": "0px none",
+        "focused": true,
+        "modality": "pointer"
+      }
+    }
+  },
+  {
+    "name": "dark actual Settings search click adds no border/ring",
+    "pass": false,
+    "details": {
+      "idle": {
+        "hover": false,
+        "border": "1px solid rgba(255, 255, 255, 0.15)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(48, 48, 48)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "hover": {
+        "hover": true,
+        "border": "1px solid rgba(237, 237, 237, 0.25)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(48, 48, 48)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "focused": {
+        "hover": true,
+        "border": "1px solid rgb(205, 205, 205)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgb(48, 48, 48)",
+        "underline": "0px none",
+        "focused": true,
+        "modality": "pointer"
+      }
+    }
+  },
+  {
+    "name": "dark actual Appearance select click adds no border/ring",
+    "pass": false,
+    "details": {
+      "idle": {
+        "hover": false,
+        "border": "1px solid rgba(255, 255, 255, 0.15)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgba(14, 14, 14, 0)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "hover": {
+        "hover": true,
+        "border": "1px solid rgb(205, 205, 205)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgba(14, 14, 14, 0)",
+        "underline": "0px none",
+        "focused": false,
+        "modality": "keyboard"
+      },
+      "focused": {
+        "hover": false,
+        "border": "1px solid rgb(240, 119, 175)",
+        "outline": "3px none",
+        "inputOutline": "3px none",
+        "shadow": "none",
+        "background": "rgba(14, 14, 14, 0)",
+        "underline": "0px none",
+        "focused": true,
+        "modality": "pointer"
+      }
+    }
+  },
+  {
+    "name": "runner",
+    "pass": false,
+    "error": "Error: Not ready: !![...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Choose a model')\n    at until (file:///home/aftab-1405/Desktop/Moonlit-AI-Agent/front-end/tests/browser/focus-interactions.mjs:11:109)\n    at async file:///home/aftab-1405/Desktop/Moonlit-AI-Agent/front-end/tests/browser/focus-interactions.mjs:47:51"
+  }
+]

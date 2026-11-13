@@ -1,7 +1,8 @@
+import { useAppearanceReducedMotion } from '@/hooks/useAppearanceReducedMotion';
 'use client';
 import { IconButton } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useEffect, useEffectEvent, useMemo } from 'react';
 import {
   CloseIcon,
@@ -29,7 +30,7 @@ const MotionDiv = motion.div;
 const STATUS_ICON_SX = { fontSize: 20 };
 
 const LoadingIcon = () => {
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useAppearanceReducedMotion();
   return (
     <MotionDiv
       animate={reduceMotion ? undefined : { rotate: 360 }}
@@ -43,7 +44,7 @@ const LoadingIcon = () => {
 
 const Notification = ({ type, title, message, showIcon = true, duration, onClose }) => {
   const theme = useTheme();
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useAppearanceReducedMotion();
   const isError = type === 'error';
   const hasDuration = Number.isFinite(duration) && duration > 0;
   const dismissOnExpiry = useEffectEvent(() => onClose());

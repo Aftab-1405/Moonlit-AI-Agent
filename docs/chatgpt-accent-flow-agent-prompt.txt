@@ -1,0 +1,97 @@
+Implement ChatGPT-style accent propagation in the current Moonlit working tree
+
+SUPERSEDED: Use docs/accent-flow-focused-implementation-prompt.txt for implementation. It incorporates the completed live Moonlit comparison and corrects the earlier broad prose-link recoloring proposal. This file is historical context, not the current work order.
+
+LIVE EVIDENCE UPDATE: Read docs/chatgpt-accent-live-evidence.json. Authenticated Purple/Blue comparisons now confirm light-mode user bubbles and text selection change with accent, while the sampled external markdown links remain neutral #0D0D0D. Do NOT apply the generic prose-link recoloring instruction below to those links. A CSS accent-link token does not prove every rendered link uses it. Settings navigation selection also stays neutral; checked switches change their fill. The composer Voice action uses an accent background with white inner icon; its ordinary attachment/model controls stay neutral. Send itself was not exercised. Original System/Yellow preferences were restored. Live Moonlit comparison is pending tab access, so the file's Moonlit findings remain source-derived.
+
+Extend the existing Settings/Appearance implementation so choosing an accent changes the appropriate interaction and conversation surfaces throughout Moonlit. Keep neutral application chrome neutral. Do not rebuild Settings or undo the recent icon, picker, preview, hover and persistence fixes.
+
+Working-tree boundary
+
+Use git diff (working tree against index) to inspect the unstaged implementation changes, and git ls-files --others --exclude-standard to include its untracked modules. Read the full current files to understand their consumers. The index is the comparison baseline, not an instruction to restore files to that baseline. Files marked MM contain both staged and unstaged work; preserve both. Do not stage, reset, stash, commit, overwrite unrelated changes, or broadly compare only against HEAD and confuse prior staged work with this task.
+
+Evidence boundary
+
+The earlier authenticated ChatGPT inspection exposed generated CSS declarations for its light/dark ChatGPT preset with Purple accent, plus computed token values on Appearance. Those declarations establish the role mapping below, but not that every possible consumer was exercised. The new inspection attempt on 2026-11-12 redirected to login, so no fresh cross-page Purple-versus-Blue A/B comparison was completed. Exact Vercel behavior, arbitrary-accent color generation, OS/client variants and full chart behavior remain unverified. Do not present an inferred consumer or an approximation as a freshly observed exact match.
+
+If authenticated ChatGPT is available, verify the mapping with a controlled comparison: record the original mode, preset, accent and custom settings; change ONLY the accent between Purple and Blue; compare the same controls in light/dark, settings and an existing chat. Inspect styles only, without sending a message or collecting conversation text. Restore the original preferences. Separate a theme's CSS declaration from a rendered consumer's computed style. Do not require broad account changes to inspect accent behavior.
+
+Reference model
+
+Accent is not the same as primary text color or the background palette. It branches into distinct roles:
+  selected accent identifier/custom hex
+    -> mode/preset-aware base accent
+    -> solid action + hover + pressed + on-solid text
+    -> readable link/accent foreground
+    -> soft selected surface + border
+    -> user-message surface + user-message text
+    -> text-selection/attribution highlight
+    -> checked control fill + contrasting mark/thumb
+    -> optional explicitly supported visualization roles
+
+Do not assign one hex to all of these. Do not replace palette.primary.main with the accent: ordinary buttons and text are currently deliberately neutral.
+
+Earlier reference Purple values (ChatGPT preset, not Vercel)
+
+Role                         Light              Dark
+Base accent                  #A67DF2            #A67DF2
+Solid action                 #8952EE            #7849D1
+Solid hover                  #7849D1            #643CAE
+Solid pressed                #643CAE            #4E2F88
+On-solid text                #FFFFFF            #FFFFFF
+Accent foreground            #7849D1            #B897F4
+Accent foreground hover      #643CAE            #EDE5FC
+User-message surface         #EDE5FC            #4E2F88
+User-message text            #291947            #F8F5FD
+Text selection/highlight     #A67DF259          #8952EE99
+
+Declared reference token wiring:
+- --color-background-composer-primary and --color-text-composer-primary use the solid/on-solid pair.
+- --color-background-user-message and --color-text-user-message form a separate surface/text pair.
+- --color-background-text-selection and --color-background-attribution-highlight share the sampled translucent highlight.
+- --checkbox-checked-background-color and --switch-track-color-checked reference the solid action token; marks/thumbs reference the on-solid token.
+- --link-primary-text-color was #7849D1 in BOTH sampled modes, while generic dark accent foreground was #B897F4. Do not assume every link token is identical to accent.foreground. Verify actual link contrast/usage and preserve accessibility when adapting.
+- Accent soft-alpha surfaces used 10%, 17%, 25% source-accent mixes for rest/hover/active. These are not a universal formula for user bubbles.
+- The captured stylesheet also declared accent-related sequential chart tokens. This proves that such roles exist, not that every chart or categorical series changes. Treat chart recoloring as a separate verified opt-in.
+
+Neutral boundaries
+
+Keep main backgrounds, default body text, sidebar headings/icons, ordinary navigation selection, Advanced/Reset controls, basic menu hover, inactive controls and neutral buttons independent of accent. Disabled controls must remain visibly disabled. Success/error/warning/info, database/provider logos, diff additions/deletions and syntax highlighting retain their semantic identities. A syntax preset and the UI accent are independent settings. Do not indiscriminately tint every icon, border, chart series or spinner.
+
+Current Moonlit implementation and exact gaps
+
+1. Model: front-end/src/theme/appearance.js already resolves named/custom accents per profile with linked/separate behavior. getDefaultAccent now resolves neutral Default to white in dark mode and #0D0D0D in light mode via primitives.js. Preserve that behavior. Selecting White is not necessarily equivalent to selecting Default in light mode.
+
+2. Generator: front-end/src/theme/tokens/semantic.js creates accent.main/hover/pressed/contrastText/foreground/base/selectedBackground/selectedBorder. Purple is specially mapped for the ChatGPT preset. Other accents reuse createAccent, which was written against DARK_BACKGROUND, before a foreground correction. Extend role generation in one place and audit its assumptions in light/custom-background modes. Test all generated pairs against the actual surfaces. Add only the additional semantic roles required by real consumers; do not introduce a second palette engine.
+
+3. Provider: ThemeContext already resolves appearance to a MUI theme and boot snapshot. Keep it as the source of truth. Update role generation without rebuilding the full theme on every transient picker event. Preserve the current frame-coalesced, profile-scoped preview implementation in features/overlays/settings/profilePreview.js. Preview and commit must derive the same role values, including custom accents and separated inactive-mode cards.
+
+4. Send: features/chat/ChatInput.jsx already uses accent.main/hover/pressed/contrastText when a message can be sent. Preserve this integration; verify normal/hover/pressed and disabled states. The streaming Stop action must retain its deliberate neutral treatment unless reference evidence justifies otherwise. Composer background and model/attachment controls do not all become accent-filled.
+
+5. User message: features/chat/MessageList.jsx currently derives bubbleBg from palette.layer.subtle and uses text.primary. Introduce and consume a dedicated user-message background/foreground pair. Do not recolor all layer.subtle surfaces or assistant messages to implement this. Check the Typography subtree for explicit color overrides so it inherits the correct foreground. Apply consistently to existing/new messages without mutating stored messages or losing drafts. Include inline links and selected text readability inside bubbles.
+
+6. Links: createMoonlitTheme.js MuiLink is hardcoded to neutral text.primary in rest/hover. Audit actual MarkdownRenderer and markdown renderers/anchor components before changing it: not all anchors are MUI Link and not all links are content links. Wire prose/content links to a readable link role with a defined hover state and underline/focus treatment. Leave navigation links/icon actions neutral. Use local roles/variants where a global MuiLink change would recolor navigation.
+
+7. Selection: createMoonlitTheme.js currently styles selection with alpha(text.primary,0.2), although it exports an accent-selection CSS variable. Connect real prose text selection to a dedicated highlight role with appropriate selected foreground. Verify the emitted selector actually reaches selectable descendants, and inspect ::selection in the browser. Do not substitute a generic 12% selected-row background for readable text selection. CodeMirror and Shiki have their own selection/syntax palettes: adapt only selection if deliberately supported and preserve syntax colors.
+
+8. Checked controls: checkedControlColor currently returns accent.foreground for ordinary controls. Switches use that for their track and background.default for the checked thumb. The captured reference instead uses solid action for the checked fill and on-solid for the mark/thumb. Separate filled-control roles from readable accent text; do not simply replace every foreground use with main. Preserve explicit status-colored controls and disabled overrides. Verify switches, checkboxes, radios and slider filled tracks independently. Slider rail/thumb are separate roles, not automatically the same fill.
+
+9. Existing extra consumers: InlineExecutionTable already uses accent-selected row/drag styles; guided confirmations and SQL StatusBar have explicit accent actions; AppPopover has accent-related selected indicators. Audit these consumers and preserve the useful opt-in behavior. Keep selected tabs/preference segments neutral where existing tests and design require it.
+
+10. Focus: recent unstaged changes deliberately keep keyboard rings neutral and suppress inappropriate pointer-restored focus outlines. Historical reference CSS includes accent-focus declarations, but all concrete reference focus states were not tested. Do not undo the recent focus/modality fix on the strength of a token name. Preserve visible, high-contrast keyboard focus and record any intentional divergence from reference. Recheck focus after menu close, keyboard tabbing and text input interaction.
+
+11. Charts/status/syntax: existing accent.vitest.jsx expects chart, status, identity and syntax roles to stay unchanged. Preserve categorical chart and diff/syntax independence by default. If implementing an accent-sequential chart role supported by actual reference observation, expose it explicitly and update only the specific consumers/tests, not the entire chart palette or fixed diagnostic colors.
+
+Implementation approach
+
+Create a compact role-to-consumer inventory before editing. Add mode-aware roles in semantic tokens, map them through createMoonlitTheme, then connect the missing consumers. Keep current primary neutral and opt-in accent actions. Avoid repeated per-component lighten/darken calculations and scattered literal colors. Preserve existing public accent keys where possible to minimize regressions.
+
+For named colors other than sampled Purple and arbitrary custom colors, use a clearly documented deterministic Moonlit approximation unless the actual reference generator is recovered. Derive on-solid, bubble text and link colors against their real backgrounds. Check light White/Yellow, dark custom near-black, and tinted custom surfaces. Never persist derived color values as independent competing sources of truth; recompute them from the selected profile. Accent changes must not flip custom surface/contrast flags, switch code theme, change fonts or overwrite the other mode when separate profiles are enabled.
+
+Validation and completion
+
+Test at least Default, Purple, Blue, White, Yellow and custom #172554 in both modes. Test changing ONLY accent while snapshotting neutral/status/syntax roles to ensure they stay unchanged. Add actual rendered tests for Send, user bubble background AND foreground, a prose link, checked switch/checkbox, disabled controls and selection CSS. Existing accent tests mostly exercise createDarkSemanticTokens, so extend coverage to createAppearanceSemanticTokens with real appearance profiles, including light and custom backgrounds.
+
+Browser verification must include settings, a populated conversation, selection inside plain text and a user bubble, menus/portals, SQL editor and results. Use fixture data if necessary, clearly labeling it. Do not send chats or execute database queries merely for appearance testing. Capture before/after at the same viewport/preset/font settings and show which surfaces changed and which did not. Test preview/commit/cancel, reload, cross-tab sync and separated profiles; maintain the recent low persistence-write count and editor-state preservation.
+
+Run relevant tests, lint and build. Report supported behavior, unresolved reference differences and exact checks run. Do not claim the Vercel preset or all ChatGPT internals were reproduced. Deliver a targeted patch, a final role/consumer table and concise visual evidence. Do not change unrelated staged work or commit/deploy unless asked.

@@ -1,0 +1,290 @@
+[
+  {
+    "mode": "dark",
+    "state": "normal",
+    "images": [
+      {
+        "src": "before-dark-normal.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "after-dark-collapsed-normal.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "before-dark-expanded.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "after-dark-expanded-normal.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "before-picker-black.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "after-picker-neutral-hue.png",
+        "width": 1158,
+        "height": 928
+      }
+    ]
+  },
+  {
+    "mode": "dark",
+    "state": "hover",
+    "images": [
+      {
+        "src": "before-dark-hover.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "after-dark-collapsed-hover.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "before-dark-expanded.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "after-dark-expanded-normal.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "before-picker-black.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "after-picker-neutral-hue.png",
+        "width": 1158,
+        "height": 928
+      }
+    ]
+  },
+  {
+    "mode": "dark",
+    "state": "pressed",
+    "images": [
+      {
+        "src": "before-dark-pressed.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "after-dark-collapsed-pressed.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "before-dark-expanded.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "after-dark-expanded-normal.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "before-picker-black.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "after-picker-neutral-hue.png",
+        "width": 1158,
+        "height": 928
+      }
+    ]
+  },
+  {
+    "mode": "dark",
+    "state": "focus",
+    "images": [
+      {
+        "src": "before-dark-focus.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "after-dark-expanded-focus.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "before-dark-expanded.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "after-dark-expanded-normal.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "before-picker-black.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "after-picker-neutral-hue.png",
+        "width": 1158,
+        "height": 928
+      }
+    ]
+  },
+  {
+    "mode": "light",
+    "state": "normal",
+    "images": [
+      {
+        "src": "before-light-normal.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "after-light-collapsed-normal.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "before-light-expanded.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "after-light-expanded-normal.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "before-picker-black.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "after-picker-neutral-hue.png",
+        "width": 1158,
+        "height": 928
+      }
+    ]
+  },
+  {
+    "mode": "light",
+    "state": "hover",
+    "images": [
+      {
+        "src": "before-light-hover.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "after-light-collapsed-hover.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "before-light-expanded.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "after-light-expanded-normal.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "before-picker-black.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "after-picker-neutral-hue.png",
+        "width": 1158,
+        "height": 928
+      }
+    ]
+  },
+  {
+    "mode": "light",
+    "state": "pressed",
+    "images": [
+      {
+        "src": "before-light-pressed.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "after-light-collapsed-pressed.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "before-light-expanded.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "after-light-expanded-normal.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "before-picker-black.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "after-picker-neutral-hue.png",
+        "width": 1158,
+        "height": 928
+      }
+    ]
+  },
+  {
+    "mode": "light",
+    "state": "focus",
+    "images": [
+      {
+        "src": "before-light-focus.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "after-light-expanded-focus.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "before-light-expanded.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "after-light-expanded-normal.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "before-picker-black.png",
+        "width": 1158,
+        "height": 928
+      },
+      {
+        "src": "after-picker-neutral-hue.png",
+        "width": 1158,
+        "height": 928
+      }
+    ]
+  }
+]

@@ -7,10 +7,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script>
     (() => {
-      const attribute = 'data-moonlit-color-scheme';
-      const mode = 'dark';
-      document.documentElement.setAttribute(attribute, mode);
-      document.documentElement.style.colorScheme = mode;
+      const root = document.documentElement;
+      let mode = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      let snapshot;
+      try {
+        snapshot = JSON.parse(localStorage.getItem('moonlit-appearance-boot-v1'));
+        if (snapshot?.version === 1 && ['light', 'dark'].includes(snapshot.mode)) mode = snapshot.mode;
+      } catch { /* Keep system preference when storage is unavailable. */ }
+      const profile = snapshot?.version === 1 ? snapshot[mode] : null;
+      const validHex = value => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value);
+      root.setAttribute('data-moonlit-color-scheme', mode);
+      root.style.colorScheme = mode;
+      root.style.backgroundColor = validHex(profile?.surface) ? profile.surface : mode === 'dark' ? '#000000' : '#FCFCFC';
+      root.style.color = validHex(profile?.ink) ? profile.ink : mode === 'dark' ? '#EDEDED' : '#0D0D0D';
     })();
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">

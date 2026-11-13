@@ -80,7 +80,7 @@ Before deploying:
 - Configure explicit production CORS, secure cookies, a strong secret, least-privilege Firebase/AWS/database credentials, and actual Bedrock model access.
 - Set `TRUSTED_PROXY_CIDRS` to the immediate trusted ingress networks. Do not trust all private networks or arbitrary forwarded headers.
 - Preserve cookie and CSRF headers, SSE frames/heartbeats, connection cancellation, and appropriate proxy timeouts. Verify buffering/compression behavior through the deployed proxy.
-- Reconcile [front-end/vercel.json](../front-end/vercel.json): its `/firebase-config`, `/set_session`, `/check_session`, and `/logout` rewrites use legacy names. Current names are `/firebase-config-and-csrf-token`, `/set_authenticated_user_session`, `/check_authenticated_user_session`, and `/logout_authenticated_user_session`.
+- [front-end/vercel.json](../front-end/vercel.json) forwards `/firebase-config-and-csrf-token`, `/set_authenticated_user_session`, `/check_authenticated_user_session`, and `/logout_authenticated_user_session` to the backend before the SPA fallback. Keep these aligned with frontend endpoint constants and the backend controller. Verify JSON responses, session cookies, and CSRF through the deployed proxy. `/login` is the browser sign-in page, not a backend authentication endpoint.
 - Validate the configured Firebase, Redis checkpoint integration, Qdrant, Bedrock, and all supported DBMS behaviors in staging. Source tests do not prove deployment IAM, TLS, private networking, retention, or recovery.
 - Drain older workers before enabling account erasure; every writer must participate in the account-activity barrier.
 

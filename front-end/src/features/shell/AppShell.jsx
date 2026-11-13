@@ -1,5 +1,6 @@
+import { useAppearanceReducedMotion } from '@/hooks/useAppearanceReducedMotion';
 import { Box, useTheme } from '@mui/material';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { memo, useMemo } from 'react';
 import {
   getArtifactPanelChromeSx,
@@ -23,12 +24,13 @@ function AppShell({
   canvasWidth,
   canvasFullscreen = false,
   isResizingCanvas,
+  settingsOpen = false,
 }) {
   const theme = useTheme();
-  const reduceMotion = useReducedMotion();
-  const chatCovered = canvasOpen && (canvasFullscreen || isNarrowLayout);
+  const reduceMotion = useAppearanceReducedMotion();
+  const chatCovered = settingsOpen || (canvasOpen && (canvasFullscreen || isNarrowLayout));
   const layout = getAppShellLayout(
-    { isNarrowLayout, sidebarOpen, canvasOpen, canvasWidth },
+    { isNarrowLayout, sidebarOpen: sidebarOpen && !settingsOpen, canvasOpen, canvasWidth },
     {
       expanded: UI_LAYOUT.sidebarExpandedWidth,
       collapsed: UI_LAYOUT.sidebarCollapsedWidth,
@@ -112,7 +114,10 @@ function AppShell({
         aria-label="Chat workspace"
         aria-hidden={chatCovered || undefined}
         inert={chatCovered ? true : undefined}
-        sx={{ ...chatColumnSx, display: canvasOpen && canvasFullscreen ? 'none' : 'flex' }}
+        sx={{
+          ...chatColumnSx,
+          display: settingsOpen || (canvasOpen && canvasFullscreen) ? 'none' : 'flex',
+        }}
       >
         {chatSlot}
       </Box>
@@ -125,9 +130,10 @@ function AppShell({
             : { y: 0, opacity: canvasOpen ? 1 : 0 }
         }
         transition={isResizingCanvas || reduceMotion ? NO_TRANSITION : SPRING_TRANSITION}
-        aria-hidden={!canvasOpen}
-        inert={!canvasOpen ? true : undefined}
+        aria-hidden={settingsOpen || !canvasOpen}
+        inert={settingsOpen || !canvasOpen ? true : undefined}
         style={{
+          display: settingsOpen ? 'none' : undefined,
           // Commit geometry once; animate only compositor-friendly properties.
           // This also avoids repeatedly resizing SQL editors and result grids.
           width:

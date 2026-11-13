@@ -4,7 +4,7 @@ import { darkSemanticTokens } from './semantic.js';
  * Component-role aliases consumed by the centralized MUI overrides.
  * Application components should prefer semantic palette roles directly.
  */
-const createComponentTokens = (tokens) =>
+export const createComponentTokens = (tokens) =>
   Object.freeze({
     bg000: tokens.background.default,
     bg100: tokens.background.paper,

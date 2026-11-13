@@ -5,6 +5,7 @@ import ButtonLoadingSpinner from '@/components/common/ButtonLoadingSpinner';
 import { CheckIcon, CopyIcon, ExecuteIcon, WrapTextIcon } from '@/components/icons';
 import { getResponsivePillIconButtonSx } from '@/features/styles/interfaceChrome';
 import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
+import { useOptionalAppearance } from '@/contexts/appearanceContext';
 import { copyToClipboard } from '@/utils/clipboard';
 import { getFullCodeBlockStyles } from './codeViewerStyles';
 
@@ -97,6 +98,7 @@ function CodeViewer({
   style,
 }) {
   const theme = useTheme();
+  const appearance = useOptionalAppearance();
 
   const [copied, setCopied] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
@@ -322,6 +324,40 @@ function CodeViewer({
   // to plain text so the user sees the code immediately — Shiki will swap in
   // highlighted tokens as soon as the stream is piped.
   const renderCode = () => {
+    if (detectedLanguage === 'diff') {
+      const signs =
+        (appearance?.diffMarkers || theme.palette.integration.appearance?.diffMarkers) === 'sign';
+      return code.split('\n').map((line, index) => {
+        const added = line.startsWith('+') && !line.startsWith('+++');
+        const removed = line.startsWith('-') && !line.startsWith('---');
+        return (
+          <Box
+            component="span"
+            key={index}
+            aria-label={
+              added ? `Added: ${line.slice(1)}` : removed ? `Deleted: ${line.slice(1)}` : undefined
+            }
+            sx={{
+              display: 'block',
+              color: signs
+                ? 'text.primary'
+                : added
+                  ? theme.palette.semanticColors.diffAdded
+                  : removed
+                    ? theme.palette.semanticColors.diffRemoved
+                    : 'inherit',
+              backgroundColor: signs
+                ? 'transparent'
+                : added
+                  ? theme.palette.action.hover
+                  : 'transparent',
+            }}
+          >
+            {(added || removed) && !signs ? line.slice(1) : line || ' '}
+          </Box>
+        );
+      });
+    }
     if (tokensStream && StreamRenderer) {
       return <StreamRenderer stream={tokensStream} />;
     }
@@ -334,7 +370,7 @@ function CodeViewer({
       <Box
         sx={{
           height: height === 'auto' ? undefined : height,
-          fontSize: theme.typography.uiCodeCompact?.fontSizePx ?? 12,
+          fontSize: 'var(--font-code-size, 12px)',
           fontFamily: theme.typography.fontFamilyMono,
           overflow: 'auto',
           width: '100%',
@@ -430,7 +466,7 @@ function CodeViewer({
                 borderRadius: '50%',
                 bgcolor: 'text.secondary',
                 animation: `${livePulse} 1.25s ease-in-out infinite`,
-                '@media (prefers-reduced-motion: reduce)': { animation: 'none', opacity: 0.6 },
+                'html[data-moonlit-reduced-motion="true"] &': { animation: 'none', opacity: 0.6 },
               }}
             />
             <Typography

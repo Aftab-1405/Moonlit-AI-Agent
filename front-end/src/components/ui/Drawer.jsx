@@ -1,6 +1,7 @@
+import { useAppearanceReducedMotion } from '@/hooks/useAppearanceReducedMotion';
 import { Box, IconButton, Modal } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { CloseIcon } from '@/components/icons';
 
@@ -42,7 +43,7 @@ export const Drawer = ({
 }) => {
   const [present, setPresent] = useState(open);
   const exitPendingRef = useRef(false);
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useAppearanceReducedMotion();
 
   useEffect(() => {
     if (!open) return undefined;

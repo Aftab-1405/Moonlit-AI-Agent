@@ -29,7 +29,7 @@ function WelcomeScreen({ visible }) {
           textAlign: 'center',
           pointerEvents: 'none',
           animation: visible ? `${softReveal} 200ms ease-out both` : 'none',
-          '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
+          'html[data-moonlit-reduced-motion="true"] &': { animation: 'none' },
         }}
       >
         <Typography

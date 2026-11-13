@@ -1,74 +1,185 @@
 import {
   Box,
   Button,
-  Fade,
+  Drawer,
   FormControl,
+  IconButton,
+  InputAdornment,
   MenuItem,
   Select,
   Switch,
+  TextField,
   Typography,
   useMediaQuery,
 } from '@mui/material';
-import { useTheme as useMuiTheme } from '@mui/material/styles';
+import { useTheme } from '@mui/material/styles';
 import { useQuery } from '@tanstack/react-query';
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { queryClient, queryKeys } from '@/api/queryClient';
-import { DialogShell } from '@/components';
-import { AiContextIcon, AiSparkleIcon, DatabaseIcon } from '@/components/icons';
-import { resolveLlmSelection } from '@/config/llmSelection';
-import { getEffectiveReasoningEffort, REASONING_EFFORT_OPTIONS } from '@/config/userSettings';
-import { useTheme as useAppTheme } from '@/contexts/ThemeContext';
+import { getLlmOptions } from '@/api/llm';
+import { useAuth } from '@/contexts/AuthContext';
 import {
-  getPreferenceBackdropSx,
-  getPreferenceBodySx,
+  AiContextIcon,
+  AppearanceIcon,
+  CloseIcon,
+  DatabaseIcon,
+  HomeIcon,
+  MenuIcon,
+  SearchIcon,
+  SettingsIcon,
+} from '@/components/icons';
+import { DB_TYPES } from '@/config/databases';
+import { resolveLlmSelection } from '@/config/llmSelection';
+import {
+  defaultUserSettings,
+  getEffectiveReasoningEffort,
+  REASONING_EFFORT_OPTIONS,
+  TASK_MODE_OPTIONS,
+} from '@/config/userSettings';
+import AppearanceSection from './AppearanceSection';
+import { SETTINGS_SECTIONS, normalizeSettingsSection, searchSettings } from './settingsRegistry';
+import { useSettingsRoute } from '@/contexts/SettingsRouteContext';
+import { useSettings } from '@/contexts/SettingsContext';
+import {
   getPreferenceControlSx,
-  getPreferencePaperSx,
-  getPreferenceRootSx,
-  PreferenceFooterActions,
-  PreferenceLayout,
   PreferenceNavItem,
   PreferenceNavList,
-  PreferencePageHeader,
   PreferenceRow,
   PreferenceSection,
 } from '@/features/overlays/preference-surface';
-import { canResetSettingsSection } from '@/features/overlays/settings/settingsModalModel';
 import UserDBContextManagerForAI from '@/features/overlays/settings/UserDBContextManagerForAI';
-import { getPopoverPaperSx, UI_Z_INDEX } from '@/styles/shared';
+import { useAppearanceReducedMotion } from '@/hooks/useAppearanceReducedMotion';
+import { BUTTON_TOUCH_QUERY } from '@/styles/mediaQueries';
+import { getPopoverPaperSx, getScrollbarStyles, UI_LAYOUT, UI_Z_INDEX } from '@/styles/shared';
 
-// Settings nav items. Icons are chosen for semantic clarity:
-//   - Moonlit (AI settings) → canonical AI sparkle
-//   - Database → canonical database concept
-//   - AI Context → canonical AI-context concept
-const SECTIONS = [
-  { id: 'ai', label: 'Moonlit', icon: AiSparkleIcon },
-  { id: 'database', label: 'Database', icon: DatabaseIcon },
-  { id: 'context', label: 'AI Context', icon: AiContextIcon },
-];
+const SECTION_ICONS = {
+  general: SettingsIcon,
+  appearance: AppearanceIcon,
+  database: DatabaseIcon,
+  'ai-context': AiContextIcon,
+};
+const sectionIcon = (id) => {
+  const Icon = SECTION_ICONS[id];
+  return Icon ? <Icon aria-hidden="true" sx={{ fontSize: 18 }} /> : null;
+};
+const SECTIONS = SETTINGS_SECTIONS.map((s) => ({
+  ...s,
+  icon: sectionIcon(s.id),
+}));
+
+// The same label/control contract for every selector; values retain their native types.
+function SettingSelect({ name, label, description, options, value, onChange, disabled = false }) {
+  const theme = useTheme();
+  const id = `setting-${name}`;
+  return (
+    <Box id={id + '-target'}>
+      <PreferenceRow variant="settings" label={label} description={description} htmlFor={id}>
+        <FormControl
+          size="small"
+          disabled={disabled}
+          sx={getPreferenceControlSx(theme, { variant: 'settings', minWidth: 0 })}
+        >
+          <Select
+            id={id}
+            labelId={`${id}-label`}
+            inputProps={{ 'aria-describedby': `${id}-description` }}
+            value={value}
+            displayEmpty
+            onChange={(event) => onChange(event.target.value)}
+            MenuProps={{
+              PaperProps: { sx: getPopoverPaperSx(theme) },
+              sx: { zIndex: UI_Z_INDEX.mainContentModal + 10 },
+            }}
+          >
+            {options.map(({ value: option, label: text }) => (
+              <MenuItem key={option} value={option}>
+                {text}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+      </PreferenceRow>
+    </Box>
+  );
+}
+
+function SettingSwitch({ name, label, description, checked, onChange }) {
+  const id = `setting-${name}`;
+  return (
+    <PreferenceRow
+      variant="settings"
+      label={label}
+      description={description}
+      htmlFor={id}
+      sx={{ flexDirection: 'row', alignItems: 'center' }}
+    >
+      <Switch
+        slotProps={{
+          input: {
+            id,
+            role: 'switch',
+            'aria-labelledby': `${id}-label`,
+            'aria-describedby': `${id}-description`,
+          },
+        }}
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        size="small"
+        sx={{
+          [BUTTON_TOUCH_QUERY]: {
+            '& .MuiSwitch-input': { width: 44, height: 44, top: -12, left: -12 },
+          },
+        }}
+      />
+    </PreferenceRow>
+  );
+}
 
 function SettingsModal({ open, onClose, initialSection = null }) {
-  const { settings, updateSetting, updateSettings, resetSettings } = useAppTheme();
-  const [activeSection, setActiveSection] = useState('ai');
+  const { user } = useAuth();
+  const { settings, updateSetting, updateSettings, resetSettings } = useSettings();
+  const route = useSettingsRoute();
+  const [localSection, setLocalSection] = useState('general');
+  const activeSection = route?.open ? route.section : localSection;
+  const [revealTarget, setRevealTarget] = useState(null);
+  const [revealRequest, setRevealRequest] = useState(0);
+  const setActiveSection = (id) => {
+    setLocalSection(normalizeSettingsSection(id));
+    if (route?.open) route.openSection(id);
+  };
+  const searchRef = useRef(null);
+  const pendingReveal = useRef(null);
+  const drawerClosing = useRef(false);
+  const [navigationOpen, setNavigationOpen] = useState(false);
+  const [search, setSearch] = useState('');
   const headingRef = useRef(null);
-
+  const contentRef = useRef(null);
+  const theme = useTheme();
+  const reducedMotion = useAppearanceReducedMotion();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  useEffect(() => {
+    if (!open || !isMobile) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- A closed or desktop overlay cannot retain a mobile drawer.
+      setNavigationOpen(false);
+    }
+  }, [open, isMobile]);
   const { data: llmOptions = {} } = useQuery(
     {
       queryKey: queryKeys.llmOptions,
-      enabled: false,
+      queryFn: ({ signal }) => getLlmOptions(signal),
+      enabled: open && Boolean(user),
+      staleTime: 10 * 60 * 1000,
+      gcTime: 30 * 60 * 1000,
     },
     queryClient,
   );
   const { supportsReasoning } = resolveLlmSelection(llmOptions, settings);
+  const section = SECTIONS.find(({ id }) => id === activeSection);
 
   useEffect(() => {
     if (open && initialSection) {
-      const isValid = SECTIONS.some((s) => s.id === initialSection);
-      if (isValid) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect -- Preserve initial-section routing when settings opens from UI actions.
-        setActiveSection(initialSection);
-      } else {
-        setActiveSection('ai');
-      }
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Honor existing section-opening actions.
+      setLocalSection(normalizeSettingsSection(initialSection));
     }
   }, [open, initialSection]);
 
@@ -78,344 +189,458 @@ function SettingsModal({ open, onClose, initialSection = null }) {
     return () => cancelAnimationFrame(frame);
   }, [open]);
 
-  const theme = useMuiTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-
-  const selectMenuProps = useMemo(
-    () => ({
-      PaperProps: { sx: getPopoverPaperSx(theme) },
-      sx: { zIndex: UI_Z_INDEX.mainContentModal + 10 },
-    }),
-    [theme],
-  );
-
-  const settingsSurfaceLeft = '0px';
-  const settingsSurfaceWidth = '100vw';
-  const mainContentDialogRootSx = useMemo(() => getPreferenceRootSx(), []);
-  const controlSx = useMemo(() => getPreferenceControlSx(theme), [theme]);
-
-  const NavContent = (
-    <PreferenceNavList ariaLabel="Settings">
-      {SECTIONS.map((section) => {
-        const Icon = section.icon;
-        return (
-          <PreferenceNavItem
-            key={section.id}
-            active={activeSection === section.id}
-            onClick={() => setActiveSection(section.id)}
-            icon={<Icon />}
-          >
-            {section.label}
-          </PreferenceNavItem>
-        );
-      })}
-    </PreferenceNavList>
-  );
-
-  const renderContent = () => {
-    switch (activeSection) {
-      case 'ai':
-        return (
-          <Fade in key="ai">
-            <Box>
-              <PreferenceSection title="AI Settings">
-                <PreferenceRow
-                  label="Response Style"
-                  description="How AI formats responses"
-                  htmlFor="setting-response-style"
-                >
-                  <FormControl size="small" sx={controlSx}>
-                    <Select
-                      id="setting-response-style"
-                      value={settings.responseStyle ?? 'balanced'}
-                      onChange={(e) => updateSetting('responseStyle', e.target.value)}
-                      MenuProps={selectMenuProps}
-                    >
-                      <MenuItem value="concise">Concise</MenuItem>
-                      <MenuItem value="balanced">Balanced</MenuItem>
-                      <MenuItem value="detailed">Detailed</MenuItem>
-                    </Select>
-                  </FormControl>
-                </PreferenceRow>
-
-                <PreferenceRow
-                  label="Reasoning Effort"
-                  description={
-                    supportsReasoning
-                      ? 'How much reasoning the selected model uses'
-                      : 'Not supported by the currently selected model'
-                  }
-                  htmlFor="setting-reasoning-effort"
-                >
-                  <FormControl size="small" sx={controlSx} disabled={!supportsReasoning}>
-                    <Select
-                      id="setting-reasoning-effort"
-                      value={getEffectiveReasoningEffort(settings)}
-                      onChange={(e) =>
-                        updateSettings({ enableReasoning: true, reasoningEffort: e.target.value })
-                      }
-                      MenuProps={selectMenuProps}
-                      disabled={!supportsReasoning}
-                    >
-                      {REASONING_EFFORT_OPTIONS.map(({ value, label }) => (
-                        <MenuItem key={value} value={value}>
-                          {label}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </PreferenceRow>
-
-                {/*
-                  ENH [AUTO-TASK-MODE]: Default task mode for new messages.
-                  'Auto' lets the backend classify the prompt and elevate
-                  the mode when the request clearly needs more steps
-                  (e.g., "analyze and produce report" → Long Task, 200 steps).
-                  The other values force the mode for every message — useful
-                  when you know your work is always long-form. The user can
-                  also override per-message by typing a slash command in the
-                  chat input (/auto, /standard, /tool, /long).
-                */}
-                <PreferenceRow
-                  label="Default Task Mode"
-                  description="Step budget per message (type / in chat to override)"
-                  htmlFor="setting-task-mode"
-                >
-                  <FormControl size="small" sx={controlSx}>
-                    <Select
-                      id="setting-task-mode"
-                      value={settings.taskMode ?? 'auto'}
-                      onChange={(e) => updateSetting('taskMode', e.target.value)}
-                      MenuProps={selectMenuProps}
-                    >
-                      <MenuItem value="auto">Auto (recommended)</MenuItem>
-                      <MenuItem value="normal">Standard (50 steps)</MenuItem>
-                      <MenuItem value="tool_task">Tool Task (100 steps)</MenuItem>
-                      <MenuItem value="long_task">Long Task (200 steps)</MenuItem>
-                    </Select>
-                  </FormControl>
-                </PreferenceRow>
-              </PreferenceSection>
-            </Box>
-          </Fade>
-        );
-      case 'database':
-        return (
-          <Fade in key="database">
-            <Box>
-              <PreferenceSection title="Database Settings">
-                <PreferenceRow
-                  label="Confirm Before Running"
-                  description="Show dialog before executing SQL"
-                  onClick={() =>
-                    updateSetting('confirmBeforeRun', !(settings.confirmBeforeRun ?? true))
-                  }
-                >
-                  <Switch
-                    inputProps={{ id: 'setting-confirm-run' }}
-                    checked={settings.confirmBeforeRun ?? true}
-                    onChange={(e) => updateSetting('confirmBeforeRun', e.target.checked)}
-                    onClick={(e) => e.stopPropagation()}
-                    size="small"
-                  />
-                </PreferenceRow>
-                <PreferenceRow
-                  label="Query Timeout"
-                  description="Max wait time for results"
-                  htmlFor="setting-query-timeout"
-                >
-                  <FormControl size="small" sx={controlSx}>
-                    <Select
-                      id="setting-query-timeout"
-                      value={settings.queryTimeout ?? 30}
-                      onChange={(e) => updateSetting('queryTimeout', e.target.value)}
-                      MenuProps={selectMenuProps}
-                    >
-                      <MenuItem value={10}>10 sec</MenuItem>
-                      <MenuItem value={30}>30 sec</MenuItem>
-                      <MenuItem value={60}>1 min</MenuItem>
-                      <MenuItem value={120}>2 min</MenuItem>
-                      <MenuItem value={300}>5 min</MenuItem>
-                    </Select>
-                  </FormControl>
-                </PreferenceRow>
-                <PreferenceRow
-                  label="Max Rows"
-                  description={
-                    settings.maxRows === 0
-                      ? 'Use the server-defined row cap'
-                      : 'Limit results to prevent slowdown'
-                  }
-                  htmlFor="setting-max-rows"
-                >
-                  <FormControl size="small" sx={controlSx}>
-                    <Select
-                      id="setting-max-rows"
-                      value={settings.maxRows ?? 1000}
-                      onChange={(e) => updateSetting('maxRows', e.target.value)}
-                      MenuProps={selectMenuProps}
-                    >
-                      <MenuItem value={100}>100</MenuItem>
-                      <MenuItem value={500}>500</MenuItem>
-                      <MenuItem value={1000}>1,000</MenuItem>
-                      <MenuItem value={5000}>5,000</MenuItem>
-                      <MenuItem value={10000}>10,000</MenuItem>
-                      <MenuItem
-                        value={0}
-                        sx={{
-                          color: 'warning.main',
-                          fontWeight: 400,
-                        }}
-                      >
-                        Server default
-                      </MenuItem>
-                    </Select>
-                  </FormControl>
-                </PreferenceRow>
-                <PreferenceRow
-                  label="NULL Display"
-                  description="How to show NULL values"
-                  htmlFor="setting-null-display"
-                >
-                  <FormControl size="small" sx={controlSx}>
-                    <Select
-                      id="setting-null-display"
-                      value={settings.nullDisplay ?? 'NULL'}
-                      onChange={(e) => updateSetting('nullDisplay', e.target.value)}
-                      MenuProps={selectMenuProps}
-                    >
-                      <MenuItem value="NULL">NULL</MenuItem>
-                      <MenuItem value="(null)">(null)</MenuItem>
-                      <MenuItem value="-">—</MenuItem>
-                      <MenuItem value="">(empty)</MenuItem>
-                    </Select>
-                  </FormControl>
-                </PreferenceRow>
-              </PreferenceSection>
-              <PreferenceSection title="Connection">
-                <PreferenceRow
-                  label="Remember Connection"
-                  description="Auto-fill on next visit"
-                  onClick={() =>
-                    updateSetting('rememberConnection', !(settings.rememberConnection ?? false))
-                  }
-                >
-                  <Switch
-                    inputProps={{ id: 'setting-remember-connection' }}
-                    checked={settings.rememberConnection ?? false}
-                    onChange={(e) => updateSetting('rememberConnection', e.target.checked)}
-                    onClick={(e) => e.stopPropagation()}
-                    size="small"
-                  />
-                </PreferenceRow>
-                <PreferenceRow
-                  label="Connection Persistence"
-                  description="Keep alive after closing tab"
-                  htmlFor="setting-connection-persistence"
-                >
-                  <FormControl size="small" sx={controlSx}>
-                    <Select
-                      id="setting-connection-persistence"
-                      value={settings.connectionPersistence ?? 0}
-                      MenuProps={selectMenuProps}
-                      onChange={(e) =>
-                        updateSetting('connectionPersistence', Number(e.target.value))
-                      }
-                    >
-                      <MenuItem value={0}>Never</MenuItem>
-                      <MenuItem value={5}>5 min</MenuItem>
-                      <MenuItem value={15}>15 min</MenuItem>
-                      <MenuItem value={30}>30 min</MenuItem>
-                      <MenuItem value={60}>1 hour</MenuItem>
-                    </Select>
-                  </FormControl>
-                </PreferenceRow>
-                <PreferenceRow
-                  label="Default Database Type"
-                  description="Pre-selected when connecting"
-                  htmlFor="setting-default-db-type"
-                >
-                  <FormControl size="small" sx={controlSx}>
-                    <Select
-                      id="setting-default-db-type"
-                      value={settings.defaultDbType ?? 'postgresql'}
-                      onChange={(e) => updateSetting('defaultDbType', e.target.value)}
-                      MenuProps={selectMenuProps}
-                    >
-                      <MenuItem value="mysql">MySQL</MenuItem>
-                      <MenuItem value="postgresql">PostgreSQL</MenuItem>
-                      <MenuItem value="sqlserver">SQL Server</MenuItem>
-                      <MenuItem value="oracle">Oracle</MenuItem>
-                    </Select>
-                  </FormControl>
-                </PreferenceRow>
-              </PreferenceSection>
-            </Box>
-          </Fade>
-        );
-      case 'context':
-        return (
-          <Fade in key="context">
-            <Box>
-              <Box sx={{ mb: { xs: 5, md: 6.5 } }}>
-                <Typography
-                  component="h2"
-                  sx={(theme) => ({
-                    ...theme.typography.uiCardTitle,
-                    color: 'text.primary',
-                    fontWeight: 400,
-                    pb: { xs: 1.5, md: 2 },
-                    letterSpacing: 0,
-                  })}
-                >
-                  AI Context
-                </Typography>
-                <Box sx={{ mt: 0.5 }}>
-                  <UserDBContextManagerForAI />
-                </Box>
-              </Box>
-            </Box>
-          </Fade>
-        );
-      default:
-        return null;
-    }
+  const scrollSx = {
+    ...getScrollbarStyles(theme),
+    scrollbarGutter: 'stable',
   };
+  const results = searchSettings(search);
+  const focusRevealedTarget = useCallback(() => {
+    const pending = pendingReveal.current;
+    if (!pending || drawerClosing.current) return;
+    const element = document.getElementById(pending.target);
+    if (!element) return;
+    const focused = document.activeElement;
+    if (
+      focused &&
+      focused !== document.body &&
+      focused !== pending.origin &&
+      focused !== searchRef.current &&
+      !focused.matches('[aria-label="Show settings navigation"]')
+    ) {
+      pendingReveal.current = null;
+      return;
+    }
+    element.scrollIntoView?.({ block: 'center', behavior: 'auto' });
+    const control = element.matches('input,button,[role="combobox"]')
+      ? element
+      : element.querySelector('input:not([aria-hidden="true"]),button,[role="combobox"]') ||
+        element;
+    control.focus?.();
+    pendingReveal.current = null;
+  }, []);
+  const goTo = (id, target = null) => {
+    pendingReveal.current = {
+      target: target || 'settings-section-title',
+      origin: document.activeElement,
+    };
+    drawerClosing.current = navigationOpen;
+    setActiveSection(id);
+    setRevealTarget(target);
+    setRevealRequest((n) => n + 1);
+    setNavigationOpen(false);
+  };
+  useLayoutEffect(() => {
+    contentRef.current?.scrollTo?.(0, 0);
+    focusRevealedTarget();
+  }, [activeSection, revealRequest, focusRevealedTarget]);
+  useEffect(() => {
+    if (!open) pendingReveal.current = null;
+  }, [open]);
+  useEffect(() => {
+    if (navigationOpen) {
+      const frame = requestAnimationFrame(() => searchRef.current?.focus());
+      return () => cancelAnimationFrame(frame);
+    }
+  }, [navigationOpen]);
+
+  const selectSetting = (name, label, description, options) => (
+    <SettingSelect
+      name={name}
+      label={label}
+      description={description}
+      options={options}
+      value={settings[name] ?? defaultUserSettings[name]}
+      onChange={(value) => updateSetting(name, value)}
+    />
+  );
+  const switchSetting = (name, label, description) => (
+    <SettingSwitch
+      name={name}
+      label={label}
+      description={description}
+      checked={settings[name] ?? defaultUserSettings[name]}
+      onChange={(value) => updateSetting(name, value)}
+    />
+  );
+
+  const navigation = (
+    <>
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          px: 2,
+          height: 52,
+          flexShrink: 0,
+        }}
+      >
+        <Typography component="h2" sx={{ fontSize: 17, lineHeight: '24px', fontWeight: 600 }}>
+          Settings
+        </Typography>
+        {isMobile && (
+          <IconButton
+            aria-label="Hide settings navigation"
+            onClick={() => setNavigationOpen(false)}
+          >
+            <CloseIcon aria-hidden="true" sx={{ fontSize: 20 }} />
+          </IconButton>
+        )}
+      </Box>
+      <TextField
+        inputRef={searchRef}
+        type="search"
+        placeholder="Search"
+        value={search}
+        onChange={(event) => {
+          pendingReveal.current = null;
+          setSearch(event.target.value);
+        }}
+        onPointerDown={() => {
+          pendingReveal.current = null;
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' && results[0]) {
+            event.preventDefault();
+            goTo(results[0].section, results[0].target);
+          }
+        }}
+        slotProps={{
+          htmlInput: { 'aria-label': 'Search settings' },
+          input: {
+            endAdornment: search ? (
+              <IconButton
+                aria-label="Clear search"
+                size="small"
+                onClick={() => {
+                  pendingReveal.current = null;
+                  setSearch('');
+                  searchRef.current?.focus();
+                }}
+              >
+                <CloseIcon aria-hidden="true" sx={{ fontSize: 18 }} />
+              </IconButton>
+            ) : null,
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon sx={{ fontSize: 16 }} />
+              </InputAdornment>
+            ),
+          },
+        }}
+        sx={{
+          mx: '6px',
+          '& .MuiOutlinedInput-root': {
+            height: 36,
+            borderRadius: '9999px',
+            backgroundColor: 'background.hover',
+            fontSize: 14,
+          },
+          '& .MuiOutlinedInput-notchedOutline': { border: 0 },
+          '& input': { py: 0 },
+        }}
+      />
+      <Box
+        sx={{ overflowY: 'auto', minHeight: 0, flex: 1, px: '6px', pt: '4px', pb: 1, ...scrollSx }}
+      >
+        {search.trim() ? (
+          <PreferenceNavList ariaLabel="Search results" variant="settings">
+            {results.map((result) => (
+              <PreferenceNavItem
+                key={`${result.section}-${result.target}`}
+                onClick={() => goTo(result.section, result.target)}
+                icon={sectionIcon(result.section)}
+              >
+                <Box sx={{ textAlign: 'left' }}>
+                  <Typography sx={{ fontSize: 14 }}>{result.label}</Typography>
+                  <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                    {result.parentLabel}
+                  </Typography>
+                </Box>
+              </PreferenceNavItem>
+            ))}
+          </PreferenceNavList>
+        ) : (
+          <Box component="nav" aria-label="Settings sections">
+            {['Personal', 'Workspace'].map((group) => (
+              <Box key={group}>
+                <Typography
+                  sx={{ px: '10px', pt: 2, pb: 1, fontSize: 12, color: 'text.secondary' }}
+                >
+                  {group}
+                </Typography>
+                <PreferenceNavList ariaLabel={`${group} settings sections`} variant="settings">
+                  {SECTIONS.filter((item) => item.group === group).map(({ id, label, icon }) => (
+                    <PreferenceNavItem
+                      key={id}
+                      active={activeSection === id}
+                      icon={icon}
+                      onClick={() => goTo(id)}
+                    >
+                      {label}
+                    </PreferenceNavItem>
+                  ))}
+                </PreferenceNavList>
+              </Box>
+            ))}
+          </Box>
+        )}
+        {isMobile && (
+          <Button
+            startIcon={<HomeIcon />}
+            onClick={(event) => {
+              setNavigationOpen(false);
+              onClose(event);
+            }}
+            sx={{ mt: 2, width: '100%', justifyContent: 'flex-start' }}
+          >
+            Home
+          </Button>
+        )}
+        {search.trim() && !results.length && (
+          <Typography sx={{ p: 1.25, fontSize: 14, color: 'text.secondary' }}>
+            No results found
+          </Typography>
+        )}
+      </Box>
+    </>
+  );
 
   return (
-    <DialogShell
-      open={open}
-      onClose={onClose}
-      isMobile={isMobile}
-      maxWidth={false}
-      fullWidth={false}
-      desktopMaxHeight="100vh"
-      desktopMinHeight="100vh"
-      showCloseButton={false}
-      disableAutoFocus
-      disableEnforceFocus
-      disableRestoreFocus
-      keepMounted
-      transitionDuration={180}
-      rootSx={mainContentDialogRootSx}
-      paperSx={getPreferencePaperSx(theme, settingsSurfaceLeft, settingsSurfaceWidth)}
-      backdropSx={getPreferenceBackdropSx(settingsSurfaceLeft, settingsSurfaceWidth)}
-      bodySx={getPreferenceBodySx(theme)}
+    <Box
+      component="section"
+      aria-label="Settings"
+      hidden={!open}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && !event.defaultPrevented) {
+          event.stopPropagation();
+          onClose(event);
+        }
+      }}
+      sx={{
+        position: 'fixed',
+        top: 0,
+        bottom: 0,
+        right: 0,
+        left: { xs: 0, md: UI_LAYOUT.sidebarCollapsedWidth },
+        zIndex: UI_Z_INDEX.mainContentBase,
+        display: open ? 'grid' : 'none',
+        gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: '288px minmax(0, 1fr)' },
+        backgroundColor: 'background.default',
+        borderRadius: 0,
+        overflow: 'hidden',
+      }}
     >
-      <PreferencePageHeader title="Settings" onClose={onClose} headingRef={headingRef} />
-
-      <PreferenceLayout sidebar={NavContent}>
-        {renderContent()}
-
-        {canResetSettingsSection(activeSection) && (
-          <PreferenceFooterActions sx={{ justifyContent: 'flex-start' }}>
-            <Button variant="outlined" onClick={resetSettings}>
-              Reset to defaults
-            </Button>
-          </PreferenceFooterActions>
-        )}
-      </PreferenceLayout>
-    </DialogShell>
+      {!isMobile && (
+        <Box
+          component="aside"
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            minHeight: 0,
+          }}
+        >
+          {navigation}
+        </Box>
+      )}
+      {isMobile && (
+        <Drawer
+          open={open && navigationOpen}
+          transitionDuration={reducedMotion ? 0 : undefined}
+          onClose={() => setNavigationOpen(false)}
+          sx={{ zIndex: UI_Z_INDEX.mainContentModal + 20 }}
+          slotProps={{
+            transition: {
+              onExited: () => {
+                drawerClosing.current = false;
+                requestAnimationFrame(focusRevealedTarget);
+              },
+            },
+            paper: {
+              sx: {
+                width: 'min(332px, 100vw)',
+                borderRadius: 0,
+                backgroundColor: 'background.default',
+              },
+            },
+          }}
+        >
+          {navigation}
+        </Drawer>
+      )}
+      <Box
+        ref={contentRef}
+        component="main"
+        sx={{
+          minWidth: 0,
+          minHeight: 0,
+          overflowY: 'auto',
+          borderLeft: { xs: 0, md: `1px solid ${theme.palette.border.separator}` },
+          ...scrollSx,
+        }}
+      >
+        <Box
+          component="header"
+          sx={{ pt: { xs: 0, md: 2 }, borderBottom: '1px solid transparent' }}
+        >
+          <Box
+            sx={{
+              maxWidth: 768,
+              mx: 'auto',
+              px: { xs: 1, md: 2.5 },
+              height: { xs: 52, md: 60 },
+              display: 'flex',
+              alignItems: 'center',
+              gap: { xs: 0, md: 1 },
+            }}
+          >
+            {isMobile && (
+              <IconButton
+                aria-label="Show settings navigation"
+                aria-expanded={navigationOpen}
+                onClick={() => setNavigationOpen(true)}
+              >
+                <MenuIcon />
+              </IconButton>
+            )}
+            <Typography
+              id="settings-section-title"
+              ref={headingRef}
+              component="h1"
+              tabIndex={-1}
+              sx={{
+                fontSize: { xs: 18, md: 24 },
+                lineHeight: '28.8px',
+                fontWeight: 500,
+                flex: 1,
+                outline: 'none',
+              }}
+            >
+              {section.label}
+            </Typography>
+          </Box>
+        </Box>
+        <Box sx={{ maxWidth: 768, mx: 'auto', p: { xs: 2, sm: 2.5 } }}>
+          {activeSection === 'general' && (
+            <PreferenceSection variant="settings" title="Responses">
+              {selectSetting('responseStyle', 'Response style', 'How Moonlit formats responses', [
+                { value: 'concise', label: 'Concise' },
+                { value: 'balanced', label: 'Balanced' },
+                { value: 'detailed', label: 'Detailed' },
+              ])}
+              <SettingSelect
+                name="reasoningEffort"
+                label="Reasoning effort"
+                description={
+                  supportsReasoning
+                    ? 'How much reasoning the selected model uses'
+                    : 'Not supported by the currently selected model'
+                }
+                options={REASONING_EFFORT_OPTIONS}
+                value={getEffectiveReasoningEffort(settings)}
+                disabled={!supportsReasoning}
+                onChange={(value) =>
+                  updateSettings({ enableReasoning: true, reasoningEffort: value })
+                }
+              />
+              {selectSetting(
+                'taskMode',
+                'Default task mode',
+                'Step budget per message; type / in chat to override',
+                TASK_MODE_OPTIONS,
+              )}
+            </PreferenceSection>
+          )}
+          {activeSection === 'appearance' && (
+            <AppearanceSection
+              active={open}
+              revealTarget={revealTarget}
+              revealRequest={revealRequest}
+              onTargetReady={focusRevealedTarget}
+            />
+          )}
+          {activeSection === 'database' && (
+            <>
+              <PreferenceSection variant="settings" title="Queries and results">
+                {switchSetting(
+                  'confirmBeforeRun',
+                  'Confirm before running',
+                  'Show a confirmation before executing SQL',
+                )}
+                {selectSetting('queryTimeout', 'Query timeout', 'Maximum wait time for results', [
+                  { value: 10, label: '10 sec' },
+                  { value: 30, label: '30 sec' },
+                  { value: 60, label: '1 min' },
+                  { value: 120, label: '2 min' },
+                  { value: 300, label: '5 min' },
+                ])}
+                {selectSetting(
+                  'maxRows',
+                  'Maximum rows',
+                  settings.maxRows === 0
+                    ? 'Use the server-defined row cap'
+                    : 'Limit results to prevent slowdown',
+                  [
+                    ...[100, 500, 1000, 5000, 10000].map((value) => ({
+                      value,
+                      label: value.toLocaleString('en-US'),
+                    })),
+                    { value: 0, label: 'Server default' },
+                  ],
+                )}
+                {selectSetting('nullDisplay', 'NULL display', 'How to display missing values', [
+                  { value: 'NULL', label: 'NULL' },
+                  { value: '(null)', label: '(null)' },
+                  { value: '-', label: '—' },
+                  { value: '', label: '(empty)' },
+                ])}
+              </PreferenceSection>
+              <PreferenceSection variant="settings" title="Connections">
+                {switchSetting(
+                  'rememberConnection',
+                  'Remember connection',
+                  'Auto-fill on your next visit',
+                )}
+                {selectSetting(
+                  'connectionPersistence',
+                  'Connection persistence',
+                  'Keep the connection alive after closing a tab',
+                  [
+                    { value: 0, label: 'Never' },
+                    { value: 5, label: '5 min' },
+                    { value: 15, label: '15 min' },
+                    { value: 30, label: '30 min' },
+                    { value: 60, label: '1 hour' },
+                  ],
+                )}
+                {selectSetting(
+                  'defaultDbType',
+                  'Default database type',
+                  'Pre-selected when connecting',
+                  DB_TYPES,
+                )}
+              </PreferenceSection>
+            </>
+          )}
+          {activeSection === 'ai-context' ? (
+            <Box id="settings-context" tabIndex={-1}>
+              <UserDBContextManagerForAI />
+            </Box>
+          ) : (
+            activeSection !== 'appearance' && (
+              <Box sx={{ mt: 4, pt: 3, borderTop: '1px solid', borderColor: 'border.subtle' }}>
+                <Button variant="outlined" onClick={resetSettings}>
+                  Reset all settings
+                </Button>
+                <Typography sx={{ mt: 1, fontSize: 12, color: 'text.secondary' }}>
+                  Restores AI, database and appearance preferences, including your model selection.
+                </Typography>
+              </Box>
+            )
+          )}
+        </Box>
+      </Box>
+    </Box>
   );
 }
 

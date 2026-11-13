@@ -1,3 +1,4 @@
+import { useAppearanceReducedMotion } from '@/hooks/useAppearanceReducedMotion';
 import { getModelDisplayName } from '@/config/llmSelection';
 /**
  * ChatInput — the message composer at the bottom of the chat workspace.
@@ -31,7 +32,7 @@ import {
   Typography,
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { CodeEditorIcon, ExpandMoreIcon, SendIcon, StopIcon } from '@/components/icons';
 import { REASONING_EFFORT_OPTIONS } from '@/config/userSettings';
@@ -227,7 +228,7 @@ function ChatInput({
     [draftStore, sessionKey],
   );
   const theme = useTheme();
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = useAppearanceReducedMotion();
   const [llmAnchor, setLlmAnchor] = useState(null);
   // ENH [SLASH-COMMAND]: Ref to the composer wrapper so the slash command
   // menu can anchor to it. The menu only opens when the message starts
@@ -366,12 +367,12 @@ function ChatInput({
       color: isStreaming
         ? theme.palette.error.main
         : hasText
-          ? theme.palette.accent.contrastText
+          ? theme.palette.composerAction.foreground
           : theme.palette.text.disabled,
       backgroundColor: isStreaming
         ? errorInteraction.activeBackground
         : hasText
-          ? theme.palette.accent.main
+          ? theme.palette.composerAction.background
           : theme.palette.action.hover,
       border: '1px solid',
       borderColor: isStreaming
@@ -390,12 +391,12 @@ function ChatInput({
           backgroundColor: isStreaming
             ? errorInteraction.activeHoverBackground
             : hasText
-              ? theme.palette.accent.hover
+              ? theme.palette.composerAction.hover
               : theme.palette.action.selected,
           color: isStreaming
             ? theme.palette.error.main
             : hasText
-              ? theme.palette.accent.contrastText
+              ? theme.palette.composerAction.foreground
               : theme.palette.text.secondary,
           borderColor: isStreaming
             ? errorInteraction.hoverBorder
@@ -407,7 +408,7 @@ function ChatInput({
       },
       '&:active:not(.Mui-disabled)': {
         transform: 'translateY(0) scale(0.97)',
-        ...(!isStreaming && hasText && { backgroundColor: theme.palette.accent.pressed }),
+        ...(!isStreaming && hasText && { backgroundColor: theme.palette.composerAction.pressed }),
       },
       '&.Mui-focusVisible': {
         outline: `2px solid ${theme.palette.border.focus}`,

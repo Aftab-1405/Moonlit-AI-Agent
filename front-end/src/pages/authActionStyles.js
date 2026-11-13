@@ -1,6 +1,6 @@
 export function getAuthActionSx(theme) {
   return {
-    minHeight: { xs: 44, md: 40 },
+    minHeight: 48,
     borderRadius: theme.shape.radius.pill,
   };
 }

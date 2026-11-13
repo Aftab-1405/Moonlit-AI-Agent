@@ -100,15 +100,24 @@ function PreferenceSidebar({ children }) {
   );
 }
 
-export function PreferenceNavList({ ariaLabel, children }) {
+export function PreferenceNavList({ ariaLabel, children, variant }) {
   return (
     <Box component="nav" aria-label={ariaLabel} sx={{ minWidth: 0 }}>
       <Box
         component="ul"
         sx={{
           display: 'flex',
-          flexDirection: { xs: 'row', md: 'column' },
-          gap: 0.5,
+          flexDirection: variant === 'settings' ? 'column' : { xs: 'row', md: 'column' },
+          ...(variant === 'settings' && {
+            '& button': {
+              width: '100%',
+              height: { xs: 44, md: 35 },
+              minHeight: { xs: 44, md: 35 },
+              fontSize: 14,
+              lineHeight: '20px',
+            },
+          }),
+          gap: variant === 'settings' ? '1px' : 0.5,
           m: 0,
           p: 0,
           listStyle: 'none',
@@ -195,9 +204,15 @@ export function PreferenceNavItem({ active, onClick, icon, children }) {
   );
 }
 
-export function PreferenceSection({ title, description, children, sx = {} }) {
+export function PreferenceSection({ title, description, children, sx = {}, variant }) {
   return (
-    <Box sx={{ mb: { xs: 5, md: 6.5 }, '&:last-of-type': { mb: 0 }, ...sx }}>
+    <Box
+      sx={{
+        mb: variant === 'settings' ? 5 : { xs: 5, md: 6.5 },
+        '&:last-of-type': { mb: 0 },
+        ...sx,
+      }}
+    >
       <Typography
         component="h2"
         sx={(theme) => ({
@@ -207,6 +222,15 @@ export function PreferenceSection({ title, description, children, sx = {} }) {
           mb: description ? 0.5 : 0,
           pb: description ? 0 : { xs: 1.5, md: 2 },
           letterSpacing: 0,
+          ...(variant === 'settings' && {
+            fontSize: 16,
+            lineHeight: '24px',
+            fontWeight: 500,
+            height: 52,
+            display: 'flex',
+            alignItems: 'center',
+            pb: '6px',
+          }),
         })}
       >
         {title}
@@ -223,7 +247,21 @@ export function PreferenceSection({ title, description, children, sx = {} }) {
           {description}
         </Typography>
       ) : null}
-      <Box sx={(theme) => ({ ...getPreferenceSectionSurfaceSx(theme), mt: 0.5 })}>{children}</Box>
+      <Box
+        sx={(theme) => ({
+          ...getPreferenceSectionSurfaceSx(theme),
+          mt: 0.5,
+          ...(variant === 'settings' && {
+            borderRadius: '16px',
+            mt: 0,
+            px: 0,
+            py: 0,
+            backgroundColor: 'transparent',
+          }),
+        })}
+      >
+        {children}
+      </Box>
     </Box>
   );
 }
@@ -235,9 +273,16 @@ export function PreferenceRow({
   disabled = false,
   sx = {},
   onClick = undefined,
+  htmlFor,
+  variant,
+  id,
+  tabIndex,
 }) {
+  const isSettings = variant === 'settings' || variant === 'appearance';
   return (
     <Box
+      id={id}
+      tabIndex={tabIndex}
       role="group"
       aria-label={label}
       onClick={disabled ? undefined : onClick}
@@ -268,6 +313,40 @@ export function PreferenceRow({
               },
             }
           : {}),
+        ...(isSettings && {
+          minHeight: 62,
+          py: 1.5,
+          px: 2,
+          mx: 0,
+          my: 0,
+          gap: { xs: 1.5, sm: 3 },
+          borderRadius: 0,
+          backgroundColor: 'transparent',
+          position: 'relative',
+          '&:not(:last-child)::after': {
+            content: '""',
+            position: 'absolute',
+            bottom: 0,
+            left: 16,
+            right: 16,
+            borderBottom: '1px solid',
+            borderColor: 'border.separator',
+          },
+        }),
+        ...(variant === 'appearance' && {
+          minHeight: description ? 52 : 40,
+          py: description ? 0.75 : 0.5,
+          px: 1.5,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 2,
+          '&:not(:last-child)::after': { display: 'none' },
+          '& > :last-child': {
+            minWidth: 0,
+            justifyContent: 'flex-end',
+            '& > .MuiFormControl-root, & > .MuiToggleButtonGroup-root': { width: 'auto' },
+          },
+        }),
         ...sx,
       })}
     >
@@ -279,19 +358,37 @@ export function PreferenceRow({
         }}
       >
         <Typography
+          component={htmlFor ? 'label' : 'p'}
+          htmlFor={htmlFor}
+          id={htmlFor ? `${htmlFor}-label` : undefined}
           sx={(theme) => ({
             ...theme.typography.uiBodySm,
             color: 'text.primary',
+            ...(variant === 'appearance' && {
+              color: `var(--profile-ink, ${theme.palette.text.primary})`,
+            }),
             fontWeight: 400,
+            ...(isSettings && {
+              display: 'block',
+              fontSize: 14,
+              lineHeight: '20px',
+              fontWeight: 500,
+            }),
           })}
         >
           {label}
         </Typography>
         {description ? (
           <Typography
+            id={htmlFor ? `${htmlFor}-description` : undefined}
+            data-appearance-description={variant === 'appearance' ? true : undefined}
             sx={(theme) => ({
               ...theme.typography.uiBodyXs,
+              ...(isSettings && { fontSize: 12, lineHeight: '16px' }),
               color: 'text.secondary',
+              ...(variant === 'appearance' && {
+                color: `var(--profile-secondary, ${theme.palette.text.secondary})`,
+              }),
               mt: 0.25,
             })}
           >
@@ -303,6 +400,7 @@ export function PreferenceRow({
         sx={{
           flexShrink: 0,
           display: 'flex',
+          ...(isSettings && { minWidth: { sm: 'min(160px, 40%)' } }),
           justifyContent: { xs: 'stretch', sm: 'flex-end' },
           alignItems: 'center',
           '& > *': {

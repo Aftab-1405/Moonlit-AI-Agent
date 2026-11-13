@@ -1,5 +1,6 @@
+import { useAppearanceReducedMotion } from '@/hooks/useAppearanceReducedMotion';
 import { Box, CircularProgress, IconButton, InputBase, Tooltip, Typography } from '@mui/material';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CheckIcon, CloseIcon, MenuIcon, NewChatIcon } from '@/components/icons';
 import { getChatMotionVariants } from '@/features/chat/chatMotion';
@@ -24,7 +25,7 @@ const ChatHeader = memo(function ChatHeader({
   actions,
   theme,
 }) {
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = useAppearanceReducedMotion();
   const titleMotion = useMemo(
     () => getChatMotionVariants(prefersReducedMotion).content,
     [prefersReducedMotion],

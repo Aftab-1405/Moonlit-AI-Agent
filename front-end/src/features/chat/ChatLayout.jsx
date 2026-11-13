@@ -62,7 +62,7 @@ const ChatLayout = memo(function ChatLayout({
           '@container (min-width: 1440px)': { mr: 0 },
           gridTemplateRows: stageLayout.gridTemplateRows,
           transition: stageLayout.transition,
-          '@media (prefers-reduced-motion: reduce)': stageLayout.reducedMotion,
+          'html[data-moonlit-reduced-motion="true"] &': stageLayout.reducedMotion,
           overflow: 'hidden',
         }}
       >

@@ -9,6 +9,12 @@
 /** Respect user motion preferences — disable animations / transitions. */
 export const REDUCED_MOTION_QUERY = '@media (prefers-reduced-motion: reduce)';
 
+/** Resolved System/On/Off appearance preference; also permits an explicit Off override. */
+export const REDUCED_MOTION_SELECTOR = 'html[data-moonlit-reduced-motion="true"] &';
+
+/** Focus decoration follows keyboard navigation, rather than mouse/touch activation. */
+export const KEYBOARD_FOCUS_SELECTOR = 'html:not([data-moonlit-input-modality="pointer"]) &';
+
 /** Devices that support hover + fine pointer (i.e. desktop with mouse). */
 export const HOVER_CAPABLE_QUERY = '@media (hover: hover) and (pointer: fine)';
 

@@ -1,3 +1,4 @@
+import { useAppearanceReducedMotion } from '@/hooks/useAppearanceReducedMotion';
 import {
   Box,
   CircularProgress,
@@ -9,7 +10,6 @@ import {
   ListItemButton,
   Tooltip,
   Typography,
-  useMediaQuery,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -33,7 +33,6 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import logger from '@/utils/logger';
 
-const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
 const getLabelSx = (theme) => ({
   ...theme.typography.uiMonoLabel,
@@ -360,7 +359,7 @@ function AdminDashboard() {
   const [metricsError, setMetricsError] = useState(null);
   const [ttlRemaining, setTtlRemaining] = useState(null);
   const [redisExpanded, setRedisExpanded] = useState(false);
-  const prefersReducedMotion = useMediaQuery(REDUCED_MOTION_QUERY);
+  const prefersReducedMotion = useAppearanceReducedMotion();
   const { user } = useAuth();
 
   const applyMetrics = useCallback((nextMetrics) => {

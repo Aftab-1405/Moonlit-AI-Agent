@@ -71,6 +71,7 @@ function Sidebar({
   onOpenMindmap,
   onDatabaseSwitch,
   open = true,
+  railOnly = false,
   onToggleOpen,
   user,
   onOpenSettings,
@@ -100,7 +101,7 @@ function Sidebar({
   const timerRef = useRef(null);
   const mode = isMobile ? selectedMode : peekMode || selectedMode;
   const activeItem = mode;
-  const panelVisible = isMobile ? mobileOpen : open || Boolean(peekMode);
+  const panelVisible = isMobile ? mobileOpen : !railOnly && (open || Boolean(peekMode));
   const clearTimer = useCallback(() => clearTimeout(timerRef.current), []);
   useEffect(() => clearTimer, [clearTimer]);
   const closePeek = useCallback(() => {
@@ -138,7 +139,8 @@ function Sidebar({
   };
   const previewMode = (nextMode, event) => {
     clearTimer();
-    if (isMobile || !finePointer || event.pointerType === 'touch' || event.buttons > 0) return;
+    if (railOnly || isMobile || !finePointer || event.pointerType === 'touch' || event.buttons > 0)
+      return;
     if (panelRef.current?.contains(document.activeElement)) return;
     const trigger = event.currentTarget;
     timerRef.current = setTimeout(

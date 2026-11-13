@@ -1,6 +1,7 @@
+import { useAppearanceReducedMotion } from '@/hooks/useAppearanceReducedMotion';
 import { Box, ButtonBase, Collapse, Typography, useMediaQuery, useTheme } from '@mui/material';
 import { keyframes } from '@mui/material/styles';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { ExpandMoreIcon } from '@/components/icons';
 import {
@@ -59,7 +60,7 @@ export const StepsAccordion = memo(function StepsAccordion({
   const [expanded, setExpanded] = useState(false);
   const theme = useTheme();
   const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = useAppearanceReducedMotion();
   const contentMotion = useMemo(
     () => getChatMotionVariants(prefersReducedMotion).content,
     [prefersReducedMotion],
@@ -179,7 +180,7 @@ export const StepsAccordion = memo(function StepsAccordion({
               transition: 'background-color 200ms ease',
               ...(isLive && {
                 animation: `${dotPulse} 1.8s ease-in-out infinite`,
-                '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
+                'html[data-moonlit-reduced-motion="true"] &': { animation: 'none' },
               }),
             }}
           />

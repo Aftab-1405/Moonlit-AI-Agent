@@ -2,8 +2,7 @@
  * SqlEditorSurface — CodeMirror 6 SQL editor (read/write).
  *
  * Uses the Shiki-matched theme from themeCodeMirror.js so SQL in the editor
- * looks identical to SQL in chat code blocks (both use the dark dracula-soft
- * color palette).
+ * looks identical to SQL in chat code blocks in the selected color mode.
  *
  * Streaming mode: when `isStreaming` is true, the editor is read-only and
  * the query text arrives incrementally. CodeMirror's `dispatch` is used to
@@ -47,10 +46,11 @@ function SqlEditorSurface({
   // extensions when this reference changes, so no ref/effect indirection needed.
   const runQuery = onRunQuery ?? onQueryExecute;
 
-  const codeMirrorTheme = useMemo(() => getCodeMirrorTheme(true), []);
+  const codeTheme = theme.palette.integration.codeTheme;
+  const codeMirrorTheme = useMemo(() => getCodeMirrorTheme(true, codeTheme), [codeTheme]);
 
   // Syntax highlighting — now uses Shiki-matched colors instead of empty array.
-  const codeMirrorHighlighting = useMemo(() => getCodeMirrorHighlighting(), []);
+  const codeMirrorHighlighting = useMemo(() => getCodeMirrorHighlighting(codeTheme), [codeTheme]);
 
   const extensions = useMemo(
     () => [
@@ -165,7 +165,7 @@ function SqlEditorSurface({
           height="100%"
           style={{
             height: '100%',
-            fontSize: theme.typography.uiCode.fontSizePx,
+            fontSize: 'var(--font-code-size, 12px)',
             fontFamily: theme.typography.fontFamilyMono,
           }}
           extensions={extensions}

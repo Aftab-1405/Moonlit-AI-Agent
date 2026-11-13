@@ -22,6 +22,7 @@ import { buildPerspectiveData, resultExportMetadata } from '@/utils/queryResult'
 import { clearAnalysisConfig, loadAnalysisConfig, saveAnalysisConfig } from './perspectiveAnalysis';
 import { createPerspectiveSession } from './perspectiveSession';
 import { createPerspectiveWorker } from './perspectiveWorker';
+import { applyPerspectiveFocusStyles } from './perspectiveFocus';
 import '@perspective-dev/viewer/themes';
 
 const PerspectiveDashboard = forwardRef(function PerspectiveDashboard(
@@ -43,6 +44,18 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard(
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState({ status: 'loading', error: null });
   const perspectiveTheme = theme.palette.integration.perspectiveTheme;
+  const latestTheme = useRef(perspectiveTheme);
+  useLayoutEffect(() => {
+    latestTheme.current = perspectiveTheme;
+  }, [perspectiveTheme]);
+  useEffect(() => {
+    if (!readyRef.current) return;
+    sessionRef.current
+      ?.action((viewer) => viewer.restore({ theme: perspectiveTheme }))
+      .catch((error) =>
+        callbacks.current.onNotify?.(`Could not apply chart theme: ${error.message}`, 'warning'),
+      );
+  }, [perspectiveTheme]);
 
   useImperativeHandle(ref, () => {
     const action = (operation) => {
@@ -120,6 +133,7 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard(
     sessionRef.current = session;
     loadedKey.current = null;
     const onConfig = () => {
+      applyPerspectiveFocusStyles(viewer);
       clearTimeout(saveTimer.current);
       if (!readyRef.current || !currentKey.current) return;
       const key = currentKey.current;
@@ -182,7 +196,7 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard(
           ...built,
           key: storageKey,
           config,
-          fallbackConfig: { plugin: 'Datagrid', theme: perspectiveTheme },
+          fallbackConfig: { plugin: 'Datagrid', theme: latestTheme.current },
           onInvalidConfig: () => {
             clearAnalysisConfig(storageKey);
             callbacks.current.onNotify?.('Incompatible saved settings were reset.', 'warning');
@@ -200,6 +214,8 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard(
               '#menu-bar > .hover-target:has(#export), #menu-bar > .hover-target:has(#copy) { display: none; }';
             viewer.shadowRoot.appendChild(style);
           }
+          await session.action((element) => element.restore({ theme: latestTheme.current }));
+          if (viewer) applyPerspectiveFocusStyles(viewer);
           loadedKey.current = storageKey;
           readyRef.current = true;
           setState({ status: 'ready', error: null, data, storageKey, attempt });
@@ -222,7 +238,7 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard(
     return () => {
       cancelled = true;
     };
-  }, [data, storageKey, attempt, perspectiveTheme]);
+  }, [data, storageKey, attempt]);
 
   const status =
     state.data === data && state.storageKey === storageKey && state.attempt === attempt

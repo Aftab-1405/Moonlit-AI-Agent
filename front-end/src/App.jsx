@@ -1,11 +1,11 @@
 import { Box } from '@mui/material';
 import { lazy, Suspense } from 'react';
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import PageLoader from '@/components/common/PageLoader';
 import AdminRoute from '@/guards/AdminRoute';
+import { SettingsRouteProvider } from '@/contexts/SettingsRouteContext';
 import ProtectedRoute from '@/guards/ProtectedRoute';
 
-const Landing = lazy(() => import('@/pages/Landing'));
 const Auth = lazy(() => import('@/pages/Auth'));
 const ChatWorkspacePage = lazy(() => import('@/pages/ChatWorkspacePage'));
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'));
@@ -38,34 +38,40 @@ function App() {
       }}
     >
       <Suspense fallback={<PageLoader />}>
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/auth" element={<Auth />} />
-          <Route
-            path="/chat/:conversationId?"
-            element={
-              <ProtectedRoute>
-                <ChatWorkspacePage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/dashboard/:section?"
-            element={
-              <ProtectedRoute>
-                <DashboardPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin"
-            element={
-              <AdminRoute>
-                <AdminDashboard />
-              </AdminRoute>
-            }
-          />
-        </Routes>
+        <SettingsRouteProvider>
+          {(background) => (
+            <Routes location={background}>
+              <Route path="/" element={<Auth />} />
+              <Route path="/login" element={<Auth />} />
+              <Route path="/auth" element={<Navigate to="/login" replace />} />
+              <Route
+                path="/chat/:conversationId?"
+                element={
+                  <ProtectedRoute>
+                    <ChatWorkspacePage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/:section?"
+                element={
+                  <ProtectedRoute>
+                    <DashboardPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin"
+                element={
+                  <AdminRoute>
+                    <AdminDashboard />
+                  </AdminRoute>
+                }
+              />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          )}
+        </SettingsRouteProvider>
       </Suspense>
     </Box>
   );

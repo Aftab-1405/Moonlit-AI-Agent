@@ -1,0 +1,1634 @@
+[
+  {
+    "name": "light/default/1158/empty bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 1158,
+      "height": 900,
+      "top": 0,
+      "right": 1158,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "light/default/1158/empty no overflow",
+    "pass": true
+  },
+  {
+    "name": "light/default/1158/empty accessible name",
+    "pass": true
+  },
+  {
+    "name": "light/default/1158/empty footer visible",
+    "pass": true
+  },
+  {
+    "name": "light/default/1158 focus contained",
+    "pass": false
+  },
+  {
+    "name": "light/default/1158 Tab cycling",
+    "pass": true
+  },
+  {
+    "name": "light/default/1158/empty Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "light/default/1158/error bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 1158,
+      "height": 900,
+      "top": 0,
+      "right": 1158,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "light/default/1158/error no overflow",
+    "pass": true
+  },
+  {
+    "name": "light/default/1158/error accessible name",
+    "pass": true
+  },
+  {
+    "name": "light/default/1158 Enter gives error without navigation",
+    "pass": true
+  },
+  {
+    "name": "light/default/1158/error footer visible",
+    "pass": true
+  },
+  {
+    "name": "light/default/1158/error Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "light/default/1158/loading bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 1158,
+      "height": 900,
+      "top": 0,
+      "right": 1158,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "light/default/1158/loading no overflow",
+    "pass": true
+  },
+  {
+    "name": "light/default/1158/loading accessible name",
+    "pass": true
+  },
+  {
+    "name": "light/default/1158 Enter reaches loading",
+    "pass": true
+  },
+  {
+    "name": "light/default/1158/loading footer visible",
+    "pass": true
+  },
+  {
+    "name": "light/default/1158/loading Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "light/default/1158/connected bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 1158,
+      "height": 900,
+      "top": 0,
+      "right": 1158,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "light/default/1158/connected no overflow",
+    "pass": true
+  },
+  {
+    "name": "light/default/1158/connected accessible name",
+    "pass": true
+  },
+  {
+    "name": "light/default/1158/connected footer visible",
+    "pass": true
+  },
+  {
+    "name": "light/default/1158/connected Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "light/default/390/empty bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 900,
+      "top": 0,
+      "right": 390,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "light/default/390/empty no overflow",
+    "pass": true
+  },
+  {
+    "name": "light/default/390/empty accessible name",
+    "pass": true
+  },
+  {
+    "name": "light/default/390/empty footer visible",
+    "pass": true
+  },
+  {
+    "name": "light/default/390 focus contained",
+    "pass": false
+  },
+  {
+    "name": "light/default/390 Tab cycling",
+    "pass": true
+  },
+  {
+    "name": "light/default/390/empty Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "light/default/390/error bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 900,
+      "top": 0,
+      "right": 390,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "light/default/390/error no overflow",
+    "pass": true
+  },
+  {
+    "name": "light/default/390/error accessible name",
+    "pass": true
+  },
+  {
+    "name": "light/default/390 Enter gives error without navigation",
+    "pass": true
+  },
+  {
+    "name": "light/default/390/error footer visible",
+    "pass": true
+  },
+  {
+    "name": "light/default/390/error Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "light/default/390/loading bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 900,
+      "top": 0,
+      "right": 390,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "light/default/390/loading no overflow",
+    "pass": true
+  },
+  {
+    "name": "light/default/390/loading accessible name",
+    "pass": true
+  },
+  {
+    "name": "light/default/390 Enter reaches loading",
+    "pass": true
+  },
+  {
+    "name": "light/default/390/loading footer visible",
+    "pass": true
+  },
+  {
+    "name": "light/default/390/loading Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "light/default/390/connected bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 900,
+      "top": 0,
+      "right": 390,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "light/default/390/connected no overflow",
+    "pass": true
+  },
+  {
+    "name": "light/default/390/connected accessible name",
+    "pass": true
+  },
+  {
+    "name": "light/default/390/connected footer visible",
+    "pass": true
+  },
+  {
+    "name": "light/default/390/connected Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "light/purple/1158/empty bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 1158,
+      "height": 900,
+      "top": 0,
+      "right": 1158,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "light/purple/1158/empty no overflow",
+    "pass": true
+  },
+  {
+    "name": "light/purple/1158/empty accessible name",
+    "pass": true
+  },
+  {
+    "name": "light/purple/1158/empty footer visible",
+    "pass": true
+  },
+  {
+    "name": "light/purple/1158 focus contained",
+    "pass": false
+  },
+  {
+    "name": "light/purple/1158 Tab cycling",
+    "pass": true
+  },
+  {
+    "name": "light/purple/1158/empty Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "light/purple/1158/error bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 1158,
+      "height": 900,
+      "top": 0,
+      "right": 1158,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "light/purple/1158/error no overflow",
+    "pass": true
+  },
+  {
+    "name": "light/purple/1158/error accessible name",
+    "pass": true
+  },
+  {
+    "name": "light/purple/1158 Enter gives error without navigation",
+    "pass": true
+  },
+  {
+    "name": "light/purple/1158/error footer visible",
+    "pass": true
+  },
+  {
+    "name": "light/purple/1158/error Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "light/purple/1158/loading bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 1158,
+      "height": 900,
+      "top": 0,
+      "right": 1158,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "light/purple/1158/loading no overflow",
+    "pass": true
+  },
+  {
+    "name": "light/purple/1158/loading accessible name",
+    "pass": true
+  },
+  {
+    "name": "light/purple/1158 Enter reaches loading",
+    "pass": true
+  },
+  {
+    "name": "light/purple/1158/loading footer visible",
+    "pass": true
+  },
+  {
+    "name": "light/purple/1158/loading Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "light/purple/1158/connected bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 1158,
+      "height": 900,
+      "top": 0,
+      "right": 1158,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "light/purple/1158/connected no overflow",
+    "pass": true
+  },
+  {
+    "name": "light/purple/1158/connected accessible name",
+    "pass": true
+  },
+  {
+    "name": "light/purple/1158/connected footer visible",
+    "pass": true
+  },
+  {
+    "name": "light/purple/1158/connected Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "light/purple/390/empty bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 900,
+      "top": 0,
+      "right": 390,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "light/purple/390/empty no overflow",
+    "pass": true
+  },
+  {
+    "name": "light/purple/390/empty accessible name",
+    "pass": true
+  },
+  {
+    "name": "light/purple/390/empty footer visible",
+    "pass": true
+  },
+  {
+    "name": "light/purple/390 focus contained",
+    "pass": false
+  },
+  {
+    "name": "light/purple/390 Tab cycling",
+    "pass": true
+  },
+  {
+    "name": "light/purple/390/empty Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "light/purple/390/error bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 900,
+      "top": 0,
+      "right": 390,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "light/purple/390/error no overflow",
+    "pass": true
+  },
+  {
+    "name": "light/purple/390/error accessible name",
+    "pass": true
+  },
+  {
+    "name": "light/purple/390 Enter gives error without navigation",
+    "pass": true
+  },
+  {
+    "name": "light/purple/390/error footer visible",
+    "pass": true
+  },
+  {
+    "name": "light/purple/390/error Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "light/purple/390/loading bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 900,
+      "top": 0,
+      "right": 390,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "light/purple/390/loading no overflow",
+    "pass": true
+  },
+  {
+    "name": "light/purple/390/loading accessible name",
+    "pass": true
+  },
+  {
+    "name": "light/purple/390 Enter reaches loading",
+    "pass": true
+  },
+  {
+    "name": "light/purple/390/loading footer visible",
+    "pass": true
+  },
+  {
+    "name": "light/purple/390/loading Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "light/purple/390/connected bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 900,
+      "top": 0,
+      "right": 390,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "light/purple/390/connected no overflow",
+    "pass": true
+  },
+  {
+    "name": "light/purple/390/connected accessible name",
+    "pass": true
+  },
+  {
+    "name": "light/purple/390/connected footer visible",
+    "pass": true
+  },
+  {
+    "name": "light/purple/390/connected Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "light/blue/1158/empty bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 1158,
+      "height": 900,
+      "top": 0,
+      "right": 1158,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "light/blue/1158/empty no overflow",
+    "pass": true
+  },
+  {
+    "name": "light/blue/1158/empty accessible name",
+    "pass": true
+  },
+  {
+    "name": "light/blue/1158/empty footer visible",
+    "pass": true
+  },
+  {
+    "name": "light/blue/1158 focus contained",
+    "pass": false
+  },
+  {
+    "name": "light/blue/1158 Tab cycling",
+    "pass": true
+  },
+  {
+    "name": "light/blue/1158/empty Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "light/blue/1158/error bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 1158,
+      "height": 900,
+      "top": 0,
+      "right": 1158,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "light/blue/1158/error no overflow",
+    "pass": true
+  },
+  {
+    "name": "light/blue/1158/error accessible name",
+    "pass": true
+  },
+  {
+    "name": "light/blue/1158 Enter gives error without navigation",
+    "pass": true
+  },
+  {
+    "name": "light/blue/1158/error footer visible",
+    "pass": true
+  },
+  {
+    "name": "light/blue/1158/error Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "light/blue/1158/loading bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 1158,
+      "height": 900,
+      "top": 0,
+      "right": 1158,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "light/blue/1158/loading no overflow",
+    "pass": true
+  },
+  {
+    "name": "light/blue/1158/loading accessible name",
+    "pass": true
+  },
+  {
+    "name": "light/blue/1158 Enter reaches loading",
+    "pass": true
+  },
+  {
+    "name": "light/blue/1158/loading footer visible",
+    "pass": true
+  },
+  {
+    "name": "light/blue/1158/loading Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "light/blue/1158/connected bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 1158,
+      "height": 900,
+      "top": 0,
+      "right": 1158,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "light/blue/1158/connected no overflow",
+    "pass": true
+  },
+  {
+    "name": "light/blue/1158/connected accessible name",
+    "pass": true
+  },
+  {
+    "name": "light/blue/1158/connected footer visible",
+    "pass": true
+  },
+  {
+    "name": "light/blue/1158/connected Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "light/blue/390/empty bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 900,
+      "top": 0,
+      "right": 390,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "light/blue/390/empty no overflow",
+    "pass": true
+  },
+  {
+    "name": "light/blue/390/empty accessible name",
+    "pass": true
+  },
+  {
+    "name": "light/blue/390/empty footer visible",
+    "pass": true
+  },
+  {
+    "name": "light/blue/390 focus contained",
+    "pass": false
+  },
+  {
+    "name": "light/blue/390 Tab cycling",
+    "pass": true
+  },
+  {
+    "name": "light/blue/390/empty Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "light/blue/390/error bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 900,
+      "top": 0,
+      "right": 390,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "light/blue/390/error no overflow",
+    "pass": true
+  },
+  {
+    "name": "light/blue/390/error accessible name",
+    "pass": true
+  },
+  {
+    "name": "light/blue/390 Enter gives error without navigation",
+    "pass": true
+  },
+  {
+    "name": "light/blue/390/error footer visible",
+    "pass": true
+  },
+  {
+    "name": "light/blue/390/error Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "light/blue/390/loading bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 900,
+      "top": 0,
+      "right": 390,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "light/blue/390/loading no overflow",
+    "pass": true
+  },
+  {
+    "name": "light/blue/390/loading accessible name",
+    "pass": true
+  },
+  {
+    "name": "light/blue/390 Enter reaches loading",
+    "pass": true
+  },
+  {
+    "name": "light/blue/390/loading footer visible",
+    "pass": true
+  },
+  {
+    "name": "light/blue/390/loading Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "light/blue/390/connected bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 900,
+      "top": 0,
+      "right": 390,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "light/blue/390/connected no overflow",
+    "pass": true
+  },
+  {
+    "name": "light/blue/390/connected accessible name",
+    "pass": true
+  },
+  {
+    "name": "light/blue/390/connected footer visible",
+    "pass": true
+  },
+  {
+    "name": "light/blue/390/connected Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "dark/default/1158/empty bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 1158,
+      "height": 900,
+      "top": 0,
+      "right": 1158,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "dark/default/1158/empty no overflow",
+    "pass": true
+  },
+  {
+    "name": "dark/default/1158/empty accessible name",
+    "pass": true
+  },
+  {
+    "name": "dark/default/1158/empty footer visible",
+    "pass": true
+  },
+  {
+    "name": "dark/default/1158 focus contained",
+    "pass": false
+  },
+  {
+    "name": "dark/default/1158 Tab cycling",
+    "pass": true
+  },
+  {
+    "name": "dark/default/1158/empty Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "dark/default/1158/error bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 1158,
+      "height": 900,
+      "top": 0,
+      "right": 1158,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "dark/default/1158/error no overflow",
+    "pass": true
+  },
+  {
+    "name": "dark/default/1158/error accessible name",
+    "pass": true
+  },
+  {
+    "name": "dark/default/1158 Enter gives error without navigation",
+    "pass": true
+  },
+  {
+    "name": "dark/default/1158/error footer visible",
+    "pass": true
+  },
+  {
+    "name": "dark/default/1158/error Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "dark/default/1158/loading bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 1158,
+      "height": 900,
+      "top": 0,
+      "right": 1158,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "dark/default/1158/loading no overflow",
+    "pass": true
+  },
+  {
+    "name": "dark/default/1158/loading accessible name",
+    "pass": true
+  },
+  {
+    "name": "dark/default/1158 Enter reaches loading",
+    "pass": true
+  },
+  {
+    "name": "dark/default/1158/loading footer visible",
+    "pass": true
+  },
+  {
+    "name": "dark/default/1158/loading Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "dark/default/1158/connected bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 1158,
+      "height": 900,
+      "top": 0,
+      "right": 1158,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "dark/default/1158/connected no overflow",
+    "pass": true
+  },
+  {
+    "name": "dark/default/1158/connected accessible name",
+    "pass": true
+  },
+  {
+    "name": "dark/default/1158/connected footer visible",
+    "pass": true
+  },
+  {
+    "name": "dark/default/1158/connected Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "dark/default/390/empty bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 900,
+      "top": 0,
+      "right": 390,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "dark/default/390/empty no overflow",
+    "pass": true
+  },
+  {
+    "name": "dark/default/390/empty accessible name",
+    "pass": true
+  },
+  {
+    "name": "dark/default/390/empty footer visible",
+    "pass": true
+  },
+  {
+    "name": "dark/default/390 focus contained",
+    "pass": false
+  },
+  {
+    "name": "dark/default/390 Tab cycling",
+    "pass": true
+  },
+  {
+    "name": "dark/default/390/empty Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "dark/default/390/error bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 900,
+      "top": 0,
+      "right": 390,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "dark/default/390/error no overflow",
+    "pass": true
+  },
+  {
+    "name": "dark/default/390/error accessible name",
+    "pass": true
+  },
+  {
+    "name": "dark/default/390 Enter gives error without navigation",
+    "pass": true
+  },
+  {
+    "name": "dark/default/390/error footer visible",
+    "pass": true
+  },
+  {
+    "name": "dark/default/390/error Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "dark/default/390/loading bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 900,
+      "top": 0,
+      "right": 390,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "dark/default/390/loading no overflow",
+    "pass": true
+  },
+  {
+    "name": "dark/default/390/loading accessible name",
+    "pass": true
+  },
+  {
+    "name": "dark/default/390 Enter reaches loading",
+    "pass": true
+  },
+  {
+    "name": "dark/default/390/loading footer visible",
+    "pass": true
+  },
+  {
+    "name": "dark/default/390/loading Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "dark/default/390/connected bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 900,
+      "top": 0,
+      "right": 390,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "dark/default/390/connected no overflow",
+    "pass": true
+  },
+  {
+    "name": "dark/default/390/connected accessible name",
+    "pass": true
+  },
+  {
+    "name": "dark/default/390/connected footer visible",
+    "pass": true
+  },
+  {
+    "name": "dark/default/390/connected Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/1158/empty bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 1158,
+      "height": 900,
+      "top": 0,
+      "right": 1158,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "dark/purple/1158/empty no overflow",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/1158/empty accessible name",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/1158/empty footer visible",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/1158 focus contained",
+    "pass": false
+  },
+  {
+    "name": "dark/purple/1158 Tab cycling",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/1158/empty Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/1158/error bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 1158,
+      "height": 900,
+      "top": 0,
+      "right": 1158,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "dark/purple/1158/error no overflow",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/1158/error accessible name",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/1158 Enter gives error without navigation",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/1158/error footer visible",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/1158/error Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/1158/loading bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 1158,
+      "height": 900,
+      "top": 0,
+      "right": 1158,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "dark/purple/1158/loading no overflow",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/1158/loading accessible name",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/1158 Enter reaches loading",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/1158/loading footer visible",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/1158/loading Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/1158/connected bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 1158,
+      "height": 900,
+      "top": 0,
+      "right": 1158,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "dark/purple/1158/connected no overflow",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/1158/connected accessible name",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/1158/connected footer visible",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/1158/connected Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/390/empty bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 900,
+      "top": 0,
+      "right": 390,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "dark/purple/390/empty no overflow",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/390/empty accessible name",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/390/empty footer visible",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/390 focus contained",
+    "pass": false
+  },
+  {
+    "name": "dark/purple/390 Tab cycling",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/390/empty Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/390/error bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 900,
+      "top": 0,
+      "right": 390,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "dark/purple/390/error no overflow",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/390/error accessible name",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/390 Enter gives error without navigation",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/390/error footer visible",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/390/error Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/390/loading bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 900,
+      "top": 0,
+      "right": 390,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "dark/purple/390/loading no overflow",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/390/loading accessible name",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/390 Enter reaches loading",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/390/loading footer visible",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/390/loading Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/390/connected bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 900,
+      "top": 0,
+      "right": 390,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "dark/purple/390/connected no overflow",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/390/connected accessible name",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/390/connected footer visible",
+    "pass": true
+  },
+  {
+    "name": "dark/purple/390/connected Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/1158/empty bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 1158,
+      "height": 900,
+      "top": 0,
+      "right": 1158,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "dark/blue/1158/empty no overflow",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/1158/empty accessible name",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/1158/empty footer visible",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/1158 focus contained",
+    "pass": false
+  },
+  {
+    "name": "dark/blue/1158 Tab cycling",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/1158/empty Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/1158/error bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 1158,
+      "height": 900,
+      "top": 0,
+      "right": 1158,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "dark/blue/1158/error no overflow",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/1158/error accessible name",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/1158 Enter gives error without navigation",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/1158/error footer visible",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/1158/error Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/1158/loading bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 1158,
+      "height": 900,
+      "top": 0,
+      "right": 1158,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "dark/blue/1158/loading no overflow",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/1158/loading accessible name",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/1158 Enter reaches loading",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/1158/loading footer visible",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/1158/loading Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/1158/connected bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 1158,
+      "height": 900,
+      "top": 0,
+      "right": 1158,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "dark/blue/1158/connected no overflow",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/1158/connected accessible name",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/1158/connected footer visible",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/1158/connected Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/390/empty bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 900,
+      "top": 0,
+      "right": 390,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "dark/blue/390/empty no overflow",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/390/empty accessible name",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/390/empty footer visible",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/390 focus contained",
+    "pass": false
+  },
+  {
+    "name": "dark/blue/390 Tab cycling",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/390/empty Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/390/error bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 900,
+      "top": 0,
+      "right": 390,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "dark/blue/390/error no overflow",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/390/error accessible name",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/390 Enter gives error without navigation",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/390/error footer visible",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/390/error Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/390/loading bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 900,
+      "top": 0,
+      "right": 390,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "dark/blue/390/loading no overflow",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/390/loading accessible name",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/390 Enter reaches loading",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/390/loading footer visible",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/390/loading Escape and focus return",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/390/connected bounds",
+    "pass": true,
+    "detail": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 900,
+      "top": 0,
+      "right": 390,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  {
+    "name": "dark/blue/390/connected no overflow",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/390/connected accessible name",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/390/connected footer visible",
+    "pass": true
+  },
+  {
+    "name": "dark/blue/390/connected Escape and focus return",
+    "pass": true
+  }
+]

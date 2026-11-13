@@ -1,0 +1,858 @@
+{
+  "settingsShell": {
+    "observedOn": "2026-11-12",
+    "method": "Browser DOM/computed styles, responsive viewport measurements and navigation/search interactions",
+    "desktop": {
+      "content": "General\nGeneral\nLanguage\nLanguage for the app UI\nAuto detect\nSend shortcut\nChoose when Enter sends a prompt or inserts a new line\nEnter\nAvailable reasoning efforts\nChoose which reasoning effort levels appear in model controls. Availability varies by model\n6 selected",
+      "scrollContainers": [
+        {
+          "tag": "DIV",
+          "cls": "group/nav-list flex flex-col gap-2 browser:gap-px browser:not-empty:pb-px browser:[--nav-item-height:calc(var(--height-token-row)-1px)] vertical-scroll-fade-mask hide-scrollbar -m-0.5 min-h-0 flex-1 scroll-py-0.5 items-center overflow-y-auto p-0.5 browser:m-0 browser:mt-2 browser:w-full browser:items-stretch browser:px-row-x browser:pt-0 browser:gap-y-4",
+          "client": 832,
+          "scroll": 832
+        },
+        {
+          "tag": "DIV",
+          "cls": "min-h-0 flex-1 overflow-y-auto pb-2 px-row-x pt-(--sidebar-scroll-content-top-padding) flex flex-col gap-4",
+          "client": 840,
+          "scroll": 1028
+        },
+        {
+          "tag": "DIV",
+          "cls": "flex-1 scrollbar-stable overflow-y-auto",
+          "client": 928,
+          "scroll": 928
+        }
+      ],
+      "rows": [
+        {
+          "text": "",
+          "height": 0,
+          "width": 0,
+          "padding": "0px",
+          "radius": "8px",
+          "bg": "rgba(0, 0, 0, 0)",
+          "font": "14px",
+          "weight": "500",
+          "ariaCurrent": null
+        },
+        {
+          "text": "  General",
+          "height": 35,
+          "width": 266,
+          "padding": "6px 10px",
+          "radius": "8px",
+          "bg": "rgba(255, 255, 255, 0.1)",
+          "font": "14px",
+          "weight": "400",
+          "ariaCurrent": "page"
+        },
+        {
+          "text": "                Appearance",
+          "height": 35,
+          "width": 266,
+          "padding": "6px 10px",
+          "radius": "8px",
+          "bg": "rgba(0, 0, 0, 0)",
+          "font": "14px",
+          "weight": "400",
+          "ariaCurrent": null
+        },
+        {
+          "text": "Notifications",
+          "height": 35,
+          "width": 266,
+          "padding": "6px 10px",
+          "radius": "8px",
+          "bg": "rgba(0, 0, 0, 0)",
+          "font": "14px",
+          "weight": "400",
+          "ariaCurrent": null
+        },
+        {
+          "text": "  Profile",
+          "height": 35,
+          "width": 266,
+          "padding": "6px 10px",
+          "radius": "8px",
+          "bg": "rgba(0, 0, 0, 0)",
+          "font": "14px",
+          "weight": "400",
+          "ariaCurrent": null
+        }
+      ]
+    },
+    "typography": [
+      {
+        "text": "General",
+        "x": 380.5,
+        "y": 31.59375,
+        "font": "24px",
+        "line": "28.8px",
+        "weight": "500",
+        "color": "rgb(237, 237, 237)",
+        "parent": {
+          "width": 85.765625,
+          "height": 28.796875,
+          "padding": "0px",
+          "gap": "4px",
+          "borderBottom": "0px solid rgb(237, 237, 237)"
+        }
+      },
+      {
+        "text": "General",
+        "x": 380.5,
+        "y": 108,
+        "font": "16px",
+        "line": "24px",
+        "weight": "500",
+        "color": "rgb(237, 237, 237)",
+        "parent": {
+          "width": 728,
+          "height": 24,
+          "padding": "0px",
+          "gap": "2px",
+          "borderBottom": "0px solid rgb(237, 237, 237)"
+        }
+      },
+      {
+        "text": "Language",
+        "x": 397.5,
+        "y": 162,
+        "font": "14px",
+        "line": "20px",
+        "weight": "500",
+        "color": "rgb(237, 237, 237)",
+        "parent": {
+          "width": 510,
+          "height": 38,
+          "padding": "0px",
+          "gap": "2px",
+          "borderBottom": "0px solid rgb(237, 237, 237)"
+        }
+      },
+      {
+        "text": "Language for the app UI",
+        "x": 397.5,
+        "y": 184,
+        "font": "12px",
+        "line": "16px",
+        "weight": "400",
+        "color": "rgb(205, 205, 205)",
+        "parent": {
+          "width": 510,
+          "height": 38,
+          "padding": "0px",
+          "gap": "2px",
+          "borderBottom": "0px solid rgb(237, 237, 237)"
+        }
+      },
+      {
+        "text": "Auto detect",
+        "x": 983.390625,
+        "y": 172,
+        "font": "14px",
+        "line": "18px",
+        "weight": "400",
+        "color": "rgb(237, 237, 237)",
+        "parent": {
+          "width": 121.109375,
+          "height": 36,
+          "padding": "0px 12px",
+          "gap": "4px",
+          "borderBottom": "1px solid rgba(255, 255, 255, 0.15)"
+        }
+      },
+      {
+        "text": "Send shortcut",
+        "x": 397.5,
+        "y": 224,
+        "font": "14px",
+        "line": "20px",
+        "weight": "500",
+        "color": "rgb(237, 237, 237)",
+        "parent": {
+          "width": 510,
+          "height": 38,
+          "padding": "0px",
+          "gap": "2px",
+          "borderBottom": "0px solid rgb(237, 237, 237)"
+        }
+      },
+      {
+        "text": "Choose when Enter sends a prompt or inserts a new line",
+        "x": 397.5,
+        "y": 246,
+        "font": "12px",
+        "line": "16px",
+        "weight": "400",
+        "color": "rgb(205, 205, 205)",
+        "parent": {
+          "width": 510,
+          "height": 38,
+          "padding": "0px",
+          "gap": "2px",
+          "borderBottom": "0px solid rgb(237, 237, 237)"
+        }
+      },
+      {
+        "text": "Enter",
+        "x": 1024.140625,
+        "y": 234,
+        "font": "14px",
+        "line": "18px",
+        "weight": "400",
+        "color": "rgb(237, 237, 237)",
+        "parent": {
+          "width": 80.359375,
+          "height": 36,
+          "padding": "0px 12px",
+          "gap": "4px",
+          "borderBottom": "1px solid rgba(255, 255, 255, 0.15)"
+        }
+      },
+      {
+        "text": "Available reasoning efforts",
+        "x": 397.5,
+        "y": 286,
+        "font": "14px",
+        "line": "20px",
+        "weight": "500",
+        "color": "rgb(237, 237, 237)",
+        "parent": {
+          "width": 510,
+          "height": 38,
+          "padding": "0px",
+          "gap": "2px",
+          "borderBottom": "0px solid rgb(237, 237, 237)"
+        }
+      },
+      {
+        "text": "Choose which reasoning effort levels appear in model controls. Availability varies by model",
+        "x": 397.5,
+        "y": 308,
+        "font": "12px",
+        "line": "16px",
+        "weight": "400",
+        "color": "rgb(205, 205, 205)",
+        "parent": {
+          "width": 510,
+          "height": 38,
+          "padding": "0px",
+          "gap": "2px",
+          "borderBottom": "0px solid rgb(237, 237, 237)"
+        }
+      },
+      {
+        "text": "6 selected",
+        "x": 994.28125,
+        "y": 296,
+        "font": "14px",
+        "line": "18px",
+        "weight": "400",
+        "color": "rgb(237, 237, 237)",
+        "parent": {
+          "width": 110.21875,
+          "height": 36,
+          "padding": "0px 12px",
+          "gap": "4px",
+          "borderBottom": "1px solid rgba(255, 255, 255, 0.15)"
+        }
+      }
+    ],
+    "mobile": {
+      "width": 390,
+      "scrollWidth": 390,
+      "elements": [
+        {
+          "tag": "NAV",
+          "label": "App navigation",
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        {
+          "tag": "NAV",
+          "label": "Settings",
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        {
+          "tag": "H1",
+          "label": "Settings",
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        {
+          "tag": "NAV",
+          "label": "Chat history",
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        {
+          "tag": "MAIN",
+          "label": "GeneralGeneralLanguageLanguage",
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844
+        },
+        {
+          "tag": "BUTTON",
+          "label": "Show sidebar",
+          "x": 8,
+          "y": 0,
+          "width": 36,
+          "height": 36
+        },
+        {
+          "tag": "BUTTON",
+          "label": "Show sidebar",
+          "x": 8,
+          "y": 8,
+          "width": 36,
+          "height": 36
+        },
+        {
+          "tag": "H1",
+          "label": "General",
+          "x": 52,
+          "y": 12,
+          "width": 64.328125,
+          "height": 28
+        }
+      ]
+    },
+    "drawer": {
+      "width": 332,
+      "height": 844,
+      "x": 0,
+      "y": 0,
+      "bg": "rgb(14, 14, 14)",
+      "radius": "0px"
+    },
+    "responsive": [
+      {
+        "viewport": 767,
+        "nav": [
+          0
+        ],
+        "main": {
+          "x": 0,
+          "width": 767
+        },
+        "heading": {
+          "x": 52,
+          "y": 12,
+          "font": "18px"
+        }
+      },
+      {
+        "viewport": 768,
+        "nav": [
+          288
+        ],
+        "main": {
+          "x": 340,
+          "width": 428
+        },
+        "heading": {
+          "x": 361,
+          "y": 31.59375,
+          "font": "24px"
+        }
+      },
+      {
+        "viewport": 1024,
+        "nav": [
+          288
+        ],
+        "main": {
+          "x": 340,
+          "width": 684
+        },
+        "heading": {
+          "x": 361,
+          "y": 31.59375,
+          "font": "24px"
+        }
+      },
+      {
+        "viewport": 1440,
+        "nav": [
+          288
+        ],
+        "main": {
+          "x": 340,
+          "width": 1100
+        },
+        "heading": {
+          "x": 521.5,
+          "y": 31.59375,
+          "font": "24px"
+        }
+      },
+      {
+        "viewport": 1158,
+        "nav": [
+          288
+        ],
+        "main": {
+          "x": 340,
+          "width": 818
+        },
+        "heading": {
+          "x": 380.5,
+          "y": 31.59375,
+          "font": "24px"
+        }
+      }
+    ],
+    "search": {
+      "font": {
+        "result": "Font, Appearance",
+        "selection": "Retained query and expanded Advanced"
+      },
+      "app": {
+        "matches": "Setting labels/descriptions across multiple sections"
+      },
+      "clear": "Restored grouped navigation"
+    },
+    "scope": "Shell, Appearance, General, Notifications; not all reference settings interiors",
+    "limitations": [
+      "Exact search ranking and debounce unknown.",
+      "Back navigation led to an authentication error; browser history semantics not verified.",
+      "Measurements taken in dark mode with original account appearance; light shell not separately sampled."
+    ]
+  },
+  "target": "https://chatgpt.com/settings/appearance",
+  "observedOn": "2026-11-12",
+  "method": "Authenticated integrated-browser DOM, computed CSS variables, and controlled UI interactions; reverse-engineer-anything skill workflow. No REA engine/CDP capture was used because no CDP endpoint was supplied.",
+  "light": {
+    "mode": "light",
+    "tokens": {
+      "--codex-base-accent": "#a67df2",
+      "--codex-base-contrast": "45",
+      "--codex-base-ink": "#0d0d0d",
+      "--codex-base-surface": "#fcfcfc",
+      "--color-surface": "#fcfcfc",
+      "--color-surface-secondary": "#fcfcfc",
+      "--color-surface-tertiary": "#f9f9f9",
+      "--color-surface-elevated": "#ffffff",
+      "--app-color-background-shell": "#f9f9f9",
+      "--color-background-composer-surface": "#ffffff",
+      "--color-text": "#0d0d0d",
+      "--color-text-secondary": "#5d5d5d",
+      "--color-text-tertiary": "#8f8f8f",
+      "--color-border": "#0000001a",
+      "--color-border-strong": "#00000026",
+      "--color-background-accent-solid": "#8952ee",
+      "--color-background-accent-solid-hover": "#7849d1",
+      "--color-background-accent-solid-active": "#643cae",
+      "--color-text-accent": "#7849d1",
+      "--color-text-accent-solid": "#ffffff"
+    },
+    "geometry": [
+      {
+        "tag": "H1",
+        "label": "Appearance",
+        "width": 131.171875,
+        "height": 28.796875,
+        "font": "24px",
+        "radius": "0px"
+      },
+      {
+        "tag": "DIV",
+        "label": "Theme",
+        "width": 272,
+        "height": 60,
+        "font": "16px",
+        "radius": "0px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "System",
+        "width": 1,
+        "height": 1,
+        "font": "16px",
+        "radius": "0px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "Light",
+        "width": 1,
+        "height": 1,
+        "font": "16px",
+        "radius": "0px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "Dark",
+        "width": 1,
+        "height": 1,
+        "font": "16px",
+        "radius": "0px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "Light background color",
+        "width": 56,
+        "height": 16,
+        "font": "12px",
+        "radius": "0px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "Light ink color",
+        "width": 56,
+        "height": 16,
+        "font": "12px",
+        "radius": "0px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "Sans font size",
+        "width": 64,
+        "height": 28,
+        "font": "14px",
+        "radius": "6px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "Content font size",
+        "width": 64,
+        "height": 28,
+        "font": "14px",
+        "radius": "6px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "Code font size",
+        "width": 64,
+        "height": 28,
+        "font": "14px",
+        "radius": "6px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "Light contrast",
+        "width": 146,
+        "height": 2,
+        "font": "16px",
+        "radius": "9999px"
+      }
+    ]
+  },
+  "dark": {
+    "mode": "dark",
+    "tokens": {
+      "--codex-base-accent": "#a67df2",
+      "--codex-base-contrast": "60",
+      "--codex-base-ink": "#ededed",
+      "--codex-base-surface": "#000000",
+      "--color-surface": "#0e0e0e",
+      "--color-surface-secondary": "#0e0e0e",
+      "--color-surface-tertiary": "#212121",
+      "--color-surface-elevated": "#212121",
+      "--app-color-background-shell": "#000000",
+      "--color-background-composer-surface": "#212121",
+      "--color-text": "#ededed",
+      "--color-text-secondary": "#cdcdcd",
+      "--color-text-tertiary": "#afafaf",
+      "--color-border": "#ffffff26",
+      "--color-border-strong": "#ffffff33",
+      "--color-background-accent-solid": "#7849d1",
+      "--color-background-accent-solid-hover": "#643cae",
+      "--color-background-accent-solid-active": "#4e2f88",
+      "--color-text-accent": "#b897f4",
+      "--color-text-accent-solid": "#ffffff"
+    },
+    "geometry": [
+      {
+        "tag": "H1",
+        "label": "Appearance",
+        "width": 131.171875,
+        "height": 28.796875,
+        "font": "24px",
+        "radius": "0px"
+      },
+      {
+        "tag": "DIV",
+        "label": "Theme",
+        "width": 272,
+        "height": 60,
+        "font": "16px",
+        "radius": "0px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "System",
+        "width": 1,
+        "height": 1,
+        "font": "16px",
+        "radius": "0px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "Light",
+        "width": 1,
+        "height": 1,
+        "font": "16px",
+        "radius": "0px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "Dark",
+        "width": 1,
+        "height": 1,
+        "font": "16px",
+        "radius": "0px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "Light background color",
+        "width": 56,
+        "height": 16,
+        "font": "12px",
+        "radius": "0px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "Light ink color",
+        "width": 56,
+        "height": 16,
+        "font": "12px",
+        "radius": "0px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "Dark background color",
+        "width": 56,
+        "height": 16,
+        "font": "12px",
+        "radius": "0px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "Dark ink color",
+        "width": 56,
+        "height": 16,
+        "font": "12px",
+        "radius": "0px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "Sans font size",
+        "width": 64,
+        "height": 28,
+        "font": "14px",
+        "radius": "6px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "Content font size",
+        "width": 64,
+        "height": 28,
+        "font": "14px",
+        "radius": "6px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "Code font size",
+        "width": 64,
+        "height": 28,
+        "font": "14px",
+        "radius": "6px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "Light contrast",
+        "width": 146,
+        "height": 2,
+        "font": "16px",
+        "radius": "9999px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "Dark contrast",
+        "width": 146,
+        "height": 2,
+        "font": "16px",
+        "radius": "9999px"
+      }
+    ]
+  },
+  "lightContrast46": {
+    "mode": "light",
+    "tokens": {
+      "--codex-base-accent": "#a67df2",
+      "--codex-base-contrast": "46",
+      "--codex-base-ink": "#0d0d0d",
+      "--codex-base-surface": "#fcfcfc",
+      "--color-surface": "#fcfcfc",
+      "--color-surface-secondary": "#f2f2f2",
+      "--color-surface-tertiary": "rgb(252, 252, 252)",
+      "--color-surface-elevated": "rgba(253, 253, 253, 0.96)",
+      "--app-color-background-shell": "#f2f2f2",
+      "--color-background-composer-surface": "rgb(253, 253, 253)",
+      "--color-text": "#0d0d0d",
+      "--color-text-secondary": "color-mix(in srgb, #0d0d0d 65%, transparent)",
+      "--color-text-tertiary": "rgba(13, 13, 13, 0.499)",
+      "--color-border": "rgba(13, 13, 13, 0.08)",
+      "--color-border-strong": "rgba(13, 13, 13, 0.12)",
+      "--color-background-accent-solid": "#8952ee",
+      "--color-background-accent-solid-hover": "#7849d1",
+      "--color-background-accent-solid-active": "#643cae",
+      "--color-text-accent": "#644b91",
+      "--color-text-accent-solid": "#ffffff"
+    },
+    "geometry": [
+      {
+        "tag": "H1",
+        "label": "Appearance",
+        "width": 131.171875,
+        "height": 28.796875,
+        "font": "24px",
+        "radius": "0px"
+      },
+      {
+        "tag": "DIV",
+        "label": "Theme",
+        "width": 272,
+        "height": 60,
+        "font": "16px",
+        "radius": "0px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "System",
+        "width": 1,
+        "height": 1,
+        "font": "16px",
+        "radius": "0px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "Light",
+        "width": 1,
+        "height": 1,
+        "font": "16px",
+        "radius": "0px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "Dark",
+        "width": 1,
+        "height": 1,
+        "font": "16px",
+        "radius": "0px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "Light background color",
+        "width": 56,
+        "height": 16,
+        "font": "12px",
+        "radius": "0px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "Light ink color",
+        "width": 56,
+        "height": 16,
+        "font": "12px",
+        "radius": "0px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "Dark background color",
+        "width": 56,
+        "height": 16,
+        "font": "12px",
+        "radius": "0px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "Dark ink color",
+        "width": 56,
+        "height": 16,
+        "font": "12px",
+        "radius": "0px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "Sans font size",
+        "width": 64,
+        "height": 28,
+        "font": "14px",
+        "radius": "6px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "Content font size",
+        "width": 64,
+        "height": 28,
+        "font": "14px",
+        "radius": "6px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "Code font size",
+        "width": 64,
+        "height": 28,
+        "font": "14px",
+        "radius": "6px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "Light contrast",
+        "width": 146,
+        "height": 2,
+        "font": "16px",
+        "radius": "9999px"
+      },
+      {
+        "tag": "INPUT",
+        "label": "Dark contrast",
+        "width": 146,
+        "height": 2,
+        "font": "16px",
+        "radius": "9999px"
+      }
+    ]
+  },
+  "restoration": {
+    "mode": "dark",
+    "selected": [
+      "System"
+    ],
+    "main": "Appearance\nVisual style\nMode\nTheme\nAa\nChatGPT\nAccent\nPurple\nBackground\nDark background color\nForeground\nDark ink color\nAdvanced",
+    "theme": {
+      "light": {
+        "preset": "codex",
+        "chatGpt": true
+      },
+      "dark": {
+        "preset": "codex",
+        "chatGpt": true
+      },
+      "accent": "purple",
+      "variant": "dark"
+    }
+  },
+  "limitations": [
+    "Samples reflect the inspected account, Purple accent, ChatGPT preset, and current browser build; they are not universal defaults.",
+    "No source-level color-generation algorithm recovered.",
+    "Separate-mode toggle UI observed; cross-mode edit propagation not established.",
+    "Import dialog inspected, but clipboard export and import round-trip not exercised.",
+    "Motion, punctuation, full-width, diff behavior inventoried from UI, not tested in content.",
+    "OS color-scheme changes, cross-tab propagation, remote persistence and every named preset not tested."
+  ]
+}

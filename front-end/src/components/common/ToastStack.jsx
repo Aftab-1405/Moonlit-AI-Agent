@@ -1,5 +1,6 @@
+import { useAppearanceReducedMotion } from '@/hooks/useAppearanceReducedMotion';
 import { Box, Portal } from '@mui/material';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { memo } from 'react';
 import Notification from '@/components/ui/toast';
 import { UI_Z_INDEX } from '@/styles/shared';
@@ -7,7 +8,7 @@ import { UI_Z_INDEX } from '@/styles/shared';
 const MotionBox = motion.create(Box);
 
 const ToastStack = memo(function ToastStack({ notifications, removeToast, isNarrowLayout }) {
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useAppearanceReducedMotion();
   // Mount active notices outside page content hidden by an open modal.
   return (
     <Portal>

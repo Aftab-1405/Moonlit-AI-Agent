@@ -1,153 +1,77 @@
-/**
- * Reactive localStorage hook with SSR safety and cross-tab sync.
- * @module useLocalStorage
- */
-
-import { useCallback, useEffect, useRef, useState } from 'react';
+/** Reactive storage with synchronous namespace isolation and cross-tab updates. */
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { resolveStoredValue } from '@/hooks/localStorageState';
 import logger from '@/utils/logger';
-
-/**
- * @template T
- * @typedef {T | ((prevValue: T) => T)} SetStateAction
- */
-
-/**
- * @template T
- * @typedef {(value: SetStateAction<T>) => void} SetValue
- */
-
-/**
- * Safely parse JSON, returning undefined on failure.
- * @param {string} value - JSON string to parse
- * @returns {any|undefined} Parsed value or undefined
- */
-function safeJsonParse(value) {
+const isBrowser = () => typeof window !== 'undefined';
+function parse(value) {
   try {
     return JSON.parse(value);
   } catch {
     return undefined;
   }
 }
-
-/**
- * Check if we're in a browser environment.
- * @returns {boolean}
- */
-function isBrowser() {
-  return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
+function read(key, fallback) {
+  if (!isBrowser()) return fallback;
+  try {
+    const item = window.localStorage.getItem(key);
+    return item === null ? fallback : (parse(item) ?? fallback);
+  } catch (error) {
+    logger.warn(`useLocalStorage: Error reading key "${key}":`, error);
+    return fallback;
+  }
 }
-
-/**
- * React hook for localStorage-backed state.
- *
- * @template T
- * @param {string} key - localStorage key
- * @param {T} initialValue - Default value if key doesn't exist
- * @returns {[T, SetValue<T>, () => void]} [value, setValue, removeValue]
- */
 export function useLocalStorage(key, initialValue) {
-  const [storedValue, setStoredValue] = useState(() => {
-    if (!isBrowser()) {
-      return initialValue;
-    }
-
-    try {
-      const item = window.localStorage.getItem(key);
-      if (item === null) {
-        return initialValue;
-      }
-
-      const parsed = safeJsonParse(item);
-      return parsed !== undefined ? parsed : initialValue;
-    } catch (error) {
-      logger.warn(`useLocalStorage: Error reading key "${key}":`, error);
-      return initialValue;
-    }
-  });
-
-  // Track the latest value in a ref so setValue can resolve functional updates
-  // without adding storedValue to useCallback deps or using the state updater.
-  const storedValueRef = useRef(storedValue);
-  useEffect(() => {
-    storedValueRef.current = storedValue;
-  }, [storedValue]);
-
-  // Re-sync state when the key changes (useState initializer only runs at mount).
-  /* eslint-disable react-hooks/set-state-in-effect -- localStorage is the external source synchronized by this effect. */
-  useEffect(() => {
-    if (!isBrowser()) return;
-    try {
-      const item = window.localStorage.getItem(key);
-      if (item === null) {
-        setStoredValue(initialValue);
-        return;
-      }
-      const parsed = safeJsonParse(item);
-      setStoredValue(parsed !== undefined ? parsed : initialValue);
-    } catch (error) {
-      logger.warn(`useLocalStorage: Error reading key "${key}":`, error);
-    }
-  }, [key, initialValue]);
-  /* eslint-enable react-hooks/set-state-in-effect */
-
+  const [snapshot, setSnapshot] = useState(() => ({ key, value: read(key, initialValue) }));
+  // Guarded render reconciliation prevents exposing the previous namespace to children.
+  if (snapshot.key !== key) setSnapshot({ key, value: read(key, initialValue) });
+  const latest = useRef(snapshot);
+  useLayoutEffect(() => {
+    // Refresh on a committed namespace read (including a return to a previous account).
+    // A child layout effect may already have written a newer value for this key.
+    if (latest.current.key !== snapshot.key) latest.current = snapshot;
+  }, [snapshot]);
   const setValue = useCallback(
-    (value) => {
+    (action) => {
       try {
-        // Resolve functional updates using the ref — avoids side effects inside a
-        // state updater (which React 18 StrictMode calls twice to detect impurity).
-        const valueToStore = resolveStoredValue(storedValueRef.current, value);
-
+        // Child hydration effects can run before parent effects after an account switch.
+        // Resolve from this key's storage when the ref still belongs to another namespace.
+        const current = latest.current.key === key ? latest.current.value : read(key, initialValue);
+        const next = { key, value: resolveStoredValue(current, action) };
+        latest.current = next;
+        setSnapshot(next);
         if (isBrowser()) {
-          if (valueToStore === undefined || valueToStore === null) {
-            window.localStorage.removeItem(key);
-          } else {
-            window.localStorage.setItem(key, JSON.stringify(valueToStore));
-          }
+          if (next.value === undefined || next.value === null) window.localStorage.removeItem(key);
+          else window.localStorage.setItem(key, JSON.stringify(next.value));
         }
-
-        storedValueRef.current = valueToStore;
-        setStoredValue(valueToStore);
       } catch (error) {
         logger.warn(`useLocalStorage: Error setting key "${key}":`, error);
-        if (error.name === 'QuotaExceededError') {
-          logger.error('localStorage quota exceeded. Consider clearing old data.');
-        }
       }
     },
-    [key],
+    [key, initialValue],
   );
-
   const removeValue = useCallback(() => {
+    const next = { key, value: initialValue };
+    latest.current = next;
+    setSnapshot(next);
     try {
-      if (isBrowser()) {
-        window.localStorage.removeItem(key);
-      }
-      setStoredValue(initialValue);
+      if (isBrowser()) window.localStorage.removeItem(key);
     } catch (error) {
       logger.warn(`useLocalStorage: Error removing key "${key}":`, error);
     }
   }, [key, initialValue]);
-
   useEffect(() => {
-    if (!isBrowser()) {
-      return;
-    }
-
-    const handleStorageChange = (event) => {
-      if (event.key === key && event.newValue !== null) {
-        const parsed = safeJsonParse(event.newValue);
-        if (parsed !== undefined) {
-          setStoredValue(parsed);
-        }
-      } else if (event.key === key && event.newValue === null) {
-        setStoredValue(initialValue);
-      }
+    if (!isBrowser()) return;
+    const onStorage = (event) => {
+      if (event.key !== null && event.key !== key) return;
+      const value =
+        event.key === null || event.newValue === null ? initialValue : parse(event.newValue);
+      if (value === undefined) return;
+      const next = { key, value };
+      latest.current = next;
+      setSnapshot(next);
     };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, [key, initialValue]);
-
-  return [storedValue, setValue, removeValue];
+  return [snapshot.value, setValue, removeValue];
 }

@@ -102,7 +102,7 @@ const ConversationTitle = memo(function ConversationTitle({ title, theme }) {
           whiteSpace: 'nowrap',
           transform: 'translateX(0)',
           transition: 'transform 180ms ease-out',
-          '@media (prefers-reduced-motion: reduce)': {
+          'html[data-moonlit-reduced-motion="true"] &': {
             transition: 'none',
           },
         }}
@@ -219,7 +219,7 @@ const InlineConversationTitle = memo(function InlineConversationTitle({
     color: 'text.secondary',
     backgroundColor: 'transparent',
     boxShadow: 'none',
-    '&:hover, &:active': {
+    '&:hover:not(:disabled):not(.Mui-disabled), &:active:not(:disabled):not(.Mui-disabled)': {
       color: 'text.primary',
       backgroundColor: 'transparent',
     },
@@ -333,13 +333,13 @@ function getConversationOptionsButtonSx(theme, menuOpen) {
       duration: theme.transitions.duration.shorter,
     }),
     [HOVER_CAPABLE_QUERY]: {
-      '&:hover': {
+      '&:hover:not(:disabled):not(.Mui-disabled)': {
         color: 'text.primary',
         backgroundColor: 'transparent',
         borderColor: 'transparent',
       },
     },
-    '&:active, &:focus-visible': {
+    '&:active:not(:disabled):not(.Mui-disabled), &:focus-visible, &.Mui-focusVisible': {
       backgroundColor: 'transparent',
     },
   };

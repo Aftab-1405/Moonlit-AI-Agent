@@ -36,11 +36,14 @@ Firestore remains the canonical conversation store. Qdrant retrieval supplements
 
 | Route                    | Surface                                        | Access        |
 | -------------------------- | ------------------------------------------------ | --------------- |
-| `/`                      | Landing page                                   | Public        |
-| `/auth`                  | Authentication                                 | Public        |
+| `/`                      | Authentication entry                           | Public        |
+| `/login`                 | Authentication                                 | Public        |
+| `/auth`                  | Compatibility redirect to `/login`              | Public        |
 | `/chat/:conversationId?` | New or saved conversation                      | Authenticated |
 | `/dashboard/:section?`   | Personal overview, usage, and account surfaces | Authenticated |
 | `/admin`                 | Operational context metrics                    | Administrator |
+
+Authentication waits for session initialization before replacing the entry URL with `/chat` for signed-in users. Protected routes send signed-out visitors to `/login`. Unknown client routes return to `/`. The authentication screen preserves email/password, Google, GitHub, registration, and password-reset flows.
 
 [ChatWorkspacePage](../front-end/src/pages/ChatWorkspacePage.jsx) wires `useChatPageController`, supplies slots to `AppShell`, and mounts `GlobalOverlays`. Feature hooks own state coordination. `ChatColumn` composes content; `ChatLayout` owns the stable welcome/transcript/composer layout and transcript scroll container. `ArtifactLoader` hosts SQL, table/analysis, and diagram views.
 

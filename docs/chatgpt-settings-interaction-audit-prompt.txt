@@ -1,0 +1,80 @@
+Moonlit Settings interaction and icon audit follow-up
+
+Improve the CURRENT Settings implementation with a focused patch. This is the next pass after docs/chatgpt-settings-fidelity-correction-prompt.txt, not a request to repeat it or rewrite the application. Preserve routing, account separation, existing editor state, mode switching, import validation and the newly corrected card grouping.
+
+The user reports three remaining problems: General/Appearance share an inappropriate sparkle icon; Advanced has a broken-looking hover state; hue selection does not work as expected. Address the causes below and verify the actual browser behavior, not merely component markup.
+
+Audit basis and progress to preserve
+
+Reviewed current working-tree sources, tests, saved QA screenshots and profile-before/profile-after JSON. The saved after-dark-advanced-100.png confirms the improved grouping but also shows duplicate sparkle icons and a bright, tightly fitted Advanced disclosure. These are saved fixture captures, not a fresh authenticated browser run. This audit did not execute the test suite; node/npm were unavailable on the audit shell PATH. Use the project's available runtime in your environment and report actual validation results.
+
+Already corrected: explicit groups and Divider elements; compact color pills; Theme picker on the header row; icon-only copy/import actions; Advanced and Reset sharing a header; numeric drafts; unchanged hex no-op handling; deferred drag persistence; transition-ready search reveal. Preserve these. Do not reintroduce issues from the old prompt by treating its stale findings as current defects.
+
+P1. Semantic, consistent settings icons
+
+Confirmed source: front-end/src/features/overlays/settings/SettingsModal.jsx constructs SECTIONS with a ternary that selects DatabaseIcon, then AiContextIcon, and falls back to AiSparkleIcon for everything else. Both general and appearance therefore use AutoAwesomeRounded. This is an explicit mapping defect, not a missing icon download.
+
+Use a complete, explicit section-to-icon map:
+- General: existing SettingsIcon (gear), or a coherent tuning/control icon.
+- Appearance: a dedicated AppearanceIcon using a palette/paintbrush/theme glyph from the existing installed icon family.
+- Database: retain DatabaseIcon.
+- AI context: retain AiContextIcon.
+Expose any new semantic alias through front-end/src/components/icons/index.js; do not import assorted glyph libraries directly in the settings component. Unknown section IDs must not silently acquire an AI sparkle. Keep labels as the accessible names and make decorative glyphs hidden from assistive technology.
+
+Audit the rest of this settings surface for the same semantic consistency: close/clear currently use literal multiplication-sign text in SettingsModal; use canonical CloseIcon. Import currently uses a rotated DownloadIcon in AppearanceSection; select a deliberate import/upload-to-app glyph and alias, matching its action and tooltip. Keep Copy and disclosure chevrons consistent. Normalize optical size, stroke/fill weight, alignment, opacity, and hover/active color without changing every icon elsewhere in the app. Avoid introducing a new icon package.
+
+P1. Advanced hover, pressed and focus states
+
+Trace the cascade before editing:
+- AppearanceSection.jsx, Advanced button near lines 436–443: generic MUI Button with p:0, minHeight:32 and an endIcon, but no local hover/active treatment.
+- createMoonlitTheme.js, MuiButton root near line 209: global pill radius, border, button sizing and active fill.
+- textButton near line 38: hover foreground is pinned to primary text and hover background is alpha(primary, 0.07).
+- Reset beside Advanced overrides resting text.secondary but inherits text-button hover primary color. A root text color override does not automatically override that hover selector.
+These rules explain why a compact disclosure can acquire an inappropriate tightly fitted pill/background and a different hover color. The precise user-visible failure still needs a real browser hover capture; do not assert layout movement unless measured.
+
+Give this disclosure a scoped control treatment, using a small shared local style or ButtonBase where appropriate. Target a quiet, secondary-text disclosure with a chevron; brighten it modestly on hover or use a deliberate, consistently padded hover surface. Do not combine zero horizontal padding with an accidental global pill fill. Define resting, hover, active, focus-visible and expanded states explicitly. Maintain stable button bounds and text/chevron alignment across all states. Reset must be a separate control, not part of the disclosure's clickable region.
+
+Keep the visible label aligned with the groups while providing an adequate interaction target. Do not shrink touch targets to mimic desktop text. If expanding the hit area, do not overlap Reset. Retain aria-expanded/aria-controls, Enter/Space behavior and a visible keyboard focus outline. Rotate the chevron with a short transform transition only if appropriate; disable motion for reduced-motion users. Do not remove the global button hover rules to solve one component.
+
+Check companion controls too: color swatch Button, preset/accent Select, segmented choices, import/copy IconButtons and sidebar rows. Test dark/light, Default/Purple/White accents and coarse-pointer layouts. Scoped overrides should not recolor or remove feedback from unrelated controls.
+
+P1. Fix the hue-picker interaction model
+
+Confirmed source:
+- front-end/src/theme/colorModel.js hexToHsl returns saturation=0 for gray, black and white. Hue has no visible effect when saturation=0; black/white also have no chroma at their lightness extrema.
+- AppearanceControls.jsx exposes a Color slider that edits ONLY lightness and a Hue slider that edits ONLY hue. It has no inline saturation control. Both use the ordinary accent-colored MUI slider styling, so the Hue track is not a spectrum.
+- The top type=color input opens a second, platform-native picker rather than providing an inline saturation/value plane.
+- colorModel.test.js explicitly expects changing hue on #808080 to remain #808080. That math is correct. The missing piece is a usable color-selection workflow, not a need to break neutral color math.
+
+Replace the split native-picker-plus-two-generic-sliders experience with one coherent popover. Prefer an inline saturation/value plane with a hue spectrum rail and hex editing, using an existing suitable component only if already available; otherwise implement the small required control with standard browser/React primitives. No heavy dependency or second nested OS dialog is required. Give the plane a visible selection indicator and the hue rail a rainbow gradient with a visible thumb.
+
+Preserve hue as editing state when the chosen color becomes achromatic. Hex cannot encode a hue for black/gray/white: do not reinitialize the user's selected hue to zero after every neutral-color commit or rerender. Initialize from the external value when opening/changing profiles, but distinguish an external reset from a value echoed after this control's own commit. Choosing a hue while black can legitimately leave the hex black; the rail/plane must still show the selected hue, and raising saturation/value must then yield that hue. Never force full saturation whenever hue changes, which would regress pastel preservation.
+
+Ensure pointer dragging works beyond the plane bounds via pointer capture, coordinates clamp correctly, and touch does not scroll the page mid-gesture. Provide keyboard-accessible equivalent controls and meaningful names/values for the color dimensions. Retain local drafts, normalization, valid-on-commit behavior, no-op suppression, preview cancellation and account scoping. Define pointerup, keyboard commit, blur, backdrop and Escape semantics and prevent a late blur/pointerup from re-committing a cancelled gesture. Avoid duplicate commits from multiple overlapping events.
+
+P2. Preview must correspond to the final edit
+
+Current AppearanceSection creates previewTokens from the effective mode even when editing the other mode's card. It exposes only preview background/ink/secondary/border CSS variables. Custom accent changes therefore do not preview accent-colored controls; editing the inactive profile does not visibly preview that profile. Every preview also forces custom:true, although updateProfile only marks surface/ink/contrast changes custom. This can make an accent preview use a different palette path from its committed result.
+
+Use the same pure update/resolve logic for preview and commit so they agree. Scope each profile preview to the correct card or an explicit preview surface; editing the inactive profile must not switch the whole application's mode. Add accent preview coverage if a custom accent is being edited. Avoid a blanket descendant Typography/input rule that overwrites semantic error colors; preserve validation, disabled, selection and status styling. Test that a settled preview matches the committed profile and that cancellation restores the original UI without changing persisted data.
+
+P2. Smoothness has improved but is not finished
+
+The agent's saved profile-after.json reports one theme rebuild/settings write/boot write per gesture, compared with many previously. Preserve that gain. It also reports contrast frameP95 ~33.4ms with 5 long tasks (max 176ms), and color frameP95 50ms with 3 long tasks (max 311ms). These are historical fixture numbers, not proof of the user's current frame rate or a 60fps result.
+
+Profile the current picker and contrast interaction in a consistent environment before changing performance architecture. Current preview state lives in AppearancePanel and recreates the full panel while computing semantic tokens on drag events. If profiling confirms that cost, keep fast pointer state near the control, coalesce visual preview updates to requestAnimationFrame, and avoid rerendering unrelated sections for every event. Flush the final value correctly, cancel scheduled work on account change/unmount, and keep persistence at the gesture boundary. Do not hide lag with transition:all, rebuild the whole theme per movement, or blanket-memoize every component without evidence.
+
+P2. Remaining fidelity boundaries
+
+The preset catalog still contains only Moonlit and ChatGPT; the target screenshot selects Vercel. Do not claim an exact reference match or relabel Moonlit as Vercel. Recover the necessary reference preset only if accessible; otherwise retain an explicit approximation note in the implementation report. Unsupported punctuation/full-width rows were deliberately omitted: do not reintroduce fake toggles. Focus this pass on meaningful icons, reliable controls and measured smoothness rather than expanding the whole catalog.
+
+Required verification
+
+1. Icons: inspect rendered General, Appearance, Database and AI context side by side. Ensure correct, distinct semantic mappings and consistent optical size. Check normal and search navigation presentations, close/clear/import/copy controls and tooltips.
+2. Advanced: capture normal/hover/pressed/keyboard-focus states, collapsed and expanded, light and dark. Compare bounds and backgrounds. Verify Reset does not toggle the disclosure and no neighboring content shifts merely on hover. DOM-only unit tests cannot establish hover fidelity.
+3. Picker: start with #000000, #FFFFFF and #808080; select a blue hue, then add saturation/value and obtain blue without reopening a native dialog. Change a saturated red to blue. Preserve a pastel's saturation. Test neutral->colored->neutral, external reset, account switch, keyboard use, dragging outside bounds and mobile touch. Confirm hue state survives neutral edits without corrupting hex math.
+4. Persistence: no writes for unchanged hex or hue-only edits that leave the serialized color unchanged; exactly the intended final commit for a gesture; Escape cancellation cannot be undone by later events. Verify preview/commit agreement for custom accent and both separated profiles.
+5. Regression: retain current no-op, numeric draft, grouping, routing, search reveal, account isolation and editor-state tests. Existing tests focus on native color input events, not the missing inline saturation workflow or real hover states; extend coverage accordingly. Run focused tests, lint and build in the actual available project runtime.
+6. Evidence: capture before/after screenshots and a brief browser interaction recording or trace for Advanced and the picker. Repeat performance profiling with the same workload/build mode and report remaining long tasks honestly. Preserve unrelated work and do not deploy or commit unless asked.
+
+Deliver the targeted implementation and a short report: root causes fixed, changed files, tests actually run, before/after interaction evidence, performance results and remaining limitations. Do not mark the task complete solely because the icons differ or a Hue slider exists.

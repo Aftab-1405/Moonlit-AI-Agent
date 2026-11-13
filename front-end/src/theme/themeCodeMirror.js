@@ -23,10 +23,8 @@
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { EditorView } from '@codemirror/view';
 import { tags as t } from '@lezer/highlight';
-import { moonlitDarkSyntax } from '@/theme/syntaxPalettes';
+import { getSyntaxPalette } from '@/theme/syntaxPalettes';
 import { primitives } from '@/theme/tokens/primitives';
-
-const CODE_PALETTE = moonlitDarkSyntax;
 
 /**
  * Returns a CodeMirror EditorView theme Extension that matches the Shiki
@@ -35,64 +33,70 @@ const CODE_PALETTE = moonlitDarkSyntax;
  * @param {boolean} transparent use transparent bg (for inline viewers)
  * @returns {Extension} CodeMirror theme extension
  */
-export function getCodeMirrorTheme(transparent = false) {
-  const p = CODE_PALETTE;
+export function getCodeMirrorTheme(transparent = false, themeName = 'moonlit-vercel') {
+  const p = getSyntaxPalette(themeName);
   const bg = transparent ? 'transparent' : p.editorBackground;
 
-  return EditorView.theme({
-    '&': {
-      color: p.editorForeground,
-      backgroundColor: bg,
+  return EditorView.theme(
+    {
+      '&': {
+        color: p.editorForeground,
+        backgroundColor: bg,
+        fontSize: 'var(--font-code-size, 12px)',
+        fontFamily: 'var(--font-code-family, "Geist Mono", monospace)',
+      },
+      '&.cm-focused': {
+        // Override CodeMirror's default focus outline; the caret and active line
+        // identify the editing position without framing the entire surface.
+        outline: 'none',
+      },
+      '.cm-content': {
+        caretColor: 'var(--color-border-focus)',
+      },
+      '.cm-cursor, .cm-dropCursor': {
+        borderLeftColor: 'var(--color-border-focus)',
+      },
+      '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
+        backgroundColor: p.selectionBackground,
+      },
+      '.cm-content ::selection': { color: 'currentColor' },
+      '.cm-gutters': {
+        backgroundColor: 'transparent',
+        color: p.lineNumberForeground,
+        border: 'none',
+      },
+      '.cm-activeLineGutter': {
+        backgroundColor: 'transparent',
+        color: p.lineNumberActiveForeground,
+      },
+      '.cm-activeLine': {
+        backgroundColor: p.lineHighlightBackground,
+      },
+      '.cm-whitespace::before, .cm-tab::before': {
+        color: p.whitespaceForeground,
+      },
+      '&.cm-focused .cm-matchingBracket, &.cm-focused .cm-nonmatchingBracket': {
+        backgroundColor: p.selectionBackground,
+      },
+      '.cm-placeholder': {
+        color: p.lineNumberForeground,
+        fontStyle: 'normal',
+      },
+      // Search panel (if enabled)
+      '.cm-panels': {
+        backgroundColor: p.editorBackground,
+        color: p.editorForeground,
+        borderTop: `1px solid ${primitives.code.panelBorder}`,
+      },
+      '.cm-searchMatch': {
+        backgroundColor: primitives.code.searchMatch,
+      },
+      '.cm-searchMatch-selected': {
+        backgroundColor: primitives.code.searchMatchSelected,
+      },
     },
-    '&.cm-focused': {
-      // Override CodeMirror's default focus outline; the caret and active line
-      // identify the editing position without framing the entire surface.
-      outline: 'none',
-    },
-    '.cm-content': {
-      caretColor: 'var(--color-border-focus)',
-    },
-    '.cm-cursor, .cm-dropCursor': {
-      borderLeftColor: 'var(--color-border-focus)',
-    },
-    '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
-      backgroundColor: p.selectionBackground,
-    },
-    '.cm-gutters': {
-      backgroundColor: 'transparent',
-      color: p.lineNumberForeground,
-      border: 'none',
-    },
-    '.cm-activeLineGutter': {
-      backgroundColor: 'transparent',
-      color: p.lineNumberActiveForeground,
-    },
-    '.cm-activeLine': {
-      backgroundColor: p.lineHighlightBackground,
-    },
-    '.cm-whitespace::before, .cm-tab::before': {
-      color: p.whitespaceForeground,
-    },
-    '&.cm-focused .cm-matchingBracket, &.cm-focused .cm-nonmatchingBracket': {
-      backgroundColor: p.selectionBackground,
-    },
-    '.cm-placeholder': {
-      color: p.lineNumberForeground,
-      fontStyle: 'normal',
-    },
-    // Search panel (if enabled)
-    '.cm-panels': {
-      backgroundColor: p.editorBackground,
-      color: p.editorForeground,
-      borderTop: `1px solid ${primitives.code.panelBorder}`,
-    },
-    '.cm-searchMatch': {
-      backgroundColor: primitives.code.searchMatch,
-    },
-    '.cm-searchMatch-selected': {
-      backgroundColor: primitives.code.searchMatchSelected,
-    },
-  });
+    { dark: themeName !== 'moonlit-light' },
+  );
 }
 
 /**
@@ -104,8 +108,8 @@ export function getCodeMirrorTheme(transparent = false) {
  *
  * @returns {Extension} syntaxHighlighting extension
  */
-export function getCodeMirrorHighlighting() {
-  const p = CODE_PALETTE;
+export function getCodeMirrorHighlighting(themeName = 'moonlit-vercel') {
+  const p = getSyntaxPalette(themeName);
 
   return syntaxHighlighting(
     HighlightStyle.define([

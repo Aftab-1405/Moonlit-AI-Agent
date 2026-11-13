@@ -89,7 +89,7 @@ const getTimelineNodeSx = ({ color, animation, theme, top = TIMELINE_NODE_TOP })
     ? {
         animation,
         // Stop continuous animation for users who prefer reduced motion.
-        '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
+        'html[data-moonlit-reduced-motion="true"] &': { animation: 'none' },
       }
     : {}),
 });

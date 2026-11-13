@@ -26,8 +26,9 @@ it('keeps default controls and selected navigation neutral', () => {
 });
 
 it('renders opt-in accent actions without coloring default or disabled controls', () => {
+  const theme = createMoonlitTheme(createDarkSemanticTokens('#f077af'), DARK);
   render(
-    <ThemeProvider theme={createDarkTheme()}>
+    <ThemeProvider theme={theme}>
       <Button variant="contained">Ordinary</Button>
       <Button variant="contained" color="accent">
         Run
@@ -60,12 +61,12 @@ it('renders opt-in accent actions without coloring default or disabled controls'
 });
 
 it('changes only interaction roles when the source accent changes', () => {
-  const pink = createDarkTheme();
+  const base = createDarkTheme();
   const blue = createMoonlitTheme(createDarkSemanticTokens('#66adf5'), DARK);
   expect(blue.palette.accent.main).toBe('#66adf5');
-  expect(blue.palette.border.focus).toBe(pink.palette.border.focus);
+  expect(blue.palette.border.focus).toBe(base.palette.border.focus);
   expect(blue.palette.border.focus).toBe(blue.palette.text.secondary);
-  expect(blue.palette.accent.selectedBackground).not.toBe(pink.palette.accent.selectedBackground);
+  expect(blue.palette.accent.selectedBackground).not.toBe(base.palette.accent.selectedBackground);
   for (const role of [
     'primary',
     'background',
@@ -78,7 +79,7 @@ it('changes only interaction roles when the source accent changes', () => {
     'info',
     'semanticColors',
   ]) {
-    expect(blue.palette[role]).toEqual(pink.palette[role]);
+    expect(blue.palette[role]).toEqual(base.palette[role]);
   }
   expect(moonlitDarkSyntax.keyword).toBe('#f077af');
 });

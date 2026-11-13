@@ -2,6 +2,7 @@ import {
   Alert,
   Box,
   Button,
+  Divider,
   Link,
   Snackbar,
   Stack,
@@ -12,15 +13,14 @@ import {
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import ButtonLoadingSpinner from '@/components/common/ButtonLoadingSpinner';
+import { Navigate } from 'react-router-dom';
 import DialogShell from '@/components/common/DialogShell';
 import { getConfirmActionGeometrySx } from '@/components/common/dialogActionStyles';
 import PageLoader from '@/components/common/PageLoader';
 import { GitHubBrandIcon } from '@/components/icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFormValidation } from '@/hooks/useFormValidation';
-import AuthBrandPanel, { PRODUCT_COPY } from '@/pages/AuthBrandPanel';
+import AuthBrandPanel from '@/pages/AuthBrandPanel';
 import { getAuthActionSx } from '@/pages/authActionStyles';
 import { getAuthLayoutSx } from '@/pages/authLayoutStyles';
 import { getOutlinedFieldStateSx } from '@/styles/shared';
@@ -58,7 +58,6 @@ function GoogleBrandIcon(props) {
 }
 
 function Auth() {
-  const navigate = useNavigate();
   const theme = useTheme();
   const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
   const {
@@ -99,10 +98,6 @@ function Auth() {
   useEffect(() => {
     document.title = 'Moonlit - Sign In';
   }, []);
-
-  useEffect(() => {
-    if (isAuthenticated) navigate('/chat');
-  }, [isAuthenticated, navigate]);
 
   useEffect(() => {
     resetErrors();
@@ -257,14 +252,14 @@ function Auth() {
     return <PageLoader />;
   }
 
+  if (isAuthenticated) {
+    return <Navigate to="/chat" replace />;
+  }
+
   return (
     <>
       <Box data-auth-page="" sx={authLayoutSx.page}>
-        <AuthBrandPanel
-          actionSx={authActionSx}
-          layoutSx={authLayoutSx}
-          onNavigateHome={() => navigate('/')}
-        />
+        <AuthBrandPanel layoutSx={authLayoutSx} />
 
         <Box component="main" sx={authLayoutSx.formPanel}>
           <Box sx={authLayoutSx.formInner}>
@@ -275,67 +270,68 @@ function Auth() {
                   color: 'text.secondary',
                 })}
               >
-                Account access
+                YOUR AI WORKSPACE
               </Typography>
               <Typography
                 component="h1"
-                sx={(muiTheme) => ({ ...muiTheme.typography.displaySm, mt: 1.5 })}
+                sx={(muiTheme) => ({
+                  ...muiTheme.typography.displaySm,
+                  mt: 1.5,
+                  textWrap: 'balance',
+                })}
               >
                 {tabValue === 0 ? 'Welcome back.' : 'Create your account.'}
               </Typography>
-              <Typography
-                sx={{ mt: 1.5, color: 'text.secondary', ...authLayoutSx.desktopProductCopy }}
-              >
+              <Typography sx={{ mt: 1.5, color: 'text.secondary' }}>
                 {tabValue === 0
-                  ? 'Sign in to continue your database conversations.'
-                  : 'Start querying and visualizing your databases with Moonlit.'}
-              </Typography>
-              <Typography
-                sx={{ mt: 1.5, color: 'text.secondary', ...authLayoutSx.mobileProductCopy }}
-              >
-                {PRODUCT_COPY}
+                  ? 'Pick up where your curiosity left off.'
+                  : 'A new way to explore your data starts here.'}
               </Typography>
 
-              <Box
-                sx={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: 0.5,
-                  p: 0.5,
-                  mt: 4,
-                  border: '1px solid',
-                  borderColor: 'border.subtle',
-                  borderRadius: 999,
-                }}
-              >
-                {['Sign in', 'Sign up'].map((label, index) => (
-                  <Button
-                    key={label}
-                    variant="text"
-                    onClick={() => changeMode(index)}
-                    disabled={authBusy}
-                    aria-pressed={tabValue === index}
-                    sx={{
-                      ...authActionSx,
-                      backgroundColor: tabValue === index ? 'action.selected' : 'transparent',
-                    }}
-                  >
-                    {label}
-                  </Button>
-                ))}
-              </Box>
+              <Stack spacing={1.5} sx={{ mt: 4 }}>
+                <Button
+                  type="button"
+                  fullWidth
+                  variant="outlined"
+                  disabled={authBusy}
+                  loading={authOperation === 'google'}
+                  loadingPosition="start"
+                  startIcon={<GoogleBrandIcon sx={{ fontSize: 18 }} />}
+                  onClick={() => handleProviderSignIn('google')}
+                  sx={authActionSx}
+                >
+                  Continue with Google
+                </Button>
+                <Button
+                  type="button"
+                  fullWidth
+                  variant="outlined"
+                  disabled={authBusy}
+                  loading={authOperation === 'github'}
+                  loadingPosition="start"
+                  startIcon={<GitHubBrandIcon sx={{ fontSize: 18 }} />}
+                  onClick={() => handleProviderSignIn('github')}
+                  sx={authActionSx}
+                >
+                  Continue with GitHub
+                </Button>
+              </Stack>
+              <Divider sx={{ my: 3, color: 'text.secondary', typography: 'caption' }}>
+                or continue with email
+              </Divider>
 
               <Stack
                 component="form"
                 onSubmit={tabValue === 0 ? handleEmailSignIn : handleEmailSignUp}
                 aria-busy={authBusy}
                 spacing={2}
-                sx={{ mt: 3 }}
               >
                 {tabValue === 1 && (
                   <TextField
                     fullWidth
                     label="Display name"
+                    autoComplete="name"
+                    name="displayName"
                     placeholder="Enter your name"
                     value={displayName}
                     disabled={authBusy}
@@ -349,6 +345,8 @@ function Auth() {
                   fullWidth
                   type="email"
                   label="Email"
+                  autoComplete="email"
+                  name="email"
                   placeholder="you@example.com"
                   value={email}
                   disabled={authBusy}
@@ -365,6 +363,8 @@ function Auth() {
                   fullWidth
                   type="password"
                   label="Password"
+                  autoComplete={tabValue === 0 ? 'current-password' : 'new-password'}
+                  name="password"
                   placeholder="Enter your password"
                   value={password}
                   disabled={authBusy}
@@ -387,6 +387,8 @@ function Auth() {
                     fullWidth
                     type="password"
                     label="Confirm password"
+                    autoComplete="new-password"
+                    name="confirmPassword"
                     placeholder="Repeat your password"
                     value={confirmPassword}
                     disabled={authBusy}
@@ -423,55 +425,14 @@ function Auth() {
                   fullWidth
                   type="submit"
                   variant="contained"
+                  color="accent"
+                  loading={authOperation === 'email'}
                   size="large"
                   disabled={authBusy}
                   sx={{ ...authActionSx, mt: '8px !important' }}
                 >
-                  {authOperation === 'email'
-                    ? tabValue === 0
-                      ? 'Signing in'
-                      : 'Creating account'
-                    : tabValue === 0
-                      ? 'Sign in'
-                      : 'Create account'}
+                  {tabValue === 0 ? 'Sign in' : 'Create account'}
                 </Button>
-
-                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
-                  <Button
-                    type="button"
-                    fullWidth
-                    variant="outlined"
-                    disabled={authBusy}
-                    startIcon={
-                      authOperation === 'google' ? (
-                        <ButtonLoadingSpinner size={16} />
-                      ) : (
-                        <GoogleBrandIcon sx={{ fontSize: 18 }} />
-                      )
-                    }
-                    onClick={() => handleProviderSignIn('google')}
-                    sx={authActionSx}
-                  >
-                    {authOperation === 'google' ? 'Connecting' : 'Google'}
-                  </Button>
-                  <Button
-                    type="button"
-                    fullWidth
-                    variant="outlined"
-                    disabled={authBusy}
-                    startIcon={
-                      authOperation === 'github' ? (
-                        <ButtonLoadingSpinner size={16} />
-                      ) : (
-                        <GitHubBrandIcon sx={{ fontSize: 18 }} />
-                      )
-                    }
-                    onClick={() => handleProviderSignIn('github')}
-                    sx={authActionSx}
-                  >
-                    {authOperation === 'github' ? 'Connecting' : 'GitHub'}
-                  </Button>
-                </Box>
               </Stack>
 
               <Typography sx={{ mt: 4, textAlign: 'center', color: 'text.secondary' }}>
@@ -492,16 +453,9 @@ function Auth() {
             </Box>
 
             <Typography
-              sx={(muiTheme) => ({
-                ...muiTheme.typography.captionMonoSm,
-                ...authLayoutSx.mobileProductCopy,
-                mt: 3,
-                color: 'text.disabled',
-                textAlign: 'center',
-                textTransform: 'uppercase',
-              })}
+              sx={{ mt: 4, color: 'text.secondary', textAlign: 'center', typography: 'caption' }}
             >
-              Secure by design · Work with confidence
+              Your workspace for questions, queries, and discoveries.
             </Typography>
           </Box>
         </Box>
@@ -569,6 +523,7 @@ function Auth() {
             fullWidth
             type="email"
             label="Email"
+            autoComplete="email"
             inputRef={resetEmailInputRef}
             value={resetEmail}
             disabled={authOperation === 'reset'}
