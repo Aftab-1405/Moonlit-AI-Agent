@@ -77,6 +77,7 @@ The browser calls relative authentication and `/api` paths. Production routing m
 Before deploying:
 
 - Configure shared Redis for sessions, quotas, checkpoints, limits, and account-activity barriers. Use persistent, non-evicting storage for erasure barrier keys.
+- Restrict Redis network access and application permissions, use TLS, and protect persisted data and backups. Session state can contain database credentials. See [session state and credentials](features/database-querying.md#session-state-and-credentials) for the storage and cleanup behavior.
 - Configure explicit production CORS, secure cookies, a strong secret, least-privilege Firebase/AWS/database credentials, and actual Bedrock model access.
 - Set `TRUSTED_PROXY_CIDRS` to the immediate trusted ingress networks. Do not trust all private networks or arbitrary forwarded headers.
 - Preserve cookie and CSRF headers, SSE frames/heartbeats, connection cancellation, and appropriate proxy timeouts. Verify buffering/compression behavior through the deployed proxy.

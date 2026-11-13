@@ -40,16 +40,20 @@ Firestore remains the canonical conversation store. Qdrant retrieval supplements
 | `/login`                 | Authentication                                 | Public        |
 | `/auth`                  | Compatibility redirect to `/login`              | Public        |
 | `/chat/:conversationId?` | New or saved conversation                      | Authenticated |
+| `/settings/:section?`   | Settings pane over the chat workspace         | Authenticated |
 | `/dashboard/:section?`   | Personal overview, usage, and account surfaces | Authenticated |
 | `/admin`                 | Operational context metrics                    | Administrator |
 
 Authentication waits for session initialization before replacing the entry URL with `/chat` for signed-in users. Protected routes send signed-out visitors to `/login`. Unknown client routes return to `/`. The authentication screen preserves email/password, Google, GitHub, registration, and password-reset flows.
+
+[SettingsRouteContext](../front-end/src/contexts/SettingsRouteContext.jsx) interprets `/settings` and section URLs while routing the background to the previous chat location, or to `/chat` on direct entry. Closing the pane returns to that location. The sections are General, Appearance, Database, and AI context.
 
 [ChatWorkspacePage](../front-end/src/pages/ChatWorkspacePage.jsx) wires `useChatPageController`, supplies slots to `AppShell`, and mounts `GlobalOverlays`. Feature hooks own state coordination. `ChatColumn` composes content; `ChatLayout` owns the stable welcome/transcript/composer layout and transcript scroll container. `ArtifactLoader` hosts SQL, table/analysis, and diagram views.
 
 State belongs at the smallest useful boundary:
 
 - Context owns authentication, database state, settings, and theme.
+- Supported AI and database preferences sync through the settings API. Appearance is browser-local and scoped to the signed-in account.
 - React Query owns shared request caching; `src/api/` owns endpoint paths and HTTP/SSE handling.
 - Route/session identity scopes conversation history, drafts, SQL tabs, and selected artifacts.
 - Local components own input, popovers, and presentation state.
@@ -92,6 +96,8 @@ Authentication endpoints are unversioned. [api_router.py](../back-end/api_router
 The outer response boundary applies safe request IDs, response-security headers, and standardized error envelopes, including rejected requests. Request-body limits apply before parsing. Mutating cookie-authenticated requests use CSRF checks with explicitly configured exemptions. Privileged-action audit middleware records selected outcomes without reading sensitive request bodies.
 
 Firebase authentication proves identity; resource ownership, administrator access, model selection, and database-session authorization are separate checks. Client guards improve navigation but cannot authorize backend work. Database metadata, SQL, stored messages, tool results, and provider output remain untrusted.
+
+Authenticated database routes load connection configuration from server-side session state. See [database credential handling](features/database-querying.md#session-state-and-credentials) for the storage and cleanup lifecycle.
 
 Public failure boundaries use stable codes and sanitized messages. Dedicated audit events exclude raw credentials and SQL, and database diagnostics use safe helpers. Other application and third-party logging paths need separate review; these controls are not a guarantee that every log is sanitized. The local audit sink requires deployment-managed collection and retention. See [security findings](security/findings.md) and [operations](operations.md#audit-logging).
 

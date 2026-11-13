@@ -1,6 +1,6 @@
 # Moonlit design system
 
-This guide describes the current dark UI and reusable interaction rules. Values come from theme and interface code. The composer baseline is 26px.
+This guide describes Moonlit's appearance and reusable interaction rules. Values come from theme and interface code. The composer baseline is 26px.
 
 ## Token ownership
 
@@ -13,12 +13,13 @@ This guide describes the current dark UI and reusable interaction rules. Values 
 | [createMoonlitTheme.js](../front-end/src/theme/createMoonlitTheme.js) | MUI palette and component defaults/overrides |
 | [interfaceChrome.js](../front-end/src/features/styles/interfaceChrome.js) | Shell/composer geometry, surfaces, and layout helpers |
 | [typography.js](../front-end/src/theme/typography.js) | Typography roles |
+| [appearance.js](../front-end/src/theme/appearance.js) | Appearance defaults, presets, profile validation, and import/export |
 
-Use semantic roles and shared helpers from application components. Raw colors belong in primitive tokens or intentionally independent third-party syntax palettes. The application is dark-only; stored legacy light preferences do not select a second runtime theme.
+Use semantic roles and shared helpers from application components. Raw colors belong in primitive tokens or intentionally independent third-party syntax palettes. Appearance supports System, Light, and Dark. System follows the OS color scheme. Users can customize colors, contrast, and typography, and can edit light and dark profiles separately. The signed-in account's appearance persists in the current browser. See [Settings context](../front-end/src/contexts/SettingsContext.jsx) and [Theme context](../front-end/src/contexts/ThemeContext.jsx).
 
 ## Surfaces, fonts, and geometry
 
-The current shell/default background is black, paper is neutral 925, inputs are neutral 900, the composer is neutral 890, and its context surface is neutral 860. Read semantic mappings instead of copying literal colors into components. Surfaces are flat with hairline boundaries; arbitrary gradients and drop shadows are not the shared workspace language.
+The shell, paper, input, composer, and context surfaces follow semantic colors for the active appearance profile. Surfaces use flat fills and hairline boundaries. Read semantic mappings when adding components so they respond to changes in mode or profile.
 
 The sans stack is `Geist, Inter, system-ui, ...`; monospace uses Geist Mono, and content typography has an Arial stack. Weight 400 is the standard product typography treatment. Technical captions use defined mono/caption roles.
 
@@ -39,12 +40,12 @@ Artifact content panels use `ArtifactCanvasPanel`/`ArtifactUtilityPanel` for cli
 
 ## Accent and focus
 
-`primitives.workspace.accent` owns the workspace accent (currently `#f077af`). Hover, pressed, contrast text, foreground, and selection variants derive centrally. Changing it requires a rebuild/reload; it is not a runtime preference.
+Appearance controls set the accent at runtime. The Moonlit preset's Default accent resolves to white in dark mode and near-black in light mode. Semantic tokens derive the appropriate foreground, hover, pressed, and selection colors from the active profile.
 
 - Use `color="accent"` explicitly for Send, Run query, and the main non-destructive dialog action. `palette.primary` remains neutral emphasis.
 - Checked controls, reasoning progress, selected-option checkmarks, and active drag indicators use accent.
 - Tabs, segmented controls, sidebar navigation, ordinary hover, loaders, headings, and panel surfaces remain neutral.
-- Focus rings, focused input/editor borders, and carets use visible neutral roles independent of accent.
+- Keyboard focus uses visible semantic indicators. Pointer activation suppresses keyboard-style outlines on shared controls while focused fields and editors retain their own interaction styles.
 - Status/destructive actions retain success/error/warning roles; disabled controls remain neutral.
 - Provider/database identity, charts, syntax, skills, and diff colors have separate semantics. Do not recolor them when changing the workspace accent.
 
@@ -61,7 +62,6 @@ Use MUI `Button` and `IconButton`, including `Button component={Link}` for navig
 | Tertiary action | `variant="text"` (MUI default) |
 | Destructive action | `color="error"`; contained for the final destructive confirmation when appropriate |
 | Icon action | `IconButton` with a meaningful accessible name |
-| Marketing emphasis | Existing neutral contained/outlined palette |
 
 Text-button small/medium/large desktop minimum heights are 32/36/40px, horizontal padding is 12/16/20px, and icon sizes are 18/20/22px. Medium is the default. Icon buttons use 32/36/44px. Labels use sentence case, weight 400, a 20px line height, and content-driven width; allow long labels to wrap. Mobile/coarse-pointer targets expand to at least 44px.
 
@@ -81,7 +81,7 @@ Use semantic buttons/links, accessible names, visible focus, and keyboard/pointe
 
 ## Authentication entry
 
-The root and `/login` share a dark authentication screen. Desktop uses a quiet brand panel with an explicitly illustrative question-to-insight workflow beside a 400px-wide form. Below 768px the brand reduces to the wordmark and the form takes priority; the page owns vertical scrolling for short screens and registration.
+The root and `/login` share the authentication screen and use the shared theme. Desktop uses a quiet brand panel with an illustrative question-to-insight workflow beside the form. Below 768px the form takes priority. The page owns vertical scrolling for short screens and registration.
 
 Provider buttons use their identity colors and outlined surfaces. The main sign-in/create-account action uses the workspace accent; labels and focus states retain shared semantics. Authentication controls have 48px minimum heights and explicit autofill hints. The product illustration uses a single reduced-motion-aware entrance, with no live data requests or workspace component imports. The shared logo and theme remain application assets after removing the marketing page.
 
@@ -95,13 +95,13 @@ Each caller owns placement, width, search, descriptions, and controls. It should
 
 ## Settings overlay
 
-Settings is a non-modal pane beside the existing 52px application rail. The rail remains visible and interactive; chat and artifact surfaces are hidden and inert while remaining mounted. Opening and closing settings does not change the saved sidebar expansion preference; choosing a rail section leaves settings and follows the normal sidebar navigation behavior. No new settings route or history behavior is introduced.
+Settings is a pane beside the existing 52px application rail. Chat and artifact surfaces stay mounted behind it while hidden and inert. Section selection updates the `/settings/<section>` URL. Closing settings restores the background chat location. See the [route behavior](architecture.md#frontend).
 
-Both the pane and mobile navigation use the workspace's black `background.default`. Desktop has a 238px settings sidebar, a search field for section names, and an independently scrolling content area capped at 768px including 20px side gutters. The title has a 60px row below 16px top padding; content begins after a 1px header boundary and 20px gutter. Section headings occupy 52px, with 16px grouped surfaces beneath. Stable scroll gutters prevent alignment shifts. Borders use explicit semantic colors in responsive shorthands to avoid falling back to bright text color.
+The pane and mobile navigation use the active theme's `background.default`. Desktop has a 288px settings sidebar and an independently scrolling content area with a 768px maximum content width. Navigation groups General and Appearance under Personal, and Database and AI context under Workspace. [Settings search](../front-end/src/features/overlays/settings/settingsRegistry.js) matches individual settings by label and description and can reveal and focus a selected control.
 
 The explicit `settings` preference variant uses uniform groups, inset separators, 14px/20px labels, 12px/16px descriptions, 62px minimum rows, and pill selectors. Selectors are 36px on desktop and at least 44px on touch devices. Switches keep their compact visual shape with a 44px touch target. Shared components retain the database connection dialog's existing presentation by default.
 
-General, Database, and AI context keep their original internal IDs and persistence. Reset all settings restores all AI/database preferences, including model selection, without deleting context data; it is absent from AI context. Settings has no modal close icon. Desktop users leave through the application rail or Escape; mobile users can choose Home in the navigation drawer. Select menus and drawers consume Escape before the containing pane. The chat controller owns focus restoration.
+General and Database offer Reset all settings, which restores AI, database, and appearance preferences, including model selection. Desktop users can leave through the application rail or Escape. Mobile users can choose Home in the navigation drawer. Select menus and drawers consume Escape before the containing pane. The chat controller owns focus restoration.
 
 ## Maintenance
 

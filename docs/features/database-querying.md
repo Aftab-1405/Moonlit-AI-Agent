@@ -24,6 +24,12 @@ Application validation complements tenant-scoped least-privilege roles, restrict
 | [query_result.py](../../back-end/service/database/query_result.py) | Shared positional snapshot and timeline projection |
 | [adapters/](../../back-end/service/database/adapters/) | Per-DBMS connection, metadata, execution, and explain behavior |
 
+### Session state and credentials
+
+The backend stores the active connection's `db_config` in authenticated session state. It can contain a database password or a credential-bearing connection string. With Redis configured, [session state](../../back-end/dependencies.py) is serialized as JSON with a TTL. The session cookie hash identifies the key, and the application does not encrypt the value. The development fallback stores state in process memory. Connection responses expose a [public projection](../../back-end/controller/database_controller.py) that omits passwords and connection strings. The browser's **Remember connection** option saves form metadata such as host, port, username, and database.
+
+Explicit disconnect clears the session's connection configuration, and logout attempts to delete the current session record. Connection persistence controls reuse after tab close. The close handler or a later authenticated request can clear expired connections, while the session record has its own TTL. See [account erasure](account-erasure.md) for account-wide cleanup and [deployment](../operations.md#deployment) for Redis protection.
+
 ## Execution and cancellation
 
 Queries use effective request/settings limits and driver-specific deadlines. PostgreSQL/Oracle cancellation is best effort; unsupported driver paths must not claim that an application timeout stopped the underlying statement. SQL Server uses its configured execution deadline. Cancellation is checked after setup and before executing the user statement, with cursor/session cleanup on exit.
