@@ -107,4 +107,6 @@ General and Database offer Reset all settings, which restores AI, database, and 
 
 ## Maintenance
 
+The Appearance presets use Moonlit defaults and measured reference colors. Custom color generation follows Moonlit's own mode-aware rules. Import accepts Moonlit v1 profiles and the supported subset of Codex theme data. Keep transient color and contrast previews scoped to the profile being edited, and commit validated changes through the shared appearance settings.
+
 Update this guide and the owning tokens together when design intent changes. Keep durable design decisions here; do not retain interface-inspection dumps or separate research logs in the repository.

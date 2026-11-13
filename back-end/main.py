@@ -446,7 +446,7 @@ def create_app() -> FastAPI:
     if AppConfig.RATELIMIT_ENABLED:
         app.state.limiter = limiter
         app.add_exception_handler(RateLimitExceeded, _rate_limit_exception_handler)
-        logger.info(f"Rate limiting enabled: {AppConfig.RATELIMIT_DEFAULT}")
+        logger.info("HTTP rate limiting enabled for routes with declared limits")
 
     # Configure LLM rate limiter (single-key rate limiting)
     # FIX [M19]: Pass the Redis client so the rate limiter can use a shared

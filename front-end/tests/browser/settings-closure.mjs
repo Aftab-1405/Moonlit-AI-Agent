@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import { connect } from './accent-cdp.mjs';
+await fs.mkdir('qa-output/accent-flow-qa', { recursive: true });
 const c = await connect(),
   checks = [];
 const check = (name, pass, detail) => checks.push({ name, pass: !!pass, detail });
@@ -81,7 +82,7 @@ try {
 } catch (e) {
   check('runner', false, e.stack);
 }
-await fs.writeFile('docs/accent-flow-qa/settings-closure.json', JSON.stringify(checks, null, 2));
+await fs.writeFile('qa-output/accent-flow-qa/settings-closure.json', JSON.stringify(checks, null, 2));
 console.log(JSON.stringify(checks, null, 2));
 c.close();
 if (checks.some((c) => !c.pass)) process.exitCode = 1;

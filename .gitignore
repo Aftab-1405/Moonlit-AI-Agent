@@ -74,6 +74,7 @@ out/
 # Logs
 logs/
 *.log
+*.cpuprofile
 backend.log
 npm-debug.log*
 yarn-debug.log*
@@ -148,6 +149,21 @@ agent/
 security-audit/
 .superpowers/
 /docs/superpowers/
+/front-end/docs/superpowers/
+
+# Local QA output, historical work material, and personal tooling.
+/.local-artifacts/
+/front-end/qa-output/
+/front-end/test-results/
+/front-end/playwright-report/
+/front-end/.interaction-*
+/front-end/docs/*-qa/
+/front-end/docs/*-report.md
+/docs/*-prompt.txt
+/docs/*-evidence.json
+/docs/*-live-comparison.json
+/package.json
+/package-lock.json
 
 # Private historical module findings; never include in ordinary documentation commits.
 /docs/security/module-findings.local.md

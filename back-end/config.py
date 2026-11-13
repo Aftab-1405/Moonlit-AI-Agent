@@ -272,7 +272,6 @@ class Config:
     # Rate Limiting Configuration
     RATELIMIT_ENABLED = os.getenv("RATELIMIT_ENABLED", "True").lower() == "true"
     RATELIMIT_STORAGE_URL = os.getenv("RATELIMIT_STORAGE_URL", "memory://")
-    RATELIMIT_DEFAULT = os.getenv("RATELIMIT_DEFAULT", "200 per day, 50 per hour")
     _trusted_proxy_cidrs_raw = os.getenv("TRUSTED_PROXY_CIDRS", "127.0.0.1/32,::1/128")
     TRUSTED_PROXY_CIDRS = tuple(cidr.strip() for cidr in _trusted_proxy_cidrs_raw.split(",") if cidr.strip())
 
@@ -349,11 +348,6 @@ class Config:
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "lax"
     SESSION_EXPIRE_SECONDS = int(os.getenv("SESSION_EXPIRE_SECONDS", 86400))  # 24 hours
-    # Legacy grace period — kept for backward compatibility but no longer used
-    # for implicit-close detection (use SESSION_IMPLICIT_CLOSE_GRACE_SECONDS
-    # instead). Was previously 45s, which caused false-positive disconnects
-    # when browsers throttled background-tab timers.
-    SESSION_ACTIVITY_GRACE_SECONDS = int(os.getenv("SESSION_ACTIVITY_GRACE_SECONDS", 45))
     # Implicit-close grace period: how long the heartbeat can be silent before
     # the backend treats the tab as closed. Default 5 minutes — generous enough
     # to survive browser timer throttling (Chrome throttles to 1/min after 5
@@ -469,9 +463,6 @@ class DevelopmentConfig(Config):
     SESSION_COOKIE_SECURE = False  # Allow HTTP for localhost
     SESSION_COOKIE_SAMESITE = "lax"
 
-    # Relaxed rate limits for testing
-    RATELIMIT_DEFAULT = os.getenv("RATELIMIT_DEFAULT", "1000 per day, 200 per hour")
-
     # LLM rate limiting disabled for dev - key rotation still works
     LLM_RATELIMIT_ENABLED = os.getenv("LLM_RATELIMIT_ENABLED", "False").lower() == "true"
     USER_QUOTA_ENABLED = os.getenv("USER_QUOTA_ENABLED", "False").lower() == "true"
@@ -489,9 +480,6 @@ class StagingConfig(Config):
     SESSION_COOKIE_SECURE = True  # Require HTTPS
     SESSION_COOKIE_SAMESITE = "strict"
 
-    # Slightly relaxed rate limits for QA testing
-    RATELIMIT_DEFAULT = os.getenv("RATELIMIT_DEFAULT", "500 per day, 100 per hour")
-
     # LLM rate limiting - enabled by default for staging, can override via .env
     LLM_RATELIMIT_ENABLED = os.getenv("LLM_RATELIMIT_ENABLED", "True").lower() == "true"
     LLM_MAX_RPM_PER_KEY = int(os.getenv("LLM_MAX_RPM_PER_KEY", 20))
@@ -499,7 +487,6 @@ class StagingConfig(Config):
 
     # Shorter session for staging tests
     SESSION_EXPIRE_SECONDS = int(os.getenv("SESSION_EXPIRE_SECONDS", 43200))  # 12 hours
-    SESSION_ACTIVITY_GRACE_SECONDS = int(os.getenv("SESSION_ACTIVITY_GRACE_SECONDS", 45))
 
 
 class ProductionConfig(Config):
@@ -516,7 +503,6 @@ class ProductionConfig(Config):
 
     # Production rate limiting
     RATELIMIT_ENABLED = os.getenv("RATELIMIT_ENABLED", "True").lower() == "true"
-    RATELIMIT_DEFAULT = os.getenv("RATELIMIT_DEFAULT", "200 per day, 50 per hour")
 
     # LLM rate limiting - enabled by default for production, can override via .env
     LLM_RATELIMIT_ENABLED = os.getenv("LLM_RATELIMIT_ENABLED", "True").lower() == "true"
@@ -527,7 +513,6 @@ class ProductionConfig(Config):
     # Tighter query limits for production
     MAX_QUERY_RESULTS = int(os.getenv("MAX_QUERY_RESULTS", 5000))
     QUERY_TIMEOUT_SECONDS = int(os.getenv("QUERY_TIMEOUT_SECONDS", 15))
-    SESSION_ACTIVITY_GRACE_SECONDS = int(os.getenv("SESSION_ACTIVITY_GRACE_SECONDS", 45))
 
     @classmethod
     def validate_production_settings(cls):
@@ -563,7 +548,6 @@ class TestingConfig(Config):
     # Test-friendly settings
     SESSION_COOKIE_SECURE = False  # Tests often run without HTTPS
     SESSION_EXPIRE_SECONDS = 3600  # 1 hour - short for tests
-    SESSION_ACTIVITY_GRACE_SECONDS = int(os.getenv("SESSION_ACTIVITY_GRACE_SECONDS", 45))
 
     # Fast timeouts for test speed
     QUERY_TIMEOUT_SECONDS = 5

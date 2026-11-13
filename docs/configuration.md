@@ -84,7 +84,6 @@ See [audit logging](operations.md#audit-logging) for privacy, rotation, shipping
 | `CSRF_HEADER_NAME` | `x-csrf-token` | Backend CSRF-header name. The frontend currently hardcodes this default; changing it requires matching frontend changes. |
 | `CSRF_EXEMPT_PATHS` | `/api/v1/user/session/close` | Comma-separated paths exempt from CSRF enforcement. |
 | `SESSION_EXPIRE_SECONDS` | `86400` (12h staging) | Configured session lifetime in seconds; testing fixes this to 3600. |
-| `SESSION_ACTIVITY_GRACE_SECONDS` | `45` | Legacy grace period (kept for backward compat; superseded by `SESSION_IMPLICIT_CLOSE_GRACE_SECONDS`). |
 | `SESSION_IMPLICIT_CLOSE_GRACE_SECONDS` | `300` | Heartbeat silence tolerance before treating the tab as closed (5 min survives browser throttling). |
 | `REDIS_SOCKET_CONNECT_TIMEOUT_SECONDS` | `2` | Redis socket connect timeout in seconds (used by session-state Redis client). |
 | `REDIS_SOCKET_TIMEOUT_SECONDS` | `5` | Redis socket timeout/read deadline in seconds (used by session-state Redis client). |
@@ -106,6 +105,8 @@ See [audit logging](operations.md#audit-logging) for privacy, rotation, shipping
 See the [HTTP response contract](architecture.md#http-response-contract) for request IDs, security headers, and error envelopes.
 
 The browser API client and chat-session lifecycle hook both use the default CSRF names directly. Keep backend names aligned with [client.js](../front-end/src/api/client.js) and [useChatPageSessionLifecycle.js](../front-end/src/hooks/chat-page/useChatPageSessionLifecycle.js), including any proxy/header configuration.
+
+The legacy `SESSION_ACTIVITY_GRACE_SECONDS` variable has been retired. Set `SESSION_IMPLICIT_CLOSE_GRACE_SECONDS` to tune fallback close detection. The browser's Connection persistence preference controls how long the cached connection can be reused after the recorded close time.
 
 ### CORS
 
@@ -186,8 +187,9 @@ All 8 are required — `Config.get_firebase_credentials()` raises `ValueError: M
 |---|---|---|
 | `RATELIMIT_ENABLED` | `True` (`False` in testing) | Master toggle for the slowapi IP-level limiter. |
 | `RATELIMIT_STORAGE_URL` | `memory://` | Storage backend URL. **Must use shared storage in staging/production when HTTP rate limiting is enabled**; lifespan rejects memory storage in that case. |
-| `RATELIMIT_DEFAULT` | `200 per day, 50 per hour` (different in dev/staging) | Displayed in the startup log. The current limiter enforces limits declared on routes and does not register this string as a global limit. |
 | `TRUSTED_PROXY_CIDRS` | `127.0.0.1/32,::1/128` | Comma-separated immediate ingress proxy networks whose forwarding headers may be trusted. Keep loopback-only for direct Uvicorn; set exact proxy CIDRs for a future deployment. Invalid entries fail startup. |
+
+HTTP limits are declared on individual routes. The retired `RATELIMIT_DEFAULT` variable only affected startup logging.
 
 ### SQL Query Security
 

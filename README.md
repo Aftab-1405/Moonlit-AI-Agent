@@ -21,7 +21,7 @@ back-end/             Python/FastAPI application, tests, and runtime skills
 front-end/            React/Vite application, tests, and browser fixtures
 ```
 
-The applications have separate dependency manifests and lockfiles. Run installation and application commands in the relevant directory; the root `package.json` does not orchestrate them.
+The applications have separate dependency manifests and lockfiles. Run Python installation and application commands from `back-end/`, and npm commands from `front-end/`.
 
 ## Local quickstart
 

@@ -1,4 +1,0 @@
-import { mergeConfig } from 'vite';
-import config from './vite.config.js';
-import path from 'node:path';
-export default mergeConfig(config, { resolve: { alias: [{ find: '@/contexts/AuthContext', replacement: path.resolve('.interaction-qa-auth.jsx') }] } });

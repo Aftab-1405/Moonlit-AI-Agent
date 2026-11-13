@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import { connect } from './accent-cdp.mjs';
+await fs.mkdir('qa-output/accent-flow-qa', { recursive: true });
 const c = await connect(),
   checks = [],
   metrics = {};
@@ -90,7 +91,7 @@ try {
   );
   const shot = await c.call('Page.captureScreenshot', { format: 'png' });
   await fs.writeFile(
-    'docs/accent-flow-qa/custom-profile-preview.png',
+    'qa-output/accent-flow-qa/custom-profile-preview.png',
     Buffer.from(shot.data, 'base64'),
   );
   // Profile the active profile commit with the transcript, composer, editor and chart mounted.
@@ -116,7 +117,7 @@ try {
   await pointer('mouseReleased', drag, 0.2);
   await c.wait(500);
   const profile = (await c.call('Profiler.stop')).profile;
-  await fs.writeFile('docs/accent-flow-qa/final-commit.cpuprofile', JSON.stringify(profile));
+  await fs.writeFile('qa-output/accent-flow-qa/final-commit.cpuprofile', JSON.stringify(profile));
   Object.assign(
     metrics,
     await c.js(
@@ -142,7 +143,7 @@ try {
   check('runner', false, e.stack);
 }
 await fs.writeFile(
-  'docs/accent-flow-qa/preview-performance.json',
+  'qa-output/accent-flow-qa/preview-performance.json',
   JSON.stringify({ checks, metrics }, null, 2),
 );
 console.log(
