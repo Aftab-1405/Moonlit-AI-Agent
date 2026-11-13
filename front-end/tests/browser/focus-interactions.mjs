@@ -1,5 +1,6 @@
 // Run from the frontend root against tests/focus.vite.config.mjs and a dedicated Chrome CDP port.
 import fs from 'node:fs/promises';
+await fs.mkdir('qa-output/interaction-focus-qa', { recursive: true });
 const label=process.argv[2] || 'after';
 const tabs=await(await fetch('http://127.0.0.1:9333/json')).json();
 const ws=new WebSocket(tabs.find(t=>t.type==='page').webSocketDebuggerUrl);
@@ -13,7 +14,7 @@ const mouse=(type,x,y,pressed=false)=>call('Input.dispatchMouseEvent',{type,x,y,
 const key=async(k,code=k)=>{const vk={Tab:9,Escape:27,Enter:13,' ':32,ArrowDown:40,ArrowRight:39}[k]||0;await call('Input.dispatchKeyEvent',{type:'keyDown',key:k,code,windowsVirtualKeyCode:vk,...(k==='Enter'?{text:'\r'}:k===' '?{text:' '}: {})});await call('Input.dispatchKeyEvent',{type:'keyUp',key:k,code,windowsVirtualKeyCode:vk});};
 const rect=async selector=>{await js(`document.querySelector(${JSON.stringify(selector)}).scrollIntoView({block:'center',behavior:'instant'})`);await wait(80);return js(`document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect().toJSON()`);};
 const click=async selector=>{const r=await rect(selector);await mouse('mouseMoved',r.x+r.width/2,r.y+r.height/2);await mouse('mousePressed',r.x+r.width/2,r.y+r.height/2,true);await mouse('mouseReleased',r.x+r.width/2,r.y+r.height/2);await wait(180);};
-const shot=async name=>{const {data}=await call('Page.captureScreenshot',{format:'png'});await fs.writeFile(`docs/interaction-focus-qa/${label}-${name}.png`,Buffer.from(data,'base64'));};
+const shot=async name=>{const {data}=await call('Page.captureScreenshot',{format:'png'});await fs.writeFile(`qa-output/interaction-focus-qa/${label}-${name}.png`,Buffer.from(data,'base64'));};
 const checks=[];const check=(name,pass,details)=>checks.push({name,pass:!!pass,details});
 const measure=selector=>js(`(()=>{const e=document.querySelector(${JSON.stringify(selector)}),root=e.closest('.MuiInputBase-root')||e,field=root.querySelector('fieldset'),s=getComputedStyle(root),i=getComputedStyle(e),a=getComputedStyle(root,'::after');return {active:document.activeElement===e,expanded:e.getAttribute('aria-expanded'),hover:root.matches(':hover'),border:field?[getComputedStyle(field).borderTopWidth,getComputedStyle(field).borderTopStyle,getComputedStyle(field).borderTopColor].join(' '):'',outline:s.outlineWidth+' '+s.outlineStyle,inputOutline:i.outlineWidth+' '+i.outlineStyle,shadow:s.boxShadow,background:s.backgroundColor,underline:a.borderBottomWidth+' '+a.borderBottomStyle,focused:root.classList.contains('Mui-focused'),modality:document.documentElement.getAttribute('data-moonlit-input-modality')}})()`);
 async function field(name,selector,{dropdown=false,underline=false}={}){
@@ -59,4 +60,4 @@ await click('.cm-content');check('SQL editor pointer focus has no extra outline'
 await js('focusQA.open("auth")');await until(`!!document.querySelector('input[type=email]')`);await field('actual authentication email','input[type=email]');await js('focusQA.open("controls")');await wait(200);
 await js('focusQA.open("database")');await until(`!!document.querySelector('input[name=host]')`);await field('actual database Host','input[name=host]',{underline:true});await key('Escape');await wait(350);
 }catch(e){checks.push({name:'runner',pass:false,error:e.stack});}
-await fs.writeFile(`docs/interaction-focus-qa/${label}.json`,JSON.stringify(checks,null,2));console.log(JSON.stringify({label,passed:checks.filter(c=>c.pass).length,failed:checks.filter(c=>!c.pass)},null,2));ws.close();if(checks.some(c=>!c.pass))process.exitCode=1;
+await fs.writeFile(`qa-output/interaction-focus-qa/${label}.json`,JSON.stringify(checks,null,2));console.log(JSON.stringify({label,passed:checks.filter(c=>c.pass).length,failed:checks.filter(c=>!c.pass)},null,2));ws.close();if(checks.some(c=>!c.pass))process.exitCode=1;

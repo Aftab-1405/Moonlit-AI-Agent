@@ -2,7 +2,7 @@ import { ThemeProvider } from '@mui/material/styles';
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import UserProfileMenu from '@/features/shell/UserProfileMenu';
+import UserProfileMenu from '@/features/sidebar-left/components/ProfilePreview';
 import { createDarkTheme } from '@/theme';
 
 const theme = createDarkTheme();

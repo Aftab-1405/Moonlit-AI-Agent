@@ -21,11 +21,11 @@ back-end/             Python/FastAPI application, tests, and runtime skills
 front-end/            React/Vite application, tests, and browser fixtures
 ```
 
-The applications have separate dependency manifests and lockfiles. Run installation and application commands in the relevant directory; the root `package.json` does not orchestrate them.
+The applications have separate dependency manifests and lockfiles. Run Python installation and application commands from `back-end/`, and npm commands from `front-end/`.
 
 ## Local quickstart
 
-You need Python 3.12+, uv 0.12.5, and Node.js 20.19+ or 22.12+ for Vite 7. You also need Firebase Authentication/Firestore credentials, AWS credentials with access to configured Bedrock models, and Qdrant when VAMP memory is enabled. Redis is optional for single-process development and required for staging/production.
+You need Python 3.12+, uv 0.12.5, and a Node.js version supported by the [frontend lockfile](front-end/package-lock.json). Use Node.js 24.15+ on the 24.x line or 22.22.2+ on the 22.x line for a development install, including the test dependencies. You also need Firebase Authentication/Firestore credentials, AWS credentials with access to configured Bedrock models, and Qdrant when VAMP memory is enabled. Redis is optional for single-process development and required for staging/production.
 
 ### Configure services
 
@@ -66,6 +66,7 @@ Use the [contributing guide](docs/contributing.md#validation) for backend tests/
 | Need | Guide |
 | --- | --- |
 | Understand the application and data ownership | [Architecture](docs/architecture.md) |
+| Trace sign-in, session cookies, and CSRF | [Authentication and session lifecycle](docs/architecture.md#authentication-and-session-lifecycle) |
 | Develop, test, or update documentation | [Contributing](docs/contributing.md) |
 | Configure the backend and its dependencies | [Configuration](docs/configuration.md) |
 | Run services, deploy, or troubleshoot | [Operations](docs/operations.md) |

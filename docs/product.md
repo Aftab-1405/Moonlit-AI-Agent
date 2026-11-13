@@ -4,7 +4,7 @@ Moonlit helps authenticated users explore relational databases through a streami
 
 ## Users and journeys
 
-Visitors can view the landing page and authenticate through Firebase. Authenticated users can manage owned conversations, database connections, settings, usage, and account deletion. Administrator telemetry requires the configured backend `ADMIN_UID`; frontend guards are navigation assistance.
+Visitors can sign in or register through Firebase at `/` or `/login`. Authenticated users can manage owned conversations, database connections, settings, usage, and account deletion. Administrator telemetry requires the configured backend `ADMIN_UID`; frontend guards are navigation assistance.
 
 The main journey is to sign in, optionally connect a database, choose an authorized model, ask a question, observe progress, inspect SQL/results/diagrams, and continue or revisit the conversation. Users can switch context, recover from supported interruptions, search/rename/delete conversations, and manage personal settings.
 
@@ -16,15 +16,15 @@ Current surfaces include:
 - Bedrock model selection, capability-aware Low/Medium/High reasoning preferences, and workflow task modes.
 - Perspective analysis, SQL editing, Markdown/code rendering, and React Flow diagrams.
 - Personal dashboard/usage, account erasure, and backend-authorized administrator metrics.
-- Dark-only responsive UI with a 768px primary layout transition.
+- Light, dark, and system appearance modes, with runtime accent and profile controls and a 768px primary layout transition.
 
-Database mutation, SQLite connections, additional LLM providers, voice/upload interfaces, branching, sharing, regeneration/versioning, and a selectable light theme are outside the current implemented scope. A new capability needs supporting behavior and contracts before exposing an affordance for it.
+Database mutation, SQLite connections, additional LLM providers, voice/upload interfaces, branching, sharing, and regeneration/versioning are outside the current implemented scope. A new capability needs supporting behavior and contracts before exposing an affordance for it.
 
 ## Behavioral requirements
 
 Identity, ownership, model authorization, database policy, and quotas are enforced on the server. Database metadata and generated output are untrusted. Results preserve execution/source provenance; a historical result must never imply it was executed against the current connection.
 
-Settings are synchronized per account. The current settings reset applies immediately. The frontend maps `auto` task mode to `normal` on the wire, so it cannot always distinguish automatic classification from an explicit Standard choice. Reasoning effort and agent task mode have different meanings; see [conversations](features/conversations.md#models-and-task-modes).
+Supported AI and database preferences synchronize through the account settings API. Appearance preferences are stored locally in the browser under the signed-in account. The current settings reset applies immediately. The frontend maps `auto` task mode to `normal` on the wire, so it cannot always distinguish automatic classification from an explicit Standard choice. Reasoning effort and agent task mode have different meanings; see [conversations](features/conversations.md#models-and-task-modes).
 
 Loading, empty, disabled, error, partial, and interrupted states must remain understandable and keyboard-accessible. Opening an artifact, changing layout, or navigating back to a cached conversation must preserve the correct session's draft/history/editor state and reject stale asynchronous completions.
 
@@ -60,6 +60,5 @@ Debug identity fallback is restricted to absent cookies. Rejected sessions stay 
 - Product analytics, consent, privacy, supported regions, and data-residency requirements.
 - Bedrock model availability and quota/pricing policy by environment or tenant.
 - Approved test accounts and database fixtures for repeatable end-to-end validation.
-- Whether a future light theme is desirable, followed by a complete palette and component specification before implementation.
 
 Track new decisions here or in the owning feature guide. Avoid a second delivery-status table in the README or separate frontend/backend journals.

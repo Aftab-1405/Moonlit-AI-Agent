@@ -15,7 +15,9 @@ Conversation IDs are canonical UUIDs and every access checks the authenticated o
 | [streaming.py](../../back-end/api_contract/streaming.py) | Declared SSE models |
 | [useMessageStreaming.js](../../front-end/src/hooks/chat-page/useMessageStreaming.js) | Browser stream handling |
 
-Chat uses `POST /api/v1/pass_user_prompt_to_llm`; supported interrupted runs resume through `POST /api/v1/resume_agent`. SSE carries JSON `data:` frames and transport heartbeat comments. Content, thinking, tools, usage, task state, interruption, and terminal failures are distinct observations. A heartbeat is not model output or durable completion.
+Chat uses `POST /api/v1/pass_user_prompt_to_llm`. Supported interrupted runs resume through `POST /api/v1/resume_agent`. SSE carries JSON `data:` frames and heartbeat comments. Heartbeats only keep the transport active.
+
+The streaming service attempts to persist eligible assistant output before emitting `done` on its normal exit path. It can emit an `error` frame followed by `done`, including when the response save fails. Consumers should preserve errors and interruption state when handling `done`, which marks the end of the stream. A disconnected client may receive no terminal frame.
 
 The outer run policy and fenced lease/checkpoint generation must describe the same effective execution. Resume activates a verified copied generation rather than a partially reconstructed checkpoint. Full command idempotency, protected-action reservation, cross-continuation budget enforcement, and recoverable terminal durability remain outstanding verification/remediation targets.
 
@@ -27,7 +29,7 @@ Task mode controls agent workflow budgets independently of reasoning effort. The
 
 ## History pagination and scrolling
 
-`GET /api/v1/get_conversation/{conversation_id}` supports optional `limit` (1–100) and a bounded opaque `before` cursor. Omitting both retains the legacy full-history response. Supplying only `before` uses a page size of 30. The response includes `pagination.has_more` and `pagination.before` when pagination is requested.
+`GET /api/v1/get_conversation/{conversation_id}` supports optional `limit` (1–100) and a bounded opaque `before` cursor. Omitting both retains the legacy full-history response. Supplying only `before` uses a page size of 30. Paginated responses include `conversation.pagination.has_more`, `conversation.pagination.before`, and a `conversation.first_user_message` preview for title recovery.
 
 [page_messages](../../back-end/service/conversations/conversation_history.py) anchors cursors to an exclusive absolute array position and the conversation ID. New appends do not move earlier page boundaries. Message IDs use stable conversation/array-position identity. Invalid, cross-conversation, or out-of-range cursors are rejected; a cursor does not replace ownership authorization.
 

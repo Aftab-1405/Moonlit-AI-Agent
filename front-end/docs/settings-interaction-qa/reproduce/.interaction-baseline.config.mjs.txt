@@ -1,9 +1,0 @@
-import { mergeConfig } from 'vite';
-import config from './.interaction-qa.config.mjs';
-import path from 'node:path';
-export default mergeConfig(config, { resolve: { alias: [
- {find:'@/features/overlays/settings/SettingsModal',replacement:path.resolve('.interaction-before-modal.jsx')},
- {find:'./AppearanceSection',replacement:path.resolve('.interaction-before-section.jsx')},
- {find:'./AppearanceControls',replacement:path.resolve('.interaction-before-controls.jsx')},
- {find:'./settingsRegistry',replacement:path.resolve('src/features/overlays/settings/settingsRegistry.js')},
-] }, optimizeDeps:{entries:['.interaction-qa.html']} });

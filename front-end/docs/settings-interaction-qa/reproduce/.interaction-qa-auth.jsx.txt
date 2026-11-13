@@ -1,9 +1,0 @@
-import { useSyncExternalStore } from 'react';
-let uid = 'interaction-qa';
-const listeners = new Set();
-export function AuthProvider({ children }) { return children; }
-window.changeAccount = (next) => { uid = next; listeners.forEach(fn => fn()); };
-export function useAuth() {
-  const id = useSyncExternalStore(fn => { listeners.add(fn); return () => listeners.delete(fn); }, () => uid);
-  return { user: { uid: id }, loading: false };
-}

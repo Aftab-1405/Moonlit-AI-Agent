@@ -57,9 +57,11 @@ Vitest runs at most two workers to bound concurrent MUI/jsdom work. This avoids 
 
 Run timing-sensitive component tests separately from production builds and other heavy browser work. Biome's hook-dependency analysis can warn about intentional session/source invalidation triggers; verify their lifecycle role before removing a dependency merely because the effect body does not read its value.
 
-Browser verification fixtures and scripts are under [front-end/tests/fixtures/](../front-end/tests/fixtures/) and [front-end/scripts/](../front-end/scripts/). History-scroll and Perspective fixtures exercise controlled component/engine states; they do not establish live Firebase, database, or administrator correctness. Verify keyboard access, focus return, reduced motion, long content, scrolling, narrow layouts, loading/error states, and stale async responses when touching those paths.
+Browser verification fixtures and drivers are under [front-end/tests/fixtures/](../front-end/tests/fixtures/), [front-end/scripts/](../front-end/scripts/), and [front-end/tests/browser/](../front-end/tests/browser/). History-scroll and Perspective fixtures exercise controlled component/engine states. Settings, accent, and focus drivers run from the frontend directory and save generated evidence under the Git-ignored `front-end/qa-output/`. Use `.local-artifacts/` for private review material and temporary plans. Verify keyboard access, focus return, reduced motion, long content, scrolling, narrow layouts, loading/error states, and stale async responses when touching those paths.
 
 Historical test counts, temporary screenshots, and old lint baselines are evidence of a particular run. Report fresh command results; do not copy them into a permanent claim that the repository is green.
+
+The original settings and appearance reports, captured output, and reproduction snapshots are available in Git history at `313cb6e`. The current browser checks live under `front-end/tests/`.
 
 ### Browser fixture commands
 
@@ -80,6 +82,8 @@ node scripts/verify-perspective.mjs
 ```
 
 Setting the URL explicitly avoids the scripts' different default ports. Both scripts restrict their fixture URL to loopback and use synthetic data. These commands are separate from `npm test`; running that command does not execute these browser checks.
+
+For the settings, accent, and focus checks, start Vite with `npm run dev -- --host 127.0.0.1 --port 5173 --strictPort --config tests/focus.vite.config.mjs` and use a dedicated local Chrome profile with remote debugging on port 9333. From `front-end/`, run the relevant driver, for example `node tests/browser/accent-flow.mjs after`. Drivers that reuse an open fixture document require that fixture to be initialized first.
 
 ## Dependencies
 

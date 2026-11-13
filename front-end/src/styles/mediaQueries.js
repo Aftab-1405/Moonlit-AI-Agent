@@ -6,9 +6,6 @@
  * here rather than re-declaring inline media queries in component sx props.
  */
 
-/** Respect user motion preferences — disable animations / transitions. */
-export const REDUCED_MOTION_QUERY = '@media (prefers-reduced-motion: reduce)';
-
 /** Resolved System/On/Off appearance preference; also permits an explicit Off override. */
 export const REDUCED_MOTION_SELECTOR = 'html[data-moonlit-reduced-motion="true"] &';
 

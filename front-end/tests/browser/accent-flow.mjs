@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import { connect } from './accent-cdp.mjs';
 const phase = process.argv[2] || 'after';
-const out = 'docs/accent-flow-qa';
+const out = 'qa-output/accent-flow-qa';
 await fs.mkdir(out, { recursive: true });
 const c = await connect();
 const checks = [],

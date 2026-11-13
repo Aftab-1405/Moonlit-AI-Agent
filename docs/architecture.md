@@ -40,16 +40,20 @@ Firestore remains the canonical conversation store. Qdrant retrieval supplements
 | `/login`                 | Authentication                                 | Public        |
 | `/auth`                  | Compatibility redirect to `/login`              | Public        |
 | `/chat/:conversationId?` | New or saved conversation                      | Authenticated |
+| `/settings/:section?`   | Settings pane over the chat workspace         | Authenticated |
 | `/dashboard/:section?`   | Personal overview, usage, and account surfaces | Authenticated |
 | `/admin`                 | Operational context metrics                    | Administrator |
 
 Authentication waits for session initialization before replacing the entry URL with `/chat` for signed-in users. Protected routes send signed-out visitors to `/login`. Unknown client routes return to `/`. The authentication screen preserves email/password, Google, GitHub, registration, and password-reset flows.
+
+[SettingsRouteContext](../front-end/src/contexts/SettingsRouteContext.jsx) interprets `/settings` and section URLs while routing the background to the previous chat location, or to `/chat` on direct entry. Closing the pane returns to that location. The sections are General, Appearance, Database, and AI context.
 
 [ChatWorkspacePage](../front-end/src/pages/ChatWorkspacePage.jsx) wires `useChatPageController`, supplies slots to `AppShell`, and mounts `GlobalOverlays`. Feature hooks own state coordination. `ChatColumn` composes content; `ChatLayout` owns the stable welcome/transcript/composer layout and transcript scroll container. `ArtifactLoader` hosts SQL, table/analysis, and diagram views.
 
 State belongs at the smallest useful boundary:
 
 - Context owns authentication, database state, settings, and theme.
+- Supported AI and database preferences sync through the settings API. Appearance is browser-local and scoped to the signed-in account.
 - React Query owns shared request caching; `src/api/` owns endpoint paths and HTTP/SSE handling.
 - Route/session identity scopes conversation history, drafts, SQL tabs, and selected artifacts.
 - Local components own input, popovers, and presentation state.
@@ -93,7 +97,18 @@ The outer response boundary applies safe request IDs, response-security headers,
 
 Firebase authentication proves identity; resource ownership, administrator access, model selection, and database-session authorization are separate checks. Client guards improve navigation but cannot authorize backend work. Database metadata, SQL, stored messages, tool results, and provider output remain untrusted.
 
+Authenticated database routes load connection configuration from server-side session state. See [database credential handling](features/database-querying.md#session-state-and-credentials) for the storage and cleanup lifecycle.
+
 Public failure boundaries use stable codes and sanitized messages. Dedicated audit events exclude raw credentials and SQL, and database diagnostics use safe helpers. Other application and third-party logging paths need separate review; these controls are not a guarantee that every log is sanitized. The local audit sink requires deployment-managed collection and retention. See [security findings](security/findings.md) and [operations](operations.md#audit-logging).
+
+### Authentication and session lifecycle
+
+1. The browser fetches Firebase Web configuration and a CSRF token from `GET /firebase-config-and-csrf-token`. Email/password and OAuth sign-in go through the Firebase Web SDK.
+2. After sign-in, the browser sends the Firebase ID token to `POST /set_authenticated_user_session`. Firebase Admin verifies the token and creates the HTTP-only session cookie. When reissuing a session for the same user, the backend carries over the existing application state.
+3. The browser sends the session cookie on subsequent API requests. Protected routes verify it with Firebase Admin and check revocation. For mutations, the client echoes the readable CSRF cookie in the configured header. The server compares both values, subject to the [configured exemptions](configuration.md#security--cookies--csrf).
+4. Logout expires the browser session cookie, attempts to revoke the user's Firebase refresh tokens, and attempts to clear the current server-side session record. Account erasure has separate recent-authentication and cleanup rules.
+
+See [AuthContext](../front-end/src/contexts/AuthContext.jsx), the [auth controller](../back-end/controller/auth_controller.py), [authenticated dependencies](../back-end/dependencies.py), and [account erasure](features/account-erasure.md).
 
 ### HTTP response contract
 
@@ -124,6 +139,6 @@ arrive and does not buffer streaming responses.
 
 One immutable `ResolvedRunPolicy` carries effective mode, model/provider, database context, and budgets through a run. Fenced ownership uses `(run_id, fence)`; immutable physical checkpoint generations prevent an incomplete copy from becoming the active resume source.
 
-Progress frames are transient observations. The target is to publish a successful terminal only after required durable state is readable, with distinct interrupted, partial, empty, and failed-finalization outcomes. Full command idempotency, durable protected-action reservation, and recoverable finalization remain backlog items; their presence in old design specifications was not evidence of completion.
+Progress frames report transient observations. See the [conversation stream contract](features/conversations.md#identity-and-request-flow) for the distinction between stream closure, errors, and persistence. Full command idempotency, durable protected-action reservation, and recoverable finalization remain backlog items.
 
 Cancellation is cooperative. A cancelled Python await does not prove that a blocking driver or external write stopped. Source-specific query deadlines, cancellation support, and result provenance are described in [database querying](features/database-querying.md).

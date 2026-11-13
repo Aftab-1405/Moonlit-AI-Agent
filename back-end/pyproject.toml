@@ -1,7 +1,7 @@
 [project]
 name = "moonlit-backend"
 version = "2.0.0"
-description = "MOONLIT — AI Agent for relational databases (audited, bank-grade)."
+description = "Backend for Moonlit, an AI workspace for relational databases."
 requires-python = ">=3.12"
 dependencies = [
   "boto3>=1.35.0",

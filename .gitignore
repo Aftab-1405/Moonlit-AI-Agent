@@ -74,6 +74,7 @@ out/
 # Logs
 logs/
 *.log
+*.cpuprofile
 backend.log
 npm-debug.log*
 yarn-debug.log*
@@ -145,42 +146,27 @@ commands.txt
 /back-end/scripts
 /back-end/config/
 agent/
-/back-end/tests/*
-!/back-end/tests/conftest.py
-!/back-end/tests/test_account_activity.py
-!/back-end/tests/test_account_deletion.py
-!/back-end/tests/test_background_account_activity.py
-!/back-end/tests/test_checkpoint_account_erasure.py
-!/back-end/tests/test_checkpoint_write_activity.py
-!/back-end/tests/test_user_dashboard.py
-!/back-end/tests/test_admin_authorization.py
-!/back-end/tests/test_context_summary_sync.py
-!/back-end/tests/test_dependency_management.py
-!/back-end/tests/test_skill_registry.py
-!/back-end/tests/test_startup_diagnostics.py
-!/back-end/tests/test_authentication_boundary.py
 security-audit/
 .superpowers/
 /docs/superpowers/
+/front-end/docs/superpowers/
 
-# SQL/Perspective contract and lifecycle regression coverage
-!/back-end/tests/test_query_result_contract.py
-!/back-end/tests/test_query_execution_controls.py
-!/back-end/tests/test_conversation_history.py
-!/back-end/tests/test_tool_evidence.py
+# Local QA output, historical work material, and personal tooling.
+/.local-artifacts/
+/front-end/qa-output/
+/front-end/test-results/
+/front-end/playwright-report/
+/front-end/.interaction-*
+/front-end/docs/*-qa/
+/front-end/docs/*-report.md
+/docs/*-prompt.txt
+/docs/*-evidence.json
+/docs/*-live-comparison.json
+/package.json
+/package-lock.json
 
 # Private historical module findings; never include in ordinary documentation commits.
 /docs/security/module-findings.local.md
-
-# Maintained typing and runtime-boundary regression coverage.
-!/back-end/tests/test_conversation_recency.py
-!/back-end/tests/test_database_context_sync_usage.py
-!/back-end/tests/test_database_typing_regressions.py
-!/back-end/tests/test_orchestration_typing_regressions.py
-!/back-end/tests/test_tool_result_contracts.py
-
-# Lossless result analysis regression coverage.
-!/back-end/tests/test_result_analysis_encoding.py
 
 # Generated backend coverage report.
 /back-end/coverage.json

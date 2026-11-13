@@ -20,6 +20,8 @@ conversations); erase context and usage; delete the Firebase identity. Retry
 records are retired only after successful vector deletion. External user
 databases are disconnected, not erased.
 
+After successful deletion, the frontend clears its query cache and account storage in the browser that initiated the request. The backend erases its server-side records and expires the response cookies. Other browsers retain their local storage until it is cleared there.
+
 Partial erasure leaves the account in a pending-deletion state. Ordinary account
 requests are blocked; authentication and another deletion attempt are allowed
 while the Firebase identity still exists. An active erasure excludes both.

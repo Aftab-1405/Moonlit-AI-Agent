@@ -70,7 +70,7 @@ The tables below describe settings declared in [config.py](../back-end/config.py
 | `NOISY_LOGGER_NAMES` | (long default — see `config.py`) | Comma-separated logger names silenced to `THIRD_PARTY_LOG_LEVEL`. |
 | `REQUEST_LOG_EXCLUDED_PATHS` | `/api/v1/user/session/active` | Comma-separated paths whose request/response log lines are skipped. |
 | `SENSITIVE_HEADER_NAMES` | `cookie,authorization,x-csrf-token` | Comma-separated header names redacted in request logs. |
-| `SENSITIVE_BODY_LOG_PATHS` | `/api/v1/pass_user_prompt_to_llm,/api/v1/resume_agent` | Comma-separated paths whose request bodies are redacted in logs. |
+| `SENSITIVE_BODY_LOG_PATHS` | `/api/v1/pass_user_prompt_to_llm,/api/v1/resume_agent` | Comma-separated paths marked redacted in debug request logs. On other paths the middleware records the declared body size, when available. |
 
 See [audit logging](operations.md#audit-logging) for privacy, rotation, shipping, and retention requirements.
 
@@ -84,12 +84,11 @@ See [audit logging](operations.md#audit-logging) for privacy, rotation, shipping
 | `CSRF_HEADER_NAME` | `x-csrf-token` | Backend CSRF-header name. The frontend currently hardcodes this default; changing it requires matching frontend changes. |
 | `CSRF_EXEMPT_PATHS` | `/api/v1/user/session/close` | Comma-separated paths exempt from CSRF enforcement. |
 | `SESSION_EXPIRE_SECONDS` | `86400` (12h staging) | Configured session lifetime in seconds; testing fixes this to 3600. |
-| `SESSION_ACTIVITY_GRACE_SECONDS` | `45` | Legacy grace period (kept for backward compat; superseded by `SESSION_IMPLICIT_CLOSE_GRACE_SECONDS`). |
 | `SESSION_IMPLICIT_CLOSE_GRACE_SECONDS` | `300` | Heartbeat silence tolerance before treating the tab as closed (5 min survives browser throttling). |
 | `REDIS_SOCKET_CONNECT_TIMEOUT_SECONDS` | `2` | Redis socket connect timeout in seconds (used by session-state Redis client). |
 | `REDIS_SOCKET_TIMEOUT_SECONDS` | `5` | Redis socket timeout/read deadline in seconds (used by session-state Redis client). |
 | `REDIS_MAX_CONNECTIONS` | `64` | Redis client connection-pool cap for session state (redis asyncio). |
-| `FIREBASE_SESSION_CHECK_REVOKED` | `True` | Controls ID-token revocation checks at session creation and account erasure. Protected session-cookie verification always uses `check_revoked=True`, regardless of this setting. |
+| `FIREBASE_SESSION_CHECK_REVOKED` | `True` | Controls revocation checks for the ID token at session creation and for the additional session-cookie check at account erasure. The ordinary protected-route session verifier always checks revocation. |
 | `SECURITY_HEADER_CONTENT_TYPE_OPTIONS` | `nosniff` | Value of `X-Content-Type-Options` response header. |
 | `SECURITY_HEADER_FRAME_OPTIONS` | `DENY` | Value of `X-Frame-Options` response header. |
 | `SECURITY_HEADER_XSS_PROTECTION` | `1; mode=block` | Value of `X-XSS-Protection` response header. |
@@ -106,6 +105,8 @@ See [audit logging](operations.md#audit-logging) for privacy, rotation, shipping
 See the [HTTP response contract](architecture.md#http-response-contract) for request IDs, security headers, and error envelopes.
 
 The browser API client and chat-session lifecycle hook both use the default CSRF names directly. Keep backend names aligned with [client.js](../front-end/src/api/client.js) and [useChatPageSessionLifecycle.js](../front-end/src/hooks/chat-page/useChatPageSessionLifecycle.js), including any proxy/header configuration.
+
+The legacy `SESSION_ACTIVITY_GRACE_SECONDS` variable has been retired. Set `SESSION_IMPLICIT_CLOSE_GRACE_SECONDS` to tune fallback close detection. The browser's Connection persistence preference controls how long the cached connection can be reused after the recorded close time.
 
 ### CORS
 
@@ -162,11 +163,11 @@ All 8 are required — `Config.get_firebase_credentials()` raises `ValueError: M
 
 | Variable | Default | Description |
 |---|---|---|
-| `LLM_RATELIMIT_ENABLED` | `True` (`False` in dev) | Master toggle for per-provider RPM limiter. |
+| `LLM_RATELIMIT_ENABLED` | `True` (`False` in dev/testing) | Master toggle for per-provider RPM limiter. |
 | `LLM_MAX_RPM_PER_KEY` | `25` (20 staging, 25 prod) | Max requests per minute per provider per user. |
 | `LLM_MAX_CONCURRENT` | `5` (3 staging, 5 prod) | Max concurrent in-flight LLM calls per provider per user. |
 | `LLM_QUEUE_TIMEOUT` | `60` (45 prod) | Seconds a queued request waits for a concurrency slot. |
-| `LLM_ACCOUNT_MAX_RPM` | `0` (disabled) | Global account-level RPM guard. 0 = disabled (Bedrock handles throttling). |
+| `LLM_ACCOUNT_MAX_RPM` | `0` (disabled) | Shared RPM ceiling per provider across users. Applies through the Redis limiter when set above zero. |
 
 ### Per-User Quota (Redis-backed, 3-tier)
 
@@ -186,8 +187,9 @@ All 8 are required — `Config.get_firebase_credentials()` raises `ValueError: M
 |---|---|---|
 | `RATELIMIT_ENABLED` | `True` (`False` in testing) | Master toggle for the slowapi IP-level limiter. |
 | `RATELIMIT_STORAGE_URL` | `memory://` | Storage backend URL. **Must use shared storage in staging/production when HTTP rate limiting is enabled**; lifespan rejects memory storage in that case. |
-| `RATELIMIT_DEFAULT` | `200 per day, 50 per hour` (relaxed in dev/staging) | Default per-IP rate-limit string. |
 | `TRUSTED_PROXY_CIDRS` | `127.0.0.1/32,::1/128` | Comma-separated immediate ingress proxy networks whose forwarding headers may be trusted. Keep loopback-only for direct Uvicorn; set exact proxy CIDRs for a future deployment. Invalid entries fail startup. |
+
+HTTP limits are declared on individual routes. The retired `RATELIMIT_DEFAULT` variable only affected startup logging.
 
 ### SQL Query Security
 
@@ -261,7 +263,7 @@ See [SQL policy and deployment controls](features/database-querying.md#connectio
 
 | Variable | Default | Description |
 |---|---|---|
-| `MODEL_CONTEXT_WINDOWS_PATH` | `config/model_context_windows.json` | Declared compatibility setting; this path is not bundled. Current model metadata lives in `llm_provider/model_capabilities.json`; verify consumers before relying on an override. |
+| `MODEL_CONTEXT_WINDOWS_PATH` | `config/model_context_windows.json` | Optional JSON override for the [bundled model capabilities](../back-end/llm_provider/model_capabilities.json). Relative paths resolve from `back-end/`. The [loader](../back-end/llm_provider/model_capabilities.py) merges matching model fields and caches the catalog for the process lifetime. |
 | `UNKNOWN_MODEL_CONTEXT_WINDOW_TOKENS` | `32768` | Fallback context-window size for unknown models. |
 | `RESERVED_OUTPUT_TOKENS` | `4000` | Tokens reserved for the LLM response in budget calculations. |
 | `MIN_USABLE_INPUT_BUDGET_TOKENS` | `1000` | Floor for the input-token budget after subtracting reserved output. |
@@ -304,7 +306,7 @@ See [SQL policy and deployment controls](features/database-querying.md#connectio
 | `AGENT_DEFAULT_STEPS` | `50` | Max LangGraph steps for a normal task. |
 | `AGENT_TOOL_TASK_STEPS` | `100` | Max LangGraph steps for a `tool_task` run. |
 | `AGENT_LONG_TASK_STEPS` | `200` | Max LangGraph steps for a `long_task` run. |
-| `AGENT_STEP_SEGMENT_STEPS` | `50` | Step interval at which the graph is checkpointed/compacted. |
+| `AGENT_STEP_SEGMENT_STEPS` | `50` | Maximum configured graph steps per segment, capped by the resolved run's graph budget. |
 | `AGENT_TOOL_CALLS_PER_RUN` | `20` | Tool-call ceiling carried by every resolved run policy. |
 | `AGENT_NORMAL_WALL_CLOCK_SECONDS` | `180` | Wall-clock ceiling carried by a normal run policy. |
 | `AGENT_TOOL_TASK_WALL_CLOCK_SECONDS` | `600` | Wall-clock ceiling carried by a `tool_task` run policy. |
@@ -316,13 +318,13 @@ See [SQL policy and deployment controls](features/database-querying.md#connectio
 | Variable | Default | Description |
 |---|---|---|
 | `USER_SETTINGS_DEFAULT_DB_TYPE` | `postgresql` | Default database type for user preferences. |
-| `USER_SETTINGS_DEFAULT_THEME` | `dark` | Default UI theme for new users. |
+| `USER_SETTINGS_DEFAULT_THEME` | `dark` | Default for the legacy settings API `theme` field. Current browser Appearance starts in System mode and is stored locally. |
 | `USER_SETTINGS_DEFAULT_CONFIRM_BEFORE_RUN` | `False` | Whether the UI asks for confirmation before running SQL. |
 | `USER_SETTINGS_DEFAULT_QUERY_TIMEOUT` | `30` | Default per-user query timeout (seconds). |
 | `USER_SETTINGS_DEFAULT_MAX_ROWS` | `1000` | Default per-user `max_rows`. |
 | `USER_SETTINGS_DEFAULT_NULL_DISPLAY` | `NULL` | Default string shown for SQL NULL values. |
 | `USER_SETTINGS_NULL_DISPLAY_MAX_LENGTH` | `32` | Max char length of the null-display string. |
-| `USER_SETTINGS_DEFAULT_REMEMBER_CONNECTION` | `False` | Whether the UI remembers the DB connection across sessions. |
+| `USER_SETTINGS_DEFAULT_REMEMBER_CONNECTION` | `False` | Whether the UI saves connection form metadata in the current browser for reuse. See [session state and credentials](features/database-querying.md#session-state-and-credentials). |
 | `USER_SETTINGS_DEFAULT_CONNECTION_PERSISTENCE` | `0` | Default minutes to persist the DB connection after tab close (0 = no persistence). |
 | `USER_SETTINGS_DEFAULT_ENABLE_REASONING` | `True` | Default for the "enable reasoning" UI toggle. |
 | `USER_SETTINGS_DEFAULT_REASONING_EFFORT` | `medium` | Default reasoning effort (`low` / `medium` / `high`). |
@@ -343,6 +345,7 @@ These settings are read by their owning modules rather than the central configur
 | `HF_TOKEN` | Unset | Optional Hugging Face credentials for tokenizer access; never include them in diagnostics. |
 | `TRANSFORMERS_NO_ADVISORY_WARNINGS` | `1` if unset | [token_budget.py](../back-end/llm_provider/token_budget.py) initializes this SDK setting. |
 | `HF_HUB_DISABLE_TELEMETRY` | `1` if unset | Tokenizer SDK telemetry default. |
+| `HF_HUB_DISABLE_PROGRESS_BARS` | `1` if unset | Tokenizer SDK progress-output default. |
 | `HF_HUB_DISABLE_PROGRESS_BARS` | `1` if unset | Tokenizer SDK progress-output default. |
 
 Model-native tokenizers are part of the dependency set. Kimi custom tokenizer code is pinned to an immutable revision; do not replace it with a moving branch without reviewing the code and supply-chain impact. Exact dependency versions belong in the lockfiles, not copied package lists here.
