@@ -57,7 +57,7 @@ Vitest runs at most two workers to bound concurrent MUI/jsdom work. This avoids 
 
 Run timing-sensitive component tests separately from production builds and other heavy browser work. Biome's hook-dependency analysis can warn about intentional session/source invalidation triggers; verify their lifecycle role before removing a dependency merely because the effect body does not read its value.
 
-Browser verification fixtures and scripts are under [front-end/tests/fixtures/](../front-end/tests/fixtures/) and [front-end/scripts/](../front-end/scripts/). History-scroll and Perspective fixtures exercise controlled component/engine states; they do not establish live Firebase, database, or administrator correctness. Verify keyboard access, focus return, reduced motion, long content, scrolling, narrow layouts, loading/error states, and stale async responses when touching those paths.
+Browser verification fixtures and drivers are under [front-end/tests/fixtures/](../front-end/tests/fixtures/), [front-end/scripts/](../front-end/scripts/), and [front-end/tests/browser/](../front-end/tests/browser/). History-scroll and Perspective fixtures exercise controlled component/engine states. Settings, accent, and focus checks use separate browser drivers. Consult the drivers for their setup and output paths. Verify keyboard access, focus return, reduced motion, long content, scrolling, narrow layouts, loading/error states, and stale async responses when touching those paths.
 
 Historical test counts, temporary screenshots, and old lint baselines are evidence of a particular run. Report fresh command results; do not copy them into a permanent claim that the repository is green.
 

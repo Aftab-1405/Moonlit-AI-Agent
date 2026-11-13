@@ -74,6 +74,8 @@ This is a launch example, not a capacity recommendation or complete platform dep
 
 The browser calls relative authentication and `/api` paths. Production routing must forward those paths from the frontend origin to the backend, before the SPA fallback. Changing backend CORS alone does not redirect these requests. Preserve cookie/CSRF handling and verify the authentication handshake and SSE through that routing; the current client has no configurable API base URL.
 
+The checked-in Vercel rewrites target the existing Render API. Update their destination when deploying to another backend. The SPA fallback serves browser routes such as `/settings/appearance`, so direct links and refreshes need to reach the frontend.
+
 Before deploying:
 
 - Configure shared Redis for sessions, quotas, checkpoints, limits, and account-activity barriers. Use persistent, non-evicting storage for erasure barrier keys.
@@ -109,6 +111,7 @@ Deployments must collect active and rotated files into a restricted, tamper-resi
 | Qdrant unavailable | Check `VAMP_QDRANT_URL`, API key, container logs, and `/readyz`; startup can continue with a memory warning. |
 | Redis unavailable | Check the configured URLs, `redis-cli ping`, persistence/modules, connectivity, and logs. Development fallback is not multi-worker production behavior. |
 | Port occupied | Inspect the listener, for example `ss -ltnp`; change the configured API port and matching Vite proxy together if needed. |
+| `npm ci` reports an unsupported Node engine | Use a version listed in the [quickstart](../README.md#local-quickstart). The frontend test dependency requirements are stricter than Vite's. |
 | Model selection/inference fails | Check `BEDROCK_MODELS`, region, SDK credentials/profile, model access, and IAM. A prewarmed client does not prove inference access. |
 | Database host validation rejects a local or private host | Current connection entry points require globally routable addresses. Changing `BLOCKED_DB_HOSTS` does not remove the independent address checks. |
 | Stream arrives in batches or disconnects | Verify proxy buffering/compression, timeouts, SSE framing, and cancellation through the actual deployment. |

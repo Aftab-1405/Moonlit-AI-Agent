@@ -17,6 +17,8 @@ This guide describes Moonlit's appearance and reusable interaction rules. Values
 
 Use semantic roles and shared helpers from application components. Raw colors belong in primitive tokens or intentionally independent third-party syntax palettes. Appearance supports System, Light, and Dark. System follows the OS color scheme. Users can customize colors, contrast, and typography, and can edit light and dark profiles separately. The signed-in account's appearance persists in the current browser. See [Settings context](../front-end/src/contexts/SettingsContext.jsx) and [Theme context](../front-end/src/contexts/ThemeContext.jsx).
 
+The browser also keeps a visual snapshot to paint the initial page while authentication loads. It contains appearance values only. Once authentication resolves, the active settings supply the theme.
+
 ## Surfaces, fonts, and geometry
 
 The shell, paper, input, composer, and context surfaces follow semantic colors for the active appearance profile. Surfaces use flat fills and hairline boundaries. Read semantic mappings when adding components so they respond to changes in mode or profile.

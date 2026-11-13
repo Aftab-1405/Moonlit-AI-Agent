@@ -12,6 +12,8 @@ The workflow findings below retain their historical IDs, severity, and verificat
 
 Historical reports and progress journals were consolidated after extracting their useful findings and regression requirements. Old line numbers, temporary test counts, and audit-completion checklists are not current evidence. Record a fresh disposition here after verification.
 
+The October 25, 2026 backend review reports and evidence record a specific historical checkout. Read their findings and test counts in that scope. A current disposition requires checking the referenced behavior on the current revision.
+
 ## Previously recorded application fixes
 
 The earlier remediation review recorded the following application-source remediations. Corresponding controls remain present in source; a new test pass is not claimed here.
